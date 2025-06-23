@@ -1,0 +1,6 @@
+manifestType,name,type,notnull,pk,fieldSuffix
+Cohort,cohort_id,INTEGER,0,1,integer primary key autoincrement unique
+ConceptSet,concept_set_id,INTEGER,0,1,integer primary key autoincrement unique
+File,file_id,INTEGER,0,1,integer primary key autoincrement unique
+Tag,tag_id,INTEGER,0,1,integer primary key autoincrement unique
+Dependency,dependency_id,INTEGER,0,1,integer primary key autoincrement unique

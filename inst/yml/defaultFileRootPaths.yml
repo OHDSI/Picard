@@ -1,0 +1,11 @@
+---
+default:
+  ConceptSet:
+    json: conceptSets/json
+  Cohort:
+    json: cohorts/json
+    sql: cohorts/sql
+    capr: cohorts/capr
+    r: cohorts/R
+  Renv:
+    lock: extras

@@ -1,0 +1,6 @@
+designMethods:
+  - Atlas
+  - Subset
+  - UnionTemplate
+  - SqlTemplate
+  - Capr

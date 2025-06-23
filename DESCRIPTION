@@ -1,0 +1,28 @@
+Package: Barista
+Type: Package
+Title: Barista
+Version: 0.0.1
+Authors@R: c(
+  person("Ajit", "Londhe", email = "londhe@ohdsi.org", role = c("aut", "cre")),
+  person("Martin", "Lavallee", email = "martin.lavallee@boehringer-ingelheim.com", role = c("aut")),
+  person("Katy", "Sadowski", email = "katy.sadowski@boehringer-ingelheim.com", role = c("aut")),
+  person("Carmen", "Ng", email = "carmen.ng@boehringer-ingelheim.com", role = c("ctb")),
+  person("Casey", "Tilton", email = "casey.tilton.ext@boehringer-ingelheim.com", role = c("ctb")))
+Description: Brewing A Resource Integration Standard Transforming Analyses
+Encoding: UTF-8
+VignetteBuilder: knitr
+Depends:
+  DatabaseConnector (>= 5.0.0),
+  R (>= 4.2.3),
+  R6
+Remotes:
+  github::OHDSI/CohortGenerator@cohort_templates
+Imports:
+  checkmate,
+  dplyr,
+  readr,
+  pkgload,
+  snakecase
+RoxygenNote: 7.3.2
+Roxygen: list(markdown = TRUE)
+URL: https://ohdsi.github.io/Barista/, https://github.com/OHDSI/Barista

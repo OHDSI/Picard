@@ -1,0 +1,7 @@
+name,type,notnull,pk,fieldSuffix
+provenance_id,INTEGER,0,0,integer null
+design_method,TEXT,1,0,text not null
+relative_sql_path,TEXT,0,0,text null
+relative_json_path,TEXT,0,0,text null
+relative_r_path,TEXT,0,0,text null
+relative_capr_path,TEXT,0,0,text null

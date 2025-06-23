@@ -1,0 +1,3 @@
+name,type,notnull,pk,fieldSuffix
+analysis_id,INTEGER,0,1,integer primary key autoincrement unique
+step_ordinal,INTEGER,0,0,integer null

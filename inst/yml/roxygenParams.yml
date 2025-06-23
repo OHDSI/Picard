@@ -1,0 +1,44 @@
+---
+  provenanceId: "The id from the original design method system (e.g. Atlas id)"
+  designMethod: "The way in which the item was designed. \n\n
+                 Choices for **Concept Set**: `Atlas`. \n\n
+                 Choices for **Cohort**: `Atlas`, `Subset`, `UnionTemplate`, `SqlTemplate`, `Capr`."
+  name: "The name of the item to add to the manifest."
+  relativeJsonPath: "The relative path to the JSON file defining the manifest item.\n\n
+                     **Note: only 1 relative path can be defined for a manifest item.**"
+  relativeSqlPath: "The relative path to the SQL file defining the manifest item.\n\n
+                    **Note: only 1 relative path can be defined for a manifest item.**"
+  relativeCaprPath: "The relative path to the Capr R file defining the manifest item.\n\n
+                    **Note: only 1 relative path can be defined for a manifest item.**"
+  relativeRPath: "The relative path to the R file defining the manifest item.\n\n
+                  **Note: only 1 relative path can be defined for a manifest item.**"
+  manifestItemId: "The id of the manifest item within the manifest."
+  manifestType: "The type of the manifest. Choices are `ConceptSet`, `Cohort`, `Analysis`."
+  value: "A value to use for the tag."
+  db: "A reference to the Sqlite database object."
+  dbPath: "A path to a new Sqlite database file or load an existing Sqlite database file."
+  conceptSetManifest: "Active binding for the ConceptSetManifest object within a ManifestDatabase."
+  cohortManifest: "Active binding for the CohortManifest object within a ManifestDatabase."
+  analysisManifest: "Active binding for the AnalysisManifest object within a ManifestDatabase."
+  migrateManifest: "Active binding for the MigrateManifest object within a ManifestDatabase."
+  fileManifest: "Active binding for the FileManifest object within a ManifestDatabase."
+  tagManifest: "Active binding for the TagManifest object within a ManifestDatabase."
+  dependencyManifest: "Active binding for the DepenencyManifest object within a ManifestDatabase."
+  resetType: "How to reset the manifest: `soft` means to deprecate everything, `hard` means to completely drop and reset the manifest.\n\n
+              Default is set to `hard`."
+  manifestDb: "A ManifestDb object, which represents a Sqlite database."
+  includeDeprecated: "Whether to include deprecated items in the manifest.\n\n
+                     Default is set to `FALSE`."
+  fileManifestItem: "A FileManifestItem object, which represents a file manifest item within a ManifestDatabase."
+  conceptSetManifestItem: "A ConceptSetManifestItem object, which represents a concept set manifest item within a ManifestDatabase."
+  cohortManifestItem: "A CohortManifestItem object, which represents a cohort manifest item within a ManifestDatabase."
+  conceptSetId: "The id of the concept set item within the manifest."
+  cohortId: "The id of the cohort item within the manifest."
+  tagName: "The name of the tag to apply to the given manifest item."
+  tagValue: "The value of the tag to apply to the given manifest item."
+  tagNameValues: "A list of lists object that provides tag name and tag value, that will be used for filtering the manifest."
+  dependentItemId: "A manifest item id that the given item will depend on."
+  dependentItemIds: " An array of manifest item ids that this item will depend on."
+  fileExtension: "The extension of the file to use."
+  relativePath: "The relative path to the file manifest item."
+  stepOrdinal: "The step order number to execute the `AnalysisManifestItem`."
