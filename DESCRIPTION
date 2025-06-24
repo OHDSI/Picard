@@ -12,12 +12,12 @@ Description: Brewing A Resource Integration Standard Transforming Analyses
 Encoding: UTF-8
 VignetteBuilder: knitr
 Depends:
-  DatabaseConnector (>= 5.0.0),
   R (>= 4.2.3),
   R6
 Remotes:
   github::OHDSI/CohortGenerator@cohort_templates
 Imports:
+  DatabaseConnector (>= 5.0.0),
   checkmate,
   dplyr,
   readr,
