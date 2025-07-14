@@ -4,12 +4,14 @@
 \alias{addCohortManifestItem}
 \title{Add Cohort Manifest Item}
 \usage{
-addCohortManifestItem(manifestDb, cohortManifestItem)
+addCohortManifestItem(manifestDb, cohortManifestItem, dependentCohortIds = c())
 }
 \arguments{
 \item{manifestDb}{A ManifestDb object, which represents a Sqlite database.}
 
 \item{cohortManifestItem}{A CohortManifestItem object, which represents a cohort manifest item within a ManifestDatabase.}
+
+\item{dependentCohortIds}{A list of cohort ids that the current cohort will depend on.}
 }
 \description{
 Add Cohort Manifest Item to the \code{CohortManifest} within the Manifest Database.

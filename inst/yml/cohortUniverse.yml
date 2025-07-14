@@ -1,9 +1,0 @@
-
-# this is the universe of all CAFE cohorts
-
-allCohorts:
-  - cohortName: IPF
-    checksum: 
-    cohortDefinitionSetPath:
-    standardAnalyses:
-    tailoredAnalyses:

@@ -13,9 +13,13 @@ Encoding: UTF-8
 VignetteBuilder: knitr
 Depends:
   R (>= 4.2.3),
-  R6
+  R6,
+  DBI
 Remotes:
   github::OHDSI/CohortGenerator@cohort_templates
+Suggests:
+    testthat (>= 3.0.0),
+    knitr
 Imports:
   DatabaseConnector (>= 5.0.0),
   checkmate,
@@ -26,3 +30,4 @@ Imports:
 RoxygenNote: 7.3.2
 Roxygen: list(markdown = TRUE)
 URL: https://ohdsi.github.io/Barista/, https://github.com/OHDSI/Barista
+License: Apache License 2.0

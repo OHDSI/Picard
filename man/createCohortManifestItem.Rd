@@ -11,8 +11,7 @@ createCohortManifestItem(
   relativeSqlPath = NA,
   relativeJsonPath = NA,
   relativeCaprPath = NA,
-  relativeRPath = NA,
-  dependentItemIds = NULL
+  relativeRPath = NA
 )
 }
 \arguments{
@@ -41,8 +40,6 @@ Choices for \strong{Cohort}: \code{Atlas}, \code{Subset}, \code{UnionTemplate}, 
 \item{relativeRPath}{The relative path to the R file defining the manifest item.
 
 \strong{Note: only 1 relative path can be defined for a manifest item.}}
-
-\item{dependentItemIds}{An array of manifest item ids that this item will depend on.}
 }
 \description{
 Create Cohort Manifest Item to be used in the \code{CohortManifest} within the Manifest Database.

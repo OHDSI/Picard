@@ -211,10 +211,12 @@ DependencyManifestItem <- R6::R6Class(
     #' @param manifestItemId `r .getRoxygenParam(itemName = "manifestItemId")`
     #' @param manifestType `r .getRoxygenParam(itemName = "manifestType")`
     #' @param dependentItemId `r .getRoxygenParam(itemName = "dependentItemId")`
+    #' @param tagItems `r .getRoxygenParam(itemName = "tagItems")`
     initialize = function(name,
                           manifestItemId,
                           manifestType,
-                          dependentItemId) {
+                          dependentItemId,
+                          tagItems = NULL) {
       super$initialize(manifestItemType = "Dependency")
 
       self$loadItem(
@@ -223,6 +225,10 @@ DependencyManifestItem <- R6::R6Class(
         manifestType = manifestType,
         dependentItemId = dependentItemId
       )
+
+      for (tagItem in tagItems) {
+        self$tagManifest$addTagManifestItem(definition = tagItem)
+      }
     }
   )
 )
@@ -293,10 +299,12 @@ AnalysisManifestItem <- R6::R6Class(
     #' @param name `r .getRoxygenParam(itemName = "name")`
     #' @param relativeRPath `r .getRoxygenParam(itemName = "relativeRPath")`
     #' @param stepOrdinal `r .getRoxygenParam(itemName = "stepOrdinal")`
+    #' @param description `r .getRoxygenParam(itemName = "description")`
     initialize = function(
       name,
       relativeRPath,
-      stepOrdinal
+      stepOrdinal,
+      description
     ) {
       # check R file path exists ----
 
@@ -305,7 +313,8 @@ AnalysisManifestItem <- R6::R6Class(
       self$loadItem(
         name = name,
         relativeRPath = relativeRPath,
-        stepOrdinal = stepOrdinal
+        stepOrdinal = stepOrdinal,
+        description = description
       )
     }
   )

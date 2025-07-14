@@ -24,7 +24,6 @@ The AnalysisManifestItem is used to populate the \code{AnalysisManifest} object 
 <details open><summary>Inherited methods</summary>
 <ul>
 <li><span class="pkg-link" data-pkg="Barista" data-topic="ManifestItem" data-id="loadItem"><a href='../../Barista/html/ManifestItem.html#method-ManifestItem-loadItem'><code>Barista::ManifestItem$loadItem()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="Barista" data-topic="ManifestItem" data-id="setDependentItemIds"><a href='../../Barista/html/ManifestItem.html#method-ManifestItem-setDependentItemIds'><code>Barista::ManifestItem$setDependentItemIds()</code></a></span></li>
 <li><span class="pkg-link" data-pkg="Barista" data-topic="ManifestItem" data-id="setFieldValue"><a href='../../Barista/html/ManifestItem.html#method-ManifestItem-setFieldValue'><code>Barista::ManifestItem$setFieldValue()</code></a></span></li>
 <li><span class="pkg-link" data-pkg="Barista" data-topic="ManifestItem" data-id="setIdValue"><a href='../../Barista/html/ManifestItem.html#method-ManifestItem-setIdValue'><code>Barista::ManifestItem$setIdValue()</code></a></span></li>
 </ul>
@@ -36,7 +35,7 @@ The AnalysisManifestItem is used to populate the \code{AnalysisManifest} object 
 \subsection{Method \code{new()}}{
 Create a new \code{AnalysisManifestItem} object.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{AnalysisManifestItem$new(name, relativeRPath, stepOrdinal)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{AnalysisManifestItem$new(name, relativeRPath, stepOrdinal, description)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -49,6 +48,8 @@ Create a new \code{AnalysisManifestItem} object.
 \strong{Note: only 1 relative path can be defined for a manifest item.}}
 
 \item{\code{stepOrdinal}}{The step order number to execute the \code{AnalysisManifestItem}.}
+
+\item{\code{description}}{A text description of the manifest item.}
 }
 \if{html}{\out{</div>}}
 }

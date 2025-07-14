@@ -13,4 +13,5 @@ addFileManifestItem(manifestDb, fileManifestItem)
 }
 \description{
 Add File Manifest Item to the \code{FileManifest} within the Manifest Database.
+Note: this is not a typical pattern for most users.
 }

@@ -24,7 +24,6 @@ The DependencyManifestItem is used to populate the \code{DependencyManifest} obj
 <details open><summary>Inherited methods</summary>
 <ul>
 <li><span class="pkg-link" data-pkg="Barista" data-topic="ManifestItem" data-id="loadItem"><a href='../../Barista/html/ManifestItem.html#method-ManifestItem-loadItem'><code>Barista::ManifestItem$loadItem()</code></a></span></li>
-<li><span class="pkg-link" data-pkg="Barista" data-topic="ManifestItem" data-id="setDependentItemIds"><a href='../../Barista/html/ManifestItem.html#method-ManifestItem-setDependentItemIds'><code>Barista::ManifestItem$setDependentItemIds()</code></a></span></li>
 <li><span class="pkg-link" data-pkg="Barista" data-topic="ManifestItem" data-id="setFieldValue"><a href='../../Barista/html/ManifestItem.html#method-ManifestItem-setFieldValue'><code>Barista::ManifestItem$setFieldValue()</code></a></span></li>
 <li><span class="pkg-link" data-pkg="Barista" data-topic="ManifestItem" data-id="setIdValue"><a href='../../Barista/html/ManifestItem.html#method-ManifestItem-setIdValue'><code>Barista::ManifestItem$setIdValue()</code></a></span></li>
 </ul>
@@ -36,7 +35,13 @@ The DependencyManifestItem is used to populate the \code{DependencyManifest} obj
 \subsection{Method \code{new()}}{
 Create a new \code{DependencyManifestItem} object.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{DependencyManifestItem$new(name, manifestItemId, manifestType, dependentItemId)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{DependencyManifestItem$new(
+  name,
+  manifestItemId,
+  manifestType,
+  dependentItemId,
+  tagItems = NULL
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -49,6 +54,8 @@ Create a new \code{DependencyManifestItem} object.
 \item{\code{manifestType}}{The type of the manifest. Choices are \code{ConceptSet}, \code{Cohort}, \code{Analysis}.}
 
 \item{\code{dependentItemId}}{A manifest item id that the given item will depend on.}
+
+\item{\code{tagItems}}{A list of \code{TagManifestItem} objects.}
 }
 \if{html}{\out{</div>}}
 }

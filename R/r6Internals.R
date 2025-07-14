@@ -32,10 +32,10 @@ ManifestItem <- R6::R6Class(
     },
     setFieldValue = function(fieldName, fieldValue) {
       private$.thisItem[[fieldName]] <- fieldValue
-    },
-    setDependentItemIds = function(dependentItemIds) {
-      private$.dependentItemIds <- dependentItemIds
     }
+    # setDependentItemIds = function(dependentItemIds) {
+    #   private$.dependentItemIds <- dependentItemIds
+    # }
   ),
   private = list(
     .thisItem = NULL,
@@ -183,6 +183,9 @@ Manifest <- R6::R6Class(
       # check that manifestItem is of the manifestItemClass ----
       checkmate::assertClass(x = manifestItem, classes = c(manifestItemClass))
 
+      # check that manifestItem does not represent a duplicate ---
+      checkmate::assert(private$.checkNotDuplicate(manifestItem = manifestItem))
+
       sql <- glue::glue(
         "select max({manifestItem$idFieldNameSnakeCase}) as id
                          from {self$manifestType};"
@@ -266,6 +269,13 @@ Manifest <- R6::R6Class(
   ## private ----
   private = list(
     .idFieldName = NULL,
+
+    .checkNotDuplicate = function(manifestItem) {
+      result <- self$manifestAsTibble |>
+        dplyr::filter(name == manifestItem$thisItem$name)
+
+      return (nrow(result) == 0)
+    },
 
     .createEmptyManifest = function() {
       fieldsList <- private$.getFieldsList()
@@ -366,6 +376,9 @@ FileManifest <- R6::R6Class(
       super$deprecateManifestItemId(manifestItemId = fileId)
     },
     addFileManifestItem = function(definition) {
+
+      fs::dir_create(path = definition$relativePath)
+
       super$addManifestItem(
         manifestItem = definition
       )
@@ -740,8 +753,8 @@ CohortManifest <- R6::R6Class(
       subsetDefinition$identifierExpression <- glue::glue("{newCohortId}")
 
       checkmate::assertClass(subsetDefinition, classes = "CohortSubsetDefinition")
-      checkmate::assert(setdiff(x = definition$dependentItemIds, y = subsetDefinition$definitionId),
-                        msg = "Subset definition cannot have dependencies that are not in the manifest.")
+      checkmate::assert(setdiff(x = definition$dependentItemIds, y = subsetDefinition$definitionId))
+                        #msg = "Subset definition cannot have dependencies that are not in the manifest.")
 
       cohortDefinitionSet <- self$asCohortDefinitionSet |>
         CohortGenerator::addCohortSubsetDefinition(
@@ -832,8 +845,7 @@ CohortManifest <- R6::R6Class(
         )
       } else if (definition$designMethod == "Capr") {
         source(file = initialRPath)
-        checkmate::assert(exists("caprObject"),
-                          msg = "caprObject must be defined in the R file.")
+        checkmate::assert(exists("caprObject"))
         checkmate::assertClass(caprObject, classes = "Capr")
         json <- Capr::compile(object = caprObject)
         sql <- CirceR::buildCohortQuery(
@@ -884,6 +896,28 @@ AnalysisManifest <- R6::R6Class(
       )
     },
     deprecateAnalysisId = function(manifestItemId) {
+      super$deprecateManifestItemId(manifestItemId = manifestItemId)
+    }
+  )
+)
+
+# MigrateManifest -----
+
+MigrateManifest <- R6::R6Class(
+  classname = "MigrateManifest",
+  inherit = Manifest,
+
+  ## public ----
+  public = list(
+    initialize = function(manifestDb) {
+      super$initialize(manifestDb = manifestDb, manifestType = "Migrate")
+    },
+    addMigrateManifestItem = function(definition) {
+      thisManifestId <- super$addManifestItem(
+        manifestItem = definition
+      )
+    },
+    deprecateMigrateId = function(manifestItemId) {
       super$deprecateManifestItemId(manifestItemId = manifestItemId)
     }
   )

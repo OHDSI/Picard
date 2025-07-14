@@ -17,6 +17,33 @@ createManifestDb <- function(dbPath) {
   return (manifestDb)
 }
 
+#' Reset Manifest Database
+#'
+#' @description
+#' Resets a manifest database by dropping it and recreating a new one at the given path.
+#'
+#' @param dbPath `r .getRoxygenParam(itemName = "dbPath")`
+#'
+#' @export
+resetManifestDb <- function(dbPath) {
+  cli::cli_warn(glue::glue("This will reset the entire Barista Sqlite database."))
+
+  checkmate::assertFileExists(x = dbPath)
+
+  thisDb <- DBI::dbConnect(
+    RSQLite::SQLite(),
+    fs::path(dbPath)
+  )
+
+  DBI::dbDisconnect(conn = thisDb)
+
+  fs::file_delete(path = dbPath)
+
+  newDb <- createManifestDb(dbPath = dbPath)
+
+  return (newDb)
+}
+
 # view manifests -----
 
 
@@ -64,12 +91,10 @@ viewConceptSetManifest <- function(manifestDb,
 #' @export
 viewCohortManifest <- function(manifestDb,
                                includeDeprecated = FALSE) {
-                               #withTags = FALSE) {
   manifestType <- "Cohort"
   manifest <- .viewManifest(manifestDb = manifestDb,
                             manifestType = manifestType,
                             includeDeprecated = includeDeprecated)
-                            #withTags = withTags)
   return (manifest)
 }
 
@@ -195,7 +220,6 @@ createConceptSetManifestItem <- function(name,
 #' @param relativeJsonPath `r .getRoxygenParam(itemName = "relativeJsonPath")`
 #' @param relativeCaprPath `r .getRoxygenParam(itemName = "relativeCaprPath")`
 #' @param relativeRPath `r .getRoxygenParam(itemName = "relativeRPath")`
-#' @param dependentItemIds `r .getRoxygenParam(itemName = "dependentItemIds")`
 #'
 #' @export
 createCohortManifestItem <- function(name,
@@ -204,8 +228,7 @@ createCohortManifestItem <- function(name,
                                      relativeSqlPath = NA,
                                      relativeJsonPath = NA,
                                      relativeCaprPath = NA,
-                                     relativeRPath = NA,
-                                     dependentItemIds = NULL) {
+                                     relativeRPath = NA) {
 
   item <- Barista::CohortManifestItem$new(
     name = name,
@@ -216,7 +239,80 @@ createCohortManifestItem <- function(name,
     relativeCaprPath = relativeCaprPath,
     relativeRPath = relativeRPath
   )
-  item$setDependentItemIds(dependentItemIds = dependentItemIds)
+
+  return (item)
+}
+
+#' Create File Manifest Item
+#'
+#' @description
+#' Create File Manifest Item to be used in the `FileManifest` within the Manifest Database.
+#' Note: this is not a typical pattern for most users.
+#'
+#' @param name `r .getRoxygenParam(itemName = "name")`
+#' @param manifestType `r .getRoxygenParam(itemName = "manifestType")`
+#' @param fileExtension `r .getRoxygenParam(itemName = "fileExtension")`
+#' @param relativePath `r .getRoxygenParam(itemName = "relativePath")`
+#'
+#' @export
+createFileManifestItem <- function(name,
+                                   manifestType,
+                                   fileExtension,
+                                   relativePath) {
+
+  item <- Barista::FileManifestItem$new(name = name,
+                                        manifestType = manifestType,
+                                        fileExtension = fileExtension,
+                                        relativePath = relativePath)
+
+  return (item)
+}
+
+#' Create Analysis Manifest Item
+#'
+#' @description
+#' Create Analysis Manifest Item to be used in the `AnalysisManifest` within the Manifest Database.
+#'
+#' @param name `r .getRoxygenParam(itemName = "name")`
+#' @param description `r .getRoxygenParam(itemName = "description")`
+#' @param relativeRPath `r .getRoxygenParam(itemName = "relativeRPath")`
+#' @param stepOrdinal `r .getRoxygenParam(itemName = "stepOrdinal")`
+#'
+#' @export
+createAnalysisManifestItem <- function(name,
+                                       description = NA,
+                                       relativeRPath = NA,
+                                       stepOrdinal = 0) {
+
+  item <- Barista::AnalysisManifestItem$new(name = name,
+                                            description = description,
+                                            relativeRPath = relativeRPath,
+                                            stepOrdinal = stepOrdinal)
+
+  return (item)
+}
+
+#' Create Migrate Manifest Item
+#'
+#' @description
+#' Create Migrate Manifest Item to be used in the `MigrateManifest` within the Manifest Database.
+#'
+#' @param name `r .getRoxygenParam(itemName = "name")`
+#' @param description `r .getRoxygenParam(itemName = "description")`
+#' @param relativeRPath `r .getRoxygenParam(itemName = "relativeRPath")`
+#' @param stepOrdinal `r .getRoxygenParam(itemName = "stepOrdinal")`
+#'
+#' @export
+createMigrateManifestItem <- function(name,
+                                      description = NA,
+                                      relativeRPath = NA,
+                                      stepOrdinal = 0) {
+
+  item <- Barista::MigrateManifestItem$new(name = name,
+                                           description = description,
+                                           relativeRPath = relativeRPath,
+                                           stepOrdinal = stepOrdinal)
+
   return (item)
 }
 
@@ -226,6 +322,7 @@ createCohortManifestItem <- function(name,
 #'
 #' @description
 #' Add File Manifest Item to the `FileManifest` within the Manifest Database.
+#' Note: this is not a typical pattern for most users.
 #'
 #' @param manifestDb `r .getRoxygenParam(itemName = "manifestDb")`
 #' @param fileManifestItem `r .getRoxygenParam(itemName = "fileManifestItem")`
@@ -233,8 +330,9 @@ createCohortManifestItem <- function(name,
 #' @export
 addFileManifestItem <- function(manifestDb,
                                 fileManifestItem) {
+
   checkmate::assertClass(x = manifestDb, classes = c("ManifestDatabase"))
-  manifestDb$fileManifest$addFileManifest(definition = fileManifestItem)
+  manifestDb$fileManifest$addFileManifestItem(definition = fileManifestItem)
 
   invisible(manifestDb)
 }
@@ -263,12 +361,25 @@ addConceptSetManifestItem <- function(manifestDb,
 #'
 #' @param manifestDb `r .getRoxygenParam(itemName = "manifestDb")`
 #' @param cohortManifestItem `r .getRoxygenParam(itemName = "cohortManifestItem")`
+#' @param dependentCohortIds `r .getRoxygenParam(itemName = "dependentCohortIds")`
 #'
 #' @export
 addCohortManifestItem <- function(manifestDb,
-                                  cohortManifestItem) {
+                                  cohortManifestItem,
+                                  dependentCohortIds = c()) {
   checkmate::assertClass(x = manifestDb, classes = c("ManifestDatabase"))
   manifestDb$cohortManifest$addCohortManifestItem(definition = cohortManifestItem)
+
+  # add dependencies ----
+
+  for (dependentId in dependentCohortIds) {
+    name <- glue::glue("Cohort {cohortManifestItem$idValue} depends on cohort {dependentId}")
+    dependencyItem <- Barista::DependencyManifestItem$new(name = name,
+                                                          manifestItemId = cohortManifestItem$idValue,
+                                                          manifestType = "Cohort",
+                                                          dependentItemId = dependentId)
+    manifestDb$dependencyManifest$addDependencyManifestItem(definition = dependencyItem)
+  }
 
   invisible(manifestDb)
 }
@@ -308,6 +419,61 @@ deprecateCohortManifestItem <- function(manifestDb,
                                         cohortId) {
   checkmate::assertClass(x = manifestDb, classes = c("ManifestDatabase"))
   manifestDb$cohortManifest$deprecateCohortId(cohortId = cohortId)
+
+  invisible(manifestDb)
+}
+
+#' Deprecate File Manifest Item
+#'
+#' @description
+#' Deprecate File Manifest Item within the `FileManifest` in the Manifest Database.
+#' This function marks the specified cohort as deprecated,
+#' meaning it will no longer be used in the cohort definition set or in analyses.
+#'
+#' @param manifestDb `r .getRoxygenParam(itemName = "manifestDb")`
+#' @param fileId `r .getRoxygenParam(itemName = "fileId")`
+#'
+#' @export
+deprecateFileManifestItem <- function(manifestDb,
+                                      fileId) {
+  checkmate::assertClass(x = manifestDb, classes = c("ManifestDatabase"))
+  manifestDb$fileManifest$deprecateFileId(fileId = fileId)
+
+  invisible(manifestDb)
+}
+
+#' Deprecate Analysis Manifest Item
+#'
+#' @description
+#' Deprecate Analysis Manifest Item within the `AnalysisManifest` in the Manifest Database.
+#' This function marks the specified analysis as deprecated,
+#' meaning it will no longer be used in the analysis manifest.
+#'
+#' @param manifestDb `r .getRoxygenParam(itemName = "manifestDb")`
+#' @param analysisId `r .getRoxygenParam(itemName = "analysisId")`
+deprecateAnalysisManifestItem <- function(manifestDb,
+                                          analysisId) {
+  checkmate::assertClass(x = manifestDb, classes = c("ManifestDatabase"))
+  manifestDb$analysisManifest$deprecateAnalysisId(analysisId = analysisId)
+
+  invisible(manifestDb)
+}
+
+#' Deprecate Migrate Manifest Item
+#'
+#' @description
+#' Deprecate Migrate Manifest Item within the `MigrateManifest` in the Manifest Database.
+#' This function marks the specified migrate item as deprecated,
+#' meaning it will no longer be used in the migrate manifest.
+#'
+#' @param manifestDb `r .getRoxygenParam(itemName = "manifestDb")`
+#' @param migrateId `r .getRoxygenParam(itemName = "migrateId")`
+#'
+#' @export
+deprecateMigrateManifestItem <- function(manifestDb,
+                                         migrateId) {
+  checkmate::assertClass(x = manifestDb, classes = c("ManifestDatabase"))
+  manifestDb$migrateManifest$deprecateMigrateId(migrateId = migrateId)
 
   invisible(manifestDb)
 }
@@ -370,27 +536,6 @@ applyTagToCohortManifestItem <- function(manifestDb,
   cli::cli_inform("Tag applied to the manifest item.")
 }
 
-# view manifest based on tag ----
-
-#' View Concept Set Manifest by Tags
-#'
-#' @description
-#' View Concept Set Manifest by Tags
-#'
-#' @param manifestDb `r .getRoxygenParam(itemName = "manifestDb")`
-#' @param includeDeprecated `r .getRoxygenParam(itemName = "includeDeprecated")`
-#' @param tagNameValues `r .getRoxygenParam(itemName = "tagNameValues")`
-#'
-#' @export
-viewConceptManifestByTags <- function(manifestDb,
-                                      includeDeprecated = FALSE,
-                                      tagNameValues) {
-
-  filteredManifest <- manifestDb$filteredManifestAsTibble(tagNameValues = tagNameValues,
-                                                          includeDeprecated = includeDeprecated)
-  return (filteredManifest)
-}
-
 # reset manifests ------
 
 #' Reset File Manifest
@@ -437,7 +582,8 @@ resetConceptSetManifest <- function(manifestDb,
 #' @export
 resetCohortManifest <- function(manifestDb,
                                 resetType = "hard") {
-  manifestDb$resetManifest(manifestType = "Cohort",
+  manifestType <- "Cohort"
+  manifestDb$resetManifest(manifestType = manifestType,
                            resetType = resetType)
 }
 
@@ -451,7 +597,8 @@ resetCohortManifest <- function(manifestDb,
 #' @export
 resetAnalysisManifest <- function(manifestDb,
                                   resetType = "hard") {
-  manifestDb$resetManifest(manifestType = "Analysis",
+  manifestType <- "Analysis"
+  manifestDb$resetManifest(manifestType = manifestType,
                            resetType = resetType)
 }
 
@@ -466,6 +613,17 @@ resetAnalysisManifest <- function(manifestDb,
 #' @export
 resetTagManifest <- function(manifestDb,
                              resetType = "hard") {
-  manifestDb$resetManifest(manifestType = "Tag",
+  manifestType <- "Tag"
+  manifestDb$resetManifest(manifestType = manifestType,
                            resetType = resetType)
 }
+
+# generation functions ------
+
+
+
+brewAll <- function(manifestDb) {
+
+}
+
+
