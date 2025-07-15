@@ -69,14 +69,17 @@ viewFileManifest <- function(manifestDb) {
 #'
 #' @param manifestDb `r .getRoxygenParam(itemName = "manifestDb")`
 #' @param includeDeprecated `r .getRoxygenParam(itemName = "includeDeprecated")`
+#' @param tagNameValues `r .getRoxygenParam(itemName = "tagNameValues")`
 #'
 #' @export
 viewConceptSetManifest <- function(manifestDb,
-                                   includeDeprecated = FALSE) {
+                                   includeDeprecated = FALSE,
+                                   tagNameValues = list()) {
   manifestType <- "ConceptSet"
   manifest <- .viewManifest(manifestDb = manifestDb,
                             manifestType = manifestType,
-                            includeDeprecated = includeDeprecated)
+                            includeDeprecated = includeDeprecated,
+                            tagNameValues = tagNameValues)
   return (manifest)
 }
 
@@ -87,14 +90,17 @@ viewConceptSetManifest <- function(manifestDb,
 #'
 #' @param manifestDb `r .getRoxygenParam(itemName = "manifestDb")`
 #' @param includeDeprecated `r .getRoxygenParam(itemName = "includeDeprecated")`
+#' @param tagNameValues `r .getRoxygenParam(itemName = "tagNameValues")`
 #'
 #' @export
 viewCohortManifest <- function(manifestDb,
-                               includeDeprecated = FALSE) {
+                               includeDeprecated = FALSE,
+                               tagNameValues = list()) {
   manifestType <- "Cohort"
   manifest <- .viewManifest(manifestDb = manifestDb,
                             manifestType = manifestType,
-                            includeDeprecated = includeDeprecated)
+                            includeDeprecated = includeDeprecated,
+                            tagNameValues = tagNameValues)
   return (manifest)
 }
 
@@ -117,14 +123,17 @@ viewCohortDefinitionSet <- function(manifestDb) {
 #'
 #' @param manifestDb `r .getRoxygenParam(itemName = "manifestDb")`
 #' @param includeDeprecated `r .getRoxygenParam(itemName = "includeDeprecated")`
+#' @param tagNameValues `r .getRoxygenParam(itemName = "tagNameValues")`
 #'
 #' @export
 viewDependencyManifest <- function(manifestDb,
-                                   includeDeprecated = FALSE) {
+                                   includeDeprecated = FALSE,
+                                   tagNameValues = list()) {
   manifestType <- "Dependency"
   manifest <- .viewManifest(manifestDb = manifestDb,
                             manifestType = manifestType,
-                            includeDeprecated = includeDeprecated)
+                            includeDeprecated = includeDeprecated,
+                            tagNameValues = tagNameValues)
   return (manifest)
 }
 
@@ -135,14 +144,17 @@ viewDependencyManifest <- function(manifestDb,
 #'
 #' @param manifestDb `r .getRoxygenParam(itemName = "manifestDb")`
 #' @param includeDeprecated `r .getRoxygenParam(itemName = "includeDeprecated")`
+#' @param tagNameValues `r .getRoxygenParam(itemName = "tagNameValues")`
 #'
 #' @export
 viewAnalysisManifest <- function(manifestDb,
-                                 includeDeprecated = FALSE) {
+                                 includeDeprecated = FALSE,
+                                 tagNameValues = list()) {
   manifestType <- "Analysis"
   manifest <- .viewManifest(manifestDb = manifestDb,
                             manifestType = manifestType,
-                            includeDeprecated = includeDeprecated)
+                            includeDeprecated = includeDeprecated,
+                            tagNameValues = tagNameValues)
   return (manifest)
 }
 
@@ -153,14 +165,17 @@ viewAnalysisManifest <- function(manifestDb,
 #'
 #' @param manifestDb `r .getRoxygenParam(itemName = "manifestDb")`
 #' @param includeDeprecated `r .getRoxygenParam(itemName = "includeDeprecated")`
+#' @param tagNameValues `r .getRoxygenParam(itemName = "tagNameValues")`
 #'
 #' @export
 viewMigrateManifest <- function(manifestDb,
-                                includeDeprecated = FALSE) {
+                                includeDeprecated = FALSE,
+                                tagNameValues = list()) {
   manifestType <- "Migrate"
   manifest <- .viewManifest(manifestDb = manifestDb,
                             manifestType = manifestType,
-                            includeDeprecated = includeDeprecated)
+                            includeDeprecated = includeDeprecated,
+                            tagNameValues = tagNameValues)
   return (manifest)
 }
 

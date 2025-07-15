@@ -4,7 +4,11 @@
 \alias{viewMigrateManifest}
 \title{View Migrate Manifest}
 \usage{
-viewMigrateManifest(manifestDb, includeDeprecated = FALSE)
+viewMigrateManifest(
+  manifestDb,
+  includeDeprecated = FALSE,
+  tagNameValues = list()
+)
 }
 \arguments{
 \item{manifestDb}{A ManifestDb object, which represents a Sqlite database.}
@@ -12,6 +16,8 @@ viewMigrateManifest(manifestDb, includeDeprecated = FALSE)
 \item{includeDeprecated}{Whether to include deprecated items in the manifest.
 
 Default is set to \code{FALSE}.}
+
+\item{tagNameValues}{A list of lists object that provides tag name and tag value, that will be used for filtering the manifest.}
 }
 \description{
 View Migrate Manifest from a given Manifest Database object, as a tibble.

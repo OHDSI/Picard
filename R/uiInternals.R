@@ -2,7 +2,8 @@
 
 .viewManifest <- function(manifestDb,
                           manifestType,
-                          includeDeprecated = FALSE) {
+                          includeDeprecated = FALSE,
+                          tagNameValues = list()) {
 
   checkmate::assertClass(x = manifestDb, classes = c("ManifestDatabase"))
 
@@ -13,6 +14,28 @@
     thisManifest <- thisManifest |>
       dplyr::filter(!deprecate)
   }
+
+  if (length(tagNameValues) > 0) {
+
+    thisIdFieldName <- manifestDb[[manifestBinding]]$idFieldName
+    tagNameValuesDf <- dplyr::bind_rows(tagNameValues)
+
+    checkmate::assert("name" %in% colnames(tagNameValuesDf))
+    checkmate::assert("value" %in% colnames(tagNameValuesDf))
+
+    eligibleTags <- manifestDb$tagManifest$manifestAsTibble |>
+      dplyr::filter(manifestType == !!manifestType) |>
+      dplyr::rename_with(~c(thisIdFieldName), c(manifestItemId)) |>
+      dplyr::inner_join(
+        y = tagNameValuesDf,
+        by = c("name", "value")
+      )
+
+    thisManifest <- thisManifest |>
+      dplyr::inner_join(y = eligibleTags,
+                        by = c(thisIdFieldName))
+  }
+
   return (thisManifest)
 }
 
