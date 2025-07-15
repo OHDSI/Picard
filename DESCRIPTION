@@ -2,31 +2,41 @@ Package: Barista
 Type: Package
 Title: Barista
 Version: 0.0.1
+Date: 2025-07-15
 Authors@R: c(
   person("Ajit", "Londhe", email = "londhe@ohdsi.org", role = c("aut", "cre")),
   person("Martin", "Lavallee", email = "martin.lavallee@boehringer-ingelheim.com", role = c("aut")),
   person("Katy", "Sadowski", email = "katy.sadowski@boehringer-ingelheim.com", role = c("aut")),
   person("Carmen", "Ng", email = "carmen.ng@boehringer-ingelheim.com", role = c("ctb")),
   person("Casey", "Tilton", email = "casey.tilton.ext@boehringer-ingelheim.com", role = c("ctb")))
-Description: Brewing A Resource Integration Standard Transforming Analyses
+Maintainer: Ajit Londhe <londhe@ohdsi.org>
+Description: Barista, aka "Brewing A Resource Integration Standard Transforming Analyses," 
+             is a new R package in development for organizing a Ulysses and CohortGenerator backed pipeline for study repos.
 Encoding: UTF-8
 VignetteBuilder: knitr
+BugReports: https://github.com/OHDSI/Barista/issues
 Depends:
-  R (>= 4.2.3),
-  R6,
-  DBI
+  R (>= 4.2)
 Remotes:
   github::OHDSI/CohortGenerator@cohort_templates
 Suggests:
-    testthat (>= 3.0.0),
-    knitr
-Imports:
+  R6,
+  testthat (>= 3.0.0),
+  withr,
+  knitr,
   DatabaseConnector (>= 5.0.0),
+  readr
+Imports:
+  DBI,
   checkmate,
   dplyr,
-  readr,
-  pkgload,
-  snakecase
+  snakecase,
+  RSQLite,
+  cli,
+  fs,
+  glue,
+  stringr,
+  yaml
 RoxygenNote: 7.3.2
 Roxygen: list(markdown = TRUE)
 URL: https://ohdsi.github.io/Barista/, https://github.com/OHDSI/Barista

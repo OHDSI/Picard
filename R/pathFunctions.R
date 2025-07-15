@@ -2,7 +2,7 @@
 #'
 #' @export
 getDefaultFileRootPaths <- function() {
-  filePath <- system.file(package = pkgload::pkg_name(), fs::path("yml", "defaultFileRootPaths", ext = "yml"))
+  filePath <- system.file(package = "Barista", fs::path("yml", "defaultFileRootPaths", ext = "yml"))
   result <- yaml::read_yaml(file = filePath)
   finalResult <- result$default
   return (finalResult)
@@ -13,7 +13,7 @@ getDefaultFileRootPaths <- function() {
 #'
 #' @export
 getConceptSetDesignMethods <- function() {
-  filePath <- system.file(package = pkgload::pkg_name(), fs::path("yml", "conceptSetDesignMethods", ext = "yml"))
+  filePath <- system.file(package = "Barista", fs::path("yml", "conceptSetDesignMethods", ext = "yml"))
   result <- yaml::read_yaml(file = filePath)
   finalResult <- unlist(result$designMethods)
   return (finalResult)
@@ -23,7 +23,7 @@ getConceptSetDesignMethods <- function() {
 #'
 #' @export
 getCohortDesignMethods <- function() {
-  filePath <- system.file(package = pkgload::pkg_name(), fs::path("yml", "cohortDesignMethods", ext = "yml"))
+  filePath <- system.file(package = "Barista", fs::path("yml", "cohortDesignMethods", ext = "yml"))
   result <- yaml::read_yaml(file = filePath)
   finalResult <- unlist(result$designMethods)
   return (finalResult)

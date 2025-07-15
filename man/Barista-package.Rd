@@ -6,13 +6,14 @@
 \alias{Barista-package}
 \title{Barista: Barista}
 \description{
-Brewing A Resource Integration Standard Transforming Analyses
+Barista, aka "Brewing A Resource Integration Standard Transforming Analyses," is a new R package in development for organizing a Ulysses and CohortGenerator backed pipeline for study repos.
 }
 \seealso{
 Useful links:
 \itemize{
   \item \url{https://ohdsi.github.io/Barista/}
   \item \url{https://github.com/OHDSI/Barista}
+  \item Report bugs at \url{https://github.com/OHDSI/Barista/issues}
 }
 
 }

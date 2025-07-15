@@ -1,25 +1,5 @@
 library(testthat)
 
-feverCohort <- Barista::createCohortManifestItem(
-  name = "Fever",
-  provenanceId = 3,
-  designMethod = "Atlas",
-  relativeJsonPath = testthat::test_path("fever.json")
-)
-
-Barista::addCohortManifestItem(manifestDb = manifestDb,
-                               cohortManifestItem = feverCohort)
-
-coughCohort <- Barista::createCohortManifestItem(
-  name = "Cough 2",
-  provenanceId = 6,
-  designMethod = "Atlas",
-  relativeJsonPath = testthat::test_path("cough.json")
-)
-
-Barista::addCohortManifestItem(manifestDb = manifestDb,
-                               cohortManifestItem = coughCohort,
-                               dependentCohortIds = c(1))
 
 test_that(desc = "Fever cohort added", code = {
 

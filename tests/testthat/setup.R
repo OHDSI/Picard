@@ -1,32 +1,39 @@
 library(testthat)
 library(Barista)
+library(withr)
 
 # create cohort manifest db ----
 
 dbPath <- testthat::test_path("test.sqlite")
 
-if (fs::file_exists(dbPath)) {
-  manifestDb <- resetManifestDb(dbPath = dbPath)
-} else {
-  manifestDb <- createManifestDb(dbPath = dbPath)
-}
+manifestDb <- createManifestDb(dbPath = dbPath)
 
-## for testing, alter file manifest ----
+feverCohort <- createCohortManifestItem(
+  name = "Fever",
+  provenanceId = 3,
+  designMethod = "Atlas",
+  relativeJsonPath = testthat::test_path("resources/fever.json")
+)
 
-deprecateFileManifestItem(manifestDb = manifestDb, fileId = 2)
-deprecateFileManifestItem(manifestDb = manifestDb, fileId = 3)
+addCohortManifestItem(manifestDb = manifestDb,
+                      cohortManifestItem = feverCohort)
 
+coughCohort <- createCohortManifestItem(
+  name = "Cough",
+  provenanceId = 6,
+  designMethod = "Atlas",
+  relativeJsonPath = testthat::test_path("resources/cough.json")
+)
 
-sqlFileItem <- createFileManifestItem(name = "Overridden Cohort sql files",
-                                     manifestType = "Cohort",
-                                     fileExtension = "sql",
-                                     relativePath = fs::path("tests", "testthat", "cohorts", "sql"))
+addCohortManifestItem(manifestDb = manifestDb,
+                      cohortManifestItem = coughCohort,
+                      dependentCohortIds = c(1))
 
-jsonFileItem <- createFileManifestItem(name = "Overridden Cohort json files",
-                                       manifestType = "Cohort",
-                                       fileExtension = "json",
-                                       relativePath = fs::path("tests", "testthat", "cohorts", "json"))
-
-addFileManifestItem(manifestDb = manifestDb, fileManifestItem = jsonFileItem)
-addFileManifestItem(manifestDb = manifestDb, fileManifestItem = sqlFileItem)
-
+defer(
+  {
+    DBI::dbDisconnect(conn = manifestDb$db)
+    unlink(dbPath)
+    unlink("cohorts", recursive = TRUE)
+  },
+  testthat::teardown_env()
+)

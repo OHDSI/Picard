@@ -401,6 +401,7 @@ FileManifest <- R6::R6Class(
         fileRootPaths <- getDefaultFileRootPaths()
         for (manifestType in names(fileRootPaths)) {
           for (fileExtension in names(fileRootPaths[[manifestType]])) {
+
             fileManifestItem <- FileManifestItem$new(
               name = glue::glue("Default {manifestType} {fileExtension} files"),
               manifestType = manifestType,
@@ -811,7 +812,7 @@ CohortManifest <- R6::R6Class(
         ext = "R"
       )
 
-      fullSqlPath <- fs::path(here::here(), relativeSqlPath)
+      fullSqlPath <- relativeSqlPath
     },
     .writeSqlFile = function(definition,
                              templateSql = NA) {
@@ -831,7 +832,7 @@ CohortManifest <- R6::R6Class(
         ext = "sql"
       )
 
-      fullSqlPath <- fs::path(here::here(), relativeSqlPath)
+      fullSqlPath <- relativeSqlPath
 
       # obtain sql from the CIRCE json file ---
 

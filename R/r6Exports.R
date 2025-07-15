@@ -277,7 +277,7 @@ FileManifestItem <- R6::R6Class(
 
 # AnalysisManifestItem -----
 
-#' R6 Class Representing a Tag Manifest Item
+#' R6 Class Representing an Analysis Manifest Item
 #'
 #' @description
 #' `r lifecycle::badge("experimental")`
@@ -296,6 +296,51 @@ AnalysisManifestItem <- R6::R6Class(
 
     #' @description
     #' Create a new `AnalysisManifestItem` object.
+    #' @param name `r .getRoxygenParam(itemName = "name")`
+    #' @param relativeRPath `r .getRoxygenParam(itemName = "relativeRPath")`
+    #' @param stepOrdinal `r .getRoxygenParam(itemName = "stepOrdinal")`
+    #' @param description `r .getRoxygenParam(itemName = "description")`
+    initialize = function(
+      name,
+      relativeRPath,
+      stepOrdinal,
+      description
+    ) {
+      # check R file path exists ----
+
+      checkmate::assertFileExists(x = relativeRPath, access = "r", extension = c("R"))
+
+      self$loadItem(
+        name = name,
+        relativeRPath = relativeRPath,
+        stepOrdinal = stepOrdinal,
+        description = description
+      )
+    }
+  )
+)
+
+# MigrateManifestItem -----
+
+#' R6 Class Representing a Migrate Manifest Item
+#'
+#' @description
+#' `r lifecycle::badge("experimental")`
+#' `r .getManifestItemDescription(itemName = "MigrateManifestItem")`
+#'
+#' @details
+#' `r .getManifestItemDetails(itemName = "MigrateManifestItem")`
+#'
+#' @export
+MigrateManifestItem <- R6::R6Class(
+  classname = "MigrateManifestItem",
+  inherit = ManifestItem,
+
+  ## public ----
+  public = list(
+
+    #' @description
+    #' Create a new `MigrateManifestItem` object.
     #' @param name `r .getRoxygenParam(itemName = "name")`
     #' @param relativeRPath `r .getRoxygenParam(itemName = "relativeRPath")`
     #' @param stepOrdinal `r .getRoxygenParam(itemName = "stepOrdinal")`
