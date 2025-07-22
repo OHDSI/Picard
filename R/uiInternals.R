@@ -39,16 +39,6 @@
   return (thisManifest)
 }
 
-# .addManifestItem <- function(manifestDb,
-#                              manifestType,
-#                              definition) {
-#   checkmate::assertClass(x = manifestDb, classes = c("ManifestDb"))
-#
-#   manifestBinding <- paste0(snakecase::to_lower_camel_case(manifestType), "Manifest")
-#
-#   manifestDb[[manifestBinding]]$addManifestItem(definition = definition)
-# }
-
 .resetManifest <- function(manifestDb,
                            manifestType,
                            resetType) {
@@ -84,7 +74,6 @@
   thisManifest <- manifestDb[[manifestBinding]]
 
   checkmate::assert(thisManifest$checkItemExists(manifestItemId = manifestItemId))
-                    #msg = glue::glue("Manifest item with ID {manifestItemId} does not exist in the {manifestType} manifest."))
 
   # check if tag exists ---
   # TODO

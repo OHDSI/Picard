@@ -233,7 +233,6 @@ createConceptSetManifestItem <- function(name,
 #' @param designMethod `r .getRoxygenParam(itemName = "designMethod")`
 #' @param relativeSqlPath `r .getRoxygenParam(itemName = "relativeSqlPath")`
 #' @param relativeJsonPath `r .getRoxygenParam(itemName = "relativeJsonPath")`
-#' @param relativeCaprPath `r .getRoxygenParam(itemName = "relativeCaprPath")`
 #' @param relativeRPath `r .getRoxygenParam(itemName = "relativeRPath")`
 #'
 #' @export
@@ -242,7 +241,6 @@ createCohortManifestItem <- function(name,
                                      designMethod,
                                      relativeSqlPath = NA,
                                      relativeJsonPath = NA,
-                                     relativeCaprPath = NA,
                                      relativeRPath = NA) {
 
   item <- Barista::CohortManifestItem$new(
@@ -251,7 +249,6 @@ createCohortManifestItem <- function(name,
     designMethod = designMethod,
     relativeSqlPath = relativeSqlPath,
     relativeJsonPath = relativeJsonPath,
-    relativeCaprPath = relativeCaprPath,
     relativeRPath = relativeRPath
   )
 
@@ -632,13 +629,4 @@ resetTagManifest <- function(manifestDb,
   manifestDb$resetManifest(manifestType = manifestType,
                            resetType = resetType)
 }
-
-# generation functions ------
-
-
-
-brewAll <- function(manifestDb) {
-
-}
-
 

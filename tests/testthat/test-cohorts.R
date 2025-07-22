@@ -10,7 +10,6 @@ test_that(desc = "Fever cohort added", code = {
 })
 
 
-
 test_that(desc = "Cough cohort added", code = {
 
   result <- viewCohortManifest(manifestDb = manifestDb) |>
@@ -28,3 +27,9 @@ test_that(desc = "Cough cohort has dependency on Fever cohort", code = {
   expect(ok = nrow(result) == 1, failure_message = "Dependency not found.")
 })
 
+# test_that(desc = "Cohort definition set is valid", code = {
+#
+#   result <- viewCohortDefinitionSet(manifestDb = manifestDb)
+#
+#   expect(ok = , failure_message = "Dependency not found.")
+# })

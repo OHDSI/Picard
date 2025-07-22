@@ -1,0 +1,71 @@
+---
+title: "Organizing study repos using Barista"
+author: "Ajit Londhe"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    number_sections: yes
+    toc: yes
+  html_document:
+    number_sections: yes
+    toc: yes
+vignette: >
+  %\VignetteIndexEntry{Organizing study repos using Barista}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options:
+  chunk_output_type: console
+---
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+options(width = 200)
+library(Barista)
+```
+# Introduction
+
+The purpose of `Barista` is to provide a streamlined, standard way to create and manage all of the study assets needed throughout the life of an observational study conducted using RWD transformed into the OMOP Common Data Model and OHDSI tools.
+
+This vignette describes how you can use `Barista` in your study repo.
+
+# Installation instructions
+
+The `Barista` package is currently maintained in a [Github repository](https://github.com/OHDSI/Barista), and has dependencies on other packages in Github. All of these packages can be downloaded and installed from within R using the `drat` package:
+
+```{r eval=FALSE}
+install.packages("remotes")
+remotes::install_github("ohdsi/Barista")
+```
+
+Once installed, you can type `library(Barista)` to load the package.
+
+# Getting Started
+
+First, a new Barista Sqlite database is needed. We can create a new one or load an existing one using this command:
+
+```{r eval=TRUE}
+manifestDb <- Barista::createManifestDb(
+  dbPath = "my_barista_db.sqlite"
+)
+```
+
+Once created / loaded, this `manifestDb` object will be the basis for the study repo: from building all cohorts needed, to running analysis tasks, to running migration tasks, to disseminating results.
+
+# Setting File Paths
+
+The `manifestDb` object has a 
+
+# Acknowledgments
+
+Considerable work has been dedicated to provide the `Barista` package.
+
+```{r eval=TRUE}
+citation("Barista")
+```
+
+Further, `Barista` makes extensive use of the `Ulysses` package and `CohortGenerator` package.
+
+```{r eval=TRUE}
+citation("Ulysses")
+citation("CohortGenerator")
+```
+

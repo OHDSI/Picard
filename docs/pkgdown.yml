@@ -1,0 +1,9 @@
+pandoc: '3.4'
+pkgdown: 2.1.1
+pkgdown_sha: ~
+articles:
+  UsingBarista: UsingBarista.html
+last_built: 2025-07-16T00:34Z
+urls:
+  reference: https://ohdsi.github.io/Barista/reference
+  article: https://ohdsi.github.io/Barista/articles

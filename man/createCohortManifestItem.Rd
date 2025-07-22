@@ -10,7 +10,6 @@ createCohortManifestItem(
   designMethod,
   relativeSqlPath = NA,
   relativeJsonPath = NA,
-  relativeCaprPath = NA,
   relativeRPath = NA
 )
 }
@@ -30,10 +29,6 @@ Choices for \strong{Cohort}: \code{Atlas}, \code{Subset}, \code{UnionTemplate}, 
 \strong{Note: only 1 relative path can be defined for a manifest item.}}
 
 \item{relativeJsonPath}{The relative path to the JSON file defining the manifest item.
-
-\strong{Note: only 1 relative path can be defined for a manifest item.}}
-
-\item{relativeCaprPath}{The relative path to the Capr R file defining the manifest item.
 
 \strong{Note: only 1 relative path can be defined for a manifest item.}}
 

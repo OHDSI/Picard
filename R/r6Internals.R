@@ -755,7 +755,6 @@ CohortManifest <- R6::R6Class(
 
       checkmate::assertClass(subsetDefinition, classes = "CohortSubsetDefinition")
       checkmate::assert(setdiff(x = definition$dependentItemIds, y = subsetDefinition$definitionId))
-                        #msg = "Subset definition cannot have dependencies that are not in the manifest.")
 
       cohortDefinitionSet <- self$asCohortDefinitionSet |>
         CohortGenerator::addCohortSubsetDefinition(

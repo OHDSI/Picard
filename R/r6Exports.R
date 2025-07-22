@@ -82,7 +82,6 @@ CohortManifestItem <- R6::R6Class(
     #' @param name `r .getRoxygenParam(itemName = "name")`
     #' @param relativeSqlPath `r .getRoxygenParam(itemName = "relativeSqlPath")`
     #' @param relativeJsonPath `r .getRoxygenParam(itemName = "relativeJsonPath")`
-    #' @param relativeCaprPath `r .getRoxygenParam(itemName = "relativeCaprPath")`
     #' @param relativeRPath `r .getRoxygenParam(itemName = "relativeRPath")`
     initialize = function(
       provenanceId = -1,
@@ -90,7 +89,6 @@ CohortManifestItem <- R6::R6Class(
       name,
       relativeSqlPath = NA,
       relativeJsonPath = NA,
-      relativeCaprPath = NA,
       relativeRPath = NA
     ) {
       # check path exists ----
@@ -106,12 +104,6 @@ CohortManifestItem <- R6::R6Class(
           x = relativeJsonPath,
           access = "r",
           extension = c("json")
-        )
-      } else if (!is.na(relativeCaprPath)) {
-        checkmate::assertFileExists(
-          x = relativeCaprPath,
-          access = "r",
-          extension = c("R")
         )
       } else if (!is.na(relativeRPath)) {
         checkmate::assertFileExists(
@@ -138,7 +130,6 @@ CohortManifestItem <- R6::R6Class(
         name = name,
         relativeSqlPath = !!relativeSqlPath,
         relativeJsonPath = !!relativeJsonPath,
-        relativeCaprPath = !!relativeCaprPath,
         relativeRPath = !!relativeRPath
       )
     }

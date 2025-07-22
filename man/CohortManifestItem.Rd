@@ -41,7 +41,6 @@ Create a new \code{CohortManifestItem} object.
   name,
   relativeSqlPath = NA,
   relativeJsonPath = NA,
-  relativeCaprPath = NA,
   relativeRPath = NA
 )}\if{html}{\out{</div>}}
 }
@@ -64,10 +63,6 @@ Choices for \strong{Cohort}: \code{Atlas}, \code{Subset}, \code{UnionTemplate}, 
 \strong{Note: only 1 relative path can be defined for a manifest item.}}
 
 \item{\code{relativeJsonPath}}{The relative path to the JSON file defining the manifest item.
-
-\strong{Note: only 1 relative path can be defined for a manifest item.}}
-
-\item{\code{relativeCaprPath}}{The relative path to the Capr R file defining the manifest item.
 
 \strong{Note: only 1 relative path can be defined for a manifest item.}}
 

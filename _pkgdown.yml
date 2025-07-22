@@ -1,0 +1,14 @@
+url: https://ohdsi.github.io/Barista/
+
+template:
+  bootstrap: 5
+  bslib:
+    bootswatch: cosmo
+
+home:
+  links:
+  - text: Ask a question
+    href: http://forums.ohdsi.org
+
+navbar:
+  bg: dark

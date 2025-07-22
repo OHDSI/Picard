@@ -25,9 +25,13 @@ coughCohort <- createCohortManifestItem(
   relativeJsonPath = testthat::test_path("resources/cough.json")
 )
 
+feverCohortId <- viewCohortManifest(manifestDb = manifestDb) |>
+  dplyr::filter(name == "Fever") |>
+  dplyr::pull(cohortId)
+
 addCohortManifestItem(manifestDb = manifestDb,
                       cohortManifestItem = coughCohort,
-                      dependentCohortIds = c(1))
+                      dependentCohortIds = c(feverCohortId))
 
 defer(
   {
