@@ -2,9 +2,9 @@
 % Please edit documentation in R/convenience.R
 \name{bulkLoadCohorts}
 \alias{bulkLoadCohorts}
-\title{Bulk Load Cohorts}
+\title{Bulk Load Cohorts (WIP)}
 \usage{
-bulkLoadCohorts(manifestDb, cohortsToLoad)
+bulkLoadCohorts(manifestDb, cohortsToLoad, baseUrl = NULL)
 }
 \arguments{
 \item{manifestDb}{A ManifestDb object, which represents a Sqlite database.}

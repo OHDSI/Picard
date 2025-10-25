@@ -1,3 +1,4 @@
-designMethods:
+---
+default:
   - Atlas
   - Capr

@@ -11,44 +11,60 @@ ManifestItem <- R6::R6Class(
         "Id"
       )
     },
-    loadItem = function(name, deprecate = 0, ...) {
-      checkmate::assertCharacter(x = name, min.len = 1, any.missing = FALSE)
+    loadItem = function(name,
+                        label = name,
+                        deprecate = 0, ...) {
 
-      thisItem <- tibble::tibble(
+      checkmate::assertCharacter(x = name, min.len = 1, any.missing = FALSE)
+      checkmate::assertCharacter(x = label, min.len = 1, any.missing = FALSE)
+
+      thisItemAsTibble <- tibble::tibble(
         name = name,
+        label = label,
         deprecate = 0,
         ...
       )
-      thisItem[[private$.idFieldName]] <- NA
-      thisItem <- thisItem |>
+      thisItemAsTibble[[private$.idFieldName]] <- NA
+      thisItemAsTibble <- thisItemAsTibble |>
         dplyr::select(private$.idFieldName, dplyr::everything())
 
-      private$.thisItem <- thisItem
+      private$.thisItemAsTibble <- thisItemAsTibble
     },
     setIdValue = function(idValue) {
       checkmate::assertNumeric(x = idValue, len = 1, any.missing = FALSE)
       private$.idValue <- idValue
-      private$.thisItem[[private$.idFieldName]] <- private$.idValue
+      private$.thisItemAsTibble[[private$.idFieldName]] <- private$.idValue
     },
     setFieldValue = function(fieldName, fieldValue) {
-      private$.thisItem[[fieldName]] <- fieldValue
+      private$.thisItemAsTibble[[fieldName]] <- fieldValue
+    },
+
+    # we can set dependencies for a manifest item, but here
+    # it's an explicit path only
+    setDependentItemIds = function(dependentItemIds) {
+      private$.dependentItemIds <- dependentItemIds
+    },
+    setDependentItemTagIds = function(tagIds) {
+      # for (tagId in tagIds) {
+      #   self$manifestDb$TagManifest$checkItemExists(manifestItemId = tagId)
+      # }
+
+      private$.dependentItemTagIds <- tagIds
     }
-    # setDependentItemIds = function(dependentItemIds) {
-    #   private$.dependentItemIds <- dependentItemIds
-    # }
   ),
   private = list(
-    .thisItem = NULL,
+    .thisItemAsTibble = NULL,
     .idFieldName = NULL,
     .idValue = NA,
-    .dependentItemIds = NULL
+    .dependentItemIds = NULL,
+    .dependentItemTagIds = NULL
   ),
   active = list(
     dependentItemIds = function() {
       return(private$.dependentItemIds)
     },
-    thisItem = function() {
-      return(private$.thisItem)
+    thisItemAsTibble = function() {
+      return(private$.thisItemAsTibble)
     },
     idValue = function() {
       return(private$.idValue)
@@ -61,7 +77,7 @@ ManifestItem <- R6::R6Class(
     },
     thisItemSnakeCase = function() {
       return(
-        private$.thisItem |>
+        private$.thisItemAsTibble |>
           dplyr::rename_with(.fn = snakecase::to_snake_case)
       )
     }
@@ -75,18 +91,12 @@ Manifest <- R6::R6Class(
 
   ## public ----
   public = list(
-    manifest = NULL,
+    manifestTable = NULL,
     manifestDb = NULL,
     manifestType = NULL,
 
     initialize = function(manifestDb, manifestType) {
-      choices <- c("ConceptSet",
-                   "Cohort",
-                   "Analysis",
-                   "Migrate",
-                   "File",
-                   "Tag",
-                   "Dependency")
+      choices <- getManifestTypes()
 
       checkmate::assertChoice(x = manifestType, choices = choices)
 
@@ -97,7 +107,7 @@ Manifest <- R6::R6Class(
         "Id"
       )
 
-      # checkmate::assertClass(x = manifestDb, classes = c("ManifestDatabase"))
+      checkmate::assertClass(x = manifestDb, classes = c("ManifestDatabase"))
       self$manifestDb <- manifestDb
 
       tableExists <- RSQLite::dbExistsTable(
@@ -112,7 +122,29 @@ Manifest <- R6::R6Class(
         checkmate::assert(private$.validateTableSchema())
       }
 
-      self$manifest <- dplyr::tbl(src = self$manifestDb$db, self$manifestType)
+      self$manifestTable <- dplyr::tbl(src = self$manifestDb$db, self$manifestType)
+    },
+
+    changeItemLabel = function(id,
+                               newLabel) {
+
+      thisItemAsTibble <- self$manifestTable |>
+        dplyr::filter(!!rlang::sym(self$idFieldNameSnakeCase) == id) |>
+        dplyr::collect() |>
+        dplyr::mutate(label = newLabel)
+
+      rowsToUpdate <- dbplyr::copy_inline(
+        con = self$manifestDb$db,
+        df = thisItemAsTibble
+      )
+
+      dplyr::rows_update(
+        x = self$manifestTable,
+        y = rowsToUpdate,
+        by = self$idFieldNameSnakeCase,
+        unmatched = "ignore",
+        in_place = TRUE
+      )
     },
 
     getItemIdByName = function(name) {
@@ -130,35 +162,44 @@ Manifest <- R6::R6Class(
     },
     deprecateManifestItemId = function(manifestItemId) {
 
-      allAffectedItemIds <- self$manifestDb$dependencyManifest$getAllAffectedItemIds(
+      affectedItemIds <- self$manifestDb$dependencyManifest$getAllAffectedItemIds(
         manifestType = self$manifestType,
         manifestItemId = manifestItemId
       )
 
-      theseItems <- self$manifest |>
-        dplyr::filter(!!rlang::sym(self$idFieldNameSnakeCase) %in% allAffectedItemIds) |>
+      affectedItems <- self$manifestTable |>
+        dplyr::filter(!!rlang::sym(self$idFieldNameSnakeCase) %in% affectedItemIds) |>
         dplyr::collect() |>
         dplyr::mutate(deprecate = 1)
 
-      if (nrow(theseItems) > 0) {
+      if (nrow(affectedItems) > 0) {
 
-        # TODO: prompt user to confirm deprecating all affected item ids
+        # prompt user to confirm deprecating all affected item ids
+
         cli::cli_alert_warning(
-          text = "Deprecating {self$manifestType} with ids {allAffectedItemIds}."
+          text = "Deprecating {self$manifestType} will also deprecate the following items:"
         )
+        print(affectedItems)
 
-        rowsToUpdate <- dbplyr::copy_inline(
-          con = self$manifestDb$db,
-          df = theseItems
-        )
+        # Capture user input
+        userInput <- readline(prompt = "Confirm deprecation (yes/no)")
 
-        dplyr::rows_update(
-          x = self$manifest,
-          y = rowsToUpdate,
-          by = self$idFieldNameSnakeCase,
-          unmatched = "ignore",
-          in_place = TRUE
-        )
+        if (tolower(userInput) %in% c("y", "yes")) {
+          rowsToUpdate <- dbplyr::copy_inline(
+            con = self$manifestDb$db,
+            df = affectedItems
+          )
+
+          dplyr::rows_update(
+            x = self$manifestTable,
+            y = rowsToUpdate,
+            by = self$idFieldNameSnakeCase,
+            unmatched = "ignore",
+            in_place = TRUE
+          )
+        } else {
+          cli::cli_alert_info(text = "Deprecation cancelled by user.")
+        }
       }
     },
 
@@ -191,14 +232,14 @@ Manifest <- R6::R6Class(
                          from {self$manifestType};"
       )
 
-      thisItem <- manifestItem$thisItemSnakeCase
+      thisItemAsTibble <- manifestItem$thisItemSnakeCase
 
       rowToAdd <- dbplyr::copy_inline(
         con = self$manifestDb$db,
-        df = thisItem
+        df = thisItemAsTibble
       )
       dplyr::rows_insert(
-        x = self$manifest,
+        x = self$manifestTable,
         y = rowToAdd,
         by = c(manifestItem$idFieldNameSnakeCase),
         in_place = TRUE,
@@ -224,7 +265,7 @@ Manifest <- R6::R6Class(
   active = list(
     manifestAsTibble = function() {
       return(
-        self$manifest |>
+        self$manifestTable |>
           dplyr::rename_with(.fn = snakecase::to_lower_camel_case) |>
           dplyr::collect()
       )
@@ -271,10 +312,18 @@ Manifest <- R6::R6Class(
     .idFieldName = NULL,
 
     .checkNotDuplicate = function(manifestItem) {
-      result <- self$manifestAsTibble |>
-        dplyr::filter(name == manifestItem$thisItem$name)
 
-      return (nrow(result) == 0)
+      isDuplicate <- FALSE
+      for (colName in manifestItem$thisItemAsTibble |> colnames()) {
+        if (self$manifestAsTibble |>
+            dplyr::filter(!!rlang::sym(colName) == manifestItem$thisItemAsTibble[[colName]]) |>
+            nrow() > 0) {
+          isDuplicate <- TRUE
+          break
+        }
+      }
+
+      return (isDuplicate)
     },
 
     .createEmptyManifest = function() {
@@ -452,8 +501,13 @@ DependencyManifest <- R6::R6Class(
     initialize = function(manifestDb) {
       super$initialize(manifestDb = manifestDb, manifestType = "Dependency")
     },
-    deprecateDependencyId = function(dependencyId) {
+    deprecateDependencyById = function(dependencyId) {
       super$deprecateManifestItemId(manifestItemId = dependencyId)
+    },
+    addDependencyManifestItem = function(definition) {
+      super$addManifestItem(
+        manifestItem = definition
+      )
     },
     deprecateAllByManifestType = function(manifestType) {
       # deprecate all dependencies by manifest type
@@ -463,14 +517,10 @@ DependencyManifest <- R6::R6Class(
         unique()
 
       for (dependencyId in allDependencyIds) {
-        self$deprecateDependencyId(dependencyId = dependencyId)
+        self$deprecateDependencyById(dependencyId = dependencyId)
       }
     },
-    addDependencyManifestItem = function(definition) {
-      super$addManifestItem(
-        manifestItem = definition
-      )
-    },
+
     getAllAffectedItemIds = function(manifestType,
                                      manifestItemId) {
 
@@ -493,8 +543,8 @@ DependencyManifest <- R6::R6Class(
         )$vpath
 
         # get array of all nodes from paths
-        allNodes <- lapply(paths, function(x) {
-          x |> as.integer()
+        allNodes <- lapply(paths, function(thisPath) {
+          thisPath |> as.integer()
         })
 
         # collapse allNodes into unique integers
@@ -503,12 +553,45 @@ DependencyManifest <- R6::R6Class(
         return (allManifestItemIds)
       }
     },
-    checkItemDependency = function(manifestItemId,
-                                   manifestType,
-                                   dependentIds) {
+    checkManifestDependencies = function(manifestType) {
+
+      # check that all items within a manifest have their dependencies satisfied
+
+      finalResult <- TRUE
+
+      thisManifest <- self$manifestDb[[paste0(snakecase::to_lower_camel_case(manifestType), "Manifest")]]
+
+      for (i in 1:nrow(thisManifest$manifestAsTibble)) {
+        thisItemId <- thisManifest$manifestAsTibble[i,][[thisManifest$idFieldName]]
+        dependentIds <- self$getDependentItemIdsForItem(manifestType = manifestType,
+                                                        manifestItemId = thisItemId)
+
+        if (length(dependentIds) > 0) {
+          dependencyCheck <- self$checkItemDependenciesExist(
+            manifestItemId = thisItemId,
+            manifestType = manifestType,
+            dependentIds = dependentIds,
+            dependentTagIds = c()
+          )
+
+          if (!dependencyCheck) {
+            cli::cli_alert_danger(text = "Dependency check FAILED for {manifestType} {thisItemId}")
+            finalResult <- FALSE
+          }
+        }
+      }
+
+      return (finalResult)
+
+    },
+    checkItemDependenciesExist = function(manifestItemId,
+                                          manifestType,
+                                          dependentIds,
+                                          dependentTagIds) {
 
       # check that the item's intended dependencies are present and not deprecated
       dependentIds <- unique(dependentIds)
+      dependentTagIds <- unique(dependentTagIds)
 
       ## get the manifest item row ----
 
@@ -530,15 +613,9 @@ DependencyManifest <- R6::R6Class(
 
       return (TRUE)
     },
-    checkManifestDependency = function() {
-      # for each subset cohort, check that its dependencies are in the manifest and not deprecated
-
-      # TODO
-
-      return (TRUE)
-    },
     getDependentItemIdsForItem = function(manifestType,
-                                          manifestItemId) {
+                                          manifestItemId,
+                                          ) {
       result <- self$manifestAsTibble |>
         dplyr::filter(
           manifestType == !!manifestType,
@@ -589,7 +666,9 @@ CohortManifest <- R6::R6Class(
     deprecateCohortId = function(cohortId) {
       super$deprecateManifestItemId(manifestItemId = cohortId)
     },
-    addCohortManifestItem = function(definition) {
+    addCohortManifestItem = function(definition,
+                                     dependentItemIds = c(),
+                                     dependentTagIds = c()) {
 
       newCohortId <- 1
       if (nrow(self$manifestAsTibble) > 0) {
@@ -597,39 +676,52 @@ CohortManifest <- R6::R6Class(
       }
       definition$setIdValue(idValue = newCohortId)
 
-      # check dependency validity ---
+      # Check dependencies exist ---
 
-      if (!is.null(definition$dependentItemIds)) {
-        dependencyCheck <- self$manifestDb$dependencyManifest$checkItemDependency(
+      if (length(dependentItemIds) > 0 | length(dependentTagIds) > 0) {
+        dependencyCheck <- self$manifestDb$dependencyManifest$checkItemDependenciesExist(
           manifestItemId = definition$idValue,
           manifestType = "Cohort",
-          dependentIds = definition$dependentItemIds
+          dependentIds = dependentItemIds,
+          dependentTagIds = dependentTagIds
         )
         checkmate::assert(dependencyCheck)
       }
 
-      if (definition$thisItem$designMethod == "SqlTemplate") {
-        private$.addSqlTemplateDefinition(definition = definition)
-      } else if (definition$thisItem$designMethod == "UnionTemplate") {
-        private$.addUnionDefinition(definition = definition)
-      } else if (definition$thisItem$designMethod == "Subset") {
-        private$.addSubsetDefinition(definition = definition)
-      } else {
-        # commit a standard Atlas/Circe cohort to the manifest
-        private$.commitToManifest(definition = definition)
+      # check input files ---
+
+      ## if Capr, confirm that we have an object created called "caprObject" ----
+      if (definition$designMethod == "Capr") {
+        source(definition$relativeRPath)
+        checkmate::assert(exists("caprObject"))
+        checkmate::assertClass(caprObject, classes = "Capr")
       }
+
+      # write input file to relative output path ----
+
+      private$.writeInputFile(definition = definition)
+
+      # commit to manifest ----
+
+      super$addManifestItem(
+        manifestItem = definition
+      )
     }
   ),
 
   ## active ----
   active = list(
+
     asCohortDefinitionSet = function() {
 
+      cohortDefinitionSet <- CohortGenerator::createEmptyCohortDefinitionSet()
+
       if (nrow(self$manifestAsTibble) == 0) {
-        return(CohortGenerator::createEmptyCohortDefinitionSet())
+        return(cohortDefinitionSet)
       }
 
-      dependencyCheck <- TRUE #.checkDependencies()
+      dependencyCheck <- self$manifestDb$dependencyManifest$checkManifestDependencies(
+        manifestType = "Cohort")
 
       if (!dependencyCheck) {
         cli::cli_alert_danger(text = "Cohort depenency check FAILED")
@@ -639,22 +731,89 @@ CohortManifest <- R6::R6Class(
           dplyr::pull(manifestItemId) |>
           unique()
 
-        cohortDefinitionSet <- self$manifestAsTibble |>
-          dplyr::rename(cohortName = name) |>
-          dplyr::mutate(isSubset = cohortId %in% cohortIdsWithDependencies) |>
-          dplyr::rowwise() |>
-          dplyr::mutate(
-            subsetParent = private$.getSubsetParent(thisCohortId = cohortId),
-            sql = SqlRender::readSql(sourceFile = relativeSqlPath),
-            json = private$.getCohortJson(thisJsonPath = relativeJsonPath)
-          ) |>
-          dplyr::ungroup() |>
-          dplyr::select(cohortId,
-                        cohortName,
-                        sql,
-                        json,
-                        isSubset,
-                        subsetParent)
+        for (i in 1:nrow(self$manifestAsTibble)) {
+          thisDesignMethod <- self$manifestAsTibble[i,]$designMethod
+          thisCohortId <- self$manifestAsTibble[i,]$cohortId
+          thisCohortName <- self$manifestAsTibble[i,]$name
+          thisSqlPath <- self$manifestAsTibble[i,]$relativeSqlPath
+          thisJsonPath <- self$manifestAsTibble[i,]$relativeJsonPath
+          thisRPath <- self$manifestAsTibble[i,]$relativeRPath
+
+
+          dependentItems <- self$manifestDb$dependencyManifest$manifestAsTibble |>
+            dplyr::filter(manifestType == "Cohort",
+                          !deprecate,
+                          manifestItemId == thisCohortId)
+
+
+          if (thisDesignMethod == "Atlas") {
+
+            thisJson <- readr::read_file(file = thisJsonPath)
+            thisSql <- CirceR::buildCohortQuery(
+              expression = CirceR::cohortExpressionFromJson(thisJson),
+              CirceR::createGenerateOptions(generateStats = TRUE)
+            )
+
+            cohortDefinitionSet <- cohortDefinitionSet |>
+              tibble::add_row(cohortId = thisCohortId,
+                              cohortName = thisCohortName,
+                              sql = thisSql,
+                              json = thisJson)
+
+          } else if (thisDesignMethod == "UnionTemplate") {
+
+            unionDefinition <- CohortGenerator::createUnionCohortTemplate(
+              cohortDatabaseSchema = "@cohort_database_schema",
+              cohortTable = "@cohort_table",
+              cohortIds = dependentItemIds,
+              unionCohortId = thisCohortId
+            )
+
+            cohortDefinitionSet <- cohortDefinitionSet |>
+              CohortGenerator::addCohortTemplateDefintion(
+                cohortTemplateDefintion = unionDefinition
+              )
+
+          } else if (thisDesignMethod == "SqlTemplate") {
+
+            thisSql <- SqlRender::readSql(sourceFile = thisSqlPath) |>
+              private$.renderSqlFromDependencies(manifestItemId = thisCohortId)
+
+            cohortDefinitionSet <- cohortDefinitionSet |>
+              CohortGenerator::addSqlCohortDefinition(sql = thisSql,
+                                                      cohortId = thisCohortId,
+                                                      cohortName = thisCohortName)
+
+          } else if (thisDesignMethod == "SubsetDefinition") {
+
+            subsetDefinition <- (source(file = thisRPath))$value
+            subsetDefinition$identifierExpression <- thisCohortId
+
+            checkmate::assertClass(subsetDefinition, classes = "CohortSubsetDefinition")
+            checkmate::assert(setdiff(x = definition$dependentItemIds,
+                                      y = subsetDefinition$definitionId))
+
+            cohortDefinitionSet <- cohortDefinitionSet |>
+              CohortGenerator::addCohortSubsetDefinition(
+                cohortSubsetDefintion = subsetDefinition,
+                targetCohortIds = dependentItemIds
+              )
+
+          } else if (thisDesignMethod == "Capr") {
+            source(file = thisRPath)
+            thisJson <- Capr::compile(object = caprObject)
+            thisSql <- CirceR::buildCohortQuery(
+              expression = CirceR::cohortExpressionFromJson(thisJson),
+              options = CirceR::createGenerateOptions(generateStats = FALSE)
+            )
+
+            cohortDefinitionSet <- cohortDefinitionSet |>
+              tibble::add_row(cohortId = thisCohortId,
+                              cohortName = thisCohortName,
+                              sql = thisSql,
+                              json = thisJson)
+          }
+        }
 
         return(cohortDefinitionSet)
       }
@@ -663,6 +822,31 @@ CohortManifest <- R6::R6Class(
 
   ## private ----
   private = list(
+
+    .renderSqlFromDependencies = function(thisSql,
+                                          manifestItemId) {
+
+      # here, we identify the dependency items for this given item
+      # we could have explicit dependencies, or tagged dependencies
+
+      theseDependencies <- self$manifestDb$dependencyManifest$getDependentItemIdsForItem(
+        manifestType = "Cohort",
+        manifestItemId = manifestItemId
+      )
+
+      if (length(theseDependencies) > 0) {
+        for (dependencyId in theseDependencies) {
+          parentCohortId <- private$.getSubsetParent(thisCohortId = dependencyId)
+          sql <- SqlRender::render(
+            sql = sql,
+            newCohortId = parentCohortId
+          )
+        }
+      }
+
+      return (sql)
+    },
+
     .getSubsetParent = function(thisCohortId) {
       theseDependencies <- self$manifestDb$dependencyManifest$getDependentItemIdsForItem(
         manifestType = "Cohort",
@@ -686,7 +870,7 @@ CohortManifest <- R6::R6Class(
     .addDependency = function(definition) {
       for (dependencyId in definition$dependentItemIds) {
         newDependency <- DependencyManifestItem$new(
-          name = glue::glue("Dependency for cohort {definition$thisItem$name}: cohort {dependencyId}"),
+          name = glue::glue("Dependency for cohort {definition$thisItemAsTibble$name}: cohort {dependencyId}"),
           manifestType = "Cohort",
           manifestItemId = definition$idValue,
           dependentItemId = dependencyId
@@ -702,7 +886,7 @@ CohortManifest <- R6::R6Class(
       unionDefinition <- CohortGenerator::createUnionCohortTemplate(cohortDatabaseSchema = "@cohort_database_schema",
                                                                     cohortTable = "@cohort_table",
                                                                     cohortIds = definition$dependentItemIds,
-                                                                    unionCohortId = definition$thisItem$cohortId)
+                                                                    unionCohortId = definition$thisItemAsTibble$cohortId)
 
       cohortDefinitionSet <- self$asCohortDefinitionSet |>
         CohortGenerator::addCohortTemplateDefintion(cohortTemplateDefintion = unionDefinition)
@@ -720,12 +904,12 @@ CohortManifest <- R6::R6Class(
     },
     .addSqlTemplateDefinition = function(definition) {
 
-      sql <- SqlRender::readSql(sourceFile = definition$thisItem$relativeSqlPath)
+      sql <- SqlRender::readSql(sourceFile = definition$thisItemAsTibble$relativeSqlPath)
 
       cohortDefinitionSet <- self$asCohortDefinitionSet |>
         CohortGenerator::addSqlCohortDefinition(sql = sql,
-                                                cohortId = definition$thisItem$cohortId,
-                                                cohortName = definition$thisItem$name)
+                                                cohortId = definition$thisItemAsTibble$cohortId,
+                                                cohortName = definition$thisItemAsTibble$name)
 
       templateSql <- cohortDefinitionSet |>
         dplyr::slice_max(n = 1, order_by = cohortId) |>
@@ -750,7 +934,7 @@ CohortManifest <- R6::R6Class(
       #   private$.writeRFile(definition = definition)
       # }
 
-      subsetDefinition <- (source(file = definition$thisItem$relativeRPath))$value
+      subsetDefinition <- (source(file = definition$thisItemAsTibble$relativeRPath))$value
       subsetDefinition$identifierExpression <- glue::glue("{newCohortId}")
 
       checkmate::assertClass(subsetDefinition, classes = "CohortSubsetDefinition")
@@ -772,8 +956,9 @@ CohortManifest <- R6::R6Class(
       private$.addDependency(definition = definition)
       private$.commitToManifest(definition = definition)
     },
+
     .checkSqlNeedsWriting = function(definition) {
-      thisCohortItem <- definition$thisItem
+      thisCohortItem <- definition$thisItemAsTibble
       initialSqlPath <- thisCohortItem$relativeSqlPath
 
       thisFileManifest <- self$manifestDb$fileManifest
@@ -798,24 +983,41 @@ CohortManifest <- R6::R6Class(
 
       return(sqlReady)
     },
-    .writeRFile = function(definition) {
 
-      rFileName <- glue::glue("{thisCohortItem$name}")
+    .writeInputFile = function(definition) {
 
-      relativeRPath <- fs::path(
-        thisFileManifest$getRelativePath(
-          manifestType = "Cohort",
-          fileExtension = "R"
-        ),
-        sqlFileName,
-        ext = "R"
+      thisCohortItem <- definition$thisItemAsTibble
+
+      thisInputFile <- NULL
+
+      # obtain input file, if there is one ----
+      thisInputFile <- dplyr::coalesce(
+        thisCohortItem$relativeSqlPath,
+        thisCohortItem$relativeJsonPath,
+        thisCohortItem$relativeRPath,
+        thisInputFile
       )
 
-      fullSqlPath <- relativeSqlPath
+      if (!is.null(thisInputFile)) {
+
+        relativeFolder <- fs::path(thisFileManifest$getRelativePath(
+          manifestType = "Cohort",
+          fileExtension = fs::path_ext(thisInputFile)
+        )) |>
+          fs::dir_create()
+
+        relativeFilePath <- fs::path(relativeFolder,
+                                     glue::glue("{thisCohortItem$name}"))
+
+        if (thisInputFile != relativeFilePath) {
+          fs::file_copy(path = thisInputFile, new_path = relativeFilePath)
+        }
+      }
+
     },
     .writeSqlFile = function(definition,
                              templateSql = NA) {
-      thisCohortItem <- definition$thisItem
+      thisCohortItem <- definition$thisItemAsTibble
       initialSqlPath <- thisCohortItem$relativeSqlPath
       initialJsonPath <- thisCohortItem$relativeJsonPath
 
@@ -862,19 +1064,23 @@ CohortManifest <- R6::R6Class(
         fieldName = "relativeSqlPath",
         fieldValue = relativeSqlPath
       )
-    },
-    .commitToManifest = function(definition) {
-
-      sqlReady <- private$.checkSqlNeedsWriting(definition = definition)
-
-      if (!sqlReady) {
-        private$.writeSqlFile(definition = definition)
-      }
-
-      newCohortId <- super$addManifestItem(
-        manifestItem = definition
-      )
     }
+    # .commitToManifest = function(definition) {
+    #
+    #   # sqlReady <- private$.checkSqlNeedsWriting(definition = definition)
+    #   #
+    #   # if (!sqlReady) {
+    #   #   private$.writeSqlFile(definition = definition)
+    #   # }
+    #
+    #   if (definition$designMethod == "Atlas") {
+    #     private$.writeSqlFile(definition = definition)
+    #   }
+    #
+    #   newCohortId <- super$addManifestItem(
+    #     manifestItem = definition
+    #   )
+    # }
   )
 )
 

@@ -1,4 +1,5 @@
-designMethods:
+---
+default:
   - Atlas
   - Subset
   - UnionTemplate

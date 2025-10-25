@@ -33,3 +33,17 @@ test_that(desc = "Cough cohort has dependency on Fever cohort", code = {
 #
 #   expect(ok = , failure_message = "Dependency not found.")
 # })
+
+
+
+# 1. add 5 comorbids
+# 2. (study team messed up) add union template cohort to cover those 5 cohorts - deprecate this
+
+# 3. undo the last step, and add 1 more comorbid
+# 4. add union template to cover 6 cohorts - not by id.
+  ## We can use dplyr to obtain all cohort ids that are active and have tag == "Comorbid"
+
+
+
+
+

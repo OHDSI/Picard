@@ -1,0 +1,9 @@
+---
+default:
+  - ConceptSet
+  - Cohort
+  - Analysis
+  - Migrate
+  - File
+  - Tag
+  - Dependency

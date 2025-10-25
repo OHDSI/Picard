@@ -1,3 +1,4 @@
 name,type,notnull,pk,fieldSuffix
 name,TEXT,1,0,text not null
+label,TEXT,1,0,text not null
 deprecate,INTEGER,1,0,integer not null

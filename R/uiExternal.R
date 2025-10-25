@@ -382,17 +382,21 @@ addCohortManifestItem <- function(manifestDb,
   checkmate::assertClass(x = manifestDb, classes = c("ManifestDatabase"))
   manifestDb$cohortManifest$addCohortManifestItem(definition = cohortManifestItem)
 
-  # add dependencies ----
+  if (length(dependentCohortIds) > 0) {
+    cohortManifestItem$setDependentItemIds(dependentItemIds = dependentCohortIds)
 
-  for (dependentId in dependentCohortIds) {
-    name <- glue::glue("Cohort {cohortManifestItem$idValue} depends on cohort {dependentId}")
-    dependencyItem <- Barista::DependencyManifestItem$new(name = name,
-                                                          manifestItemId = cohortManifestItem$idValue,
-                                                          manifestType = "Cohort",
-                                                          dependentItemId = dependentId)
-    manifestDb$dependencyManifest$addDependencyManifestItem(definition = dependencyItem)
+    # add dependencies ----
+
+    for (dependentId in dependentCohortIds) {
+      name <- glue::glue("Cohort {cohortManifestItem$idValue} depends on cohort {dependentId}")
+      dependencyItem <- Barista::DependencyManifestItem$new(name = name,
+                                                            manifestItemId = cohortManifestItem$idValue,
+                                                            manifestType = "Cohort",
+                                                            dependentItemId = dependentId)
+      manifestDb$dependencyManifest$addDependencyManifestItem(definition = dependencyItem)
+    }
+
   }
-
   invisible(manifestDb)
 }
 

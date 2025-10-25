@@ -1,4 +1,5 @@
 name,type,notnull,pk,fieldSuffix
 manifest_item_id,INTEGER,1,0,integer not null
 manifest_type,TEXT,1,0,text not null
-dependent_item_id,INTEGER,1,0,integer not null
+dependent_item_id,INTEGER,0,0,integer null,
+dependent_item_tag,STRING,0,0,text null

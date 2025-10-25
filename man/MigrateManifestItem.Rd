@@ -24,6 +24,7 @@ The MigrateManifestItem is used to populate the \code{MigrateManifest} object wi
 <details open><summary>Inherited methods</summary>
 <ul>
 <li><span class="pkg-link" data-pkg="Barista" data-topic="ManifestItem" data-id="loadItem"><a href='../../Barista/html/ManifestItem.html#method-ManifestItem-loadItem'><code>Barista::ManifestItem$loadItem()</code></a></span></li>
+<li><span class="pkg-link" data-pkg="Barista" data-topic="ManifestItem" data-id="setDependentItemIds"><a href='../../Barista/html/ManifestItem.html#method-ManifestItem-setDependentItemIds'><code>Barista::ManifestItem$setDependentItemIds()</code></a></span></li>
 <li><span class="pkg-link" data-pkg="Barista" data-topic="ManifestItem" data-id="setFieldValue"><a href='../../Barista/html/ManifestItem.html#method-ManifestItem-setFieldValue'><code>Barista::ManifestItem$setFieldValue()</code></a></span></li>
 <li><span class="pkg-link" data-pkg="Barista" data-topic="ManifestItem" data-id="setIdValue"><a href='../../Barista/html/ManifestItem.html#method-ManifestItem-setIdValue'><code>Barista::ManifestItem$setIdValue()</code></a></span></li>
 </ul>
