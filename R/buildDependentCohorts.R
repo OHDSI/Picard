@@ -514,25 +514,36 @@ buildSubsetCohortDemographic <- function(
 #' Build a Union Cohort Definition
 #'
 #' @description
-#' Creates a SQL file and metadata for a union cohort that combines multiple input cohorts.
-#' Returns a CohortDef object ready to add to a CohortManifest.
+#' Creates a SQL file and metadata for a union cohort that combines multiple input cohorts
+#' using a gaps-and-islands collapse algorithm. Overlapping or adjacent eras are merged
+#' into continuous periods. Returns a CohortDef object ready to add to a CohortManifest.
 #'
 #' @param label Character. User-friendly name for the union (e.g., "Chronic Kidney Disease Phenotypes")
 #' @param cohortIds Numeric vector (minimum 2). Cohort IDs to union.
-#' @param unionRule Character. One of 'any', 'all', 'at_least_n'. Default: 'any'
-#'   - 'any': subjects appearing in ANY input cohort
-#'   - 'all': subjects appearing in ALL input cohorts
-#'   - 'at_least_n': subjects appearing in at least N cohorts
-#' @param atLeastN Integer. Number of cohorts required (only if unionRule='at_least_n'). Default: 2
+#' @param gapDays Integer. Bridge eras separated by up to this many days. Default: 0 (only
+#'   overlapping periods collapse).
+#' @param eraPadDays Integer. Expand each source period by this many days on each end before
+#'   collapsing. Applied to individual periods, not the collapsed result. Default: 0.
+#' @param minEraDays Integer. Drop collapsed eras shorter than this many days. Default: 0
+#'   (keep all eras).
+#' @param minCohorts Integer. Only include subjects appearing in at least this many distinct
+#'   source cohorts. Default: 1 (any subject from any cohort).
+#' @param washoutDays Integer. Require a clean period of at least this many days before a
+#'   new era can open. Subjects must have no source cohort membership for this period.
+#'   Default: 0.
+#' @param firstEraOnly Logical. Return only the first collapsed era per subject. Default: FALSE.
 #' @param cohortsDirectory Character. Path to inputs/cohorts/. Uses study hierarchy if not provided.
+<<<<<<< Updated upstream
 #' @param manifest CohortManifest object. Required. Validates that all input cohorts exist and
 #'   automatically registers the new cohort via addDependentCohort().
+=======
+#' @param manifest CohortManifest object. Required. Validates that all input cohorts exist.
+>>>>>>> Stashed changes
 #'
 #' @details
-#' Creates three files:
+#' Creates two files:
 #' - SQL file: `inputs/cohorts/derived/union/union_cohorts_{cohort_id_list}.sql`
 #' - Metadata JSON: Same path with `.json` extension
-#' - Context file: `.metadata` with rule description
 #'
 #' @return A CohortDef object with cohortType='union' and dependencies set.
 #'
@@ -540,17 +551,38 @@ buildSubsetCohortDemographic <- function(
 buildUnionCohort <- function(
     label,
     cohortIds,
+<<<<<<< Updated upstream
     unionRule = "any",
     atLeastN = 2L,
     cohortsFolder = here::here("inputs/cohorts"),
     manifest) {
+=======
+    gapDays = 0L,
+    eraPadDays = 0L,
+    minEraDays = 0L,
+    minCohorts = 1L,
+    washoutDays = 0L,
+    firstEraOnly = FALSE,
+    cohortsDirectory = NULL,
+    manifest = NULL) {
+>>>>>>> Stashed changes
 
   # Validation
   checkmate::assert_string(x = label, min.chars = 1)
   checkmate::assert_integerish(x = cohortIds, min.len = 2, unique = TRUE, lower = 1)
+<<<<<<< Updated upstream
   checkmate::assert_choice(x = unionRule, choices = c("any", "all", "at_least_n"))
   checkmate::assert_integerish(x = atLeastN, len = 1, lower = 1)
   checkmate::assert_class(x = manifest, classes = "CohortManifest")
+=======
+  checkmate::assert_integerish(x = gapDays, len = 1, lower = 0)
+  checkmate::assert_integerish(x = eraPadDays, len = 1, lower = 0)
+  checkmate::assert_integerish(x = minEraDays, len = 1, lower = 0)
+  checkmate::assert_integerish(x = minCohorts, len = 1, lower = 1)
+  checkmate::assert_integerish(x = washoutDays, len = 1, lower = 0)
+  checkmate::assert_logical(x = firstEraOnly, len = 1)
+  checkmate::assert_class(x = manifest, classes = "CohortManifest", null.ok = TRUE)
+>>>>>>> Stashed changes
 
   # Validate all input cohorts exist in manifest
   manifest_ids <- manifest$tabulateManifest()$id
@@ -568,7 +600,7 @@ buildUnionCohort <- function(
 
   # Generate file names
   cohort_ids_str <- paste(cohortIds, collapse = "_")
-  file_name <- sprintf("union_cohorts_%s_%s", cohort_ids_str, unionRule)
+  file_name <- sprintf("union_cohorts_%s", cohort_ids_str)
   sql_path <- file.path(union_dir, paste0(file_name, ".sql"))
   metadata_path <- file.path(union_dir, paste0(file_name, ".json"))
 
@@ -590,8 +622,12 @@ buildUnionCohort <- function(
     type = "union",
     label = label,
     cohortIds = as.list(as.integer(cohortIds)),
-    unionRule = unionRule,
-    atLeastN = atLeastN,
+    gapDays = as.integer(gapDays),
+    eraPadDays = as.integer(eraPadDays),
+    minEraDays = as.integer(minEraDays),
+    minCohorts = as.integer(minCohorts),
+    washoutDays = as.integer(washoutDays),
+    firstEraOnly = firstEraOnly,
     createdAt = Sys.time(),
     dependsOnCohortIds = as.integer(cohortIds)
   )
@@ -609,8 +645,7 @@ buildUnionCohort <- function(
     label = label,
     tags = list(
       type = "union",
-      cohortCount = as.character(length(cohortIds)),
-      unionRule = unionRule
+      cohortCount = as.character(length(cohortIds))
     ),
     filePath = sql_path
   )
@@ -621,8 +656,12 @@ buildUnionCohort <- function(
     dependsOnCohortIds = as.integer(cohortIds),
     dependencyRule = list(
       type = "union",
-      rule = unionRule,
-      atLeastN = atLeastN
+      gapDays = as.integer(gapDays),
+      eraPadDays = as.integer(eraPadDays),
+      minEraDays = as.integer(minEraDays),
+      minCohorts = as.integer(minCohorts),
+      washoutDays = as.integer(washoutDays),
+      firstEraOnly = firstEraOnly
     )
   )
 
