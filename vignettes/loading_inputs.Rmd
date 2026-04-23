@@ -250,10 +250,86 @@ ckd_or_t2d <- buildUnionCohort(
 ```{r eval = FALSE}
 no_ckd <- buildComplementCohort(
   label = "No Chronic Kidney Disease",
-  cohortId = 1,           # Exclude cohort 1
+  populationCohortId = 1,
+  excludeCohortIds = c(3),
   manifest = cm
 )
 ```
+
+### Stratified Cohorts
+
+Use `buildStratifiedCohorts()` when you want to partition a cohort into **mutually exclusive subgroups** in a single call — one cohort per stratum plus an automatic **Unclassified** cohort for subjects that match none of the defined strata. This is the right tool when you need parallel subgroups for stratified analyses.
+
+This is different from `buildSubsetCohortDemographic()`, which produces a single filtered subgroup (e.g., males aged 65+) by AND-ing all conditions together.
+
+**Example: Split by gender**
+
+```{r eval = FALSE}
+# Produces: "CKD - Male", "CKD - Female", "CKD - Unclassified"
+buildStratifiedCohorts(
+  baseCohortId = 1,
+  labelPrefix = "CKD",
+  strata = list(
+    "Male"   = list(genderConceptIds = 8507),
+    "Female" = list(genderConceptIds = 8532)
+  ),
+  manifest = cm
+)
+```
+
+**Example: Split by age group**
+
+```{r eval = FALSE}
+# Produces: "CKD - <65", "CKD - 65+", "CKD - Unclassified"
+buildStratifiedCohorts(
+  baseCohortId = 1,
+  labelPrefix = "CKD",
+  strata = list(
+    "<65" = list(maxAge = 64),
+    "65+" = list(minAge = 65)
+  ),
+  manifest = cm
+)
+```
+
+**Example: Custom SQL strata (e.g., US census region)**
+
+For partitions that cannot be expressed through standard demographic fields, supply a SQL WHERE clause string. The expression may reference `bc` (cohort table alias) and `p` (CDM person table alias):
+
+```{r eval = FALSE}
+# Produces: "CKD - West", "CKD - Midwest", "CKD - Northeast",
+#           "CKD - South", "CKD - Unclassified"
+buildStratifiedCohorts(
+  baseCohortId = 1,
+  labelPrefix = "CKD",
+  strata = list(
+    "West"      = "p.location_id IN (1, 4, 5, 6, 12, 14, 27, 33, 34, 38, 47, 50, 53)",
+    "Midwest"   = "p.location_id IN (13, 15, 16, 17, 23, 24, 25, 29, 30, 36, 43, 51)",
+    "Northeast" = "p.location_id IN (7, 20, 22, 31, 32, 35, 39, 41, 49)",
+    "South"     = "p.location_id IN (2, 3, 8, 9, 10, 11, 18, 19, 21, 26, 28, 37, 42, 44, 45, 48, 52)"
+  ),
+  manifest = cm
+)
+```
+
+**Example: Mixed demographic and custom strata**
+
+Demographic (named list) and custom SQL strata can be combined in the same call:
+
+```{r eval = FALSE}
+buildStratifiedCohorts(
+  baseCohortId = 1,
+  labelPrefix = "CKD",
+  strata = list(
+    "Male"   = list(genderConceptIds = 8507),
+    "Female" = list(genderConceptIds = 8532),
+    "Rural"  = "p.location_id IN (10, 11, 23, 35)"
+  ),
+  manifest = cm
+)
+```
+
+The Unclassified cohort is always appended automatically. Its WHERE condition is the logical negation of every named stratum, so every subject in the base cohort appears in exactly one output cohort.
 
 ### Visualizing Dependencies
 

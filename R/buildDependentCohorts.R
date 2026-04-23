@@ -935,3 +935,245 @@ buildCompositeCohort <- function(
   manifest$addDependentCohort(cohort_def)
   invisible(cohort_def)
 }
+
+
+# ---- Stratified Cohorts ----
+
+#' Convert a stratum definition to a SQL WHERE condition
+#'
+#' @param stratum_def Either a named list of demographic filters or a raw SQL
+#'   character string. List keys: `genderConceptIds`, `raceConceptIds`,
+#'   `ethnicityConceptIds`, `minAge`, `maxAge`.
+#'
+#' @return Character. A single SQL boolean expression referencing `bc` (cohort
+#'   table alias) and `p` (person table alias).
+#'
+#' @noRd
+.stratum_to_sql_condition <- function(stratum_def) {
+
+  if (is.character(stratum_def)) {
+    return(stratum_def)
+  }
+
+  checkmate::assert_list(stratum_def, names = "named")
+
+  parts <- character(0)
+
+  if (!is.null(stratum_def$genderConceptIds)) {
+    ids <- paste(as.integer(stratum_def$genderConceptIds), collapse = ", ")
+    parts <- c(parts, paste0("p.gender_concept_id IN (", ids, ")"))
+  }
+
+  if (!is.null(stratum_def$raceConceptIds)) {
+    ids <- paste(as.integer(stratum_def$raceConceptIds), collapse = ", ")
+    parts <- c(parts, paste0("p.race_concept_id IN (", ids, ")"))
+  }
+
+  if (!is.null(stratum_def$ethnicityConceptIds)) {
+    ids <- paste(as.integer(stratum_def$ethnicityConceptIds), collapse = ", ")
+    parts <- c(parts, paste0("p.ethnicity_concept_id IN (", ids, ")"))
+  }
+
+  if (!is.null(stratum_def$minAge)) {
+    parts <- c(parts, paste0("YEAR(bc.cohort_start_date) - p.year_of_birth >= ", as.integer(stratum_def$minAge)))
+  }
+
+  if (!is.null(stratum_def$maxAge)) {
+    parts <- c(parts, paste0("YEAR(bc.cohort_start_date) - p.year_of_birth <= ", as.integer(stratum_def$maxAge)))
+  }
+
+  if (length(parts) == 0) {
+    cli::cli_abort("Stratum definition is empty — provide at least one filter condition.")
+  }
+
+  partsFinal <- paste(parts, collapse = " AND ")
+  return(partsFinal)
+}
+
+
+#' Split a Base Cohort into Multiple Stratified Sub-Cohorts
+#'
+#' @description
+#' Splits a single base cohort into N named stratum cohorts plus an automatic
+#' **Unclassified** cohort containing subjects that match none of the named
+#' strata. Each stratum is registered as a separate entry in the manifest with
+#' an auto-assigned ID and `cohortType = "subset"`. A single SQL file is written
+#' per stratum so `generateCohorts()` processes them independently.
+#'
+#' @details
+#' Strata can be defined in two ways and may be mixed in the same call:
+#'
+#' **Demographic (named list):**
+#' ```r
+#' list(
+#'   "Male"   = list(genderConceptIds = 8507),
+#'   "Female" = list(genderConceptIds = 8532),
+#'   "65+"    = list(minAge = 65)
+#' )
+#' ```
+#' Supported keys: `genderConceptIds`, `raceConceptIds`, `ethnicityConceptIds`,
+#' `minAge`, `maxAge`. Multiple keys within one stratum are `AND`-ed.
+#'
+#' **Custom SQL WHERE clause (character string):**
+#' ```r
+#' list(
+#'   "West"  = "p.location_id IN (1, 4, 5, 6, 12)",
+#'   "South" = "p.location_id IN (2, 3, 8, 9, 10)"
+#' )
+#' ```
+#' The expression may reference `bc` (cohort table alias) and `p` (person
+#' table alias).
+#'
+#' An **Unclassified** stratum is always appended automatically. Its WHERE
+#' condition is the logical negation of every named stratum combined with
+#' `AND NOT (...)`, ensuring every subject in the base cohort appears in exactly
+#' one output cohort.
+#'
+#' @param baseCohortId Integer. The cohort definition ID to split.
+#' @param strata Named list. Each element is either a named list of demographic
+#'   filters or a character string SQL WHERE condition. Names become cohort
+#'   labels (optionally prefixed by `labelPrefix`).
+#' @param labelPrefix Character or `NULL`. If provided, prepended to each
+#'   stratum name with a ` - ` separator (e.g. `"CKD"` + `"Male"` →
+#'   `"CKD - Male"`).
+#' @param cohortsFolder Character. Path to inputs/cohorts/. Defaults to
+#'   `here::here("inputs/cohorts")`.
+#' @param manifest A `CohortManifest` object. Required. Cohort IDs are
+#'   auto-assigned from the next available manifest ID — never supply them
+#'   manually.
+#'
+#' @return Invisibly returns a named list of `CohortDef` objects, one per
+#'   stratum including Unclassified. The list is keyed by the full cohort label.
+#'
+#' @export
+buildStratifiedCohorts <- function(
+    baseCohortId,
+    strata,
+    labelPrefix = NULL,
+    cohortsFolder = here::here("inputs/cohorts"),
+    manifest) {
+
+  checkmate::assert_integerish(x = baseCohortId, len = 1, lower = 1)
+  checkmate::assert_list(x = strata, min.len = 1, names = "named")
+  checkmate::assert_string(x = labelPrefix, null.ok = TRUE)
+  checkmate::assert_class(x = manifest, classes = "CohortManifest")
+
+  # Validate base cohort exists
+  manifest_ids <- manifest$tabulateManifest(filter = "active")$id
+
+  if (!baseCohortId %in% manifest_ids) {
+    cli::cli_abort("Base cohort ID {baseCohortId} not found in manifest.")
+  }
+
+  # Validate each stratum entry
+  for (nm in names(strata)) {
+    s <- strata[[nm]]
+
+    if (!is.list(s) && !is.character(s)) {
+      cli::cli_abort("Stratum '{nm}' must be a named list (demographic) or a character SQL condition.")
+    }
+
+    if (is.character(s) && length(s) != 1) {
+      cli::cli_abort("Stratum '{nm}' character condition must be a single string.")
+    }
+  }
+
+  # Create output directory
+  strat_dir <- file.path(cohortsFolder, "derived", "stratified")
+
+  if (!dir.exists(strat_dir)) {
+    dir.create(strat_dir, recursive = TRUE, showWarnings = FALSE)
+  }
+
+  # Load SQL template once
+  template_path <- system.file("sql", "createStratifiedCohort_Stratum.sql", package = "picard")
+  template_sql <- readr::read_file(template_path)
+
+  # Build SQL condition for each named stratum
+  stratum_conditions <- lapply(strata, .stratum_to_sql_condition)
+
+  # Append Unclassified stratum — negation of every named condition
+  negated <- paste0("NOT (", unlist(stratum_conditions), ")")
+  unclassified_condition <- paste(negated, collapse = "\n    AND ")
+  stratum_conditions[["Unclassified"]] <- unclassified_condition
+
+  # Sanitise a stratum name to a safe file name fragment
+  sanitise_name <- function(nm) {
+    gsub("[^A-Za-z0-9_]", "_", tolower(nm))
+  }
+
+  result <- list()
+
+  cli::cli_rule("Building stratified cohorts from base cohort {baseCohortId}")
+
+  for (nm in names(stratum_conditions)) {
+    condition <- stratum_conditions[[nm]]
+
+    # Build cohort label
+    cohort_label <- if (!is.null(labelPrefix)) {
+      paste0(labelPrefix, " - ", nm)
+    } else {
+      nm
+    }
+
+    # Render SQL with build-time parameters baked in
+    rendered_sql <- SqlRender::render(
+      template_sql,
+      base_cohort_id = as.integer(baseCohortId),
+      stratum_where_clause = condition,
+      warnOnMissingParameters = FALSE
+    )
+
+    # Write per-stratum SQL and metadata files
+    file_name <- sprintf("stratified_%d_%s", as.integer(baseCohortId), sanitise_name(nm))
+    sql_path <- file.path(strat_dir, paste0(file_name, ".sql"))
+    metadata_path <- file.path(strat_dir, paste0(file_name, ".json"))
+
+    writeLines(rendered_sql, con = sql_path)
+
+    is_unclassified <- nm == "Unclassified"
+
+    metadata <- list(
+      type = "stratified",
+      label = cohort_label,
+      baseCohortId = as.integer(baseCohortId),
+      stratumName = nm,
+      stratumDefinition = if (is_unclassified) NULL else strata[[nm]],
+      isUnclassified = is_unclassified,
+      createdAt = format(Sys.time(), "%Y-%m-%dT%H:%M:%S")
+    )
+
+    jsonlite::write_json(metadata, path = metadata_path, pretty = TRUE, auto_unbox = TRUE)
+
+    # Build CohortDef — ID auto-assigned by addDependentCohort()
+    cohort_def <- CohortDef$new(
+      label = cohort_label,
+      tags = list(
+        type = "stratified",
+        baseCohortId = as.character(baseCohortId),
+        stratumName = nm
+      ),
+      filePath = sql_path
+    )
+
+    cohort_def$setCohortType("subset")
+    cohort_def$setDependencies(
+      dependsOnCohortIds = as.integer(baseCohortId),
+      dependencyRule = list(
+        type = "stratified",
+        baseCohortId = as.integer(baseCohortId),
+        stratumName = nm,
+        stratumCondition = condition
+      )
+    )
+
+    manifest$addDependentCohort(cohort_def)
+    result[[cohort_label]] <- cohort_def
+
+    cli::cli_alert_success("Registered stratum: {cohort_label}")
+  }
+
+  cli::cli_rule("Done — {length(result)} cohorts registered (includes Unclassified)")
+
+  invisible(result)
+}
