@@ -193,7 +193,7 @@ createSubsetEndWindow <- function(
 #' @param subsetLimit Character. One of 'First', 'Last', or 'All'. Specifies which qualifying filter cohort event(s)
 #'   to retain per subject. 'First' keeps the earliest event, 'Last' keeps the most recent event, 'All' keeps all 
 #'   qualifying events. Default: 'First'.
-#' @param cohortsDirectory Character. Path to inputs/cohorts/. Uses study hierarchy if not provided.
+#' @param cohortsFolder Character. Path to inputs/cohorts/. Defaults to `here::here("inputs/cohorts")`.
 #' @param manifest CohortManifest object. Required. Validates that base cohorts exist and
 #'   automatically registers the new cohort via addDependentCohort().
 #'
@@ -251,7 +251,7 @@ buildSubsetCohortTemporal <- function(
   checkmate::assert_class(x = manifest, classes = "CohortManifest")
 
   # Validate base cohorts exist in manifest
-  manifest_ids <- manifest$tabulateManifest()$id
+  manifest_ids <- manifest$tabulateManifest(filter = "active")$id
 
   if (!baseCohortId %in% manifest_ids) {
     cli::cli_abort("Base cohort ID {baseCohortId} not found in manifest")
@@ -377,7 +377,7 @@ buildSubsetCohortTemporal <- function(
 #' @param genderConceptIds Numeric vector. Gender concept IDs to include. NULL = all. Default: NULL
 #' @param raceConceptIds Numeric vector. Race concept IDs to include. NULL = all. Default: NULL
 #' @param ethnicityConceptIds Numeric vector. Ethnicity concept IDs to include. NULL = all. Default: NULL
-#' @param cohortsDirectory Character. Path to inputs/cohorts/. Uses study hierarchy if not provided.
+#' @param cohortsFolder Character. Path to inputs/cohorts/. Defaults to `here::here("inputs/cohorts")`.
 #' @param manifest CohortManifest object. Required. Validates that the base cohort exists and
 #'   automatically registers the new cohort via addDependentCohort().
 #'
@@ -412,7 +412,7 @@ buildSubsetCohortDemographic <- function(
   checkmate::assert_class(x = manifest, classes = "CohortManifest")
 
   # Validate base cohort exists in manifest
-  manifest_ids <- manifest$tabulateManifest()$id
+  manifest_ids <- manifest$tabulateManifest(filter = "active")$id
 
   if (!baseCohortId %in% manifest_ids) {
     cli::cli_abort("Base cohort ID {baseCohortId} not found in manifest")
@@ -532,13 +532,8 @@ buildSubsetCohortDemographic <- function(
 #'   new era can open. Subjects must have no source cohort membership for this period.
 #'   Default: 0.
 #' @param firstEraOnly Logical. Return only the first collapsed era per subject. Default: FALSE.
-#' @param cohortsDirectory Character. Path to inputs/cohorts/. Uses study hierarchy if not provided.
-<<<<<<< Updated upstream
-#' @param manifest CohortManifest object. Required. Validates that all input cohorts exist and
-#'   automatically registers the new cohort via addDependentCohort().
-=======
+#' @param cohortsFolder Character. Path to inputs/cohorts/. Defaults to `here::here("inputs/cohorts")`.
 #' @param manifest CohortManifest object. Required. Validates that all input cohorts exist.
->>>>>>> Stashed changes
 #'
 #' @details
 #' Creates two files:
@@ -551,41 +546,28 @@ buildSubsetCohortDemographic <- function(
 buildUnionCohort <- function(
     label,
     cohortIds,
-<<<<<<< Updated upstream
-    unionRule = "any",
-    atLeastN = 2L,
-    cohortsFolder = here::here("inputs/cohorts"),
-    manifest) {
-=======
     gapDays = 0L,
     eraPadDays = 0L,
     minEraDays = 0L,
     minCohorts = 1L,
     washoutDays = 0L,
     firstEraOnly = FALSE,
-    cohortsDirectory = NULL,
-    manifest = NULL) {
->>>>>>> Stashed changes
+    cohortsFolder = here::here("inputs/cohorts"),
+    manifest) {
 
   # Validation
   checkmate::assert_string(x = label, min.chars = 1)
   checkmate::assert_integerish(x = cohortIds, min.len = 2, unique = TRUE, lower = 1)
-<<<<<<< Updated upstream
-  checkmate::assert_choice(x = unionRule, choices = c("any", "all", "at_least_n"))
-  checkmate::assert_integerish(x = atLeastN, len = 1, lower = 1)
-  checkmate::assert_class(x = manifest, classes = "CohortManifest")
-=======
   checkmate::assert_integerish(x = gapDays, len = 1, lower = 0)
   checkmate::assert_integerish(x = eraPadDays, len = 1, lower = 0)
   checkmate::assert_integerish(x = minEraDays, len = 1, lower = 0)
   checkmate::assert_integerish(x = minCohorts, len = 1, lower = 1)
   checkmate::assert_integerish(x = washoutDays, len = 1, lower = 0)
   checkmate::assert_logical(x = firstEraOnly, len = 1)
-  checkmate::assert_class(x = manifest, classes = "CohortManifest", null.ok = TRUE)
->>>>>>> Stashed changes
+  checkmate::assert_class(x = manifest, classes = "CohortManifest")
 
   # Validate all input cohorts exist in manifest
-  manifest_ids <- manifest$tabulateManifest()$id
+  manifest_ids <- manifest$tabulateManifest(filter = "active")$id
   missing_ids <- setdiff(cohortIds, manifest_ids)
 
   if (length(missing_ids) > 0) {
@@ -613,8 +595,12 @@ buildUnionCohort <- function(
   template_sql <- readr::read_file(template_path) |>
     SqlRender::render(
       cohort_ids = paste(cohortIds, collapse = ", "),
-      union_rule = unionRule,
-      at_least_n = atLeastN
+      gap_days = gapDays,
+      era_pad_days = eraPadDays,
+      min_era_days = minEraDays,
+      min_cohorts = minCohorts,
+      washout_days = washoutDays,
+      first_era_only = as.integer(firstEraOnly)
     )
 
   # Prepare metadata
@@ -683,7 +669,7 @@ buildUnionCohort <- function(
 #' @param complementType Character. One of 'exclude_any', 'exclude_all'. Default: 'exclude_any'
 #'   - 'exclude_any': remove subjects in ANY exclude cohort
 #'   - 'exclude_all': remove subjects only if in ALL exclude cohorts
-#' @param cohortsDirectory Character. Path to inputs/cohorts/. Uses study hierarchy if not provided.
+#' @param cohortsFolder Character. Path to inputs/cohorts/. Defaults to `here::here("inputs/cohorts")`.
 #' @param manifest CohortManifest object. Required. Validates that population and exclude cohorts exist and
 #'   automatically registers the new cohort via addDependentCohort().
 #'
@@ -717,7 +703,7 @@ buildComplementCohort <- function(
   }
 
   # Validate population and exclude cohorts exist in manifest
-  manifest_ids <- manifest$tabulateManifest()$id
+  manifest_ids <- manifest$tabulateManifest(filter = "active")$id
 
   if (!populationCohortId %in% manifest_ids) {
     cli::cli_abort("Population cohort ID {populationCohortId} not found in manifest")
@@ -751,6 +737,7 @@ buildComplementCohort <- function(
   SqlRender::render(
     population_cohort_id = populationCohortId,
     exclude_cohort_ids = paste(excludeCohortIds, collapse = ", "),
+    exclude_cohort_ids_count = length(excludeCohortIds),
     complement_type = complementType
   )
 
@@ -821,7 +808,7 @@ buildComplementCohort <- function(
 #'   - 'Last': Keep the most recent event
 #'   - 'All': Keep all qualifying events per subject (may result in multiple rows per subject)
 #'   Default: 'First'.
-#' @param cohortsDirectory Character. Path to inputs/cohorts/. Uses study hierarchy if not provided.
+#' @param cohortsFolder Character. Path to inputs/cohorts/. Defaults to `here::here("inputs/cohorts")`.
 #' @param manifest CohortManifest object. Required. Validates that all criteria cohorts exist and
 #'   automatically registers the new cohort via addDependentCohort().
 #'
@@ -861,7 +848,7 @@ buildCompositeCohort <- function(
   checkmate::assert_class(x = manifest, classes = "CohortManifest")
 
   # Validate criteria cohorts exist in manifest
-  manifest_ids <- manifest$tabulateManifest()$id
+  manifest_ids <- manifest$tabulateManifest(filter = "active")$id
   missing_ids <- setdiff(criteriaCohortIds, manifest_ids)
 
   if (length(missing_ids) > 0) {

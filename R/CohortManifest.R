@@ -145,7 +145,7 @@ CohortDef <- R6::R6Class(
     #'
     #' @param cohortType Character. One of 'circe', 'subset', 'union', 'complement'.
     setCohortType = function(cohortType) {
-      checkmate::assert_choice(x = cohortType, choices = c("circe", "subset", "union", "complement", "composite"))
+      checkmate::assert_choice(x = cohortType, choices = c("circe", "subset", "union", "complement", "composite", "custom"))
       private$.cohortType <- cohortType
     },
 
@@ -738,20 +738,55 @@ CohortManifest <- R6::R6Class(
       return(private$.manifest)
     },
 
-    #' Tabulate the manifest as a data frame
+    #' Tabulate the manifest as a tibble
     #'
     #' @details
-    #' Returns a tabular view of the manifest from the database, suitable for
-    #' viewing, filtering, and reporting. Columns include: id, label, tags, filePath, hash, timestamp.
+    #' Returns a tabular view of the manifest from the SQLite database, suitable for
+    #' viewing, filtering, and reporting.
     #'
-    #' @return Data frame. Manifest data with columns: id, label, tags, filePath, hash, timestamp
-    tabulateManifest = function() {
+    #' Columns returned:
+    #' \itemize{
+    #'   \item \code{id} - Cohort definition ID
+    #'   \item \code{label} - User-friendly cohort name
+    #'   \item \code{tags} - Metadata tags formatted as "name: value | ..." string
+    #'   \item \code{filePath} - Relative path to the cohort SQL/JSON file
+    #'   \item \code{hash} - Hash of the cohort SQL (used for change detection)
+    #'   \item \code{cohortType} - One of 'circe', 'custom', 'subset', 'union', 'complement', 'composite'
+    #'   \item \code{status} - One of 'active', 'deleted', 'purged'
+    #'   \item \code{timestamp} - Datetime the record was last inserted or updated
+    #'   \item \code{deleted_at} - Datetime of soft-delete, or NA if active
+    #' }
+    #'
+    #' @param filter Character. Controls which rows are returned. One of:
+    #'   \itemize{
+    #'     \item \code{"active"} (default) - Only active cohorts
+    #'     \item \code{"deleted"} - Only soft-deleted cohorts (status = 'deleted')
+    #'     \item \code{"all"} - All rows regardless of status
+    #'   }
+    #'
+    #' @return A tibble with columns: id, label, tags, filePath, hash, cohortType, status, timestamp, deleted_at
+    tabulateManifest = function(filter = c("active", "deleted", "all")) {
+      filter <- match.arg(filter)
+
+      where_clause <- switch(
+        filter,
+        active  = "WHERE status = 'active'",
+        deleted = "WHERE status IN ('deleted', 'purged')",
+        all     = ""
+      )
+
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
       on.exit(DBI::dbDisconnect(conn))
-      man <- DBI::dbGetQuery(
-          conn, "SELECT id, label, tags, filePath, hash, cohortType, timestamp FROM cohort_manifest ORDER BY id"
-      ) 
-      return(man)
+
+      sql <- paste(
+        "SELECT id, label, tags, filePath, hash, cohortType, status, timestamp, deleted_at",
+        "FROM cohort_manifest",
+        where_clause,
+        "ORDER BY id"
+      )
+
+      man <- DBI::dbGetQuery(conn, sql)
+      return(tibble::as_tibble(man))
     },
 
     #' Get the manifest path
@@ -1374,8 +1409,8 @@ CohortManifest <- R6::R6Class(
         cli::cli_abort("addDependentCohort only accepts dependent cohorts (subset, union, complement, composite). Got type: {cohort_type}. Use loadCohortManifest() for circe cohorts.")
       }
 
-      if (!cohort_type %in% c("subset", "union", "complement", "composite")) {
-        cli::cli_abort("Invalid cohort type: {cohort_type}. Must be 'subset', 'union', 'composite', or 'complement'")
+      if (!cohort_type %in% c("subset", "union", "complement", "composite", "custom")) {
+        cli::cli_abort("Invalid cohort type: {cohort_type}. Must be 'subset', 'union', 'composite', 'complement', or 'custom'")
       }
 
       # Validate parent cohorts exist in this manifest
@@ -1383,7 +1418,7 @@ CohortManifest <- R6::R6Class(
       parent_ids <- deps$cohort_ids
 
       if (length(parent_ids) > 0) {
-        manifest_data <- self$tabulateManifest()
+        manifest_data <- self$tabulateManifest(filter = "active")
         existing_ids <- manifest_data$id
 
         missing_ids <- setdiff(parent_ids, existing_ids)
@@ -1509,7 +1544,7 @@ CohortManifest <- R6::R6Class(
         conn,
         "SELECT id, label, tags, filePath, hash, cohortType, status
          FROM cohort_manifest
-         WHERE cohortType = 'circe'"
+         WHERE cohortType IN ('circe', 'custom')"
       )
 
       results <- data.frame(
@@ -1923,7 +1958,7 @@ CohortManifest <- R6::R6Class(
 
         # For dependent cohorts, also check dependency hash
         dependency_status <- "Not applicable"
-        if (cohort_type != "circe") {
+        if (cohort_type %in% c("subset", "union", "complement", "composite")) {
           # Compute dependency hash using cached parent hashes
           current_dependency_hash <- private$compute_dependency_hash(cohort, cohort_hashes)
 
@@ -1962,7 +1997,7 @@ CohortManifest <- R6::R6Class(
           ))
           
           # Cache this cohort's hash for dependency calculations
-          if (cohort_type == "circe") {
+          if (cohort_type %in% c("circe", "custom")) {
             cohort_hashes[[as.character(cohort_id)]] <- cohort$getHash()
           } else {
             cohort_hashes[[as.character(cohort_id)]] <- private$compute_dependency_hash(cohort, cohort_hashes)
@@ -1996,6 +2031,11 @@ CohortManifest <- R6::R6Class(
           next
         }
 
+        # Run portability validation for custom cohorts
+        if (cohort_type == "custom") {
+          .validateCustomSql(cohort_sql, cohort_label)
+        }
+
         # Prepare SQL rendering parameters
         sql_params <- list(
           cdm_database_schema = cdm_schema,
@@ -2012,7 +2052,7 @@ CohortManifest <- R6::R6Class(
         )
 
         # For dependent cohorts, load metadata and add to parameters
-        if (cohort_type != "circe") {
+        if (cohort_type %in% c("subset", "union", "complement", "composite")) {
           # Add execution context parameters for dependent cohorts
           output_table_name <- paste(cohort_schema, cohort_table, sep = ".")
           sql_params$output_cohort_id <- cohort_id
@@ -2160,7 +2200,7 @@ CohortManifest <- R6::R6Class(
         execution_time_min <- as.numeric(difftime(end_time, start_time, units = "mins"))
 
         # Determine hash to store (depends on cohort type)
-        if (cohort_type == "circe") {
+        if (cohort_type %in% c("circe", "custom")) {
           hash_to_store <- cohort$getHash()
         } else {
           hash_to_store <- private$compute_dependency_hash(cohort, cohort_hashes)
@@ -2236,8 +2276,9 @@ CohortManifest <- R6::R6Class(
       # Report by cohort type
       if ("cohort_type" %in% names(results_df)) {
         circe_count <- sum(results_df$cohort_type == "circe", na.rm = TRUE)
-        dependent_count <- sum(results_df$cohort_type %in% c("subset", "union", "complement"), na.rm = TRUE)
-        cli::cli_alert_info("Cohort types: {circe_count} circe + {dependent_count} dependent")
+        custom_count <- sum(results_df$cohort_type == "custom", na.rm = TRUE)
+        dependent_count <- sum(results_df$cohort_type %in% c("subset", "union", "complement", "composite"), na.rm = TRUE)
+        cli::cli_alert_info("Cohort types: {circe_count} circe + {custom_count} custom + {dependent_count} dependent")
       }
 
       cli::cli_alert_success("Cohort generation complete")

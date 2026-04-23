@@ -7,8 +7,12 @@
 buildUnionCohort(
   label,
   cohortIds,
-  unionRule = "any",
-  atLeastN = 2L,
+  gapDays = 0L,
+  eraPadDays = 0L,
+  minEraDays = 0L,
+  minCohorts = 1L,
+  washoutDays = 0L,
+  firstEraOnly = FALSE,
   cohortsFolder = here::here("inputs/cohorts"),
   manifest
 )
@@ -18,32 +22,40 @@ buildUnionCohort(
 
 \item{cohortIds}{Numeric vector (minimum 2). Cohort IDs to union.}
 
-\item{unionRule}{Character. One of 'any', 'all', 'at_least_n'. Default: 'any'
-\itemize{
-\item 'any': subjects appearing in ANY input cohort
-\item 'all': subjects appearing in ALL input cohorts
-\item 'at_least_n': subjects appearing in at least N cohorts
-}}
+\item{gapDays}{Integer. Bridge eras separated by up to this many days. Default: 0 (only
+overlapping periods collapse).}
 
-\item{atLeastN}{Integer. Number of cohorts required (only if unionRule='at_least_n'). Default: 2}
+\item{eraPadDays}{Integer. Expand each source period by this many days on each end before
+collapsing. Applied to individual periods, not the collapsed result. Default: 0.}
 
-\item{manifest}{CohortManifest object. Required. Validates that all input cohorts exist and
-automatically registers the new cohort via addDependentCohort().}
+\item{minEraDays}{Integer. Drop collapsed eras shorter than this many days. Default: 0
+(keep all eras).}
 
-\item{cohortsDirectory}{Character. Path to inputs/cohorts/. Uses study hierarchy if not provided.}
+\item{minCohorts}{Integer. Only include subjects appearing in at least this many distinct
+source cohorts. Default: 1 (any subject from any cohort).}
+
+\item{washoutDays}{Integer. Require a clean period of at least this many days before a
+new era can open. Subjects must have no source cohort membership for this period.
+Default: 0.}
+
+\item{firstEraOnly}{Logical. Return only the first collapsed era per subject. Default: FALSE.}
+
+\item{cohortsFolder}{Character. Path to inputs/cohorts/. Defaults to \code{here::here("inputs/cohorts")}.}
+
+\item{manifest}{CohortManifest object. Required. Validates that all input cohorts exist.}
 }
 \value{
 A CohortDef object with cohortType='union' and dependencies set.
 }
 \description{
-Creates a SQL file and metadata for a union cohort that combines multiple input cohorts.
-Returns a CohortDef object ready to add to a CohortManifest.
+Creates a SQL file and metadata for a union cohort that combines multiple input cohorts
+using a gaps-and-islands collapse algorithm. Overlapping or adjacent eras are merged
+into continuous periods. Returns a CohortDef object ready to add to a CohortManifest.
 }
 \details{
-Creates three files:
+Creates two files:
 \itemize{
 \item SQL file: \verb{inputs/cohorts/derived/union/union_cohorts_\{cohort_id_list\}.sql}
 \item Metadata JSON: Same path with \code{.json} extension
-\item Context file: \code{.metadata} with rule description
 }
 }

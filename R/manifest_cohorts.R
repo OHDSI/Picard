@@ -1183,3 +1183,322 @@ visualizeCohortDependencies <- function(manifest, outputPath = NULL) {
   
   return(list(tree_lines = tree_lines, processed_env = processed_env))
 }
+
+
+# ---- Custom Cohort Validation & Definition ----
+
+#' Validate a Custom SQL Cohort for Picard Compatibility
+#'
+#' @description
+#' Checks a custom SQL string for common portability and correctness issues.
+#' Issues are reported as warnings — this function never errors or blocks execution.
+#'
+#' Checks performed:
+#' - Required SqlRender parameters present (`@target_cohort_id`, `@target_database_schema`, `@target_cohort_table`)
+#' - DELETE statement present to ensure idempotency on re-run
+#' - INSERT includes all four required cohort table columns
+#' - No apparent hardcoded schema references
+#'
+#' @param sql Character. The SQL string to validate.
+#' @param label Character. Cohort label for use in warning messages.
+#'
+#' @return Invisibly returns a character vector of warning messages (empty if none).
+#'
+#' @noRd
+.validateCustomSql <- function(sql, label = "custom cohort") {
+  # Required SqlRender parameters
+  if (!grepl("@target_cohort_id", sql, fixed = TRUE)) {
+    cli::cli_alert_warning("[{label}] SQL does not contain `@target_cohort_id` - the cohort ID will not be injected at execution time")
+  }
+
+  if (!grepl("@target_database_schema", sql, fixed = TRUE)) {
+    cli::cli_alert_warning("[{label}] SQL does not contain `@target_database_schema` - target schema will not be injected at execution time")
+  }
+
+  if (!grepl("@target_cohort_table", sql, fixed = TRUE)) {
+    cli::cli_alert_warning("[{label}] SQL does not contain `@target_cohort_table` - cohort table name will not be injected at execution time")
+  }
+
+  # Idempotency: DELETE step
+  has_delete <- grepl("DELETE", sql, ignore.case = TRUE) &&
+    grepl("@target_cohort_id", sql, fixed = TRUE)
+
+  if (!has_delete) {
+    cli::cli_alert_warning("[{label}] SQL does not include a DELETE step using `@target_cohort_id` - re-running will duplicate rows instead of replacing them")
+  }
+
+  # INSERT column completeness
+  required_cols <- c("cohort_definition_id", "subject_id", "cohort_start_date", "cohort_end_date")
+  if (grepl("INSERT", sql, ignore.case = TRUE)) {
+    missing_cols <- required_cols[!sapply(required_cols, function(col) grepl(col, sql, ignore.case = TRUE))]
+    if (length(missing_cols) > 0) {
+      cli::cli_alert_warning(
+        "[{label}] INSERT statement appears to be missing required cohort column(s): {paste(missing_cols, collapse = ', ')}"
+      )
+    }
+  }
+
+  # Hardcoded schema detection: pattern like WORD_WORD.tablename (all-caps schema prefix)
+  if (grepl("[A-Z][A-Z0-9_]{4,}\\.[a-z]", sql, perl = TRUE)) {
+    cli::cli_alert_warning("[{label}] Possible hardcoded schema reference detected - consider replacing with `@cdm_database_schema` for portability across databases")
+  }
+
+  invisible(NULL)
+}
+
+
+#' Define (Enrich) a Custom SQL Cohort in the Manifest
+#'
+#' @description
+#' Enriches a cohort that has already been discovered by [loadCohortManifest()] with
+#' a user-friendly label, tags, and the `"custom"` cohort type. Updates both the
+#' in-memory manifest and the SQLite database so the enrichment persists across sessions.
+#'
+#' @details
+#' **Workflow:**
+#' 1. Place your custom SQL file in `inputs/cohorts/sql/`
+#' 2. Call [loadCohortManifest()] — the file is auto-discovered with `cohortType = "circe"`
+#'    and the filename as its label
+#' 3. Call `defineCustomCohort()` to give it a proper label, tags, and mark it as `"custom"`
+#' 4. Subsequent [loadCohortManifest()] calls restore the label/tags/type from the database
+#'
+#' **SQL requirements:**
+#' Your SQL must use SqlRender parameters instead of hardcoded values. The following
+#' parameters are automatically injected by [CohortManifest]`$generateCohorts()`:
+#' - `@target_cohort_id` — the cohort definition ID assigned by the manifest
+#' - `@target_database_schema` — the schema where the cohort table resides
+#' - `@target_cohort_table` — the cohort table name
+#' - `@cdm_database_schema` — the CDM schema (for referencing OMOP clinical tables)
+#'
+#' A DELETE step before the INSERT is strongly recommended for idempotency:
+#' ```sql
+#' DELETE FROM @target_database_schema.@target_cohort_table
+#'   WHERE cohort_definition_id = @target_cohort_id;
+#' ```
+#'
+#' SQL portability warnings are automatically shown when you call this function and
+#' again at execution time.
+#'
+#' @param manifest A [CohortManifest] R6 object returned by [loadCohortManifest()].
+#' @param label Character. The user-friendly display name for the cohort
+#'   (e.g., `"High-dose corticosteroid initiators"`).
+#' @param tags Named list. Optional metadata tags (e.g., `list(category = "Exposure")`).
+#'   Defaults to `list()`.
+#' @param cohortId Integer. The cohort ID assigned in the manifest. Provide either
+#'   `cohortId` or `sqlFilePath`, not both.
+#' @param sqlFilePath Character. Path to the SQL file (relative or absolute). Provide
+#'   either `sqlFilePath` or `cohortId`, not both.
+#'
+#' @return Invisibly returns `NULL`. Prints status messages on success.
+#'
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#'   # Step 1: place my_cohort.sql in inputs/cohorts/sql/
+#'   # Step 2: load manifest
+#'   manifest <- loadCohortManifest()
+#'
+#'   # Step 3: enrich the cohort by file path
+#'   defineCustomCohort(
+#'     manifest = manifest,
+#'     sqlFilePath = "inputs/cohorts/sql/my_cohort.sql",
+#'     label = "My Custom Cohort",
+#'     tags = list(category = "Exposure", subCategory = "Corticosteroids")
+#'   )
+#'
+#'   # Or enrich by cohort ID
+#'   defineCustomCohort(
+#'     manifest = manifest,
+#'     cohortId = 5L,
+#'     label = "My Custom Cohort",
+#'     tags = list(category = "Exposure")
+#'   )
+#' }
+defineCustomCohort <- function(manifest,
+                                label,
+                                tags = list(),
+                                cohortId = NULL,
+                                sqlFilePath = NULL) {
+  checkmate::assert_class(x = manifest, classes = "CohortManifest")
+  checkmate::assert_string(x = label, min.chars = 1)
+  checkmate::assert_list(x = tags, names = "named")
+
+  # Exactly one of cohortId / sqlFilePath must be provided
+  has_id <- !is.null(cohortId)
+  has_path <- !is.null(sqlFilePath)
+
+  if (has_id && has_path) {
+    cli::cli_abort("Provide either `cohortId` or `sqlFilePath`, not both.")
+  }
+
+  if (!has_id && !has_path) {
+    cli::cli_abort("One of `cohortId` or `sqlFilePath` must be provided.")
+  }
+
+  if (has_id) {
+    checkmate::assert_int(x = cohortId, lower = 1)
+  }
+
+  if (has_path) {
+    checkmate::assert_string(x = sqlFilePath, min.chars = 1)
+  }
+
+  # Locate the CohortDef in the manifest
+  cohort <- NULL
+
+  if (has_id) {
+    cohort <- manifest$getCohortById(as.integer(cohortId))
+    if (is.null(cohort)) {
+      cli::cli_abort("No cohort with ID {cohortId} found in the manifest.")
+    }
+  } else {
+    # Match by file path (normalise separators for comparison)
+    norm_target <- normalizePath(sqlFilePath, mustWork = FALSE)
+    all_cohorts <- manifest$getManifest()
+
+    for (cd in all_cohorts) {
+      norm_fp <- normalizePath(cd$getFilePath(), mustWork = FALSE)
+      if (norm_fp == norm_target || fs::path_rel(cd$getFilePath()) == fs::path_rel(sqlFilePath)) {
+        cohort <- cd
+        break
+      }
+    }
+
+    if (is.null(cohort)) {
+      cli::cli_abort(
+        "No cohort with file path '{sqlFilePath}' found in the manifest. \\
+        Ensure the file has been discovered by loadCohortManifest() first."
+      )
+    }
+  }
+
+  cohort_id <- cohort$getId()
+
+  # Run SQL portability validation (warnings only)
+  cohort_sql <- cohort$getSql()
+  if (!is.null(cohort_sql) && nchar(cohort_sql) > 0) {
+    .validateCustomSql(cohort_sql, label)
+  }
+
+  # Update in-memory CohortDef
+  cohort$label <- label
+  cohort$tags <- tags
+  cohort$setCohortType("custom")
+
+  # Persist to SQLite
+  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
+  on.exit(DBI::dbDisconnect(conn))
+
+  tags_str <- cohort$formatTagsAsString()
+
+  DBI::dbExecute(
+    conn,
+    "UPDATE cohort_manifest SET label = ?, tags = ?, cohortType = 'custom' WHERE id = ?",
+    list(label, tags_str, cohort_id)
+  )
+
+  cli::cli_alert_success("Defined custom cohort {cohort_id}: {label}")
+
+  if (length(tags) > 0) {
+    cli::cli_alert_info("Tags: {tags_str}")
+  }
+
+  invisible(NULL)
+}
+
+
+#' Update the label and/or tags of an existing manifest cohort
+#'
+#' @description
+#' Updates the `label`, `tags`, or both on any cohort already present in the
+#' manifest, regardless of cohort type. Changes are applied to both the
+#' in-memory `CohortManifest` and the SQLite database. Only the fields
+#' explicitly supplied are modified; omitted arguments are left unchanged.
+#'
+#' @param manifest A `CohortManifest` object.
+#' @param cohortId Integer. The ID of the cohort to update.
+#' @param label Character or `NULL`. New label for the cohort. If `NULL`, the
+#'   existing label is preserved.
+#' @param tags Named list or `NULL`. New tags for the cohort. If `NULL`, the
+#'   existing tags are preserved.
+#'
+#' @return Invisibly returns `NULL`. Called for side effects.
+#' @export
+updateCohortMetadata <- function(manifest,
+                                 cohortId,
+                                 label = NULL,
+                                 tags = NULL) {
+  checkmate::assert_class(x = manifest, classes = "CohortManifest")
+  checkmate::assert_int(x = cohortId, lower = 1)
+
+  if (is.null(label) && is.null(tags)) {
+    cli::cli_abort("At least one of `label` or `tags` must be provided.")
+  }
+
+  if (!is.null(label)) {
+    checkmate::assert_string(x = label, min.chars = 1)
+  }
+
+  if (!is.null(tags)) {
+    checkmate::assert_list(x = tags, names = "named")
+  }
+
+  cohort <- manifest$getCohortById(as.integer(cohortId))
+
+  if (is.null(cohort)) {
+    cli::cli_abort("No cohort with ID {cohortId} found in the manifest.")
+  }
+
+  # Apply in-memory updates for only the supplied fields
+  if (!is.null(label)) {
+    cohort$label <- label
+  }
+
+  if (!is.null(tags)) {
+    cohort$tags <- tags
+  }
+
+  # Build a dynamic SET clause covering only the changed columns
+  set_parts <- character(0)
+  params <- list()
+
+  if (!is.null(label)) {
+    set_parts <- c(set_parts, "label = ?")
+    params <- c(params, list(label))
+  }
+
+  if (!is.null(tags)) {
+    tags_str <- cohort$formatTagsAsString()
+    set_parts <- c(set_parts, "tags = ?")
+    params <- c(params, list(tags_str))
+  }
+
+  params <- c(params, list(as.integer(cohortId)))
+
+  sql <- paste(
+    "UPDATE cohort_manifest SET",
+    paste(set_parts, collapse = ", "),
+    "WHERE id = ?"
+  )
+
+  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
+  on.exit(DBI::dbDisconnect(conn))
+
+  DBI::dbExecute(conn, sql, params)
+
+  # Report what changed
+  changed <- character(0)
+
+  if (!is.null(label)) {
+    changed <- c(changed, "label \u2192 {label}")
+  }
+
+  if (!is.null(tags)) {
+    changed <- c(changed, "tags \u2192 {tags_str}")
+  }
+
+  cli::cli_alert_success("Updated cohort {cohortId}: {paste(changed, collapse = ', ')}")
+
+  invisible(NULL)
+}

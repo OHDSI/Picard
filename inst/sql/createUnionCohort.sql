@@ -1,22 +1,6 @@
 /* Union Cohort Template
-<<<<<<< Updated upstream
-Combines multiple cohorts with optional rule for overlap handling
-Parameters
-  cohort_ids Comma-separated list of cohort definition IDs to union
-  cohort_ids_count Number of cohort IDs in @cohort_ids (required for 'all' rule)
-  union_rule 'any' (all subjects from any cohort), 'all' (only subjects in ALL cohorts), 'at_least_n' (at least N cohorts)
-  at_least_n Number of cohorts required if using 'at_least_n' rule (default = 2)
-  output_cohort_id The new cohort definition ID for the union
-  output_table Schema.table to insert results into
-  base_cohort_table Schema.table containing the base cohorts
-*/
-{DEFAULT @union_rule = 'any'}
-{DEFAULT @at_least_n = 2}
-{DEFAULT @cohort_ids_count = 0}
-=======
 Combines multiple cohorts into a single cohort, merging overlapping or adjacent eras
 into continuous periods using a gaps-and-islands algorithm.
->>>>>>> Stashed changes
 
 Parameters-
   cohort_ids                  Comma-separated list of source cohort definition IDs

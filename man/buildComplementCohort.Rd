@@ -26,10 +26,10 @@ buildComplementCohort(
 \item 'exclude_all': remove subjects only if in ALL exclude cohorts
 }}
 
+\item{cohortsFolder}{Character. Path to inputs/cohorts/. Defaults to \code{here::here("inputs/cohorts")}.}
+
 \item{manifest}{CohortManifest object. Required. Validates that population and exclude cohorts exist and
 automatically registers the new cohort via addDependentCohort().}
-
-\item{cohortsDirectory}{Character. Path to inputs/cohorts/. Uses study hierarchy if not provided.}
 }
 \value{
 A CohortDef object with cohortType='complement' and dependencies set.

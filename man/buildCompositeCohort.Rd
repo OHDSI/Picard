@@ -31,10 +31,10 @@ retain as the cohort_start_date and cohort_end_date in the output:
 Default: 'First'.
 }}
 
+\item{cohortsFolder}{Character. Path to inputs/cohorts/. Defaults to \code{here::here("inputs/cohorts")}.}
+
 \item{manifest}{CohortManifest object. Required. Validates that all criteria cohorts exist and
 automatically registers the new cohort via addDependentCohort().}
-
-\item{cohortsDirectory}{Character. Path to inputs/cohorts/. Uses study hierarchy if not provided.}
 }
 \value{
 A CohortDef object with cohortType='composite' and dependencies set.

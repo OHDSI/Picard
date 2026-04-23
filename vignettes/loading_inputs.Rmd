@@ -321,6 +321,88 @@ print(counts)
 
 **Note:** Dependent cohorts are generated using R code, not SQL files. When you call `cm$generateCohorts()`, Picard executes the logic for all dependent cohorts automatically. The `manifest` parameter is required by all `build*` functions — it validates parent cohorts and registers the new cohort in the manifest automatically.
 
+## Working with Custom SQL Cohorts
+
+Sometimes a cohort cannot be expressed as a CIRCE JSON definition from ATLAS, and is too specific or complex for a derived cohort. In these cases you can write the SQL yourself and register it as a **custom** cohort.
+
+Custom cohorts:
+
+- Live in `inputs/cohorts/sql/` alongside any other hand-written SQL files
+- Are tracked with SQL-hash-based change detection (same as ATLAS circe cohorts)
+- Are executed by `generateCohorts()` using the same standard SqlRender parameters
+
+### SQL Requirements
+
+Your SQL must use SqlRender parameters rather than hardcoded values. `generateCohorts()` injects these automatically:
+
+| Parameter | Description |
+|---|---|
+| `@target_cohort_id` | The cohort definition ID assigned by the manifest |
+| `@target_database_schema` | The schema where the cohort table resides |
+| `@target_cohort_table` | The cohort table name |
+| `@cdm_database_schema` | The CDM schema for referencing OMOP clinical tables |
+
+A DELETE step before the INSERT is strongly recommended for idempotency (safe to re-run):
+
+```sql
+DELETE FROM @target_database_schema.@target_cohort_table
+  WHERE cohort_definition_id = @target_cohort_id;
+
+INSERT INTO @target_database_schema.@target_cohort_table (
+  cohort_definition_id,
+  subject_id,
+  cohort_start_date,
+  cohort_end_date
+)
+SELECT
+  @target_cohort_id,
+  person_id,
+  condition_start_date,
+  condition_end_date
+FROM @cdm_database_schema.condition_occurrence
+WHERE condition_concept_id IN (...)
+;
+```
+
+### Registering a Custom Cohort
+
+1. Place your `.sql` file in `inputs/cohorts/sql/`
+2. Call `loadCohortManifest()` — the file is auto-discovered with a temporary label (the filename) and `cohortType = "circe"`
+3. Call `defineCustomCohort()` to give it a proper label, tags, and mark it as `"custom"`
+
+```{r eval = FALSE}
+cm <- loadCohortManifest()
+
+# Enrich by file path
+defineCustomCohort(
+  manifest = cm,
+  sqlFilePath = "inputs/cohorts/sql/high_dose_steroids.sql",
+  label = "High-dose corticosteroid initiators",
+  tags = list(category = "Exposure", subCategory = "Corticosteroids")
+)
+
+# Or enrich by cohort ID if you already know it
+defineCustomCohort(
+  manifest = cm,
+  cohortId = 5L,
+  label = "High-dose corticosteroid initiators",
+  tags = list(category = "Exposure")
+)
+```
+
+The label, tags, and `cohortType = "custom"` are persisted to the SQLite manifest so they are restored automatically by future `loadCohortManifest()` calls — you only need to call `defineCustomCohort()` once per cohort.
+
+### SQL Validation
+
+`defineCustomCohort()` automatically checks the SQL for common portability issues and emits **warnings** (never errors) for:
+
+- Missing required SqlRender parameters (`@target_cohort_id`, `@target_database_schema`, `@target_cohort_table`)
+- No DELETE step (idempotency risk)
+- INSERT missing one or more of the four required cohort columns
+- Apparent hardcoded schema references
+
+The same checks run again at execution time when `generateCohorts()` processes the cohort, so you always get a reminder even if you skipped `defineCustomCohort()`.
+
 ## Managing the Manifest Mid-Cycle
 
 Study development is rarely linear. Cohorts get revised in ATLAS, new definitions get added mid-analysis, or old definitions are retired. Picard provides three methods to keep the manifest in sync with reality without reloading from scratch.
@@ -401,6 +483,42 @@ print(purge_results)   # id, label for each purged cohort
 ```
 
 After `cleanCohortTable()`, those manifest records are marked `'purged'` and will not be processed again on subsequent calls — the method is safe to call repeatedly.
+
+### Updating Cohort Labels and Tags
+
+At any point in the study cycle you can rename a cohort or update its tags without affecting its type, SQL, or generation status. This is useful when:
+
+- An ATLAS-imported cohort arrives with a machine-generated label you want to clean up
+- You need to apply or revise categorization tags used for downstream queries or reporting
+- A cohort's purpose changes and its name should reflect that
+
+```{r eval = FALSE}
+# Rename a cohort (label only — tags unchanged)
+updateCohortMetadata(
+  manifest = cm,
+  cohortId = 3L,
+  label = "Type 2 Diabetes — incident users"
+)
+
+# Add or replace tags (label unchanged)
+updateCohortMetadata(
+  manifest = cm,
+  cohortId = 3L,
+  tags = list(category = "Outcome", subCategory = "Metabolic")
+)
+
+# Update both at once
+updateCohortMetadata(
+  manifest = cm,
+  cohortId = 3L,
+  label = "Type 2 Diabetes — incident users",
+  tags = list(category = "Outcome", subCategory = "Metabolic")
+)
+```
+
+Changes are applied immediately to the in-memory manifest and persisted to SQLite, so they survive across sessions. Only the supplied fields are written — omitted arguments are left untouched in the database.
+
+> **Tip:** Use `cm$tabulateManifest()` before and after to confirm the changes.
 
 ### Typical Mid-Cycle Workflow
 
