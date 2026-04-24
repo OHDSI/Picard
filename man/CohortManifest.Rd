@@ -16,8 +16,21 @@ The CohortManifest class manages multiple cohort definitions and stores their
 metadata in a SQLite database located at inputs/cohorts/cohortManifest.sqlite.
 Each CohortDef is assigned a sequential ID based on its position in the manifest.
 
-Returns a tabular view of the manifest from the database, suitable for
-viewing, filtering, and reporting. Columns include: id, label, tags, filePath, hash, timestamp.
+Returns a tabular view of the manifest from the SQLite database, suitable for
+viewing, filtering, and reporting.
+
+Columns returned:
+\itemize{
+\item \code{id} - Cohort definition ID
+\item \code{label} - User-friendly cohort name
+\item \code{tags} - Metadata tags formatted as "name: value | ..." string
+\item \code{filePath} - Relative path to the cohort SQL/JSON file
+\item \code{hash} - Hash of the cohort SQL (used for change detection)
+\item \code{cohortType} - One of 'circe', 'custom', 'subset', 'union', 'complement', 'composite'
+\item \code{status} - One of 'active', 'deleted', 'purged'
+\item \code{timestamp} - Datetime the record was last inserted or updated
+\item \code{deleted_at} - Datetime of soft-delete, or NA if active
+}
 
 Requires that executionSettings has been set and includes:
 \itemize{
@@ -135,7 +148,7 @@ Get the manifest as a list of CohortDef objects}
 
 \subsection{Returns}{
 List. A list of CohortDef objects in the manifest, indexed by cohort ID.
-Tabulate the manifest as a data frame
+Tabulate the manifest as a tibble
 }
 }
 \if{html}{\out{<hr>}}
@@ -143,11 +156,23 @@ Tabulate the manifest as a data frame
 \if{latex}{\out{\hypertarget{method-CohortManifest-tabulateManifest}{}}}
 \subsection{Method \code{tabulateManifest()}}{
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$tabulateManifest()}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$tabulateManifest(filter = c("active", "deleted", "all"))}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{filter}}{Character. Controls which rows are returned. One of:
+\itemize{
+\item \code{"active"} (default) - Only active cohorts
+\item \code{"deleted"} - Only soft-deleted cohorts (status = 'deleted')
+\item \code{"all"} - All rows regardless of status
+}}
+}
+\if{html}{\out{</div>}}
+}
 \subsection{Returns}{
-Data frame. Manifest data with columns: id, label, tags, filePath, hash, timestamp
+A tibble with columns: id, label, tags, filePath, hash, cohortType, status, timestamp, deleted_at
 Get the manifest path
 }
 }

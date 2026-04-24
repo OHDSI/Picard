@@ -386,7 +386,7 @@ createBlankConceptSetsLoadFile <- function(conceptSetsFolderPath = here::here("i
   # Print informative messages
   cli::cli_rule("Blank Concept Sets Load File Created")
   cli::cli_text("File created at: {.file {fs::path_rel(file_path)}}")
-  cli::cli_br()
+  cli::cli_text("")
   cli::cli_h3("Column Guide:")
   cli::cli_ul(c(
     "{.field atlasId} - ATLAS concept set ID (numeric)",
@@ -397,7 +397,7 @@ createBlankConceptSetsLoadFile <- function(conceptSetsFolderPath = here::here("i
     "{.field domain} - One of: drug_exposure, condition_occurrence, measurement, procedure, observation, visit_occurrence",
     "{.field file_name} - Path to JSON file (e.g., 'json/hypertension.json'). Note this is a placeholder will be replaced when you import from ATLAS."
   ))
-  cli::cli_br()
+  cli::cli_text("")
   cli::cli_h3("Tips for Filling Out:")
   cli::cli_ul(c(
     "Each row = one concept set",
@@ -405,7 +405,7 @@ createBlankConceptSetsLoadFile <- function(conceptSetsFolderPath = here::here("i
     "{.emph domain} field is critical for vocabulary suggestions",
     "Save as UTF-8 CSV from Excel to avoid encoding issues"
   ))
-  cli::cli_br()
+  cli::cli_text("")
   cli::cli_h3("Next Steps:")
   cli::cli_ol(c(
     "Open {.file conceptSetsLoad.csv} in Excel or your text editor",

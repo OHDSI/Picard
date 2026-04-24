@@ -82,3 +82,36 @@ cohortManifest$tabulateManifest()
 # Some cohorts depend on other cohorts. For example, we may want to define a cohort of persons with CKD given they had Diabetes
 # This can be done using dependent cohorts. Options include: temporal subsets, demographics, unions, complements and composites.
 
+
+## 5. (Optional) Define Custom SQL Cohorts
+# Use custom SQL when a cohort cannot be expressed in ATLAS CIRCE or as a derived cohort.
+# 
+# Workflow:
+#   a. Place your .sql file in inputs/cohorts/sql/
+#   b. Call loadCohortManifest() — the file is auto-discovered with a temporary label
+#   c. Call defineCustomCohort() to assign a proper label, tags, and cohortType = "custom"
+#
+# Your SQL must use SqlRender parameters (@target_cohort_id, @target_database_schema,
+# @target_cohort_table, @cdm_database_schema) and include a DELETE step for idempotency.
+# See the loading_inputs vignette for a full SQL template.
+
+# cohortManifest <- loadCohortManifest()
+#
+# defineCustomCohort(
+#   manifest = cohortManifest,
+#   sqlFilePath = "inputs/cohorts/sql/my_cohort.sql",
+#   label = "My Custom Cohort",
+#   tags = list(category = "Exposure")
+# )
+
+
+## 6. (Optional) Update Cohort Metadata
+# Rename or re-tag any cohort already in the manifest (any cohort type).
+# Only the fields you supply are changed — omitted arguments are left untouched.
+
+# updateCohortMetadata(
+#   manifest = cohortManifest,
+#   cohortId = 1L,
+#   label = "Revised cohort name"
+# )
+

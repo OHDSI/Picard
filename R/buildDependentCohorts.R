@@ -193,7 +193,7 @@ createSubsetEndWindow <- function(
 #' @param subsetLimit Character. One of 'First', 'Last', or 'All'. Specifies which qualifying filter cohort event(s)
 #'   to retain per subject. 'First' keeps the earliest event, 'Last' keeps the most recent event, 'All' keeps all 
 #'   qualifying events. Default: 'First'.
-#' @param cohortsDirectory Character. Path to inputs/cohorts/. Uses study hierarchy if not provided.
+#' @param cohortsFolder Character. Path to inputs/cohorts/. Defaults to `here::here("inputs/cohorts")`.
 #' @param manifest CohortManifest object. Required. Validates that base cohorts exist and
 #'   automatically registers the new cohort via addDependentCohort().
 #'
@@ -251,7 +251,7 @@ buildSubsetCohortTemporal <- function(
   checkmate::assert_class(x = manifest, classes = "CohortManifest")
 
   # Validate base cohorts exist in manifest
-  manifest_ids <- manifest$tabulateManifest()$id
+  manifest_ids <- manifest$tabulateManifest(filter = "active")$id
 
   if (!baseCohortId %in% manifest_ids) {
     cli::cli_abort("Base cohort ID {baseCohortId} not found in manifest")
@@ -377,7 +377,7 @@ buildSubsetCohortTemporal <- function(
 #' @param genderConceptIds Numeric vector. Gender concept IDs to include. NULL = all. Default: NULL
 #' @param raceConceptIds Numeric vector. Race concept IDs to include. NULL = all. Default: NULL
 #' @param ethnicityConceptIds Numeric vector. Ethnicity concept IDs to include. NULL = all. Default: NULL
-#' @param cohortsDirectory Character. Path to inputs/cohorts/. Uses study hierarchy if not provided.
+#' @param cohortsFolder Character. Path to inputs/cohorts/. Defaults to `here::here("inputs/cohorts")`.
 #' @param manifest CohortManifest object. Required. Validates that the base cohort exists and
 #'   automatically registers the new cohort via addDependentCohort().
 #'
@@ -412,7 +412,7 @@ buildSubsetCohortDemographic <- function(
   checkmate::assert_class(x = manifest, classes = "CohortManifest")
 
   # Validate base cohort exists in manifest
-  manifest_ids <- manifest$tabulateManifest()$id
+  manifest_ids <- manifest$tabulateManifest(filter = "active")$id
 
   if (!baseCohortId %in% manifest_ids) {
     cli::cli_abort("Base cohort ID {baseCohortId} not found in manifest")
@@ -514,25 +514,31 @@ buildSubsetCohortDemographic <- function(
 #' Build a Union Cohort Definition
 #'
 #' @description
-#' Creates a SQL file and metadata for a union cohort that combines multiple input cohorts.
-#' Returns a CohortDef object ready to add to a CohortManifest.
+#' Creates a SQL file and metadata for a union cohort that combines multiple input cohorts
+#' using a gaps-and-islands collapse algorithm. Overlapping or adjacent eras are merged
+#' into continuous periods. Returns a CohortDef object ready to add to a CohortManifest.
 #'
 #' @param label Character. User-friendly name for the union (e.g., "Chronic Kidney Disease Phenotypes")
 #' @param cohortIds Numeric vector (minimum 2). Cohort IDs to union.
-#' @param unionRule Character. One of 'any', 'all', 'at_least_n'. Default: 'any'
-#'   - 'any': subjects appearing in ANY input cohort
-#'   - 'all': subjects appearing in ALL input cohorts
-#'   - 'at_least_n': subjects appearing in at least N cohorts
-#' @param atLeastN Integer. Number of cohorts required (only if unionRule='at_least_n'). Default: 2
-#' @param cohortsDirectory Character. Path to inputs/cohorts/. Uses study hierarchy if not provided.
-#' @param manifest CohortManifest object. Required. Validates that all input cohorts exist and
-#'   automatically registers the new cohort via addDependentCohort().
+#' @param gapDays Integer. Bridge eras separated by up to this many days. Default: 0 (only
+#'   overlapping periods collapse).
+#' @param eraPadDays Integer. Expand each source period by this many days on each end before
+#'   collapsing. Applied to individual periods, not the collapsed result. Default: 0.
+#' @param minEraDays Integer. Drop collapsed eras shorter than this many days. Default: 0
+#'   (keep all eras).
+#' @param minCohorts Integer. Only include subjects appearing in at least this many distinct
+#'   source cohorts. Default: 1 (any subject from any cohort).
+#' @param washoutDays Integer. Require a clean period of at least this many days before a
+#'   new era can open. Subjects must have no source cohort membership for this period.
+#'   Default: 0.
+#' @param firstEraOnly Logical. Return only the first collapsed era per subject. Default: FALSE.
+#' @param cohortsFolder Character. Path to inputs/cohorts/. Defaults to `here::here("inputs/cohorts")`.
+#' @param manifest CohortManifest object. Required. Validates that all input cohorts exist.
 #'
 #' @details
-#' Creates three files:
+#' Creates two files:
 #' - SQL file: `inputs/cohorts/derived/union/union_cohorts_{cohort_id_list}.sql`
 #' - Metadata JSON: Same path with `.json` extension
-#' - Context file: `.metadata` with rule description
 #'
 #' @return A CohortDef object with cohortType='union' and dependencies set.
 #'
@@ -540,20 +546,28 @@ buildSubsetCohortDemographic <- function(
 buildUnionCohort <- function(
     label,
     cohortIds,
-    unionRule = "any",
-    atLeastN = 2L,
+    gapDays = 0L,
+    eraPadDays = 0L,
+    minEraDays = 0L,
+    minCohorts = 1L,
+    washoutDays = 0L,
+    firstEraOnly = FALSE,
     cohortsFolder = here::here("inputs/cohorts"),
     manifest) {
 
   # Validation
   checkmate::assert_string(x = label, min.chars = 1)
   checkmate::assert_integerish(x = cohortIds, min.len = 2, unique = TRUE, lower = 1)
-  checkmate::assert_choice(x = unionRule, choices = c("any", "all", "at_least_n"))
-  checkmate::assert_integerish(x = atLeastN, len = 1, lower = 1)
+  checkmate::assert_integerish(x = gapDays, len = 1, lower = 0)
+  checkmate::assert_integerish(x = eraPadDays, len = 1, lower = 0)
+  checkmate::assert_integerish(x = minEraDays, len = 1, lower = 0)
+  checkmate::assert_integerish(x = minCohorts, len = 1, lower = 1)
+  checkmate::assert_integerish(x = washoutDays, len = 1, lower = 0)
+  checkmate::assert_logical(x = firstEraOnly, len = 1)
   checkmate::assert_class(x = manifest, classes = "CohortManifest")
 
   # Validate all input cohorts exist in manifest
-  manifest_ids <- manifest$tabulateManifest()$id
+  manifest_ids <- manifest$tabulateManifest(filter = "active")$id
   missing_ids <- setdiff(cohortIds, manifest_ids)
 
   if (length(missing_ids) > 0) {
@@ -568,7 +582,7 @@ buildUnionCohort <- function(
 
   # Generate file names
   cohort_ids_str <- paste(cohortIds, collapse = "_")
-  file_name <- sprintf("union_cohorts_%s_%s", cohort_ids_str, unionRule)
+  file_name <- sprintf("union_cohorts_%s", cohort_ids_str)
   sql_path <- file.path(union_dir, paste0(file_name, ".sql"))
   metadata_path <- file.path(union_dir, paste0(file_name, ".json"))
 
@@ -581,8 +595,12 @@ buildUnionCohort <- function(
   template_sql <- readr::read_file(template_path) |>
     SqlRender::render(
       cohort_ids = paste(cohortIds, collapse = ", "),
-      union_rule = unionRule,
-      at_least_n = atLeastN
+      gap_days = gapDays,
+      era_pad_days = eraPadDays,
+      min_era_days = minEraDays,
+      min_cohorts = minCohorts,
+      washout_days = washoutDays,
+      first_era_only = as.integer(firstEraOnly)
     )
 
   # Prepare metadata
@@ -590,8 +608,12 @@ buildUnionCohort <- function(
     type = "union",
     label = label,
     cohortIds = as.list(as.integer(cohortIds)),
-    unionRule = unionRule,
-    atLeastN = atLeastN,
+    gapDays = as.integer(gapDays),
+    eraPadDays = as.integer(eraPadDays),
+    minEraDays = as.integer(minEraDays),
+    minCohorts = as.integer(minCohorts),
+    washoutDays = as.integer(washoutDays),
+    firstEraOnly = firstEraOnly,
     createdAt = Sys.time(),
     dependsOnCohortIds = as.integer(cohortIds)
   )
@@ -609,8 +631,7 @@ buildUnionCohort <- function(
     label = label,
     tags = list(
       type = "union",
-      cohortCount = as.character(length(cohortIds)),
-      unionRule = unionRule
+      cohortCount = as.character(length(cohortIds))
     ),
     filePath = sql_path
   )
@@ -621,8 +642,12 @@ buildUnionCohort <- function(
     dependsOnCohortIds = as.integer(cohortIds),
     dependencyRule = list(
       type = "union",
-      rule = unionRule,
-      atLeastN = atLeastN
+      gapDays = as.integer(gapDays),
+      eraPadDays = as.integer(eraPadDays),
+      minEraDays = as.integer(minEraDays),
+      minCohorts = as.integer(minCohorts),
+      washoutDays = as.integer(washoutDays),
+      firstEraOnly = firstEraOnly
     )
   )
 
@@ -644,7 +669,7 @@ buildUnionCohort <- function(
 #' @param complementType Character. One of 'exclude_any', 'exclude_all'. Default: 'exclude_any'
 #'   - 'exclude_any': remove subjects in ANY exclude cohort
 #'   - 'exclude_all': remove subjects only if in ALL exclude cohorts
-#' @param cohortsDirectory Character. Path to inputs/cohorts/. Uses study hierarchy if not provided.
+#' @param cohortsFolder Character. Path to inputs/cohorts/. Defaults to `here::here("inputs/cohorts")`.
 #' @param manifest CohortManifest object. Required. Validates that population and exclude cohorts exist and
 #'   automatically registers the new cohort via addDependentCohort().
 #'
@@ -678,7 +703,7 @@ buildComplementCohort <- function(
   }
 
   # Validate population and exclude cohorts exist in manifest
-  manifest_ids <- manifest$tabulateManifest()$id
+  manifest_ids <- manifest$tabulateManifest(filter = "active")$id
 
   if (!populationCohortId %in% manifest_ids) {
     cli::cli_abort("Population cohort ID {populationCohortId} not found in manifest")
@@ -712,6 +737,7 @@ buildComplementCohort <- function(
   SqlRender::render(
     population_cohort_id = populationCohortId,
     exclude_cohort_ids = paste(excludeCohortIds, collapse = ", "),
+    exclude_cohort_ids_count = length(excludeCohortIds),
     complement_type = complementType
   )
 
@@ -782,7 +808,7 @@ buildComplementCohort <- function(
 #'   - 'Last': Keep the most recent event
 #'   - 'All': Keep all qualifying events per subject (may result in multiple rows per subject)
 #'   Default: 'First'.
-#' @param cohortsDirectory Character. Path to inputs/cohorts/. Uses study hierarchy if not provided.
+#' @param cohortsFolder Character. Path to inputs/cohorts/. Defaults to `here::here("inputs/cohorts")`.
 #' @param manifest CohortManifest object. Required. Validates that all criteria cohorts exist and
 #'   automatically registers the new cohort via addDependentCohort().
 #'
@@ -822,7 +848,7 @@ buildCompositeCohort <- function(
   checkmate::assert_class(x = manifest, classes = "CohortManifest")
 
   # Validate criteria cohorts exist in manifest
-  manifest_ids <- manifest$tabulateManifest()$id
+  manifest_ids <- manifest$tabulateManifest(filter = "active")$id
   missing_ids <- setdiff(criteriaCohortIds, manifest_ids)
 
   if (length(missing_ids) > 0) {
@@ -908,4 +934,246 @@ buildCompositeCohort <- function(
 
   manifest$addDependentCohort(cohort_def)
   invisible(cohort_def)
+}
+
+
+# ---- Stratified Cohorts ----
+
+#' Convert a stratum definition to a SQL WHERE condition
+#'
+#' @param stratum_def Either a named list of demographic filters or a raw SQL
+#'   character string. List keys: `genderConceptIds`, `raceConceptIds`,
+#'   `ethnicityConceptIds`, `minAge`, `maxAge`.
+#'
+#' @return Character. A single SQL boolean expression referencing `bc` (cohort
+#'   table alias) and `p` (person table alias).
+#'
+#' @noRd
+.stratum_to_sql_condition <- function(stratum_def) {
+
+  if (is.character(stratum_def)) {
+    return(stratum_def)
+  }
+
+  checkmate::assert_list(stratum_def, names = "named")
+
+  parts <- character(0)
+
+  if (!is.null(stratum_def$genderConceptIds)) {
+    ids <- paste(as.integer(stratum_def$genderConceptIds), collapse = ", ")
+    parts <- c(parts, paste0("p.gender_concept_id IN (", ids, ")"))
+  }
+
+  if (!is.null(stratum_def$raceConceptIds)) {
+    ids <- paste(as.integer(stratum_def$raceConceptIds), collapse = ", ")
+    parts <- c(parts, paste0("p.race_concept_id IN (", ids, ")"))
+  }
+
+  if (!is.null(stratum_def$ethnicityConceptIds)) {
+    ids <- paste(as.integer(stratum_def$ethnicityConceptIds), collapse = ", ")
+    parts <- c(parts, paste0("p.ethnicity_concept_id IN (", ids, ")"))
+  }
+
+  if (!is.null(stratum_def$minAge)) {
+    parts <- c(parts, paste0("YEAR(bc.cohort_start_date) - p.year_of_birth >= ", as.integer(stratum_def$minAge)))
+  }
+
+  if (!is.null(stratum_def$maxAge)) {
+    parts <- c(parts, paste0("YEAR(bc.cohort_start_date) - p.year_of_birth <= ", as.integer(stratum_def$maxAge)))
+  }
+
+  if (length(parts) == 0) {
+    cli::cli_abort("Stratum definition is empty — provide at least one filter condition.")
+  }
+
+  partsFinal <- paste(parts, collapse = " AND ")
+  return(partsFinal)
+}
+
+
+#' Split a Base Cohort into Multiple Stratified Sub-Cohorts
+#'
+#' @description
+#' Splits a single base cohort into N named stratum cohorts plus an automatic
+#' **Unclassified** cohort containing subjects that match none of the named
+#' strata. Each stratum is registered as a separate entry in the manifest with
+#' an auto-assigned ID and `cohortType = "subset"`. A single SQL file is written
+#' per stratum so `generateCohorts()` processes them independently.
+#'
+#' @details
+#' Strata can be defined in two ways and may be mixed in the same call:
+#'
+#' **Demographic (named list):**
+#' ```r
+#' list(
+#'   "Male"   = list(genderConceptIds = 8507),
+#'   "Female" = list(genderConceptIds = 8532),
+#'   "65+"    = list(minAge = 65)
+#' )
+#' ```
+#' Supported keys: `genderConceptIds`, `raceConceptIds`, `ethnicityConceptIds`,
+#' `minAge`, `maxAge`. Multiple keys within one stratum are `AND`-ed.
+#'
+#' **Custom SQL WHERE clause (character string):**
+#' ```r
+#' list(
+#'   "West"  = "p.location_id IN (1, 4, 5, 6, 12)",
+#'   "South" = "p.location_id IN (2, 3, 8, 9, 10)"
+#' )
+#' ```
+#' The expression may reference `bc` (cohort table alias) and `p` (person
+#' table alias).
+#'
+#' An **Unclassified** stratum is always appended automatically. Its WHERE
+#' condition is the logical negation of every named stratum combined with
+#' `AND NOT (...)`, ensuring every subject in the base cohort appears in exactly
+#' one output cohort.
+#'
+#' @param baseCohortId Integer. The cohort definition ID to split.
+#' @param strata Named list. Each element is either a named list of demographic
+#'   filters or a character string SQL WHERE condition. Names become cohort
+#'   labels (optionally prefixed by `labelPrefix`).
+#' @param labelPrefix Character or `NULL`. If provided, prepended to each
+#'   stratum name with a ` - ` separator (e.g. `"CKD"` + `"Male"` →
+#'   `"CKD - Male"`).
+#' @param cohortsFolder Character. Path to inputs/cohorts/. Defaults to
+#'   `here::here("inputs/cohorts")`.
+#' @param manifest A `CohortManifest` object. Required. Cohort IDs are
+#'   auto-assigned from the next available manifest ID — never supply them
+#'   manually.
+#'
+#' @return Invisibly returns a named list of `CohortDef` objects, one per
+#'   stratum including Unclassified. The list is keyed by the full cohort label.
+#'
+#' @export
+buildStratifiedCohorts <- function(
+    baseCohortId,
+    strata,
+    labelPrefix = NULL,
+    cohortsFolder = here::here("inputs/cohorts"),
+    manifest) {
+
+  checkmate::assert_integerish(x = baseCohortId, len = 1, lower = 1)
+  checkmate::assert_list(x = strata, min.len = 1, names = "named")
+  checkmate::assert_string(x = labelPrefix, null.ok = TRUE)
+  checkmate::assert_class(x = manifest, classes = "CohortManifest")
+
+  # Validate base cohort exists
+  manifest_ids <- manifest$tabulateManifest(filter = "active")$id
+
+  if (!baseCohortId %in% manifest_ids) {
+    cli::cli_abort("Base cohort ID {baseCohortId} not found in manifest.")
+  }
+
+  # Validate each stratum entry
+  for (nm in names(strata)) {
+    s <- strata[[nm]]
+
+    if (!is.list(s) && !is.character(s)) {
+      cli::cli_abort("Stratum '{nm}' must be a named list (demographic) or a character SQL condition.")
+    }
+
+    if (is.character(s) && length(s) != 1) {
+      cli::cli_abort("Stratum '{nm}' character condition must be a single string.")
+    }
+  }
+
+  # Create output directory
+  strat_dir <- file.path(cohortsFolder, "derived", "stratified")
+
+  if (!dir.exists(strat_dir)) {
+    dir.create(strat_dir, recursive = TRUE, showWarnings = FALSE)
+  }
+
+  # Load SQL template once
+  template_path <- system.file("sql", "createStratifiedCohort_Stratum.sql", package = "picard")
+  template_sql <- readr::read_file(template_path)
+
+  # Build SQL condition for each named stratum
+  stratum_conditions <- lapply(strata, .stratum_to_sql_condition)
+
+  # Append Unclassified stratum — negation of every named condition
+  negated <- paste0("NOT (", unlist(stratum_conditions), ")")
+  unclassified_condition <- paste(negated, collapse = "\n    AND ")
+  stratum_conditions[["Unclassified"]] <- unclassified_condition
+
+  # Sanitise a stratum name to a safe file name fragment
+  sanitise_name <- function(nm) {
+    gsub("[^A-Za-z0-9_]", "_", tolower(nm))
+  }
+
+  result <- list()
+
+  cli::cli_rule("Building stratified cohorts from base cohort {baseCohortId}")
+
+  for (nm in names(stratum_conditions)) {
+    condition <- stratum_conditions[[nm]]
+
+    # Build cohort label
+    cohort_label <- if (!is.null(labelPrefix)) {
+      paste0(labelPrefix, " - ", nm)
+    } else {
+      nm
+    }
+
+    # Render SQL with build-time parameters baked in
+    rendered_sql <- SqlRender::render(
+      template_sql,
+      base_cohort_id = as.integer(baseCohortId),
+      stratum_where_clause = condition,
+      warnOnMissingParameters = FALSE
+    )
+
+    # Write per-stratum SQL and metadata files
+    file_name <- sprintf("stratified_%d_%s", as.integer(baseCohortId), sanitise_name(nm))
+    sql_path <- file.path(strat_dir, paste0(file_name, ".sql"))
+    metadata_path <- file.path(strat_dir, paste0(file_name, ".json"))
+
+    writeLines(rendered_sql, con = sql_path)
+
+    is_unclassified <- nm == "Unclassified"
+
+    metadata <- list(
+      type = "stratified",
+      label = cohort_label,
+      baseCohortId = as.integer(baseCohortId),
+      stratumName = nm,
+      stratumDefinition = if (is_unclassified) NULL else strata[[nm]],
+      isUnclassified = is_unclassified,
+      createdAt = format(Sys.time(), "%Y-%m-%dT%H:%M:%S")
+    )
+
+    jsonlite::write_json(metadata, path = metadata_path, pretty = TRUE, auto_unbox = TRUE)
+
+    # Build CohortDef — ID auto-assigned by addDependentCohort()
+    cohort_def <- CohortDef$new(
+      label = cohort_label,
+      tags = list(
+        type = "stratified",
+        baseCohortId = as.character(baseCohortId),
+        stratumName = nm
+      ),
+      filePath = sql_path
+    )
+
+    cohort_def$setCohortType("subset")
+    cohort_def$setDependencies(
+      dependsOnCohortIds = as.integer(baseCohortId),
+      dependencyRule = list(
+        type = "stratified",
+        baseCohortId = as.integer(baseCohortId),
+        stratumName = nm,
+        stratumCondition = condition
+      )
+    )
+
+    manifest$addDependentCohort(cohort_def)
+    result[[cohort_label]] <- cohort_def
+
+    cli::cli_alert_success("Registered stratum: {cohort_label}")
+  }
+
+  cli::cli_rule("Done — {length(result)} cohorts registered (includes Unclassified)")
+
+  invisible(result)
 }
