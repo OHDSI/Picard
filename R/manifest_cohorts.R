@@ -462,7 +462,7 @@ createBlankCohortsLoadFile <- function(cohortsFolderPath = here::here("inputs/co
   # Print informative messages
   cli::cli_rule("Blank Cohorts Load File Created")
   cli::cli_text("File created at: {.file {fs::path_rel(file_path)}}")
-  cli::cli_br()
+  cli::cli_text("")
   cli::cli_h3("Column Guide:")
   cli::cli_ul(c(
     "{.field atlasId} - ATLAS cohort ID (numeric)",
@@ -471,7 +471,7 @@ createBlankCohortsLoadFile <- function(cohortsFolderPath = here::here("inputs/co
     "{.field subCategory} - Optional sub-grouping",
     "{.field file_name} - Path to JSON file (e.g., 'json/t2dm_patients.json'). Note this is a placeholder will be replaced when you import from ATLAS."
   ))
-  cli::cli_br()
+  cli::cli_text("")
   cli::cli_h3("Tips for Filling Out:")
   cli::cli_ul(c(
     "Each row = one cohort",
@@ -479,7 +479,7 @@ createBlankCohortsLoadFile <- function(cohortsFolderPath = here::here("inputs/co
     "Logical grouping helps with organization and querying",
     "Save as UTF-8 CSV from Excel to avoid encoding issues"
   ))
-  cli::cli_br()
+  cli::cli_text("")
   cli::cli_h3("Next Steps:")
   cli::cli_ol(c(
     "Open {.file cohortsLoad.csv} in Excel or your text editor",
