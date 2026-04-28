@@ -9,7 +9,8 @@ orchestratePipelineExport(
   dbIds,
   resultsPath = here::here("exec/results"),
   exportPath = here::here("dissemination/export/merge"),
-  cohortsFolderPath = here::here("inputs/cohorts")
+  cohortsFolderPath = here::here("inputs/cohorts"),
+  testMode = NULL
 )
 }
 \arguments{
@@ -25,6 +26,11 @@ Defaults to "dissemination/export/merge"}
 \item{cohortsFolderPath}{Character. Path to cohorts folder for the CohortManifest.
 Defaults to "inputs/cohorts". If the path exists and contains a cohort manifest,
 generates a cohortKey reference file with id, label, and tags.}
+
+\item{testMode}{Logical or NULL. When TRUE, QC checks are non-fatal (errors become
+warnings) and qcStatus is set to "DevMode". When NULL (default), testMode is
+automatically set to TRUE for non-semver pipeline versions (e.g. "dev", "test")
+and FALSE for semantic versions (e.g. "1.0.0").}
 }
 \value{
 Data frame summarizing all merged tasks with columns:
@@ -56,7 +62,7 @@ The function orchestrates the complete pipeline export:
 Output files created in version export folder:
 \itemize{
 \item Merged result CSVs (per task)
-\item cohortKey.csv: Cohort reference with ids and metadata
+\item cohortManifestSnapshot.csv: Active cohort manifest at export time (id, label, filePath, hash, cohortType, timestamp)
 \item databaseInfo.csv: Databases included in merge operation
 \item schema_review.csv: Column-level inspection of all files
 \item qc_cohortValidation.csv: Cohort completeness validation results

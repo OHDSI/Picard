@@ -242,9 +242,14 @@ zipAndArchive <- function(input) {
 #'   and retrieves their counts. This function serves as the foundational step
 #'   for all subsequent analytical tasks in the pipeline.
 #' @param executionSettings An ExecutionSettings object containing database configuration
-#'   for cohort generation.
+#'   for cohort generation. When created via \code{createExecutionSettingsFromConfig()} with
+#'   a non-semver \code{pipelineVersion} (e.g. "dev", "test"), the cohort table name will
+#'   already have a \code{_dev} suffix applied, keeping dev runs isolated from the
+#'   production cohort table.
 #' @param pipelineVersion Character. The pipeline version used to organize the output folder structure.
-#'   Output will be saved to exec/results/{databaseName}/{pipelineVersion}/00_buildCohorts/
+#'   Output will be saved to \code{exec/results/{databaseName}/{pipelineVersion}/00_buildCohorts/}.
+#'   Non-semver values (e.g. "dev") also trigger dev cohort table routing via
+#'   \code{createExecutionSettingsFromConfig()}.
 #' @param override Logical. If TRUE, skips the user confirmation prompt and proceeds
 #'   directly with cohort generation. Defaults to FALSE.
 #' @return Invisibly returns the cohort counts data frame (id, label, tags, 
@@ -673,9 +678,14 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
     stop("Cannot read analysis/tasks directory")
   })
   
-  # Create execution settings from first configBlock
+  # Create execution settings from first configBlock.
+  # Forwarding pipelineVersion so that dev versions (non-semver) automatically
+  # route cohort generation to the _dev table, leaving the production table untouched.
   tryCatch({
-    executionSettings <- createExecutionSettingsFromConfig(configBlock = configBlock[1])
+    executionSettings <- createExecutionSettingsFromConfig(
+      configBlock = configBlock[1],
+      pipelineVersion = pipelineVersion
+    )
     cli::cli_alert_success("Execution settings created for config: {configBlock[1]}")
   }, error = function(e) {
     cli::cli_alert_danger("Failed to create execution settings: {e$message}")
@@ -702,7 +712,7 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
     logHeader <- c(
       "================================================================================",
       glue::glue("Picard Pipeline Execution Log"),
-      glue::glue("Pipeline Version: {pipelineVersion}"),
+      glue::glue("Pipeline Version: {pipelineVersion}"), # add cohort version 
       glue::glue("Execution Start Time: {format(Sys.time(), '%Y-%m-%d %H:%M:%S')}"),
       glue::glue("Config Blocks: {paste(configBlock, collapse = ', ')}"),
       glue::glue("Update Type: {updateType}"),

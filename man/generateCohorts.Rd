@@ -8,10 +8,15 @@ generateCohorts(executionSettings, pipelineVersion, override = FALSE)
 }
 \arguments{
 \item{executionSettings}{An ExecutionSettings object containing database configuration
-for cohort generation.}
+for cohort generation. When created via \code{createExecutionSettingsFromConfig()} with
+a non-semver \code{pipelineVersion} (e.g. "dev", "test"), the cohort table name will
+already have a \code{_dev} suffix applied, keeping dev runs isolated from the
+production cohort table.}
 
 \item{pipelineVersion}{Character. The pipeline version used to organize the output folder structure.
-Output will be saved to exec/results/{databaseName}/{pipelineVersion}/00_buildCohorts/}
+Output will be saved to \code{exec/results/{databaseName}/{pipelineVersion}/00_buildCohorts/}.
+Non-semver values (e.g. "dev") also trigger dev cohort table routing via
+\code{createExecutionSettingsFromConfig()}.}
 
 \item{override}{Logical. If TRUE, skips the user confirmation prompt and proceeds
 directly with cohort generation. Defaults to FALSE.}

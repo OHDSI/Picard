@@ -1,3 +1,21 @@
+# picard 0.0.3
+
+- add more support for dependent cohorts
+    - union collapse to make erafied events
+    - composite cohorts to make a cohort on collection of criteria
+    - improve subset cohorts
+    - add demographic and strata cohorts
+- support for custom cohort sql 
+- improve cm mid-cycle work
+    - review manifest state
+    - sync manifest match files to sqlite
+    - delete old manifest entries
+    - prune cohorts from cohort table 
+- fix bugs in cohort and concept set manifests
+- fix bugs in task caching
+- add test mode to postProcess step
+- distinguish cohort table by test mode
+
 # picard 0.0.2
 
 - Split production and test mode for pipeline runs
