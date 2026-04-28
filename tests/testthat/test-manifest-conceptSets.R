@@ -370,6 +370,78 @@ test_that("loadConceptSetManifest loads from existing sqlite on second call", {
   expect_equal(manifest2$nConceptSets(), 1)
 })
 
+test_that("loadConceptSetManifest discovers new manual JSON files added after manifest exists", {
+  temp_dir <- tempfile(prefix = "picard_cs_")
+  json_dir <- file.path(temp_dir, "json")
+  dir.create(json_dir, recursive = TRUE)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  # First load: one concept set
+  writeLines(make_circe_concept_set_json(), file.path(json_dir, "cs1.json"))
+  loadConceptSetManifest(conceptSetsFolderPath = temp_dir)
+
+  # Manually add a second JSON without going through importAtlasConceptSets
+  writeLines(make_circe_concept_set_json(), file.path(json_dir, "cs2.json"))
+
+  # Second load should discover the new file
+  manifest2 <- loadConceptSetManifest(conceptSetsFolderPath = temp_dir)
+
+  expect_s3_class(manifest2, "ConceptSetManifest")
+  expect_equal(manifest2$nConceptSets(), 2)
+})
+
+test_that("loadConceptSetManifest handles stale DB rows for missing files without error", {
+  temp_dir <- tempfile(prefix = "picard_cs_")
+  json_dir <- file.path(temp_dir, "json")
+  dir.create(json_dir, recursive = TRUE)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  f1 <- file.path(json_dir, "cs1.json")
+  f2 <- file.path(json_dir, "cs2.json")
+  writeLines(make_circe_concept_set_json(), f1)
+  writeLines(make_circe_concept_set_json(), f2)
+
+  # First load registers both
+  loadConceptSetManifest(conceptSetsFolderPath = temp_dir)
+
+  # Remove one file (stale DB row scenario)
+  unlink(f2)
+
+  # Second load should not error; only the existing file is returned in memory
+  manifest2 <- expect_no_error(loadConceptSetManifest(conceptSetsFolderPath = temp_dir))
+  expect_equal(manifest2$nConceptSets(), 1)
+
+  # validateManifest still surfaces the stale row
+  status <- manifest2$validateManifest()
+  missing_rows <- status[status$status == "active" & !status$file_exists, ]
+  expect_equal(nrow(missing_rows), 1)
+})
+
+test_that("loadConceptSetManifest works when working directory differs from json folder", {
+  temp_dir <- tempfile(prefix = "picard_cs_")
+  json_dir <- file.path(temp_dir, "json")
+  dir.create(json_dir, recursive = TRUE)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  writeLines(make_circe_concept_set_json(), file.path(json_dir, "cs1.json"))
+
+  original_wd <- getwd()
+  on.exit(setwd(original_wd), add = TRUE)
+
+  # Change working directory to a different temp location
+  other_dir <- tempfile(prefix = "picard_wd_")
+  dir.create(other_dir)
+  on.exit(unlink(other_dir, recursive = TRUE), add = TRUE)
+  setwd(other_dir)
+
+  # Load using the absolute conceptSetsFolderPath — should work regardless of CWD
+  manifest <- expect_no_error(
+    loadConceptSetManifest(conceptSetsFolderPath = temp_dir)
+  )
+  expect_s3_class(manifest, "ConceptSetManifest")
+  expect_equal(manifest$nConceptSets(), 1)
+})
+
 # ---- queryConceptSetsByTag match= ----
 
 test_that("queryConceptSetsByTag match='all' filters correctly", {

@@ -83,14 +83,15 @@ loadConceptSetManifest <- function(conceptSetsFolderPath = here::here("inputs/co
       for (i in seq_len(nrow(existing_concept_sets))) {
         record <- existing_concept_sets[i, ]
         label <- record$label
-        file_path <- record$filePath
+        # Resolve stored path to absolute so checks work regardless of working directory
+        file_path <- fs::path_abs(record$filePath)
         stored_hash <- record$hash
         tags_string <- record$tags
         concept_set_id <- record$id
 
         # Check if file still exists
         if (!file.exists(file_path)) {
-          cli::cli_alert_warning("Concept set file missing (will be marked): {record$label} ({file_path})")
+          cli::cli_alert_warning("Concept set file missing (will be marked): {record$label} ({record$filePath})")
           # Don't skip - we'll track this in the database with status='missing'
           # For now, skip it from loading into memory but it will be in the database
           next
@@ -120,7 +121,34 @@ loadConceptSetManifest <- function(conceptSetsFolderPath = here::here("inputs/co
 
       if (length(concept_set_entries) > 0) {
         cli::cli_alert_success("Loaded {length(concept_set_entries)} concept sets from manifest")
-        # Successfully loaded from manifest, proceed to create and return
+        # Successfully loaded from manifest; now check for new files added manually since
+        # the manifest was last created (mirrors loadCohortManifest incremental discovery)
+        json_dir <- fs::path(conceptSetsFolderPath, "json")
+        all_files <- character(0)
+
+        if (dir.exists(json_dir)) {
+          all_files <- list.files(json_dir, pattern = "\\.json$", full.names = TRUE, recursive = TRUE)
+        }
+
+        # Compare normalized relative paths against stored manifest file paths
+        existing_file_paths <- existing_concept_sets$filePath
+        new_files_mask <- !(fs::path_rel(all_files) %in% existing_file_paths)
+        new_files <- all_files[new_files_mask]
+
+        if (length(new_files) > 0) {
+          cli::cli_alert_info("Found {length(new_files)} new concept set file(s) not in manifest")
+
+          for (file_path in new_files) {
+            label <- tools::file_path_sans_ext(basename(file_path))
+            tryCatch({
+              new_cs_def <- ConceptSetDef$new(label = label, filePath = file_path)
+              concept_set_entries[[length(concept_set_entries) + 1]] <- new_cs_def
+              cli::cli_alert_success("Added new concept set from file: {label}")
+            }, error = function(e) {
+              cli::cli_alert_warning("Error adding new concept set {label}: {e$message}")
+            })
+          }
+        }
       } else {
         # Database had entries but none could be loaded, fall through to scan directories
         cli::cli_alert_warning("No valid concept sets could be loaded from manifest. Scanning directories...")
@@ -239,19 +267,21 @@ loadConceptSetManifest <- function(conceptSetsFolderPath = here::here("inputs/co
     dbPath = dbPath
   )
 
-  # Detect and alert about missing concept sets
-  missing_conceptsets <- manifest$private$.detect_missing_conceptsets()
-  
-  if (!is.null(missing_conceptsets) && length(missing_conceptsets) > 0) {
+  # Detect and alert about missing concept sets using the public validateManifest() method
+  validation_status <- manifest$validateManifest()
+  missing_conceptsets <- validation_status[validation_status$status == "active" & !validation_status$file_exists, ]
+
+  if (nrow(missing_conceptsets) > 0) {
     cli::cli_rule("Missing Concept Set Files Detected")
-    cli::cli_alert_warning("{length(missing_conceptsets)} concept set file(s) are missing:")
-    
-    for (cs_info in missing_conceptsets) {
+    cli::cli_alert_warning("{nrow(missing_conceptsets)} concept set file(s) are missing:")
+
+    for (i in seq_len(nrow(missing_conceptsets))) {
+      cs_info <- missing_conceptsets[i, ]
       cli::cli_bullets(c(
-        "✗" = "ID {cs_info$id}: {cs_info$label} ({cs_info$filePath})"
+        "x" = "ID {cs_info$id}: {cs_info$label}"
       ))
     }
-    
+
     cli::cli_rule()
     cli::cli_bullets(c(
       i = "Use {.code manifest$validateManifest()} to see full status",

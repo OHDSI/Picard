@@ -371,6 +371,13 @@ ConceptSetManifest <- R6::R6Class(
       }
     },
 
+    # Resolve a stored (potentially relative) file path to an absolute path.
+    # Stored paths are relative to the working directory at manifest-creation time,
+    # which is expected to be the project root. Absolute paths are returned unchanged.
+    resolve_file_path = function(stored_path) {
+      fs::path_abs(stored_path)
+    },
+
     # Detect missing concept set files and update status in database
     detect_missing_conceptsets = function() {
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
@@ -394,7 +401,7 @@ ConceptSetManifest <- R6::R6Class(
       
       for (i in seq_len(nrow(db_records))) {
         record <- db_records[i, ]
-        if (!file.exists(record$filePath)) {
+        if (!file.exists(private$resolve_file_path(record$filePath))) {
           missing_conceptsets[[length(missing_conceptsets) + 1]] <- record
         }
       }
@@ -886,8 +893,8 @@ ConceptSetManifest <- R6::R6Class(
                               deleted_at = character(), file_exists = logical()))
       }
       
-      # Add file_exists column
-      db_records$file_exists <- sapply(db_records$filePath, file.exists)
+      # Add file_exists column (resolve stored paths before checking disk)
+      db_records$file_exists <- sapply(db_records$filePath, function(p) file.exists(private$resolve_file_path(p)))
       
       # Convert to tibble and select columns
       result <- tibble::tibble(
@@ -1117,7 +1124,7 @@ ConceptSetManifest <- R6::R6Class(
         rec_id     <- rec$id
         rec_label  <- rec$label
         rec_status <- rec$status
-        file_path  <- rec$filePath
+        file_path  <- private$resolve_file_path(rec$filePath)
 
         if (rec_status == "active" && !file.exists(file_path)) {
           # File has gone missing — soft-delete
