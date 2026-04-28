@@ -2144,7 +2144,7 @@ CohortManifest <- R6::R6Class(
           DatabaseConnector::executeSql(
             conn,
             translate_result,
-            progressBar = TRUE,
+            progressBar = FALSE,
             reportOverallTime = FALSE
           )
         }, silent = TRUE)

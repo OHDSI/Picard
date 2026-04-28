@@ -15,6 +15,7 @@
 - fix bugs in task caching
 - add test mode to postProcess step
 - distinguish cohort table by test mode
+- add preflightChecklist to execute. Prior to a production run check all validation steps are good then execute
 
 # picard 0.0.2
 

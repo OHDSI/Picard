@@ -27,7 +27,7 @@ Data frame with columns:
 }
 \description{
 Validates that all cohorts in the cohort key have results and checks for
-non-enumeration. Compares expected cohorts from cohortKey.csv against actual results
+non-enumeration. Compares expected cohorts from cohortManifestSnapshot.csv against actual results
 to identify missing or zero-count cohorts.
 }
 \details{
