@@ -861,8 +861,8 @@ orchestratePipelineExport <- function(pipelineVersion, dbIds, resultsPath = here
 #' @description Executes the pipeline export in test mode. QC checks are non-fatal
 #'   (errors become warnings) and qcStatus is set to "DevMode". Enforces that the
 #'   call is made from a non-main branch to prevent accidental test exports on main.
-#' @param pipelineVersion Character. Pipeline version label (e.g. "dev").
 #' @param dbIds Character vector of database configuration IDs from config.yml.
+#' @param pipelineVersion Character. Pipeline version label (e.g. "dev").
 #' @param resultsPath Character. Path to results root folder. Defaults to "exec/results".
 #' @param exportPath Character. Path where combined results will be saved.
 #'   Defaults to "dissemination/export/merge".
@@ -870,7 +870,7 @@ orchestratePipelineExport <- function(pipelineVersion, dbIds, resultsPath = here
 #'   Defaults to "inputs/cohorts".
 #' @return Invisibly returns the merge summary data frame from orchestratePipelineExport().
 #' @export
-testOrchestratePipelineExport <- function(pipelineVersion = "dev", dbIds,
+testOrchestratePipelineExport <- function(dbIds, pipelineVersion = "dev", 
                                           resultsPath = here::here("exec/results"),
                                           exportPath = here::here("dissemination/export/merge"),
                                           cohortsFolderPath = here::here("inputs/cohorts")) {

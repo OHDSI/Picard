@@ -5,17 +5,17 @@
 \title{Test Orchestrate Pipeline Export}
 \usage{
 testOrchestratePipelineExport(
-  pipelineVersion = "dev",
   dbIds,
+  pipelineVersion = "dev",
   resultsPath = here::here("exec/results"),
   exportPath = here::here("dissemination/export/merge"),
   cohortsFolderPath = here::here("inputs/cohorts")
 )
 }
 \arguments{
-\item{pipelineVersion}{Character. Pipeline version label (e.g. "dev").}
-
 \item{dbIds}{Character vector of database configuration IDs from config.yml.}
+
+\item{pipelineVersion}{Character. Pipeline version label (e.g. "dev").}
 
 \item{resultsPath}{Character. Path to results root folder. Defaults to "exec/results".}
 

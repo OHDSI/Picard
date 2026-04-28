@@ -62,8 +62,7 @@ The function orchestrates the complete pipeline export:
 Output files created in version export folder:
 \itemize{
 \item Merged result CSVs (per task)
-\item cohortKey.csv: Cohort reference with ids and metadata
-\item cohortManifestSnapshot.csv: Active cohort manifest at export time (id, label, filePath, hash)
+\item cohortManifestSnapshot.csv: Active cohort manifest at export time (id, label, filePath, hash, cohortType, timestamp)
 \item databaseInfo.csv: Databases included in merge operation
 \item schema_review.csv: Column-level inspection of all files
 \item qc_cohortValidation.csv: Cohort completeness validation results
