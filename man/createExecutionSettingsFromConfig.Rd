@@ -11,7 +11,8 @@ createExecutionSettingsFromConfig(
   workDatabaseSchema = NULL,
   tempEmulationSchema = NULL,
   cohortTable = NULL,
-  databaseName = NULL
+  databaseName = NULL,
+  pipelineVersion = "prod"
 )
 }
 \arguments{

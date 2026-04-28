@@ -356,10 +356,10 @@ validateCohortResults <- function(exportPath = here::here("dissemination/export/
     stop("Export folder not found")
   }
   
-  # Load cohortKey
-  cohortKeyPath <- fs::path(exportPath, "cohortKey.csv")
-  if (!file.exists(cohortKeyPath)) {
-    cli::cli_alert_warning("cohortKey.csv not found: {fs::path_rel(cohortKeyPath)}")
+  # Load cohort reference from manifest snapshot
+  snapshotPath <- fs::path(exportPath, "cohortManifestSnapshot.csv")
+  if (!file.exists(snapshotPath)) {
+    cli::cli_alert_warning("cohortManifestSnapshot.csv not found: {fs::path_rel(snapshotPath)}")
     return(data.frame(
       cohortId = integer(),
       label = character(),
@@ -370,17 +370,18 @@ validateCohortResults <- function(exportPath = here::here("dissemination/export/
   }
   
   tryCatch({
-    cohortKey <- readr::read_csv(cohortKeyPath, show_col_types = FALSE)
-    cli::cli_alert_success("Loaded cohortKey: {nrow(cohortKey)} cohort(s)")
+    cohortKey <- readr::read_csv(snapshotPath, show_col_types = FALSE) |>
+      dplyr::rename(cohortId = id, cohortLabel = label)
+    cli::cli_alert_success("Loaded cohort reference: {nrow(cohortKey)} cohort(s)")
   }, error = function(e) {
-    cli::cli_alert_danger("Error reading cohortKey.csv: {e$message}")
+    cli::cli_alert_danger("Error reading cohortManifestSnapshot.csv: {e$message}")
     stop(e$message)
   })
   
   # Find cohort results file
   csvFiles <- fs::dir_ls(exportPath, glob = "*.csv", type = "file")
   # Exclude reference files
-  csvFiles <- csvFiles[!basename(csvFiles) %in% c("cohortKey.csv", "databaseInfo.csv", "schema_review.csv")]
+  csvFiles <- csvFiles[!basename(csvFiles) %in% c("cohortManifestSnapshot.csv", "databaseInfo.csv", "schema_review.csv")]
   
   # If resultsFileName specified, use that; otherwise search for file with cohort_id column
   resultsFile <- NULL
@@ -542,8 +543,7 @@ validateCohortResults <- function(exportPath = here::here("dissemination/export/
 #'
 #' Output files created in version export folder:
 #' - Merged result CSVs (per task)
-#' - cohortKey.csv: Cohort reference with ids and metadata
-#' - cohortManifestSnapshot.csv: Active cohort manifest at export time (id, label, filePath, hash)
+#' - cohortManifestSnapshot.csv: Active cohort manifest at export time (id, label, filePath, hash, cohortType, timestamp)
 #' - databaseInfo.csv: Databases included in merge operation
 #' - schema_review.csv: Column-level inspection of all files
 #' - qc_cohortValidation.csv: Cohort completeness validation results
@@ -598,13 +598,13 @@ orchestratePipelineExport <- function(pipelineVersion, dbIds, resultsPath = here
   codeCommitSha <- tryCatch({
     logs <- gert::git_log()
     if (nrow(logs) > 0) {
-      return(logs$commit[1])
+      logs$commit[1]
     } else {
-      return(NA_character_)
+      NA_character_
     }
   }, error = function(e) {
     cli::cli_alert_warning("Could not get git commit SHA")
-    return(NA_character_)
+    NA_character_
   })
   
   # Snapshot environment only for production (semver) versions
@@ -617,8 +617,8 @@ orchestratePipelineExport <- function(pipelineVersion, dbIds, resultsPath = here
   
   # Get database names and labels from config
   databaseNames <- purrr::map_chr(dbIds, ~config::get("databaseName", config = .x))
-  databaseLabels <- purrr::map_chr(dbIds, ~config::get("databaseLabel", config = .x, default = .x))
-  cohortTableNames <- purrr::map_chr(dbIds, ~config::get("cohortTable", config = .x, default = "cohort"))
+  databaseLabels <- purrr::map_chr(dbIds, ~config::get("databaseLabel", config = .x))
+  cohortTableNames <- purrr::map_chr(dbIds, ~config::get("cohortTable", config = .x))
   
   # Create database info reference file
   databaseInfo <- data.frame(
@@ -753,19 +753,8 @@ orchestratePipelineExport <- function(pipelineVersion, dbIds, resultsPath = here
       # Load cohort manifest using new API
       cohortManifest <- loadCohortManifest(cohortsFolderPath = cohortsFolderPath, verbose = FALSE)
       
-      # Extract id, label, and tags columns from manifest
-      cohortKey <- cohortManifest$getManifest() |>
-        dplyr::select(id, label, tags) |>
-        dplyr::distinct() |>
-        dplyr::rename(cohortId = id, cohortLabel = label, cohortTags = tags)
-      
-      # Save cohortKey to export folder
-      cohortKeyPath <- fs::path(versionExportPath, "cohortKey.csv")
-      readr::write_csv(cohortKey, cohortKeyPath)
-      
-      cli::cli_alert_success("Cohort key saved to {fs::path_rel(cohortKeyPath)}: {nrow(cohortKey)} cohort(s)")
-      
       # Save manifest snapshot for point-in-time cohort provenance.
+      # Contains id, label, tags, filePath, hash, cohortType, status, timestamp.
       # The hash column enables recovery via: git log -- <filePath>
       manifestSnapshot <- cohortManifest$tabulateManifest(filter = "active")
       snapshotPath <- fs::path(versionExportPath, "cohortManifestSnapshot.csv")
@@ -858,7 +847,7 @@ orchestratePipelineExport <- function(pipelineVersion, dbIds, resultsPath = here
   cli::cli_alert_success("Pipeline export complete!")
   cli::cli_bullets(c(
     "i" = "Export location: {fs::path_rel(versionExportPath)}",
-    "i" = "Reference files: cohortKey.csv, cohortManifestSnapshot.csv, databaseInfo.csv",
+    "i" = "Reference files: cohortManifestSnapshot.csv, databaseInfo.csv",
     "i" = "Schema review: schema_review.csv",
     "i" = "QC reports: qc_cohortValidation.csv, qc_processMeta.csv"
   ))
