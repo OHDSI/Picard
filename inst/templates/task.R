@@ -22,7 +22,10 @@ configBlock <- "!||configBlock||!"
 pipelineVersion <- "!||pipelineVersion||!"
 
 # set executionSettings
-executionSettings <- createExecutionSettingsFromConfig(configBlock = configBlock)
+executionSettings <- createExecutionSettingsFromConfig(
+  configBlock = configBlock,
+  pipelineVersion = pipelineVersion
+)
 
 # D. Task Settings ------------------
 

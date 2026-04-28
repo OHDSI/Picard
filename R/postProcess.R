@@ -61,9 +61,45 @@ importAndBind <- function(version, taskName, dbIds, resultsPath = here::here("ex
   # Filter to ensure only CSV files are included
   fileNames <- fileNames[tolower(tools::file_ext(fileNames)) == "csv"]
   
+  # Bundle detection: some packages (e.g. CohortPrevalence) write results into
+  # timestamped subdirectories rather than directly into the task folder.
+  # When no direct CSVs are found, scan for subdirs that contain CSVs and use
+  # the alphabetically-last one (YYYYMMDD_HHMMSS naming = chronologically latest).
   if (length(fileNames) == 0) {
-    cli::cli_alert_warning("No CSV files found in task folder: {fs::path_rel(firstValidFolder)}")
-    return(list())
+    subDirs <- sort(basename(fs::dir_ls(firstValidFolder, type = "directory")))
+    bundleDirs <- subDirs[purrr::map_lgl(
+      subDirs,
+      ~length(fs::dir_ls(fs::path(firstValidFolder, .x), glob = "*.csv", type = "file")) > 0
+    )]
+    
+    if (length(bundleDirs) == 0) {
+      cli::cli_alert_warning("No CSV files found in task folder: {fs::path_rel(firstValidFolder)}")
+      return(list())
+    }
+    
+    selectedBundle <- bundleDirs[length(bundleDirs)]
+    
+    if (length(bundleDirs) > 1) {
+      skipped <- bundleDirs[-length(bundleDirs)]
+      cli::cli_alert_warning("Multiple result bundles found — skipping {length(skipped)} older run(s):")
+      cli::cli_bullets(setNames(skipped, "x"))
+    }
+    
+    cli::cli_alert_info(
+      "No direct CSVs — detected {length(bundleDirs)} bundle(s); using latest: {.val {selectedBundle}}"
+    )
+    
+    # Replace task folders with selected bundle subdirectory for all databases
+    taskFolders <- fs::path(taskFolders, selectedBundle)
+    
+    allFiles <- fs::dir_ls(fs::path(firstValidFolder, selectedBundle), glob = "*.csv", type = "file")
+    fileNames <- basename(allFiles)
+    fileNames <- fileNames[tolower(tools::file_ext(fileNames)) == "csv"]
+    
+    if (length(fileNames) == 0) {
+      cli::cli_alert_warning("No CSV files found in selected bundle: {.val {selectedBundle}}")
+      return(list())
+    }
   }
   
   cli::cli_alert_info("Found {length(fileNames)} CSV file(s) to combine")
@@ -484,6 +520,10 @@ validateCohortResults <- function(exportPath = here::here("dissemination/export/
 #' @param cohortsFolderPath Character. Path to cohorts folder for the CohortManifest.
 #'   Defaults to "inputs/cohorts". If the path exists and contains a cohort manifest,
 #'   generates a cohortKey reference file with id, label, and tags.
+#' @param testMode Logical or NULL. When TRUE, QC checks are non-fatal (errors become
+#'   warnings) and qcStatus is set to "DevMode". When NULL (default), testMode is
+#'   automatically set to TRUE for non-semver pipeline versions (e.g. "dev", "test")
+#'   and FALSE for semantic versions (e.g. "1.0.0").
 #' @return Data frame summarizing all merged tasks with columns:
 #'   - taskName: Name of the task
 #'   - fileCount: Number of result files found for that task
@@ -503,6 +543,7 @@ validateCohortResults <- function(exportPath = here::here("dissemination/export/
 #' Output files created in version export folder:
 #' - Merged result CSVs (per task)
 #' - cohortKey.csv: Cohort reference with ids and metadata
+#' - cohortManifestSnapshot.csv: Active cohort manifest at export time (id, label, filePath, hash)
 #' - databaseInfo.csv: Databases included in merge operation
 #' - schema_review.csv: Column-level inspection of all files
 #' - qc_cohortValidation.csv: Cohort completeness validation results
@@ -539,13 +580,23 @@ validateCohortResults <- function(exportPath = here::here("dissemination/export/
 #' @export
 orchestratePipelineExport <- function(pipelineVersion, dbIds, resultsPath = here::here("exec/results"),
                                     exportPath = here::here("dissemination/export/merge"),
-                                    cohortsFolderPath = here::here("inputs/cohorts")) {
+                                    cohortsFolderPath = here::here("inputs/cohorts"),
+                                    testMode = NULL) {
   
   cli::cli_rule("Orchestrate Pipeline Export for Version {pipelineVersion}")
   
+  # Default testMode: non-semver versions (e.g. "dev", "test") automatically run in test mode
+  if (is.null(testMode)) {
+    testMode <- !grepl("^\\d+\\.\\d+\\.\\d+$", pipelineVersion)
+  }
+  
+  if (testMode) {
+    cli::cli_alert_warning("EXPORT running in TEST MODE \u2014 QC checks non-fatal")
+  }
+  
   # Get code commit SHA for reproducibility metadata
   codeCommitSha <- tryCatch({
-    log <- gert::git_log()
+    logs <- gert::git_log()
     if (nrow(logs) > 0) {
       return(logs$commit[1])
     } else {
@@ -556,12 +607,12 @@ orchestratePipelineExport <- function(pipelineVersion, dbIds, resultsPath = here
     return(NA_character_)
   })
   
-  # Snapshot environment only for non-dev versions
-  if (pipelineVersion != "dev") {
+  # Snapshot environment only for production (semver) versions
+  if (!testMode) {
     lockfileHash <- snapshotEnvironment(versionLabel = pipelineVersion, savePath = NULL)
   } else {
     lockfileHash <- "dev-skip"
-    cli::cli_alert_info("Skipping environment snapshot for dev version")
+    cli::cli_alert_info("Skipping environment snapshot for non-production version")
   }
   
   # Get database names and labels from config
@@ -671,16 +722,17 @@ orchestratePipelineExport <- function(pipelineVersion, dbIds, resultsPath = here
   
   # Review the export schema
   cli::cli_text("")
-  schema <- reviewExportSchema(exportPath = versionExportPath)
-  
-  # Save schema review results to export folder
-  schemaFilePath <- fs::path(versionExportPath, "schema_review.csv")
-  
   tryCatch({
+    schema <- reviewExportSchema(exportPath = versionExportPath)
+    schemaFilePath <- fs::path(versionExportPath, "schema_review.csv")
     readr::write_csv(schema, schemaFilePath)
     cli::cli_alert_success("Schema review results saved to {fs::path_rel(schemaFilePath)}")
   }, error = function(e) {
-    cli::cli_alert_danger("Error saving schema review: {e$message}")
+    if (testMode) {
+      cli::cli_alert_warning("Schema review skipped (test mode): {e$message}")
+    } else {
+      cli::cli_alert_danger("Error saving schema review: {e$message}")
+    }
   })
   
   # Save database info reference file
@@ -712,6 +764,13 @@ orchestratePipelineExport <- function(pipelineVersion, dbIds, resultsPath = here
       readr::write_csv(cohortKey, cohortKeyPath)
       
       cli::cli_alert_success("Cohort key saved to {fs::path_rel(cohortKeyPath)}: {nrow(cohortKey)} cohort(s)")
+      
+      # Save manifest snapshot for point-in-time cohort provenance.
+      # The hash column enables recovery via: git log -- <filePath>
+      manifestSnapshot <- cohortManifest$tabulateManifest(filter = "active")
+      snapshotPath <- fs::path(versionExportPath, "cohortManifestSnapshot.csv")
+      readr::write_csv(manifestSnapshot, snapshotPath)
+      cli::cli_alert_success("Cohort manifest snapshot saved to {fs::path_rel(snapshotPath)}: {nrow(manifestSnapshot)} cohort(s)")
     }, error = function(e) {
       cli::cli_alert_danger("Error creating cohort key: {e$message}")
     })
@@ -720,6 +779,7 @@ orchestratePipelineExport <- function(pipelineVersion, dbIds, resultsPath = here
   # QC Section 1: Validate cohort completeness
   cli::cli_text("")
   cli::cli_h2("QC: Cohort Completeness Validation")
+  hasWarnings <- NA
   tryCatch({
     cohortValidation <- validateCohortResults(
       exportPath = versionExportPath,
@@ -733,7 +793,11 @@ orchestratePipelineExport <- function(pipelineVersion, dbIds, resultsPath = here
     # Determine QC status based on validation results
     hasWarnings <- any(cohortValidation$validationStatus %in% c("ZeroCount", "Missing"))
   }, error = function(e) {
-    cli::cli_alert_warning("Cohort validation skipped: {e$message}")
+    if (testMode) {
+      cli::cli_alert_warning("Cohort validation skipped (test mode): {e$message}")
+    } else {
+      cli::cli_alert_warning("Cohort validation skipped: {e$message}")
+    }
     hasWarnings <<- NA
   })
   
@@ -742,7 +806,9 @@ orchestratePipelineExport <- function(pipelineVersion, dbIds, resultsPath = here
   cli::cli_h2("QC: Execution Metadata")
   tryCatch({
     # Determine QC status
-    if (is.na(hasWarnings)) {
+    if (testMode) {
+      qcStatus <- "DevMode"
+    } else if (is.na(hasWarnings)) {
       qcStatus <- "Completed"
     } else if (hasWarnings) {
       qcStatus <- "HasWarnings"
@@ -792,7 +858,7 @@ orchestratePipelineExport <- function(pipelineVersion, dbIds, resultsPath = here
   cli::cli_alert_success("Pipeline export complete!")
   cli::cli_bullets(c(
     "i" = "Export location: {fs::path_rel(versionExportPath)}",
-    "i" = "Reference files: cohortKey.csv, databaseInfo.csv",
+    "i" = "Reference files: cohortKey.csv, cohortManifestSnapshot.csv, databaseInfo.csv",
     "i" = "Schema review: schema_review.csv",
     "i" = "QC reports: qc_cohortValidation.csv, qc_processMeta.csv"
   ))
@@ -800,4 +866,45 @@ orchestratePipelineExport <- function(pipelineVersion, dbIds, resultsPath = here
   # Convert to tibble and return invisibly
   mergeSummary <- tibble::as_tibble(mergeSummary)
   invisible(mergeSummary)
+}
+
+#' @title Test Orchestrate Pipeline Export
+#' @description Executes the pipeline export in test mode. QC checks are non-fatal
+#'   (errors become warnings) and qcStatus is set to "DevMode". Enforces that the
+#'   call is made from a non-main branch to prevent accidental test exports on main.
+#' @param pipelineVersion Character. Pipeline version label (e.g. "dev").
+#' @param dbIds Character vector of database configuration IDs from config.yml.
+#' @param resultsPath Character. Path to results root folder. Defaults to "exec/results".
+#' @param exportPath Character. Path where combined results will be saved.
+#'   Defaults to "dissemination/export/merge".
+#' @param cohortsFolderPath Character. Path to cohorts folder for the CohortManifest.
+#'   Defaults to "inputs/cohorts".
+#' @return Invisibly returns the merge summary data frame from orchestratePipelineExport().
+#' @export
+testOrchestratePipelineExport <- function(pipelineVersion = "dev", dbIds,
+                                          resultsPath = here::here("exec/results"),
+                                          exportPath = here::here("dissemination/export/merge"),
+                                          cohortsFolderPath = here::here("inputs/cohorts")) {
+  checkmate::assert_character(dbIds, min.len = 1, any.missing = FALSE)
+
+  branch <- tryCatch(gert::git_branch(), error = function(e) NA_character_)
+
+  if (!is.na(branch) && branch == "main") {
+    cli::cli_abort(c(
+      "Cannot run test export on main branch!",
+      "i" = "Switch to develop or a feature branch: {.code git checkout develop}"
+    ))
+  }
+
+  cli::cli_rule("TEST Mode: Pipeline Export")
+  cli::cli_alert_warning("Testing on branch: {branch}")
+
+  orchestratePipelineExport(
+    pipelineVersion = pipelineVersion,
+    dbIds = dbIds,
+    resultsPath = resultsPath,
+    exportPath = exportPath,
+    cohortsFolderPath = cohortsFolderPath,
+    testMode = TRUE
+  )
 }
