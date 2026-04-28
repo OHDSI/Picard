@@ -1,4 +1,4 @@
-url: https://ohdsi.github.io/picard/
+url: https://ohdsi.github.io/Picard/
 template:
   bootstrap: 5
 
@@ -25,7 +25,7 @@ navbar:
       href: news/index.html
     github:
       icon: fab fa-github
-      href: https://github.com/mdlavallee92/picard
+      href: https://github.com/ohdsi/Picard
 
 reference:
   - title: "Core Classes"

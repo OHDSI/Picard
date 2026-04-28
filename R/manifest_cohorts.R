@@ -482,7 +482,7 @@ createBlankCohortsLoadFile <- function(cohortsFolderPath = here::here("inputs/co
   cli::cli_text("")
   cli::cli_h3("Next Steps:")
   cli::cli_ol(c(
-    "Open {.file cohortsLoad.csv} in Excel or your text editor",
+    "Open {.file inputs/cohorts/cohortsLoad.csv} in Excel or your text editor",
     "Fill in your cohort metadata",
     "Save the file",
     "Use {.code importAtlasCohorts()} to import JSON definitions from ATLAS",

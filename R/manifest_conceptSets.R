@@ -438,7 +438,7 @@ createBlankConceptSetsLoadFile <- function(conceptSetsFolderPath = here::here("i
   cli::cli_text("")
   cli::cli_h3("Next Steps:")
   cli::cli_ol(c(
-    "Open {.file conceptSetsLoad.csv} in Excel or your text editor",
+    "Open {.file inputs/conceptSets/conceptSetsLoad.csv} in Excel or your text editor",
     "Fill in your concept set metadata",
     "Save the file",
     "Use {.code importAtlasConceptSets()} to import JSON definitions from ATLAS",
