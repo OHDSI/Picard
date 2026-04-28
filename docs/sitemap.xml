@@ -55,6 +55,12 @@
     <loc>https://ohdsi.github.io/picard/reference/buildComplementCohort.html</loc>
   </url>
   <url>
+    <loc>https://ohdsi.github.io/picard/reference/buildCompositeCohort.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/picard/reference/buildStratifiedCohorts.html</loc>
+  </url>
+  <url>
     <loc>https://ohdsi.github.io/picard/reference/buildStudyHub.html</loc>
   </url>
   <url>
@@ -106,7 +112,16 @@
     <loc>https://ohdsi.github.io/picard/reference/createPullRequest.html</loc>
   </url>
   <url>
+    <loc>https://ohdsi.github.io/picard/reference/createSubsetEndWindow.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/picard/reference/createSubsetStartWindow.html</loc>
+  </url>
+  <url>
     <loc>https://ohdsi.github.io/picard/reference/DbConfigBlock.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/picard/reference/defineCustomCohort.html</loc>
   </url>
   <url>
     <loc>https://ohdsi.github.io/picard/reference/displayTaskStatusReport.html</loc>
@@ -122,6 +137,9 @@
   </url>
   <url>
     <loc>https://ohdsi.github.io/picard/reference/dot-createEmptyHistory.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/picard/reference/dot-getCohortManifestHash.html</loc>
   </url>
   <url>
     <loc>https://ohdsi.github.io/picard/reference/dot-initializeTaskHistory.html</loc>
@@ -281,6 +299,9 @@
   </url>
   <url>
     <loc>https://ohdsi.github.io/picard/reference/UlyssesStudy.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/picard/reference/updateCohortMetadata.html</loc>
   </url>
   <url>
     <loc>https://ohdsi.github.io/picard/reference/updateStudyVersion.html</loc>

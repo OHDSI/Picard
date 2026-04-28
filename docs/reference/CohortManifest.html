@@ -12,7 +12,7 @@ CohortManifest R6 Class"><!-- mathjax --><script src="https://cdnjs.cloudflare.c
     
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.3</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -69,9 +69,18 @@ metadata in a SQLite database.</p>
 <p>The CohortManifest class manages multiple cohort definitions and stores their
 metadata in a SQLite database located at inputs/cohorts/cohortManifest.sqlite.
 Each CohortDef is assigned a sequential ID based on its position in the manifest.</p>
-<p>Returns a tabular view of the manifest from the database, suitable for
-viewing, filtering, and reporting. Columns include: id, label, tags, filePath, hash, timestamp.</p>
-<p>Requires that executionSettings has been set and includes:</p><ul><li><p>A database connection (via getConnection())</p></li>
+<p>Returns a tabular view of the manifest from the SQLite database, suitable for
+viewing, filtering, and reporting.</p>
+<p>Columns returned:</p><ul><li><p><code>id</code> - Cohort definition ID</p></li>
+<li><p><code>label</code> - User-friendly cohort name</p></li>
+<li><p><code>tags</code> - Metadata tags formatted as "name: value | ..." string</p></li>
+<li><p><code>filePath</code> - Relative path to the cohort SQL/JSON file</p></li>
+<li><p><code>hash</code> - Hash of the cohort SQL (used for change detection)</p></li>
+<li><p><code>cohortType</code> - One of 'circe', 'custom', 'subset', 'union', 'complement', 'composite'</p></li>
+<li><p><code>status</code> - One of 'active', 'deleted', 'purged'</p></li>
+<li><p><code>timestamp</code> - Datetime the record was last inserted or updated</p></li>
+<li><p><code>deleted_at</code> - Datetime of soft-delete, or NA if active</p></li>
+</ul><p>Requires that executionSettings has been set and includes:</p><ul><li><p>A database connection (via getConnection())</p></li>
 <li><p>workDatabaseSchema for the target schema</p></li>
 <li><p>cohortTable with the desired table name</p></li>
 <li><p>tempEmulationSchema if needed for the database platform</p></li>
@@ -81,6 +90,8 @@ viewing, filtering, and reporting. Columns include: id, label, tags, filePath, h
 </ul><p>The cohort is assigned a new ID equal to max(existing_id) + 1. Parent cohorts
 (specified in dependsOnCohortIds) must already exist in this manifest.
 The cohort is immediately persisted to the SQLite manifest database.</p>
+<p>Requires that <code>executionSettings</code> has been set with a valid database connection,
+<code>workDatabaseSchema</code>, and <code>cohortTable</code>.</p>
 <p>Execution flow:</p><ol><li><p>Build dependency graph from all CohortDef objects</p></li>
 <li><p>Validate no circular dependencies (error if found)</p></li>
 <li><p>Topologically sort cohorts by dependencies (parents before children)</p></li>
@@ -108,22 +119,24 @@ The cohort is immediately persisted to the SQLite manifest database.</p>
 <li><p><a href="#method-CohortManifest-getDbPath"><code>CohortManifest$getDbPath()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-getExecutionSettings"><code>CohortManifest$getExecutionSettings()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-setExecutionSettings"><code>CohortManifest$setExecutionSettings()</code></a></p></li>
+<li><p><a href="#method-CohortManifest-queryCohortsByIds"><code>CohortManifest$queryCohortsByIds()</code></a></p></li>
+<li><p><a href="#method-CohortManifest-queryCohortsByTag"><code>CohortManifest$queryCohortsByTag()</code></a></p></li>
+<li><p><a href="#method-CohortManifest-queryCohortsByLabel"><code>CohortManifest$queryCohortsByLabel()</code></a></p></li>
+<li><p><a href="#method-CohortManifest-nCohorts"><code>CohortManifest$nCohorts()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-getCohortById"><code>CohortManifest$getCohortById()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-getCohortsByTag"><code>CohortManifest$getCohortsByTag()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-getCohortsByLabel"><code>CohortManifest$getCohortsByLabel()</code></a></p></li>
-<li><p><a href="#method-CohortManifest-nCohorts"><code>CohortManifest$nCohorts()</code></a></p></li>
-<li><p><a href="#method-CohortManifest-grabCohortById"><code>CohortManifest$grabCohortById()</code></a></p></li>
-<li><p><a href="#method-CohortManifest-grabCohortsByTag"><code>CohortManifest$grabCohortsByTag()</code></a></p></li>
-<li><p><a href="#method-CohortManifest-grabCohortsByLabel"><code>CohortManifest$grabCohortsByLabel()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-createCohortTables"><code>CohortManifest$createCohortTables()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-dropCohortTables"><code>CohortManifest$dropCohortTables()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-addDependentCohort"><code>CohortManifest$addDependentCohort()</code></a></p></li>
+<li><p><a href="#method-CohortManifest-syncManifest"><code>CohortManifest$syncManifest()</code></a></p></li>
+<li><p><a href="#method-CohortManifest-cleanCohortTable"><code>CohortManifest$cleanCohortTable()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-generateCohorts"><code>CohortManifest$generateCohorts()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-retrieveCohortCounts"><code>CohortManifest$retrieveCohortCounts()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-validateManifest"><code>CohortManifest$validateManifest()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-getManifestStatus"><code>CohortManifest$getManifestStatus()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-deleteCohort"><code>CohortManifest$deleteCohort()</code></a></p></li>
-<li><p><a href="#method-CohortManifest-hardRemoveCohort"><code>CohortManifest$hardRemoveCohort()</code></a></p></li>
+<li><p><a href="#method-CohortManifest-permanentlyDeleteCohort"><code>CohortManifest$permanentlyDeleteCohort()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-cleanupMissing"><code>CohortManifest$cleanupMissing()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-clone"><code>CohortManifest$clone()</code></a></p></li>
 </ul></div><p></p><hr><a id="method-CohortManifest-new"></a><div class="section">
@@ -169,7 +182,7 @@ Get the manifest as a list of CohortDef objects</p></dd>
 <div class="section">
 <h4 id="returns">Returns<a class="anchor" aria-label="anchor" href="#returns"></a></h4>
 <p>List. A list of CohortDef objects in the manifest, indexed by cohort ID.
-Tabulate the manifest as a data frame</p>
+Tabulate the manifest as a tibble</p>
 </div>
 
 </div><p></p><hr><a id="method-CohortManifest-tabulateManifest"></a><div class="section">
@@ -177,12 +190,23 @@ Tabulate the manifest as a data frame</p>
 
 <div class="section">
 <h4 id="usage-2">Usage<a class="anchor" aria-label="anchor" href="#usage-2"></a></h4>
-<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">tabulateManifest</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">tabulateManifest</span><span class="op">(</span>filter <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"active"</span>, <span class="st">"deleted"</span>, <span class="st">"all"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
+<h4 id="arguments-1">Arguments<a class="anchor" aria-label="anchor" href="#arguments-1"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>filter</code></dt>
+<dd><p>Character. Controls which rows are returned. One of:</p><ul><li><p><code>"active"</code> (default) - Only active cohorts</p></li>
+<li><p><code>"deleted"</code> - Only soft-deleted cohorts (status = 'deleted')</p></li>
+<li><p><code>"all"</code> - All rows regardless of status</p></li>
+</ul></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
 <h4 id="returns-1">Returns<a class="anchor" aria-label="anchor" href="#returns-1"></a></h4>
-<p>Data frame. Manifest data with columns: id, label, tags, filePath, hash, timestamp
+<p>A tibble with columns: id, label, tags, filePath, hash, cohortType, status, timestamp, deleted_at
 Get the manifest path</p>
 </div>
 
@@ -223,49 +247,56 @@ Set the execution settings</p>
 </div>
 
 <div class="section">
-<h4 id="arguments-1">Arguments<a class="anchor" aria-label="anchor" href="#arguments-1"></a></h4>
+<h4 id="arguments-2">Arguments<a class="anchor" aria-label="anchor" href="#arguments-2"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>executionSettings</code></dt>
 <dd><p>Object. Execution settings for DBMS cohort generation.
-Get a specific cohort by ID</p></dd>
+Query cohorts by IDs</p></dd>
 
 
 </dl><p></p></div>
 </div>
 
-</div><p></p><hr><a id="method-CohortManifest-getCohortById"></a><div class="section">
-<h3 id="method-getcohortbyid-">Method <code>getCohortById()</code><a class="anchor" aria-label="anchor" href="#method-getcohortbyid-"></a></h3>
+</div><p></p><hr><a id="method-CohortManifest-queryCohortsByIds"></a><div class="section">
+<h3 id="method-querycohortsbyids-">Method <code>queryCohortsByIds()</code><a class="anchor" aria-label="anchor" href="#method-querycohortsbyids-"></a></h3>
 
 <div class="section">
 <h4 id="usage-6">Usage<a class="anchor" aria-label="anchor" href="#usage-6"></a></h4>
-<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">getCohortById</span><span class="op">(</span><span class="va">id</span><span class="op">)</span></span></code></pre></div><p></p></div>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">queryCohortsByIds</span><span class="op">(</span><span class="va">ids</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-2">Arguments<a class="anchor" aria-label="anchor" href="#arguments-2"></a></h4>
-<p></p><div class="arguments"><dl><dt><code>id</code></dt>
-<dd><p>Integer. The cohort ID.</p></dd>
+<h4 id="arguments-3">Arguments<a class="anchor" aria-label="anchor" href="#arguments-3"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>ids</code></dt>
+<dd><p>Integer vector. One or more cohort IDs.</p></dd>
 
 
 </dl><p></p></div>
 </div>
 <div class="section">
 <h4 id="returns-4">Returns<a class="anchor" aria-label="anchor" href="#returns-4"></a></h4>
-<p>Data frame. A subset of the manifest with columns id, label, tags, filePath, hash, timestamp for the requested cohort.
-Get cohorts by tag</p>
+<p>Data frame. A subset of the manifest with columns id, label, tags, filePath, hash, timestamp for matching cohorts, or NULL if none found.
+Query cohorts by tag</p>
 </div>
 
-</div><p></p><hr><a id="method-CohortManifest-getCohortsByTag"></a><div class="section">
-<h3 id="method-getcohortsbytag-">Method <code>getCohortsByTag()</code><a class="anchor" aria-label="anchor" href="#method-getcohortsbytag-"></a></h3>
+</div><p></p><hr><a id="method-CohortManifest-queryCohortsByTag"></a><div class="section">
+<h3 id="method-querycohortsbytag-">Method <code>queryCohortsByTag()</code><a class="anchor" aria-label="anchor" href="#method-querycohortsbytag-"></a></h3>
 
 <div class="section">
 <h4 id="usage-7">Usage<a class="anchor" aria-label="anchor" href="#usage-7"></a></h4>
-<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">getCohortsByTag</span><span class="op">(</span><span class="va">tagString</span><span class="op">)</span></span></code></pre></div><p></p></div>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">queryCohortsByTag</span><span class="op">(</span><span class="va">tagStrings</span>, match <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"any"</span>, <span class="st">"all"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-3">Arguments<a class="anchor" aria-label="anchor" href="#arguments-3"></a></h4>
-<p></p><div class="arguments"><dl><dt><code>tagString</code></dt>
-<dd><p>Character. A tag in the format "name: value" (e.g., "category: primary").</p></dd>
+<h4 id="arguments-4">Arguments<a class="anchor" aria-label="anchor" href="#arguments-4"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>tagStrings</code></dt>
+<dd><p>Character vector. One or more tags in the format "name: value"
+(e.g., "category: primary"). When multiple tags are supplied, the <code>match</code>
+argument controls whether a cohort must satisfy any or all of them.</p></dd>
+
+
+<dt><code>match</code></dt>
+<dd><p>Character. "any" (default) returns cohorts matching at least one tag;
+"all" returns only cohorts matching every tag.</p></dd>
 
 
 </dl><p></p></div>
@@ -273,21 +304,22 @@ Get cohorts by tag</p>
 <div class="section">
 <h4 id="returns-5">Returns<a class="anchor" aria-label="anchor" href="#returns-5"></a></h4>
 <p>Data frame. A subset of the manifest with columns id, label, tags, filePath, hash, timestamp for matching cohorts, or NULL if none found.
-Get cohorts by label</p>
+Query cohorts by label</p>
 </div>
 
-</div><p></p><hr><a id="method-CohortManifest-getCohortsByLabel"></a><div class="section">
-<h3 id="method-getcohortsbylabel-">Method <code>getCohortsByLabel()</code><a class="anchor" aria-label="anchor" href="#method-getcohortsbylabel-"></a></h3>
+</div><p></p><hr><a id="method-CohortManifest-queryCohortsByLabel"></a><div class="section">
+<h3 id="method-querycohortsbylabel-">Method <code>queryCohortsByLabel()</code><a class="anchor" aria-label="anchor" href="#method-querycohortsbylabel-"></a></h3>
 
 <div class="section">
 <h4 id="usage-8">Usage<a class="anchor" aria-label="anchor" href="#usage-8"></a></h4>
-<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">getCohortsByLabel</span><span class="op">(</span><span class="va">label</span>, matchType <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"exact"</span>, <span class="st">"pattern"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div><p></p></div>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">queryCohortsByLabel</span><span class="op">(</span><span class="va">labels</span>, matchType <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"exact"</span>, <span class="st">"pattern"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-4">Arguments<a class="anchor" aria-label="anchor" href="#arguments-4"></a></h4>
-<p></p><div class="arguments"><dl><dt><code>label</code></dt>
-<dd><p>Character. The label to search for.</p></dd>
+<h4 id="arguments-5">Arguments<a class="anchor" aria-label="anchor" href="#arguments-5"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>labels</code></dt>
+<dd><p>Character vector. One or more labels to search for.
+A cohort is included when it matches at least one of the supplied labels (OR logic).</p></dd>
 
 
 <dt><code>matchType</code></dt>
@@ -312,19 +344,19 @@ Defaults to "exact".</p></dd>
 <div class="section">
 <h4 id="returns-7">Returns<a class="anchor" aria-label="anchor" href="#returns-7"></a></h4>
 <p>Integer. The number of cohorts.
-Grab a specific cohort by ID</p>
+Get a specific cohort by ID</p>
 </div>
 
-</div><p></p><hr><a id="method-CohortManifest-grabCohortById"></a><div class="section">
-<h3 id="method-grabcohortbyid-">Method <code>grabCohortById()</code><a class="anchor" aria-label="anchor" href="#method-grabcohortbyid-"></a></h3>
+</div><p></p><hr><a id="method-CohortManifest-getCohortById"></a><div class="section">
+<h3 id="method-getcohortbyid-">Method <code>getCohortById()</code><a class="anchor" aria-label="anchor" href="#method-getcohortbyid-"></a></h3>
 
 <div class="section">
 <h4 id="usage-10">Usage<a class="anchor" aria-label="anchor" href="#usage-10"></a></h4>
-<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">grabCohortById</span><span class="op">(</span><span class="va">id</span><span class="op">)</span></span></code></pre></div><p></p></div>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">getCohortById</span><span class="op">(</span><span class="va">id</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-5">Arguments<a class="anchor" aria-label="anchor" href="#arguments-5"></a></h4>
+<h4 id="arguments-6">Arguments<a class="anchor" aria-label="anchor" href="#arguments-6"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>id</code></dt>
 <dd><p>Integer. The cohort ID.</p></dd>
 
@@ -334,21 +366,28 @@ Grab a specific cohort by ID</p>
 <div class="section">
 <h4 id="returns-8">Returns<a class="anchor" aria-label="anchor" href="#returns-8"></a></h4>
 <p>CohortDef. The CohortDef object with matching ID, or NULL if not found.
-Grab cohorts by tag</p>
+Get cohorts by tag</p>
 </div>
 
-</div><p></p><hr><a id="method-CohortManifest-grabCohortsByTag"></a><div class="section">
-<h3 id="method-grabcohortsbytag-">Method <code>grabCohortsByTag()</code><a class="anchor" aria-label="anchor" href="#method-grabcohortsbytag-"></a></h3>
+</div><p></p><hr><a id="method-CohortManifest-getCohortsByTag"></a><div class="section">
+<h3 id="method-getcohortsbytag-">Method <code>getCohortsByTag()</code><a class="anchor" aria-label="anchor" href="#method-getcohortsbytag-"></a></h3>
 
 <div class="section">
 <h4 id="usage-11">Usage<a class="anchor" aria-label="anchor" href="#usage-11"></a></h4>
-<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">grabCohortsByTag</span><span class="op">(</span><span class="va">tagString</span><span class="op">)</span></span></code></pre></div><p></p></div>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">getCohortsByTag</span><span class="op">(</span><span class="va">tagStrings</span>, match <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"any"</span>, <span class="st">"all"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-6">Arguments<a class="anchor" aria-label="anchor" href="#arguments-6"></a></h4>
-<p></p><div class="arguments"><dl><dt><code>tagString</code></dt>
-<dd><p>Character. A tag in the format "name: value" (e.g., "category: primary").</p></dd>
+<h4 id="arguments-7">Arguments<a class="anchor" aria-label="anchor" href="#arguments-7"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>tagStrings</code></dt>
+<dd><p>Character vector. One or more tags in the format "name: value"
+(e.g., "category: primary"). When multiple tags are supplied, the <code>match</code>
+argument controls whether a cohort must satisfy any or all of them.</p></dd>
+
+
+<dt><code>match</code></dt>
+<dd><p>Character. "any" (default) returns cohorts matching at least one tag;
+"all" returns only cohorts matching every tag.</p></dd>
 
 
 </dl><p></p></div>
@@ -356,21 +395,22 @@ Grab cohorts by tag</p>
 <div class="section">
 <h4 id="returns-9">Returns<a class="anchor" aria-label="anchor" href="#returns-9"></a></h4>
 <p>List. A list of CohortDef objects with matching tags, or NULL if none found.
-Grab cohorts by label</p>
+Get cohorts by label</p>
 </div>
 
-</div><p></p><hr><a id="method-CohortManifest-grabCohortsByLabel"></a><div class="section">
-<h3 id="method-grabcohortsbylabel-">Method <code>grabCohortsByLabel()</code><a class="anchor" aria-label="anchor" href="#method-grabcohortsbylabel-"></a></h3>
+</div><p></p><hr><a id="method-CohortManifest-getCohortsByLabel"></a><div class="section">
+<h3 id="method-getcohortsbylabel-">Method <code>getCohortsByLabel()</code><a class="anchor" aria-label="anchor" href="#method-getcohortsbylabel-"></a></h3>
 
 <div class="section">
 <h4 id="usage-12">Usage<a class="anchor" aria-label="anchor" href="#usage-12"></a></h4>
-<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">grabCohortsByLabel</span><span class="op">(</span><span class="va">label</span>, matchType <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"exact"</span>, <span class="st">"pattern"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div><p></p></div>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">getCohortsByLabel</span><span class="op">(</span><span class="va">labels</span>, matchType <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"exact"</span>, <span class="st">"pattern"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-7">Arguments<a class="anchor" aria-label="anchor" href="#arguments-7"></a></h4>
-<p></p><div class="arguments"><dl><dt><code>label</code></dt>
-<dd><p>Character. The label to search for.</p></dd>
+<h4 id="arguments-8">Arguments<a class="anchor" aria-label="anchor" href="#arguments-8"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>labels</code></dt>
+<dd><p>Character vector. One or more labels to search for.
+A cohort is included when it matches at least one of the supplied labels (OR logic).</p></dd>
 
 
 <dt><code>matchType</code></dt>
@@ -409,7 +449,7 @@ This is useful for cleaning up or resetting the cohort generation environment.</
 </div>
 
 <div class="section">
-<h4 id="arguments-8">Arguments<a class="anchor" aria-label="anchor" href="#arguments-8"></a></h4>
+<h4 id="arguments-9">Arguments<a class="anchor" aria-label="anchor" href="#arguments-9"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>tableTypes</code></dt>
 <dd><p>Character vector. Types of tables to drop. Options: "cohort", "inclusion",
 "inclusion_result", "inclusion_stats", "summary_stats", "censor_stats", "checksum".
@@ -434,7 +474,7 @@ Validates that parent cohorts exist in this manifest before adding.</p><div clas
 </div>
 
 <div class="section">
-<h4 id="arguments-9">Arguments<a class="anchor" aria-label="anchor" href="#arguments-9"></a></h4>
+<h4 id="arguments-10">Arguments<a class="anchor" aria-label="anchor" href="#arguments-10"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>cohortDef</code></dt>
 <dd><p>A CohortDef object with cohortType of 'subset', 'union', or 'complement'
 (created via buildSubsetCohort_Temporal, buildUnionCohort, etc.)</p></dd>
@@ -444,7 +484,41 @@ Validates that parent cohorts exist in this manifest before adding.</p><div clas
 </div>
 <div class="section">
 <h4 id="returns-13">Returns<a class="anchor" aria-label="anchor" href="#returns-13"></a></h4>
-<p>Invisibly returns the assigned cohort ID.</p>
+<p>Invisibly returns the assigned cohort ID.
+Sync the manifest against cohort files on disk</p>
+</div>
+
+</div><p></p><hr><a id="method-CohortManifest-syncManifest"></a><div class="section">
+<h3 id="method-syncmanifest-">Method <code>syncManifest()</code><a class="anchor" aria-label="anchor" href="#method-syncmanifest-"></a></h3>
+<p>Scans the <code>json/</code> and <code>sql/</code> subdirectories of the cohorts folder, reconciles
+them against the SQLite manifest, and updates both the database and the in-memory list:</p><ul><li><p>New files found on disk are added (new CohortDef + manifest entry).</p></li>
+<li><p>Active manifest records whose file no longer exists are soft-deleted.</p></li>
+<li><p>Existing files whose SQL hash has changed are updated in the manifest.</p></li>
+</ul><p>Only the <code>json/</code> and <code>sql/</code> source directories are scanned — derived cohorts
+managed via <code>build*()</code> / <code>addDependentCohort()</code> are not touched.</p><div class="section">
+<h4 id="usage-16">Usage<a class="anchor" aria-label="anchor" href="#usage-16"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">syncManifest</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="returns-14">Returns<a class="anchor" aria-label="anchor" href="#returns-14"></a></h4>
+<p>Data frame with columns: id, label, action
+(<code>"added"</code>, <code>"hash_updated"</code>, <code>"missing_flagged"</code>, or <code>"unchanged"</code>).
+Clean cohort data from the DBMS for deleted manifest entries</p>
+</div>
+
+</div><p></p><hr><a id="method-CohortManifest-cleanCohortTable"></a><div class="section">
+<h3 id="method-cleancohorttable-">Method <code>cleanCohortTable()</code><a class="anchor" aria-label="anchor" href="#method-cleancohorttable-"></a></h3>
+<p>For every cohort with <code>status = 'deleted'</code> in the SQLite manifest, deletes
+the corresponding rows from the DBMS cohort table and checksum table, then marks
+the manifest record as <code>status = 'purged'</code> so it is not processed again.</p><div class="section">
+<h4 id="usage-17">Usage<a class="anchor" aria-label="anchor" href="#usage-17"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">cleanCohortTable</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="returns-15">Returns<a class="anchor" aria-label="anchor" href="#returns-15"></a></h4>
+<p>Data frame with columns: id, label.</p>
 </div>
 
 </div><p></p><hr><a id="method-CohortManifest-generateCohorts"></a><div class="section">
@@ -454,12 +528,12 @@ Checks dependency ordering and regenerates dependent cohorts when parents change
 Checks the hash of each cohort definition and skips generation if the hash matches what's
 already stored in the cohort_checksum table. If hashes differ or the cohort is not yet in
 the checksum table, regenerates and updates the hash.</p><div class="section">
-<h4 id="usage-16">Usage<a class="anchor" aria-label="anchor" href="#usage-16"></a></h4>
+<h4 id="usage-18">Usage<a class="anchor" aria-label="anchor" href="#usage-18"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">generateCohorts</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="returns-14">Returns<a class="anchor" aria-label="anchor" href="#returns-14"></a></h4>
+<h4 id="returns-16">Returns<a class="anchor" aria-label="anchor" href="#returns-16"></a></h4>
 <p>Data frame with execution results including:</p><ul><li><p>cohort_id: ID of the generated cohort</p></li>
 <li><p>label: Label of the cohort</p></li>
 <li><p>cohort_type: 'circe', 'subset', 'union', or 'complement'</p></li>
@@ -475,12 +549,12 @@ the checksum table, regenerates and updates the hash.</p><div class="section">
 <p>Retrieves entry and subject counts for cohorts from the cohort table in the target database.
 Can retrieve counts for all cohorts or a specific subset. Enriches the results with metadata
 (label and tags) from the CohortDef objects in the manifest.</p><div class="section">
-<h4 id="usage-17">Usage<a class="anchor" aria-label="anchor" href="#usage-17"></a></h4>
+<h4 id="usage-19">Usage<a class="anchor" aria-label="anchor" href="#usage-19"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">retrieveCohortCounts</span><span class="op">(</span>cohortIds <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-10">Arguments<a class="anchor" aria-label="anchor" href="#arguments-10"></a></h4>
+<h4 id="arguments-11">Arguments<a class="anchor" aria-label="anchor" href="#arguments-11"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>cohortIds</code></dt>
 <dd><p>Integer vector. Optional. Specific cohort IDs to retrieve counts for.
 If NULL (default), returns counts for all cohorts.</p></dd>
@@ -489,7 +563,7 @@ If NULL (default), returns counts for all cohorts.</p></dd>
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-15">Returns<a class="anchor" aria-label="anchor" href="#returns-15"></a></h4>
+<h4 id="returns-17">Returns<a class="anchor" aria-label="anchor" href="#returns-17"></a></h4>
 <p>Data frame with columns:</p><ul><li><p>cohort_id: The cohort definition ID</p></li>
 <li><p>label: The cohort label from the CohortDef object</p></li>
 <li><p>tags: The cohort tags formatted as a string</p></li>
@@ -500,36 +574,36 @@ If NULL (default), returns counts for all cohorts.</p></dd>
 </div><p></p><hr><a id="method-CohortManifest-validateManifest"></a><div class="section">
 <h3 id="method-validatemanifest-">Method <code>validateManifest()</code><a class="anchor" aria-label="anchor" href="#method-validatemanifest-"></a></h3>
 <p>Validate manifest and return status of all cohorts</p><div class="section">
-<h4 id="usage-18">Usage<a class="anchor" aria-label="anchor" href="#usage-18"></a></h4>
+<h4 id="usage-20">Usage<a class="anchor" aria-label="anchor" href="#usage-20"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">validateManifest</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="returns-16">Returns<a class="anchor" aria-label="anchor" href="#returns-16"></a></h4>
+<h4 id="returns-18">Returns<a class="anchor" aria-label="anchor" href="#returns-18"></a></h4>
 <p>A tibble with columns: id, label, status (active/missing/deleted), deleted_at, file_exists</p>
 </div>
 
 </div><p></p><hr><a id="method-CohortManifest-getManifestStatus"></a><div class="section">
 <h3 id="method-getmanifeststatus-">Method <code>getManifestStatus()</code><a class="anchor" aria-label="anchor" href="#method-getmanifeststatus-"></a></h3>
 <p>Get summary status of manifest</p><div class="section">
-<h4 id="usage-19">Usage<a class="anchor" aria-label="anchor" href="#usage-19"></a></h4>
+<h4 id="usage-21">Usage<a class="anchor" aria-label="anchor" href="#usage-21"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">getManifestStatus</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="returns-17">Returns<a class="anchor" aria-label="anchor" href="#returns-17"></a></h4>
+<h4 id="returns-19">Returns<a class="anchor" aria-label="anchor" href="#returns-19"></a></h4>
 <p>List with elements: active_count, missing_count, deleted_count, next_available_id</p>
 </div>
 
 </div><p></p><hr><a id="method-CohortManifest-deleteCohort"></a><div class="section">
 <h3 id="method-deletecohort-">Method <code>deleteCohort()</code><a class="anchor" aria-label="anchor" href="#method-deletecohort-"></a></h3>
 <p>Soft delete a cohort (mark as deleted, preserve record)</p><div class="section">
-<h4 id="usage-20">Usage<a class="anchor" aria-label="anchor" href="#usage-20"></a></h4>
+<h4 id="usage-22">Usage<a class="anchor" aria-label="anchor" href="#usage-22"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">deleteCohort</span><span class="op">(</span><span class="va">id</span>, reason <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-11">Arguments<a class="anchor" aria-label="anchor" href="#arguments-11"></a></h4>
+<h4 id="arguments-12">Arguments<a class="anchor" aria-label="anchor" href="#arguments-12"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>id</code></dt>
 <dd><p>Integer. The cohort ID to delete.</p></dd>
 
@@ -541,39 +615,43 @@ If NULL (default), returns counts for all cohorts.</p></dd>
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-18">Returns<a class="anchor" aria-label="anchor" href="#returns-18"></a></h4>
+<h4 id="returns-20">Returns<a class="anchor" aria-label="anchor" href="#returns-20"></a></h4>
 <p>Invisibly returns TRUE if successful, FALSE otherwise.</p>
 </div>
 
-</div><p></p><hr><a id="method-CohortManifest-hardRemoveCohort"></a><div class="section">
-<h3 id="method-hardremovecohort-">Method <code>hardRemoveCohort()</code><a class="anchor" aria-label="anchor" href="#method-hardremovecohort-"></a></h3>
-<p>Hard delete a cohort (removes the record from database, irreversible)</p><div class="section">
-<h4 id="usage-21">Usage<a class="anchor" aria-label="anchor" href="#usage-21"></a></h4>
-<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">hardRemoveCohort</span><span class="op">(</span><span class="va">id</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div><p></p><hr><a id="method-CohortManifest-permanentlyDeleteCohort"></a><div class="section">
+<h3 id="method-permanentlydeletecohort-">Method <code>permanentlyDeleteCohort()</code><a class="anchor" aria-label="anchor" href="#method-permanentlydeletecohort-"></a></h3>
+<p>Permanently delete a cohort (removes the record from database, irreversible)</p><div class="section">
+<h4 id="usage-23">Usage<a class="anchor" aria-label="anchor" href="#usage-23"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">permanentlyDeleteCohort</span><span class="op">(</span><span class="va">id</span>, confirm <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-12">Arguments<a class="anchor" aria-label="anchor" href="#arguments-12"></a></h4>
+<h4 id="arguments-13">Arguments<a class="anchor" aria-label="anchor" href="#arguments-13"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>id</code></dt>
 <dd><p>Integer. The cohort ID to permanently remove.</p></dd>
+
+
+<dt><code>confirm</code></dt>
+<dd><p>Logical. Must be TRUE to proceed. Defaults to FALSE as a safety guard.</p></dd>
 
 
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-19">Returns<a class="anchor" aria-label="anchor" href="#returns-19"></a></h4>
+<h4 id="returns-21">Returns<a class="anchor" aria-label="anchor" href="#returns-21"></a></h4>
 <p>Invisibly returns TRUE if successful, FALSE otherwise.</p>
 </div>
 
 </div><p></p><hr><a id="method-CohortManifest-cleanupMissing"></a><div class="section">
 <h3 id="method-cleanupmissing-">Method <code>cleanupMissing()</code><a class="anchor" aria-label="anchor" href="#method-cleanupmissing-"></a></h3>
 <p>Clean up missing cohorts from manifest</p><div class="section">
-<h4 id="usage-22">Usage<a class="anchor" aria-label="anchor" href="#usage-22"></a></h4>
+<h4 id="usage-24">Usage<a class="anchor" aria-label="anchor" href="#usage-24"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">cleanupMissing</span><span class="op">(</span>keep_trace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-13">Arguments<a class="anchor" aria-label="anchor" href="#arguments-13"></a></h4>
+<h4 id="arguments-14">Arguments<a class="anchor" aria-label="anchor" href="#arguments-14"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>keep_trace</code></dt>
 <dd><p>Logical. If TRUE, marks missing as deleted with timestamp (soft delete).
 If FALSE, permanently removes from database (hard delete). Defaults to TRUE.</p></dd>
@@ -582,19 +660,19 @@ If FALSE, permanently removes from database (hard delete). Defaults to TRUE.</p>
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-20">Returns<a class="anchor" aria-label="anchor" href="#returns-20"></a></h4>
+<h4 id="returns-22">Returns<a class="anchor" aria-label="anchor" href="#returns-22"></a></h4>
 <p>Invisibly returns NULL. Displays summary of cleanup actions.</p>
 </div>
 
 </div><p></p><hr><a id="method-CohortManifest-clone"></a><div class="section">
 <h3 id="method-clone-">Method <code>clone()</code><a class="anchor" aria-label="anchor" href="#method-clone-"></a></h3>
 <p>The objects of this class are cloneable with this method.</p><div class="section">
-<h4 id="usage-23">Usage<a class="anchor" aria-label="anchor" href="#usage-23"></a></h4>
+<h4 id="usage-25">Usage<a class="anchor" aria-label="anchor" href="#usage-25"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">clone</span><span class="op">(</span>deep <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-14">Arguments<a class="anchor" aria-label="anchor" href="#arguments-14"></a></h4>
+<h4 id="arguments-15">Arguments<a class="anchor" aria-label="anchor" href="#arguments-15"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>deep</code></dt>
 <dd><p>Whether to make a deep clone.</p></dd>
 

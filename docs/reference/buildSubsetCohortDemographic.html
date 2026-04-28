@@ -12,7 +12,7 @@ Returns a CohortDef object ready to add to a CohortManifest."><!-- mathjax --><s
     
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.3</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -71,8 +71,8 @@ Returns a CohortDef object ready to add to a CohortManifest.</p>
 <span>  genderConceptIds <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  raceConceptIds <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  ethnicityConceptIds <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  cohortsDirectory <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  manifest <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  cohortsFolder <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts"</span><span class="op">)</span>,</span>
+<span>  <span class="va">manifest</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -106,13 +106,13 @@ Returns a CohortDef object ready to add to a CohortManifest.</p>
 <dd><p>Numeric vector. Ethnicity concept IDs to include. NULL = all. Default: NULL</p></dd>
 
 
-<dt>cohortsDirectory</dt>
-<dd><p>Character. Path to inputs/cohorts/. Uses study hierarchy if not provided.</p></dd>
+<dt>cohortsFolder</dt>
+<dd><p>Character. Path to inputs/cohorts/. Defaults to <code>here::here("inputs/cohorts")</code>.</p></dd>
 
 
 <dt>manifest</dt>
-<dd><p>CohortManifest object (optional). If provided, validates that base cohort exists.
-Recommended to ensure referential integrity. If NULL, a warning is issued.</p></dd>
+<dd><p>CohortManifest object. Required. Validates that the base cohort exists and
+automatically registers the new cohort via addDependentCohort().</p></dd>
 
 </dl></div>
     <div class="section level2">

@@ -26,7 +26,7 @@
     
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.3</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -87,9 +87,9 @@
 <p><strong>Note:</strong> This vignette is currently in development and
 subject to change.</p>
 </blockquote>
-<div class="section level2">
-<h2 id="introduction">Introduction<a class="anchor" aria-label="anchor" href="#introduction"></a>
-</h2>
+<div class="section level3">
+<h3 id="introduction">Introduction<a class="anchor" aria-label="anchor" href="#introduction"></a>
+</h3>
 <p>Before running your study pipeline, you need to define the
 populations and phenotypes your analysis will use. Picard organizes
 these through two key input types:</p>
@@ -105,9 +105,9 @@ exposures, covariates, etc. as CIRCE-based JSON definitions</li>
 definitions throughout your study. This vignette walks through the
 complete workflow for loading and managing cohorts and concept sets.</p>
 </div>
-<div class="section level2">
-<h2 id="manifest-overview">Manifest Overview<a class="anchor" aria-label="anchor" href="#manifest-overview"></a>
-</h2>
+<div class="section level3">
+<h3 id="manifest-overview">Manifest Overview<a class="anchor" aria-label="anchor" href="#manifest-overview"></a>
+</h3>
 <p>A manifest is a SQLite database that catalogs and tracks definitions.
 For each cohort or concept set, the manifest stores:</p>
 <ul>
@@ -126,13 +126,13 @@ status</li>
 <p>Manifests enable reproducibility and change tracking as your study
 evolves.</p>
 </div>
-<div class="section level2">
-<h2 id="working-with-cohorts">Working with Cohorts<a class="anchor" aria-label="anchor" href="#working-with-cohorts"></a>
-</h2>
-<p>The cohort workflow has four main steps:</p>
 <div class="section level3">
-<h3 id="step-1-create-or-update-cohorts-load-file-optional">Step 1: Create or Update Cohorts Load File (Optional)<a class="anchor" aria-label="anchor" href="#step-1-create-or-update-cohorts-load-file-optional"></a>
+<h3 id="working-with-cohorts">Working with Cohorts<a class="anchor" aria-label="anchor" href="#working-with-cohorts"></a>
 </h3>
+<p>The cohort workflow has four main steps:</p>
+<div class="section level4">
+<h4 id="step-1-create-or-update-cohorts-load-file-optional">Step 1: Create or Update Cohorts Load File (Optional)<a class="anchor" aria-label="anchor" href="#step-1-create-or-update-cohorts-load-file-optional"></a>
+</h4>
 <p>The <code>cohortsLoad.csv</code> file provides metadata for
 organizing and enriching your cohorts. You can create a blank template
 or edit it interactively:</p>
@@ -149,34 +149,86 @@ columns: <code>atlasId</code>, <code>label</code>,
 <p>This launches a Shiny app where you can add/edit cohort metadata
 without touching the CSV directly.</p>
 </div>
-<div class="section level3">
-<h3 id="step-2-import-cohort-definitions-from-atlas">Step 2: Import Cohort Definitions from ATLAS<a class="anchor" aria-label="anchor" href="#step-2-import-cohort-definitions-from-atlas"></a>
-</h3>
-<p>Connect to ATLAS and download cohort JSON definitions:</p>
+<div class="section level4">
+<h4 id="step-2-import-cohort-definitions-from-atlas">Step 2: Import Cohort Definitions from ATLAS<a class="anchor" aria-label="anchor" href="#step-2-import-cohort-definitions-from-atlas"></a>
+</h4>
+<div class="section level5">
+<h5 id="setting-up-atlas-credentials">Setting Up ATLAS Credentials<a class="anchor" aria-label="anchor" href="#setting-up-atlas-credentials"></a>
+</h5>
+<p>Before connecting to ATLAS, configure your credentials in your
+<code>.Renviron</code> file. First, view the required format:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Set up ATLAS connection (credentials from .Renviron or direct)</span></span>
-<span><span class="va">atlasConn</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setAtlasConnection.html">setAtlasConnection</a></span><span class="op">(</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Import specific cohorts from ATLAS</span></span>
-<span><span class="fu"><a href="../reference/importAtlasCohorts.html">importAtlasCohorts</a></span><span class="op">(</span></span>
-<span>  cohortsFolderPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts"</span><span class="op">)</span>,</span>
-<span>  atlasConnection <span class="op">=</span> <span class="va">atlasConn</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-<p>This downloads JSON definitions to <code>inputs/cohorts/json/</code>
-and updates your manifest with metadata.</p>
-</div>
-<div class="section level3">
-<h3 id="step-3-load-the-cohort-manifest">Step 3: Load the Cohort Manifest<a class="anchor" aria-label="anchor" href="#step-3-load-the-cohort-manifest"></a>
-</h3>
-<p>Load the manifest to access all cohort definitions in your study:</p>
+<code class="sourceCode R"><span><span class="fu">templateatlaScredentials</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<p>This shows the four credentials you need to set:</p>
+<ul>
+<li>
+<strong><code>atlasBaseUrl</code></strong>: Base URL to your ATLAS
+WebAPI (e.g., <code>https://organization-atlas.com/WebAPI</code>)</li>
+<li>
+<strong><code>atlasAuthMethod</code></strong>: Authentication method
+(e.g., <code>ad</code> for Active Directory)</li>
+<li>
+<strong><code>atlasUser</code></strong>: Your ATLAS username or
+email</li>
+<li>
+<strong><code>atlasPassword</code></strong>: Your ATLAS
+password</li>
+</ul>
+<p><strong>Option A — Store in <code>.Renviron</code></strong></p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">cm</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadCohortManifest.html">loadCohortManifest</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu">usethis</span><span class="fu">::</span><span class="fu"><a href="https://usethis.r-lib.org/reference/edit.html" class="external-link">edit_r_environ</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<p>Add these lines with your actual values:</p>
+<pre><code><span><span class="va">atlasBaseUrl</span><span class="op">=</span><span class="st">'https://organization-atlas.com/WebAPI'</span></span>
+<span><span class="va">atlasAuthMethod</span><span class="op">=</span><span class="st">'ad'</span></span>
+<span><span class="va">atlasUser</span><span class="op">=</span><span class="st">'atlas.user@company.com'</span></span>
+<span><span class="va">atlasPassword</span><span class="op">=</span><span class="st">'YourPassword'</span></span></code></pre>
+<blockquote>
+<p><strong>Security note:</strong> Never commit <code>.Renviron</code>
+to version control. Confirm it is listed in <code>.gitignore</code>.</p>
+</blockquote>
+<p><strong>Option B — Store in <code>keyring</code>
+(recommended)</strong></p>
+<p>The <code>keyring</code> package keeps credentials encrypted on your
+system:</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Store each credential (a prompt asks for the value)</span></span>
+<span><span class="fu">keyring</span><span class="fu">::</span><span class="fu"><a href="https://keyring.r-lib.org/reference/key_get.html" class="external-link">key_set</a></span><span class="op">(</span>service <span class="op">=</span> <span class="st">"picard"</span>, username <span class="op">=</span> <span class="st">"atlasBaseUrl"</span><span class="op">)</span></span>
+<span><span class="fu">keyring</span><span class="fu">::</span><span class="fu"><a href="https://keyring.r-lib.org/reference/key_get.html" class="external-link">key_set</a></span><span class="op">(</span>service <span class="op">=</span> <span class="st">"picard"</span>, username <span class="op">=</span> <span class="st">"atlasAuthMethod"</span><span class="op">)</span></span>
+<span><span class="fu">keyring</span><span class="fu">::</span><span class="fu"><a href="https://keyring.r-lib.org/reference/key_get.html" class="external-link">key_set</a></span><span class="op">(</span>service <span class="op">=</span> <span class="st">"picard"</span>, username <span class="op">=</span> <span class="st">"atlasUser"</span><span class="op">)</span></span>
+<span><span class="fu">keyring</span><span class="fu">::</span><span class="fu"><a href="https://keyring.r-lib.org/reference/key_get.html" class="external-link">key_set</a></span><span class="op">(</span>service <span class="op">=</span> <span class="st">"picard"</span>, username <span class="op">=</span> <span class="st">"atlasPassword"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Verify</span></span>
+<span><span class="fu">keyring</span><span class="fu">::</span><span class="fu"><a href="https://keyring.r-lib.org/reference/key_get.html" class="external-link">key_list</a></span><span class="op">(</span>service <span class="op">=</span> <span class="st">"picard"</span><span class="op">)</span></span></code></pre></div>
+<p>Then connect with:</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">atlasConn</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setAtlasConnection.html">setAtlasConnection</a></span><span class="op">(</span>useKeyring <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
 </div>
-<div class="section level3">
-<h3 id="step-4-review-and-validate-manifests">Step 4: Review and Validate Manifests<a class="anchor" aria-label="anchor" href="#step-4-review-and-validate-manifests"></a>
-</h3>
+<div class="section level5">
+<h5 id="connecting-and-importing">Connecting and Importing<a class="anchor" aria-label="anchor" href="#connecting-and-importing"></a>
+</h5>
+</div>
+</div>
+</div>
+<div class="section level2">
+<h2 id="import-specific-cohorts-from-atlas">Import specific cohorts from ATLAS<a class="anchor" aria-label="anchor" href="#import-specific-cohorts-from-atlas"></a>
+</h2>
+<p>importAtlasCohorts( cohortsFolderPath = here::here(“inputs/cohorts”),
+atlasConnection = atlasConn )</p>
+<pre><code>
+This downloads JSON definitions to `inputs/cohorts/json/` and updates your manifest with metadata.
+
+### Step 3: Load the Cohort Manifest
+
+Load the manifest to access all cohort definitions in your study:
+
+
+```r
+cm &lt;- loadCohortManifest()</code></pre>
+<div class="section level4">
+<h4 id="step-4-review-and-validate-manifests">Step 4: Review and Validate Manifests<a class="anchor" aria-label="anchor" href="#step-4-review-and-validate-manifests"></a>
+</h4>
 <p>Examine the cohorts that were loaded:</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># View manifest list (metadata for all cohorts)</span></span>
 <span><span class="va">manifest_df</span> <span class="op">&lt;-</span> <span class="va">cm</span><span class="op">$</span><span class="fu">getManifest</span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
@@ -184,15 +236,15 @@ and updates your manifest with metadata.</p>
 <span><span class="va">summary_df</span> <span class="op">&lt;-</span> <span class="va">cm</span><span class="op">$</span><span class="fu">tabulateManifest</span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Query specific cohorts</span></span>
-<span><span class="va">cohort_1</span> <span class="op">&lt;-</span> <span class="va">cm</span><span class="op">$</span><span class="fu">getCohortById</span><span class="op">(</span>id <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
-<span><span class="va">cohorts_by_tag</span> <span class="op">&lt;-</span> <span class="va">cm</span><span class="op">$</span><span class="fu">getCohortsByTag</span><span class="op">(</span>tagString <span class="op">=</span> <span class="st">"category: Primary"</span><span class="op">)</span></span></code></pre></div>
+<span><span class="va">cohort_1</span> <span class="op">&lt;-</span> <span class="va">cm</span><span class="op">$</span><span class="fu">queryCohortsByIds</span><span class="op">(</span>ids <span class="op">=</span> <span class="fl">1L</span><span class="op">)</span></span>
+<span><span class="va">cohorts_by_tag</span> <span class="op">&lt;-</span> <span class="va">cm</span><span class="op">$</span><span class="fu">queryCohortsByTag</span><span class="op">(</span>tagStrings <span class="op">=</span> <span class="st">"category: Primary"</span><span class="op">)</span></span></code></pre></div>
 </div>
-<div class="section level3">
-<h3 id="step-5-apply-functions-for-cohort-operations">Step 5: Apply Functions for Cohort Operations<a class="anchor" aria-label="anchor" href="#step-5-apply-functions-for-cohort-operations"></a>
-</h3>
+<div class="section level4">
+<h4 id="step-5-apply-functions-for-cohort-operations">Step 5: Apply Functions for Cohort Operations<a class="anchor" aria-label="anchor" href="#step-5-apply-functions-for-cohort-operations"></a>
+</h4>
 <p>Once manifests are loaded, you need <code>ExecutionSettings</code> to
 interact with the database:</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Create execution settings for a specific database</span></span>
 <span><span class="va">settings</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/createExecutionSettingsFromConfig.html">createExecutionSettingsFromConfig</a></span><span class="op">(</span>configBlock <span class="op">=</span> <span class="st">"my_cdm"</span><span class="op">)</span></span>
 <span></span>
@@ -214,10 +266,9 @@ interact with the database:</p>
 <span><span class="va">counts</span> <span class="op">&lt;-</span> <span class="va">cm</span><span class="op">$</span><span class="fu">retrieveCohortCounts</span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">counts</span><span class="op">)</span></span></code></pre></div>
 </div>
-</div>
-<div class="section level2">
-<h2 id="building-dependent-cohorts">Building Dependent Cohorts<a class="anchor" aria-label="anchor" href="#building-dependent-cohorts"></a>
-</h2>
+<div class="section level3">
+<h3 id="building-dependent-cohorts">Building Dependent Cohorts<a class="anchor" aria-label="anchor" href="#building-dependent-cohorts"></a>
+</h3>
 <p>Beyond base cohorts (imported from ATLAS or written as SQL), you can
 define dependent cohorts that derive from other cohorts using
 demographic or temporal constraints. This is useful for subpopulation
@@ -225,13 +276,13 @@ analyses (e.g., males only, adults over 65, patients with prior
 conditions).</p>
 <p>Dependent cohorts are built programmatically and stored in the
 manifest just like base cohorts.</p>
-<div class="section level3">
-<h3 id="temporal-subset-cohorts">Temporal Subset Cohorts<a class="anchor" aria-label="anchor" href="#temporal-subset-cohorts"></a>
-</h3>
+<div class="section level4">
+<h4 id="temporal-subset-cohorts">Temporal Subset Cohorts<a class="anchor" aria-label="anchor" href="#temporal-subset-cohorts"></a>
+</h4>
 <p>Build cohorts based on temporal relationships between events.
 Example: “Chronic Kidney Disease (CKD) in patients with prior Type 2
 Diabetes”:</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Assume cm already has base cohorts loaded</span></span>
 <span><span class="co"># Cohort 1 = CKD, Cohort 2 = Type 2 Diabetes</span></span>
 <span></span>
@@ -242,10 +293,7 @@ Diabetes”:</p>
 <span>  temporalOperator <span class="op">=</span> <span class="st">"before"</span>,</span>
 <span>  temporalStartOffset <span class="op">=</span> <span class="fl">365</span>, <span class="co"># Within 1 year before CKD</span></span>
 <span>  manifest <span class="op">=</span> <span class="va">cm</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Add the dependent cohort to the manifest</span></span>
-<span><span class="va">cm</span><span class="op">$</span><span class="fu">addDependentCohort</span><span class="op">(</span><span class="va">ckd_given_t2d</span><span class="op">)</span></span></code></pre></div>
+<span><span class="op">)</span></span></code></pre></div>
 <p><strong>Parameters:</strong> - <code>baseCohortId</code>: The main
 population cohort - <code>filterCohortId</code>: The condition that must
 occur - <code>temporalOperator</code>: <code>"before"</code>,
@@ -253,64 +301,131 @@ occur - <code>temporalOperator</code>: <code>"before"</code>,
 - <code>temporalStartOffset</code>: Days before/after the operator point
 - <code>temporalEndOffset</code>: Optional, defines the end window</p>
 </div>
-<div class="section level3">
-<h3 id="demographic-subset-cohorts">Demographic Subset Cohorts<a class="anchor" aria-label="anchor" href="#demographic-subset-cohorts"></a>
-</h3>
+<div class="section level4">
+<h4 id="demographic-subset-cohorts">Demographic Subset Cohorts<a class="anchor" aria-label="anchor" href="#demographic-subset-cohorts"></a>
+</h4>
 <p>Build cohorts based on demographic characteristics. Example: “CKD in
 males only”:</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">ckd_males</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/buildSubsetCohortDemographic.html">buildSubsetCohortDemographic</a></span><span class="op">(</span></span>
 <span>  label <span class="op">=</span> <span class="st">"CKD Males"</span>,</span>
 <span>  baseCohortId <span class="op">=</span> <span class="fl">1</span>,                  <span class="co"># CKD population</span></span>
 <span>  genderConceptIds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">8507</span><span class="op">)</span>,        <span class="co"># 8507 = Male</span></span>
 <span>  manifest <span class="op">=</span> <span class="va">cm</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">cm</span><span class="op">$</span><span class="fu">addDependentCohort</span><span class="op">(</span><span class="va">ckd_males</span><span class="op">)</span></span></code></pre></div>
+<span><span class="op">)</span></span></code></pre></div>
 <p><strong>Parameters:</strong> - <code>baseCohor tId</code>: The main
 population cohort - <code>genderConceptIds</code>: Standard concept IDs
 for gender (e.g., 8507 for Male, 8532 for Female) - <code>minAge</code>:
 Minimum age (optional) - <code>maxAge</code>: Maximum age (optional)</p>
 <p>Example: “CKD in adults (18+) only”:</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">ckd_adults</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/buildSubsetCohortDemographic.html">buildSubsetCohortDemographic</a></span><span class="op">(</span></span>
 <span>  label <span class="op">=</span> <span class="st">"CKD Adults"</span>,</span>
 <span>  baseCohortId <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  minAge <span class="op">=</span> <span class="fl">18</span>,</span>
 <span>  manifest <span class="op">=</span> <span class="va">cm</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">cm</span><span class="op">$</span><span class="fu">addDependentCohort</span><span class="op">(</span><span class="va">ckd_adults</span><span class="op">)</span></span></code></pre></div>
+<span><span class="op">)</span></span></code></pre></div>
 </div>
-<div class="section level3">
-<h3 id="union-and-complement-cohorts">Union and Complement Cohorts<a class="anchor" aria-label="anchor" href="#union-and-complement-cohorts"></a>
-</h3>
+<div class="section level4">
+<h4 id="union-and-complement-cohorts">Union and Complement Cohorts<a class="anchor" aria-label="anchor" href="#union-and-complement-cohorts"></a>
+</h4>
 <p>Combine multiple cohorts or create exclusions:</p>
 <p><strong>Union:</strong> Patients in either CKD OR Diabetes:</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">ckd_or_t2d</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/buildUnionCohort.html">buildUnionCohort</a></span><span class="op">(</span></span>
 <span>  label <span class="op">=</span> <span class="st">"CKD or Type 2 Diabetes"</span>,</span>
 <span>  cohortIds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">2</span><span class="op">)</span>,    <span class="co"># Union of cohorts 1 and 2</span></span>
 <span>  manifest <span class="op">=</span> <span class="va">cm</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">cm</span><span class="op">$</span><span class="fu">addDependentCohort</span><span class="op">(</span><span class="va">ckd_or_t2d</span><span class="op">)</span></span></code></pre></div>
+<span><span class="op">)</span></span></code></pre></div>
 <p><strong>Complement:</strong> All patients NOT in a cohort:</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">no_ckd</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/buildComplementCohort.html">buildComplementCohort</a></span><span class="op">(</span></span>
 <span>  label <span class="op">=</span> <span class="st">"No Chronic Kidney Disease"</span>,</span>
-<span>  cohortId <span class="op">=</span> <span class="fl">1</span>,           <span class="co"># Exclude cohort 1</span></span>
+<span>  populationCohortId <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  excludeCohortIds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">3</span><span class="op">)</span>,</span>
 <span>  manifest <span class="op">=</span> <span class="va">cm</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">cm</span><span class="op">$</span><span class="fu">addDependentCohort</span><span class="op">(</span><span class="va">no_ckd</span><span class="op">)</span></span></code></pre></div>
+<span><span class="op">)</span></span></code></pre></div>
 </div>
-<div class="section level3">
-<h3 id="visualizing-dependencies">Visualizing Dependencies<a class="anchor" aria-label="anchor" href="#visualizing-dependencies"></a>
-</h3>
+<div class="section level4">
+<h4 id="stratified-cohorts">Stratified Cohorts<a class="anchor" aria-label="anchor" href="#stratified-cohorts"></a>
+</h4>
+<p>Use <code><a href="../reference/buildStratifiedCohorts.html">buildStratifiedCohorts()</a></code> when you want to partition
+a cohort into <strong>mutually exclusive subgroups</strong> in a single
+call — one cohort per stratum plus an automatic
+<strong>Unclassified</strong> cohort for subjects that match none of the
+defined strata. This is the right tool when you need parallel subgroups
+for stratified analyses.</p>
+<p>This is different from <code><a href="../reference/buildSubsetCohortDemographic.html">buildSubsetCohortDemographic()</a></code>,
+which produces a single filtered subgroup (e.g., males aged 65+) by
+AND-ing all conditions together.</p>
+<p><strong>Example: Split by gender</strong></p>
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Produces: "CKD - Male", "CKD - Female", "CKD - Unclassified"</span></span>
+<span><span class="fu"><a href="../reference/buildStratifiedCohorts.html">buildStratifiedCohorts</a></span><span class="op">(</span></span>
+<span>  baseCohortId <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  labelPrefix <span class="op">=</span> <span class="st">"CKD"</span>,</span>
+<span>  strata <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>    <span class="st">"Male"</span>   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>genderConceptIds <span class="op">=</span> <span class="fl">8507</span><span class="op">)</span>,</span>
+<span>    <span class="st">"Female"</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>genderConceptIds <span class="op">=</span> <span class="fl">8532</span><span class="op">)</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  manifest <span class="op">=</span> <span class="va">cm</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p><strong>Example: Split by age group</strong></p>
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Produces: "CKD - &lt;65", "CKD - 65+", "CKD - Unclassified"</span></span>
+<span><span class="fu"><a href="../reference/buildStratifiedCohorts.html">buildStratifiedCohorts</a></span><span class="op">(</span></span>
+<span>  baseCohortId <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  labelPrefix <span class="op">=</span> <span class="st">"CKD"</span>,</span>
+<span>  strata <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>    <span class="st">"&lt;65"</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>maxAge <span class="op">=</span> <span class="fl">64</span><span class="op">)</span>,</span>
+<span>    <span class="st">"65+"</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>minAge <span class="op">=</span> <span class="fl">65</span><span class="op">)</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  manifest <span class="op">=</span> <span class="va">cm</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p><strong>Example: Custom SQL strata (e.g., US census
+region)</strong></p>
+<p>For partitions that cannot be expressed through standard demographic
+fields, supply a SQL WHERE clause string. The expression may reference
+<code>bc</code> (cohort table alias) and <code>p</code> (CDM person
+table alias):</p>
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Produces: "CKD - West", "CKD - Midwest", "CKD - Northeast",</span></span>
+<span><span class="co">#           "CKD - South", "CKD - Unclassified"</span></span>
+<span><span class="fu"><a href="../reference/buildStratifiedCohorts.html">buildStratifiedCohorts</a></span><span class="op">(</span></span>
+<span>  baseCohortId <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  labelPrefix <span class="op">=</span> <span class="st">"CKD"</span>,</span>
+<span>  strata <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>    <span class="st">"West"</span>      <span class="op">=</span> <span class="st">"p.location_id IN (1, 4, 5, 6, 12, 14, 27, 33, 34, 38, 47, 50, 53)"</span>,</span>
+<span>    <span class="st">"Midwest"</span>   <span class="op">=</span> <span class="st">"p.location_id IN (13, 15, 16, 17, 23, 24, 25, 29, 30, 36, 43, 51)"</span>,</span>
+<span>    <span class="st">"Northeast"</span> <span class="op">=</span> <span class="st">"p.location_id IN (7, 20, 22, 31, 32, 35, 39, 41, 49)"</span>,</span>
+<span>    <span class="st">"South"</span>     <span class="op">=</span> <span class="st">"p.location_id IN (2, 3, 8, 9, 10, 11, 18, 19, 21, 26, 28, 37, 42, 44, 45, 48, 52)"</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  manifest <span class="op">=</span> <span class="va">cm</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p><strong>Example: Mixed demographic and custom strata</strong></p>
+<p>Demographic (named list) and custom SQL strata can be combined in the
+same call:</p>
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/buildStratifiedCohorts.html">buildStratifiedCohorts</a></span><span class="op">(</span></span>
+<span>  baseCohortId <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  labelPrefix <span class="op">=</span> <span class="st">"CKD"</span>,</span>
+<span>  strata <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>    <span class="st">"Male"</span>   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>genderConceptIds <span class="op">=</span> <span class="fl">8507</span><span class="op">)</span>,</span>
+<span>    <span class="st">"Female"</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>genderConceptIds <span class="op">=</span> <span class="fl">8532</span><span class="op">)</span>,</span>
+<span>    <span class="st">"Rural"</span>  <span class="op">=</span> <span class="st">"p.location_id IN (10, 11, 23, 35)"</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  manifest <span class="op">=</span> <span class="va">cm</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>The Unclassified cohort is always appended automatically. Its WHERE
+condition is the logical negation of every named stratum, so every
+subject in the base cohort appears in exactly one output cohort.</p>
+</div>
+<div class="section level4">
+<h4 id="visualizing-dependencies">Visualizing Dependencies<a class="anchor" aria-label="anchor" href="#visualizing-dependencies"></a>
+</h4>
 <p>Once you’ve defined dependent cohorts, visualize the relationship
 graph:</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Generate a dependency report (Mermaid diagram + table)</span></span>
 <span><span class="va">report</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/visualizeCohortDependencies.html">visualizeCohortDependencies</a></span><span class="op">(</span><span class="va">cm</span><span class="op">)</span></span>
 <span></span>
@@ -321,15 +436,17 @@ graph:</p>
 which) - Mermaid diagram for visualization - Table of all cohorts with
 their types</p>
 </div>
-<div class="section level3">
-<h3 id="complete-dependent-cohort-workflow">Complete Dependent Cohort Workflow<a class="anchor" aria-label="anchor" href="#complete-dependent-cohort-workflow"></a>
-</h3>
+<div class="section level4">
+<h4 id="complete-dependent-cohort-workflow">Complete Dependent Cohort Workflow<a class="anchor" aria-label="anchor" href="#complete-dependent-cohort-workflow"></a>
+</h4>
 <p>Here’s a full example combining base and dependent cohorts:</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># 1. Load base cohorts from ATLAS</span></span>
 <span><span class="va">cm</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadCohortManifest.html">loadCohortManifest</a></span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># 2. Create dependent cohorts</span></span>
+<span><span class="co"># Note: build* functions require the manifest and automatically register</span></span>
+<span><span class="co"># the new cohort — no separate addDependentCohort() call needed.</span></span>
 <span><span class="va">ckd_given_t2d</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/buildSubsetCohortTemporal.html">buildSubsetCohortTemporal</a></span><span class="op">(</span></span>
 <span>  label <span class="op">=</span> <span class="st">"CKD given prior T2D"</span>,</span>
 <span>  baseCohortId <span class="op">=</span> <span class="fl">1</span>,</span>
@@ -338,7 +455,6 @@ their types</p>
 <span>  temporalStartOffset <span class="op">=</span> <span class="fl">365</span>,</span>
 <span>  manifest <span class="op">=</span> <span class="va">cm</span></span>
 <span><span class="op">)</span></span>
-<span><span class="va">cm</span><span class="op">$</span><span class="fu">addDependentCohort</span><span class="op">(</span><span class="va">ckd_given_t2d</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">ckd_males</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/buildSubsetCohortDemographic.html">buildSubsetCohortDemographic</a></span><span class="op">(</span></span>
 <span>  label <span class="op">=</span> <span class="st">"CKD Males"</span>,</span>
@@ -346,7 +462,6 @@ their types</p>
 <span>  genderConceptIds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">8507</span><span class="op">)</span>,</span>
 <span>  manifest <span class="op">=</span> <span class="va">cm</span></span>
 <span><span class="op">)</span></span>
-<span><span class="va">cm</span><span class="op">$</span><span class="fu">addDependentCohort</span><span class="op">(</span><span class="va">ckd_males</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">ckd_adults</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/buildSubsetCohortDemographic.html">buildSubsetCohortDemographic</a></span><span class="op">(</span></span>
 <span>  label <span class="op">=</span> <span class="st">"CKD Adults"</span>,</span>
@@ -354,7 +469,6 @@ their types</p>
 <span>  minAge <span class="op">=</span> <span class="fl">18</span>,</span>
 <span>  manifest <span class="op">=</span> <span class="va">cm</span></span>
 <span><span class="op">)</span></span>
-<span><span class="va">cm</span><span class="op">$</span><span class="fu">addDependentCohort</span><span class="op">(</span><span class="va">ckd_adults</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># 3. Visualize dependencies</span></span>
 <span><span class="va">report</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/visualizeCohortDependencies.html">visualizeCohortDependencies</a></span><span class="op">(</span><span class="va">cm</span><span class="op">)</span></span>
@@ -368,29 +482,322 @@ their types</p>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">counts</span><span class="op">)</span></span></code></pre></div>
 <p><strong>Note:</strong> Dependent cohorts are generated using R code,
 not SQL files. When you call <code>cm$generateCohorts()</code>, Picard
-executes the logic for all dependent cohorts automatically.</p>
-<p>The concept set workflow is similar to cohorts:</p>
+executes the logic for all dependent cohorts automatically. The
+<code>manifest</code> parameter is required by all <code>build*</code>
+functions — it validates parent cohorts and registers the new cohort in
+the manifest automatically.</p>
+</div>
 </div>
 <div class="section level3">
-<h3 id="step-1-create-or-update-concept-sets-load-file-optional">Step 1: Create or Update Concept Sets Load File (Optional)<a class="anchor" aria-label="anchor" href="#step-1-create-or-update-concept-sets-load-file-optional"></a>
+<h3 id="working-with-custom-sql-cohorts">Working with Custom SQL Cohorts<a class="anchor" aria-label="anchor" href="#working-with-custom-sql-cohorts"></a>
 </h3>
+<p>Sometimes a cohort cannot be expressed as a CIRCE JSON definition
+from ATLAS, and is too specific or complex for a derived cohort. In
+these cases you can write the SQL yourself and register it as a
+<strong>custom</strong> cohort.</p>
+<p>Custom cohorts:</p>
+<ul>
+<li>Live in <code>inputs/cohorts/sql/</code> alongside any other
+hand-written SQL files</li>
+<li>Are tracked with SQL-hash-based change detection (same as ATLAS
+circe cohorts)</li>
+<li>Are executed by <code><a href="../reference/generateCohorts.html">generateCohorts()</a></code> using the same
+standard SqlRender parameters</li>
+</ul>
+<div class="section level4">
+<h4 id="sql-requirements">SQL Requirements<a class="anchor" aria-label="anchor" href="#sql-requirements"></a>
+</h4>
+<p>Your SQL must use SqlRender parameters rather than hardcoded values.
+<code><a href="../reference/generateCohorts.html">generateCohorts()</a></code> injects these automatically:</p>
+<table class="table">
+<colgroup>
+<col width="50%">
+<col width="50%">
+</colgroup>
+<thead><tr class="header">
+<th>Parameter</th>
+<th>Description</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td><code>@target_cohort_id</code></td>
+<td>The cohort definition ID assigned by the manifest</td>
+</tr>
+<tr class="even">
+<td><code>@target_database_schema</code></td>
+<td>The schema where the cohort table resides</td>
+</tr>
+<tr class="odd">
+<td><code>@target_cohort_table</code></td>
+<td>The cohort table name</td>
+</tr>
+<tr class="even">
+<td><code>@cdm_database_schema</code></td>
+<td>The CDM schema for referencing OMOP clinical tables</td>
+</tr>
+</tbody>
+</table>
+<p>A DELETE step before the INSERT is strongly recommended for
+idempotency (safe to re-run):</p>
+<div class="sourceCode" id="cb22"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb22-1"><a href="#cb22-1" tabindex="-1"></a><span class="kw">DELETE</span> <span class="kw">FROM</span> @target_database_schema.@target_cohort_table</span>
+<span id="cb22-2"><a href="#cb22-2" tabindex="-1"></a>  <span class="kw">WHERE</span> cohort_definition_id <span class="op">=</span> @target_cohort_id;</span>
+<span id="cb22-3"><a href="#cb22-3" tabindex="-1"></a></span>
+<span id="cb22-4"><a href="#cb22-4" tabindex="-1"></a><span class="kw">INSERT</span> <span class="kw">INTO</span> @target_database_schema.@target_cohort_table (</span>
+<span id="cb22-5"><a href="#cb22-5" tabindex="-1"></a>  cohort_definition_id,</span>
+<span id="cb22-6"><a href="#cb22-6" tabindex="-1"></a>  subject_id,</span>
+<span id="cb22-7"><a href="#cb22-7" tabindex="-1"></a>  cohort_start_date,</span>
+<span id="cb22-8"><a href="#cb22-8" tabindex="-1"></a>  cohort_end_date</span>
+<span id="cb22-9"><a href="#cb22-9" tabindex="-1"></a>)</span>
+<span id="cb22-10"><a href="#cb22-10" tabindex="-1"></a><span class="kw">SELECT</span></span>
+<span id="cb22-11"><a href="#cb22-11" tabindex="-1"></a>  @target_cohort_id,</span>
+<span id="cb22-12"><a href="#cb22-12" tabindex="-1"></a>  person_id,</span>
+<span id="cb22-13"><a href="#cb22-13" tabindex="-1"></a>  condition_start_date,</span>
+<span id="cb22-14"><a href="#cb22-14" tabindex="-1"></a>  condition_end_date</span>
+<span id="cb22-15"><a href="#cb22-15" tabindex="-1"></a><span class="kw">FROM</span> @cdm_database_schema.condition_occurrence</span>
+<span id="cb22-16"><a href="#cb22-16" tabindex="-1"></a><span class="kw">WHERE</span> condition_concept_id <span class="kw">IN</span> (<span class="op">..</span>.)</span>
+<span id="cb22-17"><a href="#cb22-17" tabindex="-1"></a>;</span></code></pre></div>
+</div>
+<div class="section level4">
+<h4 id="registering-a-custom-cohort">Registering a Custom Cohort<a class="anchor" aria-label="anchor" href="#registering-a-custom-cohort"></a>
+</h4>
+<ol style="list-style-type: decimal">
+<li>Place your <code>.sql</code> file in
+<code>inputs/cohorts/sql/</code>
+</li>
+<li>Call <code><a href="../reference/loadCohortManifest.html">loadCohortManifest()</a></code> — the file is auto-discovered
+with a temporary label (the filename) and
+<code>cohortType = "circe"</code>
+</li>
+<li>Call <code><a href="../reference/defineCustomCohort.html">defineCustomCohort()</a></code> to give it a proper label,
+tags, and mark it as <code>"custom"</code>
+</li>
+</ol>
+<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">cm</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadCohortManifest.html">loadCohortManifest</a></span><span class="op">(</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Enrich by file path</span></span>
+<span><span class="fu"><a href="../reference/defineCustomCohort.html">defineCustomCohort</a></span><span class="op">(</span></span>
+<span>  manifest <span class="op">=</span> <span class="va">cm</span>,</span>
+<span>  sqlFilePath <span class="op">=</span> <span class="st">"inputs/cohorts/sql/high_dose_steroids.sql"</span>,</span>
+<span>  label <span class="op">=</span> <span class="st">"High-dose corticosteroid initiators"</span>,</span>
+<span>  tags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>category <span class="op">=</span> <span class="st">"Exposure"</span>, subCategory <span class="op">=</span> <span class="st">"Corticosteroids"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Or enrich by cohort ID if you already know it</span></span>
+<span><span class="fu"><a href="../reference/defineCustomCohort.html">defineCustomCohort</a></span><span class="op">(</span></span>
+<span>  manifest <span class="op">=</span> <span class="va">cm</span>,</span>
+<span>  cohortId <span class="op">=</span> <span class="fl">5L</span>,</span>
+<span>  label <span class="op">=</span> <span class="st">"High-dose corticosteroid initiators"</span>,</span>
+<span>  tags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>category <span class="op">=</span> <span class="st">"Exposure"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>The label, tags, and <code>cohortType = "custom"</code> are persisted
+to the SQLite manifest so they are restored automatically by future
+<code><a href="../reference/loadCohortManifest.html">loadCohortManifest()</a></code> calls — you only need to call
+<code><a href="../reference/defineCustomCohort.html">defineCustomCohort()</a></code> once per cohort.</p>
+</div>
+<div class="section level4">
+<h4 id="sql-validation">SQL Validation<a class="anchor" aria-label="anchor" href="#sql-validation"></a>
+</h4>
+<p><code><a href="../reference/defineCustomCohort.html">defineCustomCohort()</a></code> automatically checks the SQL for
+common portability issues and emits <strong>warnings</strong> (never
+errors) for:</p>
+<ul>
+<li>Missing required SqlRender parameters
+(<code>@target_cohort_id</code>, <code>@target_database_schema</code>,
+<code>@target_cohort_table</code>)</li>
+<li>No DELETE step (idempotency risk)</li>
+<li>INSERT missing one or more of the four required cohort columns</li>
+<li>Apparent hardcoded schema references</li>
+</ul>
+<p>The same checks run again at execution time when
+<code><a href="../reference/generateCohorts.html">generateCohorts()</a></code> processes the cohort, so you always get a
+reminder even if you skipped <code><a href="../reference/defineCustomCohort.html">defineCustomCohort()</a></code>.</p>
+</div>
+</div>
+<div class="section level3">
+<h3 id="managing-the-manifest-mid-cycle">Managing the Manifest Mid-Cycle<a class="anchor" aria-label="anchor" href="#managing-the-manifest-mid-cycle"></a>
+</h3>
+<p>Study development is rarely linear. Cohorts get revised in ATLAS, new
+definitions get added mid-analysis, or old definitions are retired.
+Picard provides three methods to keep the manifest in sync with reality
+without reloading from scratch.</p>
+<div class="section level4">
+<h4 id="checking-manifest-health">Checking Manifest Health<a class="anchor" aria-label="anchor" href="#checking-manifest-health"></a>
+</h4>
+<p>Before syncing, get a quick status overview:</p>
+<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Full status table: id, label, status, deleted_at, file_exists</span></span>
+<span><span class="va">cm</span><span class="op">$</span><span class="fu">validateManifest</span><span class="op">(</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Summary counts</span></span>
+<span><span class="va">cm</span><span class="op">$</span><span class="fu">getManifestStatus</span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="co">#&gt; $active_count</span></span>
+<span><span class="co">#&gt; [1] 12</span></span>
+<span><span class="co">#&gt; $missing_count    # active records whose file is gone</span></span>
+<span><span class="co">#&gt; [1] 1</span></span>
+<span><span class="co">#&gt; $deleted_count    # soft-deleted records</span></span>
+<span><span class="co">#&gt; [1] 2</span></span>
+<span><span class="co">#&gt; $next_available_id</span></span>
+<span><span class="co">#&gt; [1] 15</span></span></code></pre></div>
+</div>
+<div class="section level4">
+<h4 id="syncing-files-on-disk-with-the-manifest">Syncing Files on Disk with the Manifest<a class="anchor" aria-label="anchor" href="#syncing-files-on-disk-with-the-manifest"></a>
+</h4>
+<p><code>syncManifest()</code> reconciles the SQLite manifest against
+the <code>json/</code> and <code>sql/</code> directories on disk in a
+single call:</p>
+<ul>
+<li>
+<strong>New files</strong> found on disk are added as new manifest
+entries</li>
+<li>
+<strong>Active records</strong> whose file has disappeared are
+soft-deleted (status = <code>'deleted'</code>)</li>
+<li>
+<strong>Existing files</strong> whose SQL hash has changed are
+updated in the manifest</li>
+</ul>
+<div class="sourceCode" id="cb25"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Sync the manifest against inputs/cohorts/json/ and inputs/cohorts/sql/</span></span>
+<span><span class="va">sync_results</span> <span class="op">&lt;-</span> <span class="va">cm</span><span class="op">$</span><span class="fu">syncManifest</span><span class="op">(</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Returns a data frame: id, label, action</span></span>
+<span><span class="co"># action is one of: "added", "hash_updated", "missing_flagged", "unchanged"</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">sync_results</span><span class="op">)</span></span></code></pre></div>
+<p>This is the go-to method when you’ve:</p>
+<ul>
+<li>Added new cohorts to ATLAS and re-run
+<code><a href="../reference/importAtlasCohorts.html">importAtlasCohorts()</a></code>
+</li>
+<li>Edited a cohort SQL file directly</li>
+<li>Deleted a cohort file and want the manifest to reflect that</li>
+</ul>
+<p><code>syncManifest()</code> only touches <code>json/</code> and
+<code>sql/</code> source cohorts — derived cohorts managed by
+<code>build*</code> functions are left untouched.</p>
+</div>
+<div class="section level4">
+<h4 id="removing-cohorts-from-the-manifest">Removing Cohorts from the Manifest<a class="anchor" aria-label="anchor" href="#removing-cohorts-from-the-manifest"></a>
+</h4>
+<p>When a cohort is no longer needed, soft-delete it to preserve the
+audit trail:</p>
+<div class="sourceCode" id="cb26"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Soft-delete: marks status = 'deleted', keeps the record</span></span>
+<span><span class="va">cm</span><span class="op">$</span><span class="fu">deleteCohort</span><span class="op">(</span>id <span class="op">=</span> <span class="fl">5</span>, reason <span class="op">=</span> <span class="st">"Replaced by updated phenotype"</span><span class="op">)</span></span></code></pre></div>
+<p>For cases where you need to permanently remove a record (e.g., a test
+cohort that was never used), use <code>permanentlyDeleteCohort()</code>.
+This requires an explicit confirmation to prevent accidents:</p>
+<div class="sourceCode" id="cb27"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Permanent removal — requires confirm = TRUE</span></span>
+<span><span class="va">cm</span><span class="op">$</span><span class="fu">permanentlyDeleteCohort</span><span class="op">(</span>id <span class="op">=</span> <span class="fl">5</span>, confirm <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level4">
+<h4 id="purging-deleted-cohort-data-from-the-dbms">Purging Deleted Cohort Data from the DBMS<a class="anchor" aria-label="anchor" href="#purging-deleted-cohort-data-from-the-dbms"></a>
+</h4>
+<p>Soft-deleting a cohort only updates the SQLite manifest — the cohort
+rows still exist in your DBMS cohort table. Use
+<code>cleanCohortTable()</code> to purge them:</p>
+<div class="sourceCode" id="cb28"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Requires executionSettings to be set</span></span>
+<span><span class="va">cm</span><span class="op">$</span><span class="fu">setExecutionSettings</span><span class="op">(</span><span class="va">settings</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Deletes rows from the DBMS cohort and checksum tables for all</span></span>
+<span><span class="co"># status = 'deleted' cohorts, then marks them as 'purged' in SQLite</span></span>
+<span><span class="va">purge_results</span> <span class="op">&lt;-</span> <span class="va">cm</span><span class="op">$</span><span class="fu">cleanCohortTable</span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">purge_results</span><span class="op">)</span>   <span class="co"># id, label for each purged cohort</span></span></code></pre></div>
+<p>After <code>cleanCohortTable()</code>, those manifest records are
+marked <code>'purged'</code> and will not be processed again on
+subsequent calls — the method is safe to call repeatedly.</p>
+</div>
+<div class="section level4">
+<h4 id="updating-cohort-labels-and-tags">Updating Cohort Labels and Tags<a class="anchor" aria-label="anchor" href="#updating-cohort-labels-and-tags"></a>
+</h4>
+<p>At any point in the study cycle you can rename a cohort or update its
+tags without affecting its type, SQL, or generation status. This is
+useful when:</p>
+<ul>
+<li>An ATLAS-imported cohort arrives with a machine-generated label you
+want to clean up</li>
+<li>You need to apply or revise categorization tags used for downstream
+queries or reporting</li>
+<li>A cohort’s purpose changes and its name should reflect that</li>
+</ul>
+<div class="sourceCode" id="cb29"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Rename a cohort (label only — tags unchanged)</span></span>
+<span><span class="fu"><a href="../reference/updateCohortMetadata.html">updateCohortMetadata</a></span><span class="op">(</span></span>
+<span>  manifest <span class="op">=</span> <span class="va">cm</span>,</span>
+<span>  cohortId <span class="op">=</span> <span class="fl">3L</span>,</span>
+<span>  label <span class="op">=</span> <span class="st">"Type 2 Diabetes — incident users"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Add or replace tags (label unchanged)</span></span>
+<span><span class="fu"><a href="../reference/updateCohortMetadata.html">updateCohortMetadata</a></span><span class="op">(</span></span>
+<span>  manifest <span class="op">=</span> <span class="va">cm</span>,</span>
+<span>  cohortId <span class="op">=</span> <span class="fl">3L</span>,</span>
+<span>  tags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>category <span class="op">=</span> <span class="st">"Outcome"</span>, subCategory <span class="op">=</span> <span class="st">"Metabolic"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Update both at once</span></span>
+<span><span class="fu"><a href="../reference/updateCohortMetadata.html">updateCohortMetadata</a></span><span class="op">(</span></span>
+<span>  manifest <span class="op">=</span> <span class="va">cm</span>,</span>
+<span>  cohortId <span class="op">=</span> <span class="fl">3L</span>,</span>
+<span>  label <span class="op">=</span> <span class="st">"Type 2 Diabetes — incident users"</span>,</span>
+<span>  tags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>category <span class="op">=</span> <span class="st">"Outcome"</span>, subCategory <span class="op">=</span> <span class="st">"Metabolic"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>Changes are applied immediately to the in-memory manifest and
+persisted to SQLite, so they survive across sessions. Only the supplied
+fields are written — omitted arguments are left untouched in the
+database.</p>
+<blockquote>
+<p><strong>Tip:</strong> Use <code>cm$tabulateManifest()</code> before
+and after to confirm the changes.</p>
+</blockquote>
+</div>
+<div class="section level4">
+<h4 id="typical-mid-cycle-workflow">Typical Mid-Cycle Workflow<a class="anchor" aria-label="anchor" href="#typical-mid-cycle-workflow"></a>
+</h4>
+<div class="sourceCode" id="cb30"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># 1. After updating cohorts in ATLAS and re-importing</span></span>
+<span><span class="va">synced</span> <span class="op">&lt;-</span> <span class="va">cm</span><span class="op">$</span><span class="fu">syncManifest</span><span class="op">(</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 2. Review what changed</span></span>
+<span><span class="va">synced</span><span class="op">[</span><span class="va">synced</span><span class="op">$</span><span class="va">action</span> <span class="op">!=</span> <span class="st">"unchanged"</span>, <span class="op">]</span></span>
+<span></span>
+<span><span class="co"># 3. Retire a cohort that is no longer needed</span></span>
+<span><span class="va">cm</span><span class="op">$</span><span class="fu">deleteCohort</span><span class="op">(</span>id <span class="op">=</span> <span class="fl">7</span>, reason <span class="op">=</span> <span class="st">"Out of scope for v2"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 4. Purge the retired cohort's data from the DBMS</span></span>
+<span><span class="va">cm</span><span class="op">$</span><span class="fu">setExecutionSettings</span><span class="op">(</span><span class="va">settings</span><span class="op">)</span></span>
+<span><span class="va">cm</span><span class="op">$</span><span class="fu">cleanCohortTable</span><span class="op">(</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 5. Re-generate to pick up ATLAS revisions</span></span>
+<span><span class="va">cm</span><span class="op">$</span><span class="fu">generateCohorts</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+</div>
+</div>
+<div class="section level3">
+<h3 id="working-with-concept-sets">Working with Concept Sets<a class="anchor" aria-label="anchor" href="#working-with-concept-sets"></a>
+</h3>
+<p>The concept set workflow is similar to cohorts.</p>
+<div class="section level4">
+<h4 id="step-1-create-or-update-concept-sets-load-file-optional">Step 1: Create or Update Concept Sets Load File (Optional)<a class="anchor" aria-label="anchor" href="#step-1-create-or-update-concept-sets-load-file-optional"></a>
+</h4>
 <p>Create metadata for organizing your concept sets:</p>
 <p><strong>Option A: Create a blank template</strong></p>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb31"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/createBlankConceptSetsLoadFile.html">createBlankConceptSetsLoadFile</a></span><span class="op">(</span>conceptSetsFolderPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/conceptSets"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <p>This creates <code>inputs/conceptSets/conceptSetsLoad.csv</code> with
 columns: <code>atlasId</code>, <code>label</code>,
 <code>category</code>, <code>subCategory</code>, <code>domain</code>,
 <code>sourceCode</code>, <code>file_name</code></p>
 <p><strong>Option B: Use the interactive editor</strong></p>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb32"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/launchConceptSetsLoadEditor.html">launchConceptSetsLoadEditor</a></span><span class="op">(</span>conceptSetsFolderPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/conceptSets"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 </div>
-<div class="section level3">
-<h3 id="step-2-import-concept-set-definitions-from-atlas">Step 2: Import Concept Set Definitions from ATLAS<a class="anchor" aria-label="anchor" href="#step-2-import-concept-set-definitions-from-atlas"></a>
-</h3>
+<div class="section level4">
+<h4 id="step-2-import-concept-set-definitions-from-atlas">Step 2: Import Concept Set Definitions from ATLAS<a class="anchor" aria-label="anchor" href="#step-2-import-concept-set-definitions-from-atlas"></a>
+</h4>
 <p>Download concept set JSON definitions:</p>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb33"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Reuse or create ATLAS connection</span></span>
 <span><span class="va">atlasConn</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setAtlasConnection.html">setAtlasConnection</a></span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
@@ -402,36 +809,33 @@ columns: <code>atlasId</code>, <code>label</code>,
 <p>This downloads JSON definitions to
 <code>inputs/conceptSets/json/</code> and updates metadata.</p>
 </div>
-<div class="section level3">
-<h3 id="step-3-load-the-concept-set-manifest">Step 3: Load the Concept Set Manifest<a class="anchor" aria-label="anchor" href="#step-3-load-the-concept-set-manifest"></a>
-</h3>
-<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<div class="section level4">
+<h4 id="step-3-load-the-concept-set-manifest">Step 3: Load the Concept Set Manifest<a class="anchor" aria-label="anchor" href="#step-3-load-the-concept-set-manifest"></a>
+</h4>
+<div class="sourceCode" id="cb34"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Load without execution settings (for review only)</span></span>
 <span><span class="va">csm</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadConceptSetManifest.html">loadConceptSetManifest</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 </div>
-<div class="section level3">
-<h3 id="step-4-review-and-validate-manifests-1">Step 4: Review and Validate Manifests<a class="anchor" aria-label="anchor" href="#step-4-review-and-validate-manifests-1"></a>
-</h3>
+<div class="section level4">
+<h4 id="step-4-review-and-validate-manifests-1">Step 4: Review and Validate Manifests<a class="anchor" aria-label="anchor" href="#step-4-review-and-validate-manifests-1"></a>
+</h4>
 <p>Examine concept sets in your study:</p>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># View all concept sets</span></span>
-<span><span class="va">manifest_df</span> <span class="op">&lt;-</span> <span class="va">csm</span><span class="op">$</span><span class="fu">getManifest</span><span class="op">(</span><span class="op">)</span></span>
+<div class="sourceCode" id="cb35"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Tabular view of all concept sets</span></span>
+<span><span class="va">manifest_df</span> <span class="op">&lt;-</span> <span class="va">csm</span><span class="op">$</span><span class="fu">tabulateManifest</span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># Get formatted summary</span></span>
-<span><span class="va">summary_df</span> <span class="op">&lt;-</span> <span class="va">csm</span><span class="op">$</span><span class="fu">tabulateManifest</span><span class="op">(</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Query by criteria</span></span>
-<span><span class="va">concept_set</span> <span class="op">&lt;-</span> <span class="va">csm</span><span class="op">$</span><span class="fu">getConceptSetById</span><span class="op">(</span>id <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
-<span><span class="va">drug_expo</span> <span class="op">&lt;-</span> <span class="va">csm</span><span class="op">$</span><span class="fu">getConceptSetsByTag</span><span class="op">(</span>tagString <span class="op">=</span> <span class="st">"domain: drug_exposure"</span><span class="op">)</span></span></code></pre></div>
+<span><span class="co"># Query by criteria (returns data frames)</span></span>
+<span><span class="va">concept_set</span> <span class="op">&lt;-</span> <span class="va">csm</span><span class="op">$</span><span class="fu">queryConceptSetsByIds</span><span class="op">(</span><span class="fl">1L</span><span class="op">)</span></span>
+<span><span class="va">drug_expo</span> <span class="op">&lt;-</span> <span class="va">csm</span><span class="op">$</span><span class="fu">queryConceptSetsByTag</span><span class="op">(</span>tagStrings <span class="op">=</span> <span class="st">"domain: drug_exposure"</span><span class="op">)</span></span></code></pre></div>
 </div>
-<div class="section level3">
-<h3 id="step-5-apply-functions-for-concept-set-operations">Step 5: Apply Functions for Concept Set Operations<a class="anchor" aria-label="anchor" href="#step-5-apply-functions-for-concept-set-operations"></a>
-</h3>
+<div class="section level4">
+<h4 id="step-5-apply-functions-for-concept-set-operations">Step 5: Apply Functions for Concept Set Operations<a class="anchor" aria-label="anchor" href="#step-5-apply-functions-for-concept-set-operations"></a>
+</h4>
 <p>To extract source codes or access vocabularies, you need
 <code>ExecutionSettings</code>:</p>
 <p><strong>Extract source codes</strong> retrieves codes in specific
 vocabularies (e.g., NDC, RxNorm) for drug concepts:</p>
-<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb36"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Create execution settings</span></span>
 <span><span class="va">settings</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/createExecutionSettingsFromConfig.html">createExecutionSettingsFromConfig</a></span><span class="op">(</span>configBlock <span class="op">=</span> <span class="st">"optum_dod"</span><span class="op">)</span></span>
 <span></span>
@@ -446,7 +850,7 @@ vocabularies (e.g., NDC, RxNorm) for drug concepts:</p>
 <p><strong>Extract included codes</strong> builds a complete list of all
 standard concepts included in each concept set definition and exports to
 Excel:</p>
-<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb37"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Extract all included standard concepts from all concept sets</span></span>
 <span><span class="co"># Generates IncludedCodes.xlsx with one sheet per concept set</span></span>
 <span><span class="co"># Each sheet contains: concept_id, concept_name, vocabulary_id</span></span>
@@ -455,12 +859,12 @@ Excel:</p>
 <span><span class="op">)</span></span></code></pre></div>
 </div>
 </div>
-<div class="section level2">
-<h2 id="complete-workflow-example">Complete Workflow Example<a class="anchor" aria-label="anchor" href="#complete-workflow-example"></a>
-</h2>
+<div class="section level3">
+<h3 id="complete-workflow-example">Complete Workflow Example<a class="anchor" aria-label="anchor" href="#complete-workflow-example"></a>
+</h3>
 <p>Here’s a complete testing script combining cohorts and concept
 sets:</p>
-<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb38"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ohdsi.github.io/picard/">picard</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># === COHORTS WORKFLOW ===</span></span>
@@ -515,9 +919,9 @@ sets:</p>
 <span><span class="co"># 4. Extract source codes (if needed)</span></span>
 <span><span class="co"># csm$extractSourceCodes(sourceVocabs = c("NDC"))</span></span></code></pre></div>
 </div>
-<div class="section level2">
-<h2 id="key-points">Key Points<a class="anchor" aria-label="anchor" href="#key-points"></a>
-</h2>
+<div class="section level3">
+<h3 id="key-points">Key Points<a class="anchor" aria-label="anchor" href="#key-points"></a>
+</h3>
 <p><strong>Manifests as audit trail:</strong> The manifest (SQLite
 database + load CSV) tracks exactly which definitions were used in each
 version of the study. Hash values detect if definitions change.</p>
@@ -529,9 +933,9 @@ Without ExecutionSettings, you can load and review manifests. With
 ExecutionSettings, you can generate cohorts and extract source
 codes.</p>
 </div>
-<div class="section level2">
-<h2 id="next-steps">Next Steps<a class="anchor" aria-label="anchor" href="#next-steps"></a>
-</h2>
+<div class="section level3">
+<h3 id="next-steps">Next Steps<a class="anchor" aria-label="anchor" href="#next-steps"></a>
+</h3>
 <p>Now that you have cohorts and concept sets loaded:</p>
 <ol style="list-style-type: decimal">
 <li>
@@ -545,9 +949,9 @@ your first analysis</li>
 editor gets tracked with timestamps and hashes</li>
 </ol>
 </div>
-<div class="section level2">
-<h2 id="see-also">See Also<a class="anchor" aria-label="anchor" href="#see-also"></a>
-</h2>
+<div class="section level3">
+<h3 id="see-also">See Also<a class="anchor" aria-label="anchor" href="#see-also"></a>
+</h3>
 <ul>
 <li>
 <a href="picard_repository_structure.html">The Ulysses Standard
@@ -559,6 +963,7 @@ setup</li>
 <a href="running_the_pipeline.html">Running the Pipeline</a> - Using
 cohorts in tasks</li>
 </ul>
+</div>
 </div>
   </main><aside class="col-md-3"><nav id="toc"><h2>On this page</h2>
     </nav></aside>

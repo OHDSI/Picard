@@ -63,6 +63,8 @@ reference:
     desc: "Functions for building study components (build*)"
     contents:
       - buildComplementCohort
+      - buildCompositeCohort
+      - buildStratifiedCohorts
       - buildStudyHub
       - buildSubsetCohortDemographic
       - buildSubsetCohortTemporal
@@ -77,6 +79,8 @@ reference:
       - createExecutionSettings
       - createExecutionSettingsFromConfig
       - createPullRequest
+      - createSubsetEndWindow
+      - createSubsetStartWindow
 
   - title: "Execution Functions"
     desc: "Functions for executing study tasks (exec*)"
@@ -104,6 +108,7 @@ reference:
       - agentSaveWork
       - cleanColumnNames
       - clearPendingPR
+      - defineCustomCohort
       - displayTaskStatusReport
       - documentDependencies
       - formatFloats
@@ -130,6 +135,7 @@ reference:
       - templateAtlasCredentials
       - testStudyPipeline
       - testStudyTask
+      - updateCohortMetadata
       - updateStudyVersion
       - validateCohortResults
       - validateConfigYaml

@@ -14,7 +14,7 @@ schema_review), runs QC validation on cohort completeness, and generates executi
     
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.3</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -111,8 +111,8 @@ generates a cohortKey reference file with id, label, and tags.</p></dd>
 </ul></div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p>The function orchestrates the complete pipeline export:</p><ol><li><p>Validates code state (git commit must be clean)</p></li>
-<li><p>Validates environment state and snapshots renv.lock</p></li>
+    <p>The function orchestrates the complete pipeline export:</p><ol><li><p>Captures git commit SHA for reproducibility tracking</p></li>
+<li><p>Snapshots environment (renv.lock) for non-dev versions</p></li>
 <li><p>Discovers tasks for the specified pipeline version</p></li>
 <li><p>Merges results across all databases for each task via importAndBind()</p></li>
 <li><p>Generates reference files: cohortKey.csv, databaseInfo.csv</p></li>
@@ -130,9 +130,10 @@ generates a cohortKey reference file with id, label, and tags.</p></dd>
 <li><p>lockfileHash: Hash of renv.lock for dependency reproducibility</p></li>
 <li><p>filesExported: Comma-separated list of exported file names</p></li>
 </ul></li>
-</ul><p>The function:</p><ol><li><p>Scans the first database's version folder to discover available tasks</p></li>
+</ul><p>The function:</p><ol><li><p>Captures git commit SHA and (optionally) environment snapshot</p></li>
+<li><p>Scans the first database's version folder to discover available tasks</p></li>
 <li><p>For each task found, calls importAndBind() to merge across databases</p></li>
-<li><p>Tracks which files were successfully merged</p></li>
+<li><p>Generates reference and QC files</p></li>
 <li><p>Returns a summary data frame of the merge operation</p></li>
 </ol><p>Expected folder structure:</p>
 <p></p><div class="sourceCode"><pre><code><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a>exec<span class="sc">/</span>results<span class="sc">/</span></span>

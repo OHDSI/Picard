@@ -16,7 +16,7 @@ and only required if you plan to extract source codes or access vocabularies."><
     
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.3</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -109,9 +109,12 @@ The conceptSetsLoad.csv file (optional) should contain:</p><ul><li><p><code>file
 <li><p><code>domain</code>: OMOP domain classification</p></li>
 <li><p><code>sourceCode</code>: Whether the concept set represents source codes</p></li>
 </ul><p><strong>Post-Load:</strong>
-After loading, use manifest methods to query concept sets:</p><ul><li><p><code>getConceptSetById(id)</code> - Get by database ID</p></li>
-<li><p><code>getConceptSetsByTag(key, value)</code> - Get by metadata tag</p></li>
-<li><p><code>grabConceptSetById(id)</code> - Get ConceptSetDef object</p></li>
+After loading, use manifest methods to query concept sets:</p><ul><li><p><code>queryConceptSetsByIds(ids)</code> - Query by one or more IDs; returns data frame</p></li>
+<li><p><code>queryConceptSetsByTag(tagStrings, match)</code> - Query by tag(s); returns data frame</p></li>
+<li><p><code>queryConceptSetsByLabel(labels, matchType)</code> - Query by label(s); returns data frame</p></li>
+<li><p><code>getConceptSetById(id)</code> - Get ConceptSetDef object by ID</p></li>
+<li><p><code>getConceptSetsByTag(tagStrings, match)</code> - Get ConceptSetDef objects by tag(s)</p></li>
+<li><p><code>tabulateManifest()</code> - Tabular view of all concept sets</p></li>
 </ul></div>
 
     <div class="section level2">
