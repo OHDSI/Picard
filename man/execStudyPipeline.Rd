@@ -8,6 +8,7 @@ execStudyPipeline(
   configBlock,
   updateType,
   skipRenv = FALSE,
+  skipConnectivityCheck = TRUE,
   env = rlang::caller_env()
 )
 }
@@ -23,6 +24,10 @@ execStudyPipeline(
 
 \item{skipRenv}{Logical. If TRUE, skips renv validation. Defaults to FALSE.
 Useful for testing issues. Default: FALSE}
+
+\item{skipConnectivityCheck}{Logical. If TRUE (default), skips the optional
+database connectivity pre-flight check. Set to FALSE to attempt a test
+connection to each config block before execution begins.}
 
 \item{env}{The execution environment. Defaults to caller environment.}
 }

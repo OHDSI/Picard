@@ -328,7 +328,7 @@ reviewExportSchema <- function(exportPath = here::here("dissemination/export/mer
 
 #' Validate Cohort Results Completeness
 #' @description Validates that all cohorts in the cohort key have results and checks for 
-#'   non-enumeration. Compares expected cohorts from cohortKey.csv against actual results 
+#'   non-enumeration. Compares expected cohorts from cohortManifestSnapshot.csv against actual results 
 #'   to identify missing or zero-count cohorts.
 #' @param exportPath Character. Path to export folder containing results. 
 #'   Defaults to "dissemination/export/merge"
@@ -511,8 +511,9 @@ validateCohortResults <- function(exportPath = here::here("dissemination/export/
 
 #' Orchestrate Pipeline Export with Merging and QC
 #' @description Orchestrates complete pipeline export process: merges results across all tasks
-#'   for a specified pipeline version, generates reference files (cohortKey, databaseInfo,
-#'   schema_review), runs QC validation on cohort completeness, and generates execution metadata.
+#'   for a specified pipeline version, generates reference files (cohortManifestSnapshot,
+#'   databaseInfo, schema_review), runs QC validation on cohort completeness, and generates
+#'   execution metadata.
 #' @param pipelineVersion Character. Pipeline version (e.g., "1.0.0")
 #' @param dbIds Character vector of database configuration IDs from config.yml
 #' @param resultsPath Character. Path to results root folder. Defaults to "exec/results"
@@ -520,7 +521,7 @@ validateCohortResults <- function(exportPath = here::here("dissemination/export/
 #'   Defaults to "dissemination/export/merge"
 #' @param cohortsFolderPath Character. Path to cohorts folder for the CohortManifest.
 #'   Defaults to "inputs/cohorts". If the path exists and contains a cohort manifest,
-#'   generates a cohortKey reference file with id, label, and tags.
+#'   generates a cohortManifestSnapshot.csv reference file.
 #' @param testMode Logical or NULL. When TRUE, QC checks are non-fatal (errors become
 #'   warnings) and qcStatus is set to "DevMode". When NULL (default), testMode is
 #'   automatically set to TRUE for non-semver pipeline versions (e.g. "dev", "test")
@@ -536,7 +537,7 @@ validateCohortResults <- function(exportPath = here::here("dissemination/export/
 #' 2. Snapshots environment (renv.lock) for non-dev versions
 #' 3. Discovers tasks for the specified pipeline version
 #' 4. Merges results across all databases for each task via importAndBind()
-#' 5. Generates reference files: cohortKey.csv, databaseInfo.csv
+#' 5. Generates reference files: cohortManifestSnapshot.csv, databaseInfo.csv
 #' 6. Reviews schema of exported files (schema_review.csv)
 #' 7. Validates cohort completeness (qc_cohortValidation.csv)
 #' 8. Generates execution metadata (qc_processMeta.csv)
@@ -547,19 +548,8 @@ validateCohortResults <- function(exportPath = here::here("dissemination/export/
 #' - databaseInfo.csv: Databases included in merge operation
 #' - schema_review.csv: Column-level inspection of all files
 #' - qc_cohortValidation.csv: Cohort completeness validation results
-#' - qc_processMeta.csv: Execution metadata and summary statistics
-#'   - executionTimestamp: When the export ran
-#'   - pipelineVersion: Version being exported
-#'   - codeCommitSha: Git commit SHA of code at execution time
-#'   - lockfileHash: Hash of renv.lock for dependency reproducibility
-#'   - filesExported: Comma-separated list of exported file names
-#' @details
-#' The function:
-#' 1. Captures git commit SHA and (optionally) environment snapshot
-#' 2. Scans the first database's version folder to discover available tasks
-#' 3. For each task found, calls importAndBind() to merge across databases
-#' 4. Generates reference and QC files
-#' 5. Returns a summary data frame of the merge operation
+#' - qc_processMeta.csv: Execution metadata (executionTimestamp, pipelineVersion, codeCommitSha,
+#'   lockfileHash, databasesIncluded, qcStatus)
 #'
 #' Expected folder structure:
 #' ```

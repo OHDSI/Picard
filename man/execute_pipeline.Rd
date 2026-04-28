@@ -9,6 +9,7 @@ execute_pipeline(
   updateType = NULL,
   testMode = FALSE,
   skipRenv = FALSE,
+  skipConnectivityCheck = TRUE,
   env = rlang::caller_env()
 )
 }
@@ -22,6 +23,10 @@ Only used when testMode = FALSE.}
 If FALSE, enforces code validation and version management. Default: FALSE}
 
 \item{skipRenv}{Logical. If TRUE, skips renv validation. Default: FALSE}
+
+\item{skipConnectivityCheck}{Logical. If TRUE (default), skips the optional
+database connectivity pre-flight check. Set to FALSE to attempt a test
+connection to each config block before execution begins.}
 
 \item{env}{the execution environment}
 }

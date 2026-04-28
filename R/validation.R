@@ -351,6 +351,514 @@ validateConfigYaml <- function(configFilePath = NULL) {
     "v" = "Credentials properly use !expr",
     "v" = "DBMS types valid and properly configured"
   ))
-  
+
   invisible(TRUE)
+}
+
+
+# ============================================================================
+# Pre-flight Validators
+# ============================================================================
+
+#' @title Validate Results Folder is Fresh
+#' @description Checks that the versioned results folder does not already contain
+#'   output files. An existing but empty folder is allowed; a folder with files
+#'   indicates a version collision and will block execution.
+#' @param pipelineVersion Character. The pipeline version string (e.g., "1.2.3").
+#' @param resultsPath Character. Path to the results root folder.
+#'   Defaults to "exec/results" relative to the project root.
+#' @return Logical TRUE invisibly if check passes. Stops with error if collision detected.
+#' @keywords internal
+validateResultsFolderFresh <- function(pipelineVersion,
+                                       resultsPath = here::here("exec/results")) {
+  versionPath <- fs::path(resultsPath, pipelineVersion)
+
+  if (!dir.exists(versionPath)) {
+    return(invisible(TRUE))
+  }
+
+  existingFiles <- fs::dir_ls(versionPath, recurse = TRUE, type = "file")
+
+  if (length(existingFiles) > 0) {
+    cli::cli_abort(c(
+      "Results folder already contains data for version {.val {pipelineVersion}}",
+      "i" = "Path: {.path {fs::path_rel(versionPath)}}",
+      "i" = "{length(existingFiles)} existing file{?s}",
+      "i" = "Increment your pipeline version or remove the existing results"
+    ))
+  }
+
+  invisible(TRUE)
+}
+
+
+#' @title Validate Config Blocks Exist in config.yml
+#' @description Checks that every config block name in the supplied vector
+#'   corresponds to a top-level key in config.yml. Catches typos before
+#'   a mid-run failure.
+#' @param configBlock Character vector. Config block names to validate.
+#' @param configFilePath Character. Path to config.yml. Defaults to
+#'   "config.yml" in the working directory.
+#' @return Logical TRUE invisibly if all blocks exist. Stops with error if any are missing.
+#' @keywords internal
+validateConfigBlockCompleteness <- function(configBlock,
+                                            configFilePath = "config.yml") {
+  if (!file.exists(configFilePath)) {
+    cli::cli_abort("config.yml not found at {.path {configFilePath}}")
+  }
+
+  configList <- tryCatch(
+    yaml::read_yaml(configFilePath, eval.expr = FALSE),
+    error = function(e) cli::cli_abort("Failed to parse config.yml: {e$message}")
+  )
+
+  reservedFields <- c("version", "projectName", "default")
+  availableBlocks <- setdiff(names(configList), reservedFields)
+  missingBlocks <- setdiff(configBlock, availableBlocks)
+
+  if (length(missingBlocks) > 0) {
+    cli::cli_abort(c(
+      "{length(missingBlocks)} config block{?s} not found in config.yml:",
+      setNames(paste0("'", missingBlocks, "'"), rep("x", length(missingBlocks))),
+      "i" = "Available: {.val {availableBlocks}}"
+    ))
+  }
+
+  invisible(TRUE)
+}
+
+
+#' @title Validate Concept Set Manifest
+#' @description Checks whether a concept set manifest SQLite database exists and
+#'   contains records. Absence of the manifest is not a blocking error — not all
+#'   studies use concept sets. Returns a status indicator for the pre-flight
+#'   orchestrator to interpret.
+#' @param conceptSetsFolderPath Character. Path to the concept sets folder.
+#'   Defaults to "inputs/conceptSets" relative to the project root.
+#' @return Invisibly returns "no_manifest", "empty", an integer record count,
+#'   or "error" depending on findings.
+#' @keywords internal
+validateConceptSetManifest <- function(conceptSetsFolderPath = here::here("inputs/conceptSets")) {
+  dbPath <- fs::path(conceptSetsFolderPath, "conceptSetManifest.sqlite")
+
+  if (!file.exists(dbPath)) {
+    return(invisible("no_manifest"))
+  }
+
+  tryCatch({
+    conn <- DBI::dbConnect(RSQLite::SQLite(), as.character(dbPath))
+    on.exit(DBI::dbDisconnect(conn), add = TRUE)
+    tables <- DBI::dbListTables(conn)
+
+    if (length(tables) == 0) {
+      return(invisible("empty"))
+    }
+
+    n <- DBI::dbGetQuery(
+      conn,
+      sprintf('SELECT COUNT(*) AS n FROM "%s"', tables[1])
+    )$n
+
+    invisible(as.integer(n))
+  }, error = function(e) {
+    invisible("error")
+  })
+}
+
+
+#' @title Validate Database Connectivity
+#' @description Attempts a test connection to each config block's database using
+#'   the project's config.yml credentials. Only called when
+#'   \code{skipConnectivityCheck = FALSE} in \code{execStudyPipeline()}.
+#'   Returns a named list of pass/warn results per block.
+#' @param configBlock Character vector. Config block names to test.
+#' @return Named list of result lists with \code{status} and \code{message} per block.
+#' @keywords internal
+validateDatabaseConnectivity <- function(configBlock) {
+  results <- list()
+
+  for (block in configBlock) {
+    result <- tryCatch({
+      execSettings <- createExecutionSettingsFromConfig(
+        configBlock = block,
+        pipelineVersion = "dev"
+      )
+      conn <- suppressMessages(
+        DatabaseConnector::connect(execSettings$connectionDetails)
+      )
+      suppressMessages(DatabaseConnector::disconnect(conn))
+      list(status = "pass", message = "Connected successfully")
+    }, error = function(e) {
+      msg <- strsplit(conditionMessage(e), "\n")[[1]][1]
+      list(status = "warn", message = paste0("Failed: ", msg))
+    })
+
+    results[[block]] <- result
+  }
+
+  results
+}
+
+
+#' @title Validate Task File Dependencies
+#' @description Scans all task files in the tasks folder for static
+#'   \code{source("...")} calls and checks that each referenced path exists on
+#'   disk. Only plain string arguments are detected; dynamic \code{source()}
+#'   calls are not evaluated.
+#' @param tasksFolderPath Character. Path to the analysis/tasks folder.
+#'   Defaults to "analysis/tasks" relative to the project root.
+#' @return Invisibly returns a list with \code{missing} (character vector of
+#'   missing paths) and \code{total} (integer count of all source paths found).
+#' @keywords internal
+validateTaskDependencies <- function(tasksFolderPath = here::here("analysis/tasks")) {
+  if (!dir.exists(tasksFolderPath)) {
+    return(invisible(list(missing = character(0), total = 0L)))
+  }
+
+  taskFiles <- fs::dir_ls(tasksFolderPath, type = "file")
+
+  if (length(taskFiles) == 0) {
+    return(invisible(list(missing = character(0), total = 0L)))
+  }
+
+  sourcePaths <- character(0)
+
+  for (taskFile in taskFiles) {
+    lines <- tryCatch(readr::read_lines(taskFile), error = function(e) character(0))
+    matches <- regmatches(
+      lines,
+      regexpr('source\\s*\\(\\s*["\']([^"\']+)["\']', lines, perl = TRUE)
+    )
+    matches <- matches[nchar(matches) > 0]
+
+    if (length(matches) > 0) {
+      paths <- sub('.*source\\s*\\(\\s*["\']([^"\']+)["\'].*', "\\1", matches, perl = TRUE)
+      sourcePaths <- c(sourcePaths, paths)
+    }
+  }
+
+  if (length(sourcePaths) == 0) {
+    return(invisible(list(missing = character(0), total = 0L)))
+  }
+
+  missingPaths <- sourcePaths[!file.exists(sourcePaths)]
+  invisible(list(missing = missingPaths, total = length(sourcePaths)))
+}
+
+
+#' @title Run Pre-flight Checks
+#' @description Runs all pre-execution validation checks and displays a consolidated
+#'   pass/warn/fail/skip checklist before the pipeline starts. All checks are run
+#'   regardless of individual outcomes; the pipeline stops only after the full
+#'   checklist has been displayed — replacing the previous pattern of scattered
+#'   inline validators that stopped on first failure.
+#' @param configBlock Character vector. Config block names.
+#' @param pipelineVersion Character. The prospective pipeline version string.
+#' @param testMode Logical. If TRUE, code-state, renv, results-folder, connectivity,
+#'   and branch-sync checks are skipped.
+#' @param skipRenv Logical. If TRUE, renv environment check is skipped.
+#' @param skipConnectivityCheck Logical. If TRUE (default), database connectivity
+#'   check is skipped.
+#' @param resultsPath Character. Path to the results root folder for collision check.
+#' @param tasksFolderPath Character. Path to the tasks folder.
+#' @return Invisibly returns a list with \code{lockfileHash} and
+#'   \code{taskFilesToRun} for downstream use in \code{execute_pipeline()}.
+#' @keywords internal
+runPreflightChecks <- function(configBlock,
+                               pipelineVersion,
+                               testMode = FALSE,
+                               skipRenv = FALSE,
+                               skipConnectivityCheck = TRUE,
+                               resultsPath = here::here("exec/results"),
+                               tasksFolderPath = here::here("analysis/tasks")) {
+
+  results <- list()
+
+  # Helper: run a single check silently, capture pass/fail result.
+  # Only used for checks that do not need to return a side value — avoids <<-.
+  .runCheck <- function(name, fn, skip_cond = FALSE, skip_msg = "Skipped") {
+    if (skip_cond) {
+      return(list(name = name, status = "skip", message = skip_msg))
+    }
+
+    result <- NULL
+
+    invisible(utils::capture.output(
+      result <- tryCatch(
+        {
+          val <- fn()
+          list(
+            name = name,
+            status = "pass",
+            message = if (is.character(val) && length(val) == 1L) val else "OK"
+          )
+        },
+        error = function(e) {
+          msg <- cli::ansi_strip(conditionMessage(e))
+          msg <- strsplit(msg, "\n")[[1]][1]
+          list(name = name, status = "fail", message = msg)
+        }
+      ),
+      type = "message"
+    ))
+
+    result
+  }
+
+  # 1. Branch guard (always run)
+  results[["Branch"]] <- .runCheck("Branch", function() {
+    branch <- gert::git_branch()
+    if (branch == "main") stop("On main \u2014 production runs require a release branch")
+    paste0("On '", branch, "' (not main)")
+  })
+
+  # 2. Code state (skip in test mode)
+  results[["Code state"]] <- .runCheck(
+    "Code state",
+    function() {
+      sha <- validateCodeState()
+      paste0("Clean (commit ", substr(sha, 1, 7), ")")
+    },
+    skip_cond = testMode,
+    skip_msg = "Test mode"
+  )
+
+  # 3. Environment / renv — inlined to capture lockfileHash without <<-
+  if (testMode || skipRenv) {
+    lockfileHash <- NULL
+    results[["Environment"]] <- list(
+      name = "Environment",
+      status = "skip",
+      message = if (testMode) "Test mode" else "skipRenv = TRUE"
+    )
+  } else {
+    env_check <- tryCatch({
+      suppressMessages({
+        validateEnvironment()
+        lh <- snapshotEnvironment()
+      })
+      list(status = "pass", message = "renv.lock in sync", lockfileHash = lh)
+    }, error = function(e) {
+      msg <- strsplit(cli::ansi_strip(conditionMessage(e)), "\n")[[1]][1]
+      list(status = "fail", message = msg, lockfileHash = NULL)
+    })
+
+    lockfileHash <- env_check$lockfileHash
+    results[["Environment"]] <- list(
+      name = "Environment",
+      status = env_check$status,
+      message = env_check$message
+    )
+  }
+
+  # 4. Config YAML structure (always run)
+  results[["Config"]] <- .runCheck("Config", function() {
+    validateConfigYaml()
+    "config.yml valid"
+  })
+
+  # 5. Config blocks exist in config.yml (always run)
+  results[["Config blocks"]] <- .runCheck("Config blocks", function() {
+    validateConfigBlockCompleteness(configBlock)
+    paste0(paste(configBlock, collapse = ", "), " found in config.yml")
+  })
+
+  # 6. Results folder fresh (skip in test mode — version is always "dev")
+  results[["Results folder"]] <- .runCheck(
+    "Results folder",
+    function() {
+      validateResultsFolderFresh(pipelineVersion, resultsPath)
+      paste0("exec/results/", pipelineVersion, "/ is available")
+    },
+    skip_cond = testMode,
+    skip_msg = "Test mode"
+  )
+
+  # 7. Cohort manifest — inlined to capture missingCohorts without <<-
+  cohort_check <- tryCatch({
+    suppressMessages({
+      temp_manifest <- loadCohortManifest(executionSettings = NULL, verbose = FALSE)
+      manifest_status <- temp_manifest$validateManifest()
+    })
+    active  <- manifest_status[manifest_status$status == "active", ]
+    missing <- manifest_status[
+      manifest_status$status == "active" & !manifest_status$file_exists,
+    ]
+    msg <- if (nrow(missing) > 0) {
+      paste0(nrow(active), " active cohorts (", nrow(missing), " file(s) missing \u2014 see prompt below)")
+    } else {
+      paste0(nrow(active), " active cohort(s)")
+    }
+    list(status = "pass", message = msg, missing = missing)
+  }, error = function(e) {
+    msg <- strsplit(cli::ansi_strip(conditionMessage(e)), "\n")[[1]][1]
+    list(status = "fail", message = msg, missing = data.frame())
+  })
+
+  missingCohorts <- cohort_check$missing
+  results[["Cohort manifest"]] <- list(
+    name = "Cohort manifest",
+    status = cohort_check$status,
+    message = cohort_check$message
+  )
+
+  # 8. Concept set manifest (warn-only — absence is acceptable)
+  cs_result <- validateConceptSetManifest()
+  results[["Concept sets"]] <- if (identical(cs_result, "no_manifest")) {
+    list(name = "Concept sets", status = "warn", message = "No manifest \u2014 OK if concept sets not used")
+  } else if (identical(cs_result, "empty")) {
+    list(name = "Concept sets", status = "warn", message = "Manifest database is empty")
+  } else if (identical(cs_result, "error")) {
+    list(name = "Concept sets", status = "warn", message = "Could not read manifest")
+  } else {
+    list(name = "Concept sets", status = "pass",
+         message = paste0(cs_result, " concept set record(s) found"))
+  }
+
+  # 9. Database connectivity (warn-only; skipped by default)
+  results[["DB connectivity"]] <- if (testMode || skipConnectivityCheck) {
+    skip_reason <- if (testMode) "Test mode" else "Use skipConnectivityCheck = FALSE to enable"
+    list(name = "DB connectivity", status = "skip", message = skip_reason)
+  } else {
+    conn_results <- tryCatch(
+      validateDatabaseConnectivity(configBlock),
+      error = function(e) NULL
+    )
+
+    if (is.null(conn_results)) {
+      list(name = "DB connectivity", status = "warn", message = "Connectivity check failed unexpectedly")
+    } else {
+      failed <- Filter(function(r) r$status != "pass", conn_results)
+
+      if (length(failed) > 0) {
+        list(name = "DB connectivity", status = "warn",
+             message = paste0("Failed: ", paste(names(failed), collapse = ", ")))
+      } else {
+        list(name = "DB connectivity", status = "pass",
+             message = paste0(length(conn_results), " connection(s) verified"))
+      }
+    }
+  }
+
+  # 10. Task files — inlined to capture taskFilesToRun without <<-
+  task_check <- tryCatch({
+    if (!dir.exists(tasksFolderPath)) {
+      stop(paste0("Tasks folder not found: ", tasksFolderPath))
+    }
+
+    files <- fs::dir_ls(tasksFolderPath, type = "file") |> basename() |> sort()
+
+    if (length(files) == 0) {
+      stop("No task files found in analysis/tasks")
+    }
+
+    list(status = "pass", message = paste0(length(files), " task file(s) found"), files = files)
+  }, error = function(e) {
+    msg <- strsplit(cli::ansi_strip(conditionMessage(e)), "\n")[[1]][1]
+    list(status = "fail", message = msg, files = character(0))
+  })
+
+  taskFilesToRun <- task_check$files
+  results[["Tasks"]] <- list(
+    name = "Tasks",
+    status = task_check$status,
+    message = task_check$message
+  )
+
+  # 11. Task source() dependencies (warn-only)
+  task_deps <- validateTaskDependencies(tasksFolderPath)
+  results[["Task deps"]] <- if (task_deps$total == 0L) {
+    list(name = "Task deps", status = "pass", message = "No source() dependencies")
+  } else if (length(task_deps$missing) > 0) {
+    list(name = "Task deps", status = "warn",
+         message = paste0(length(task_deps$missing), " missing source() path(s) of ", task_deps$total))
+  } else {
+    list(name = "Task deps", status = "pass",
+         message = paste0("All ", task_deps$total, " source() path(s) resolved"))
+  }
+
+  # 12. Release branch freshness (warn-only; skip in test mode)
+  results[["Branch sync"]] <- if (testMode) {
+    list(name = "Branch sync", status = "skip", message = "Test mode")
+  } else {
+    freshness <- validateReleaseBranchFreshness()
+
+    if (identical(freshness, "no_develop")) {
+      list(name = "Branch sync", status = "skip", message = "No 'develop' branch \u2014 skipped")
+    } else if (identical(freshness, "stale")) {
+      list(name = "Branch sync", status = "warn",
+           message = "Branch may not include all commits from develop")
+    } else if (identical(freshness, "error")) {
+      list(name = "Branch sync", status = "skip", message = "Could not check branch history")
+    } else {
+      list(name = "Branch sync", status = "pass", message = "Branch is current with develop")
+    }
+  }
+
+  # --- Display consolidated checklist ---
+  checkNames <- names(results)
+  maxNameLen <- max(nchar(checkNames))
+
+  cli::cli_rule("Pre-flight Checks")
+
+  for (nm in checkNames) {
+    r <- results[[nm]]
+    icon <- switch(r$status,
+      pass = "\u2713", #checkmark
+      fail = "\u2717", #cross
+      warn = "~",
+      skip = "-",
+      "?"
+    )
+    padded_name <- formatC(nm, width = maxNameLen + 2, flag = "-")
+    message(sprintf("  %s %s %s", icon, padded_name, r$message))
+  }
+
+  failCount <- sum(vapply(results, function(r) r$status == "fail", logical(1)))
+  warnCount <- sum(vapply(results, function(r) r$status == "warn", logical(1)))
+
+  cli::cli_rule()
+
+  if (failCount > 0) {
+    suffix <- if (warnCount > 0) paste0(" (", warnCount, " warning(s) noted)") else ""
+    cli::cli_abort(
+      paste0(failCount, " pre-flight check(s) failed", suffix, ". Fix above and re-run.")
+    )
+  }
+
+  if (warnCount > 0) {
+    cli::cli_alert_warning("{warnCount} warning(s) noted above \u2014 proceeding")
+  } else {
+    cli::cli_alert_success("All pre-flight checks passed")
+  }
+
+  # --- Interactive missing-cohort prompt (fires after full checklist) ---
+  if (nrow(missingCohorts) > 0) {
+    cli::cli_rule("Missing Cohort Files")
+    cli::cli_alert_danger("{nrow(missingCohorts)} cohort file(s) are active in the manifest but missing from disk:")
+
+    for (i in seq_len(nrow(missingCohorts))) {
+      cohort <- missingCohorts[i, ]
+      cli::cli_bullets(c("x" = "ID {cohort$id}: {cohort$label}"))
+    }
+
+    cli::cli_alert_warning("Do you want to continue? Missing cohorts will be skipped.")
+    cli::cli_bullets(c(
+      "i" = "Yes: pipeline continues, missing cohorts are skipped",
+      "i" = "No:  stop and restore files, or run {.code manifest$cleanupMissing()}"
+    ))
+
+    response <- readline(prompt = "Continue with pipeline? (yes/no): ")
+
+    if (!tolower(trimws(response)) %in% c("yes", "y")) {
+      cli::cli_abort("Pipeline cancelled due to missing cohorts")
+    }
+
+    cli::cli_alert_success("Continuing despite {nrow(missingCohorts)} missing cohort(s)...")
+  }
+
+  invisible(list(
+    lockfileHash = lockfileHash,
+    taskFilesToRun = taskFilesToRun
+  ))
 }

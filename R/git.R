@@ -367,3 +367,37 @@ createPullRequest <- function(branchName, title, description = NULL, targetBranc
 
   return(pr_meta)
 }
+
+
+#' @title Validate Release Branch Freshness
+#' @description Checks whether the current branch includes the tip commit from
+#'   the local \code{develop} branch, indicating that develop has been merged or
+#'   rebased before creating the release. Issues a warning if the branch appears
+#'   stale. Skips gracefully if \code{develop} does not exist locally or if
+#'   the git history cannot be inspected.
+#' @return Invisibly returns one of: \code{"fresh"}, \code{"stale"},
+#'   \code{"no_develop"}, or \code{"error"}.
+#' @keywords internal
+validateReleaseBranchFreshness <- function() {
+  tryCatch({
+    branches <- gert::git_branch_list()
+    local_develop <- branches[branches$name == "develop" & branches$local, ]
+
+    if (nrow(local_develop) == 0) {
+      return(invisible("no_develop"))
+    }
+
+    develop_commit <- local_develop$commit[1]
+
+    # Look back up to 200 commits in current branch history
+    current_log <- gert::git_log(max = 200)
+
+    if (!develop_commit %in% current_log$commit) {
+      return(invisible("stale"))
+    }
+
+    invisible("fresh")
+  }, error = function(e) {
+    invisible("error")
+  })
+}

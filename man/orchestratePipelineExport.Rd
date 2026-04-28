@@ -25,7 +25,7 @@ Defaults to "dissemination/export/merge"}
 
 \item{cohortsFolderPath}{Character. Path to cohorts folder for the CohortManifest.
 Defaults to "inputs/cohorts". If the path exists and contains a cohort manifest,
-generates a cohortKey reference file with id, label, and tags.}
+generates a cohortManifestSnapshot.csv reference file.}
 
 \item{testMode}{Logical or NULL. When TRUE, QC checks are non-fatal (errors become
 warnings) and qcStatus is set to "DevMode". When NULL (default), testMode is
@@ -43,8 +43,9 @@ Data frame summarizing all merged tasks with columns:
 }
 \description{
 Orchestrates complete pipeline export process: merges results across all tasks
-for a specified pipeline version, generates reference files (cohortKey, databaseInfo,
-schema_review), runs QC validation on cohort completeness, and generates execution metadata.
+for a specified pipeline version, generates reference files (cohortManifestSnapshot,
+databaseInfo, schema_review), runs QC validation on cohort completeness, and generates
+execution metadata.
 }
 \details{
 The function orchestrates the complete pipeline export:
@@ -53,7 +54,7 @@ The function orchestrates the complete pipeline export:
 \item Snapshots environment (renv.lock) for non-dev versions
 \item Discovers tasks for the specified pipeline version
 \item Merges results across all databases for each task via importAndBind()
-\item Generates reference files: cohortKey.csv, databaseInfo.csv
+\item Generates reference files: cohortManifestSnapshot.csv, databaseInfo.csv
 \item Reviews schema of exported files (schema_review.csv)
 \item Validates cohort completeness (qc_cohortValidation.csv)
 \item Generates execution metadata (qc_processMeta.csv)
@@ -66,23 +67,8 @@ Output files created in version export folder:
 \item databaseInfo.csv: Databases included in merge operation
 \item schema_review.csv: Column-level inspection of all files
 \item qc_cohortValidation.csv: Cohort completeness validation results
-\item qc_processMeta.csv: Execution metadata and summary statistics
-\itemize{
-\item executionTimestamp: When the export ran
-\item pipelineVersion: Version being exported
-\item codeCommitSha: Git commit SHA of code at execution time
-\item lockfileHash: Hash of renv.lock for dependency reproducibility
-\item filesExported: Comma-separated list of exported file names
-}
-}
-
-The function:
-\enumerate{
-\item Captures git commit SHA and (optionally) environment snapshot
-\item Scans the first database's version folder to discover available tasks
-\item For each task found, calls importAndBind() to merge across databases
-\item Generates reference and QC files
-\item Returns a summary data frame of the merge operation
+\item qc_processMeta.csv: Execution metadata (executionTimestamp, pipelineVersion, codeCommitSha,
+lockfileHash, databasesIncluded, qcStatus)
 }
 
 Expected folder structure:
