@@ -64,14 +64,18 @@ CohortDef <- R6::R6Class(
     #' @param label Character. The common name of the cohort.
     #' @param tags List. A named list of tags that give metadata about the cohort.
     #' @param filePath Character. Path to the cohort file in inputs/cohorts folder (can be .json or .sql).
-    initialize = function(label, tags = list(), filePath) {
+    #' @param cohortType Character. Cohort type (required).
+    initialize = function(label, tags = list(), filePath, cohortType) {
       checkmate::assert_string(x = label, min.chars = 1)
       checkmate::assert_list(x = tags, names = "named")
       checkmate::assert_file_exists(x = filePath)
 
+      checkmate::assert_choice(x = cohortType, choices = c("circe", "subset", "union", "complement", "composite", "custom"))
+
       private$.label <- label
       private$.tags <- tags
       private$.filePath <- filePath
+      private$.cohortType <- cohortType
 
       # Load SQL and generate hash
       private$load_sql_from_file(filePath)
@@ -786,7 +790,39 @@ CohortManifest <- R6::R6Class(
       )
 
       man <- DBI::dbGetQuery(conn, sql)
-      return(tibble::as_tibble(man))
+      man <- tibble::as_tibble(man)
+
+      # Split tags string into separate columns, one per tag key
+      if (nrow(man) > 0 && "tags" %in% names(man)) {
+        # Collect all tag keys present across all rows
+        all_tag_keys <- character(0)
+        parsed_tags_list <- lapply(man$tags, function(tags_str) {
+          if (is.na(tags_str) || tags_str == "") return(list())
+          pairs <- strsplit(tags_str, " \\| ")[[1]]
+          tag_list <- list()
+          for (pair in pairs) {
+            parts <- strsplit(pair, ":\\s*")[[1]]
+            if (length(parts) == 2) {
+              tag_list[[trimws(parts[1])]] <- trimws(parts[2])
+            }
+          }
+          tag_list
+        })
+        all_tag_keys <- unique(unlist(lapply(parsed_tags_list, names)))
+
+        if (length(all_tag_keys) > 0) {
+          for (key in all_tag_keys) {
+            man[[paste0("tag", key)]] <- sapply(parsed_tags_list, function(tl) {
+              val <- tl[[key]]
+              if (is.null(val)) NA_character_ else val
+            })
+          }
+        }
+
+        man <- dplyr::select(man, -tags)
+      }
+
+      return(man)
     },
 
     #' Get the manifest path
@@ -1585,7 +1621,20 @@ CohortManifest <- R6::R6Class(
 
         # Recompute hash and compare
         tryCatch({
-          tmp_def <- CohortDef$new(label = rec_label, tags = list(), filePath = file_path)
+          rec_type <- if (!is.na(rec$cohortType) && nzchar(rec$cohortType)) {
+            rec$cohortType
+          } else if (tolower(tools::file_ext(file_path)) == "json") {
+            "circe"
+          } else {
+            "custom"
+          }
+
+          tmp_def <- CohortDef$new(
+            label = rec_label,
+            tags = list(),
+            filePath = file_path,
+            cohortType = rec_type
+          )
           new_hash <- tmp_def$getHash()
 
           if (new_hash != rec$hash) {
@@ -1630,7 +1679,13 @@ CohortManifest <- R6::R6Class(
       for (file_path in new_files) {
         label <- tools::file_path_sans_ext(basename(file_path))
         tryCatch({
-          new_def <- CohortDef$new(label = label, tags = list(), filePath = file_path)
+          new_type <- ifelse(tolower(tools::file_ext(file_path)) == "json", "circe", "custom")
+          new_def <- CohortDef$new(
+            label = label,
+            tags = list(),
+            filePath = file_path,
+            cohortType = new_type
+          )
 
           # Determine next ID
           max_id_result <- DBI::dbGetQuery(conn, "SELECT MAX(id) as max_id FROM cohort_manifest")
@@ -1641,8 +1696,8 @@ CohortManifest <- R6::R6Class(
           DBI::dbExecute(
             conn,
             "INSERT INTO cohort_manifest (id, label, tags, filePath, hash, cohortType, timestamp, status)
-             VALUES (?, ?, ?, ?, ?, 'circe', CURRENT_TIMESTAMP, 'active')",
-            list(next_id, label, "", new_def$getFilePath(), new_def$getHash())
+             VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'active')",
+            list(next_id, label, "", new_def$getFilePath(), new_def$getHash(), new_type)
           )
 
           private$.manifest[[length(private$.manifest) + 1]] <- new_def

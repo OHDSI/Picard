@@ -51,7 +51,7 @@ the generated SQL.
 \subsection{Method \code{new()}}{
 Initialize a new CohortDef
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortDef$new(label, tags = list(), filePath)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortDef$new(label, tags = list(), filePath, cohortType)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -61,7 +61,9 @@ Initialize a new CohortDef
 
 \item{\code{tags}}{List. A named list of tags that give metadata about the cohort.}
 
-\item{\code{filePath}}{Character. Path to the cohort file in inputs/cohorts folder (can be .json or .sql).
+\item{\code{filePath}}{Character. Path to the cohort file in inputs/cohorts folder (can be .json or .sql).}
+
+\item{\code{cohortType}}{Character. Cohort type (required).
 Get the file path}
 }
 \if{html}{\out{</div>}}

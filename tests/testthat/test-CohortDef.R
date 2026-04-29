@@ -8,7 +8,8 @@ test_that("CohortDef initializes correctly with SQL file", {
   cohort <- CohortDef$new(
     label = "Test Cohort",
     tags = list(category = "primary"),
-    filePath = temp_sql
+    filePath = temp_sql,
+    cohortType = "custom"
   )
 
   # Test initialization
@@ -28,7 +29,8 @@ test_that("CohortDef formatTagsAsString works correctly", {
   cohort <- CohortDef$new(
     label = "Tagged Cohort",
     tags = list(category = "primary", source = "atlas"),
-    filePath = temp_sql
+    filePath = temp_sql,
+    cohortType = "custom"
   )
 
   tags_str <- cohort$formatTagsAsString()
@@ -42,7 +44,8 @@ test_that("CohortDef throws error for non-existent file", {
     CohortDef$new(
       label = "Bad Cohort",
       tags = list(),
-      filePath = "/path/to/nonexistent/file.sql"
+      filePath = "/path/to/nonexistent/file.sql",
+      cohortType = "custom"
     )
   )
 })
@@ -55,7 +58,8 @@ test_that("CohortDef setId and getId work correctly", {
   cohort <- CohortDef$new(
     label = "ID Test",
     tags = list(),
-    filePath = temp_sql
+    filePath = temp_sql,
+    cohortType = "custom"
   )
 
   cohort$setId(42L)
@@ -70,7 +74,8 @@ test_that("CohortDef label active binding works", {
   cohort <- CohortDef$new(
     label = "Original",
     tags = list(),
-    filePath = temp_sql
+    filePath = temp_sql,
+    cohortType = "custom"
   )
 
   expect_equal(cohort$label, "Original")
@@ -87,7 +92,8 @@ test_that("CohortDef tags active binding works", {
   cohort <- CohortDef$new(
     label = "Test",
     tags = list(original = "tag"),
-    filePath = temp_sql
+    filePath = temp_sql,
+    cohortType = "custom"
   )
 
   expect_equal(cohort$tags$original, "tag")

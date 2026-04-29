@@ -120,19 +120,23 @@ loadCohortManifest <- function(cohortsFolderPath = here::here("inputs/cohorts"),
 
           tryCatch({
             # Create CohortDef from file (this computes current hash)
+            resolved_type <- if (!is.na(cohort_type) && nzchar(cohort_type)) {
+              cohort_type
+            } else if (tolower(tools::file_ext(file_path)) == "json") {
+              "circe"
+            } else {
+              "custom"
+            }
+
             cohort_entry <- CohortDef$new(
               label = record$label,
               tags = list(),
-              filePath = file_path
+              filePath = file_path,
+              cohortType = resolved_type
             )
 
             # Set the ID from the database to preserve it
             cohort_entry$setId(as.integer(cohort_id))
-
-            # Restore cohortType from database
-            if (!is.na(cohort_type)) {
-              cohort_entry$setCohortType(cohort_type)
-            }
 
             # Backfill tags from database
             if (!is.na(tags_string) && tags_string != "") {
@@ -179,10 +183,12 @@ loadCohortManifest <- function(cohortsFolderPath = here::here("inputs/cohorts"),
             for (file_path in new_files) {
               label <- tools::file_path_sans_ext(basename(file_path))
               tryCatch({
+                new_cohort_type <- ifelse(tools::file_ext(file_path) == "json", "circe", "custom")
                 new_cohort_entry <- CohortDef$new(
                   label = label,
                   tags = list(),
-                  filePath = file_path
+                  filePath = file_path,
+                  cohortType = new_cohort_type
                 )
                 cohort_entries[[length(cohort_entries) + 1]] <- new_cohort_entry
                 if (verbose) {
@@ -229,7 +235,8 @@ loadCohortManifest <- function(cohortsFolderPath = here::here("inputs/cohorts"),
           cohort_entry <- CohortDef$new(
             label = label,
             tags = list(),
-            filePath = file_path
+            filePath = file_path,
+            cohortType = "circe"
           )
           cohort_entries[[length(cohort_entries) + 1]] <- cohort_entry
           if (verbose) {
@@ -251,7 +258,8 @@ loadCohortManifest <- function(cohortsFolderPath = here::here("inputs/cohorts"),
           cohort_entry <- CohortDef$new(
             label = label,
             tags = list(),
-            filePath = file_path
+            filePath = file_path,
+            cohortType = "custom"
           )
           cohort_entries[[length(cohort_entries) + 1]] <- cohort_entry
           if (verbose) {
@@ -272,7 +280,7 @@ loadCohortManifest <- function(cohortsFolderPath = here::here("inputs/cohorts"),
     }
   }
 
-  # Check for cohortsLoad.csv file to enrich entries with tags and labels
+  # Check for cohortsLoad.csv file to enrich entries with tags and labels -----
   cohorts_load_path <- fs::path(cohortsFolderPath, "cohortsLoad.csv")
   if (file.exists(cohorts_load_path)) {
     if (verbose) {
@@ -282,8 +290,8 @@ loadCohortManifest <- function(cohortsFolderPath = here::here("inputs/cohorts"),
     tryCatch({
       cohorts_load <- readr::read_csv(cohorts_load_path, show_col_types = FALSE)
 
-      # Validate required columns (label is optional)
-      required_cols <- c("file_name", "atlasId", "category", "subCategory")
+      # Validate required columns
+      required_cols <- c("file_name", "label", "atlasId", "category", "subCategory", "tags")
       missing_cols <- setdiff(required_cols, names(cohorts_load))
 
       if (length(missing_cols) == 0) {
@@ -292,21 +300,22 @@ loadCohortManifest <- function(cohortsFolderPath = here::here("inputs/cohorts"),
         labels_updated <- 0
         for (i in seq_along(cohort_entries)) {
           entry <- cohort_entries[[i]]
-          entry_filepath_rel <- fs::path_rel(entry$getFilePath())
+          entry_basename <- basename(entry$getFilePath())
 
           # Find matching record in cohortsLoad by file_name
-          matching_idx <- which(entry_filepath_rel == cohorts_load$file_name)
+          matching_idx <- which(entry_basename == cohorts_load$file_name)
 
           if (length(matching_idx) > 0) {
             load_record <- cohorts_load[matching_idx[1], ]
 
-            # Update label if provided in cohortsLoad.csv
-            if ("label" %in% names(cohorts_load) && !is.na(load_record$label)) {
+            # Update label from load record --
+
+            if (!is.na(load_record$label) && as.character(load_record$label) != entry$label) {
               entry$label <- as.character(load_record$label)
               labels_updated <- labels_updated + 1
             }
 
-            # Add tags from load record
+            # Add explicit tags from load record
             entry_tags <- list()
             if (!is.na(load_record$atlasId)) {
               entry_tags[["atlasId"]] <- as.character(load_record$atlasId)
@@ -316,6 +325,12 @@ loadCohortManifest <- function(cohortsFolderPath = here::here("inputs/cohorts"),
             }
             if (!is.na(load_record$subCategory)) {
               entry_tags[["subCategory"]] <- as.character(load_record$subCategory)
+            }
+
+            # Add any additional tags from the 'tags' column, which is expected to be in "name: value | name: value" format
+            if (!is.na(load_record$tags) && load_record$tags != "") {
+              additional_tags <- parseTagsString(load_record$tags)
+              entry_tags <- c(entry_tags, additional_tags)
             }
 
             if (length(entry_tags) > 0) {

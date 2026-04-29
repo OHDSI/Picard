@@ -13,7 +13,8 @@ test_that("CohortManifest initializes and creates SQLite database", {
   cohort <- CohortDef$new(
     label = "Test Cohort",
     tags = list(),
-    filePath = temp_sql
+    filePath = temp_sql,
+    cohortType = "custom"
   )
 
   # Create mock ExecutionSettings - we'll use a simple list object
@@ -57,7 +58,8 @@ test_that("CohortManifest creates cohort_manifest table", {
   cohort <- CohortDef$new(
     label = "Test",
     tags = list(),
-    filePath = temp_sql
+    filePath = temp_sql,
+    cohortType = "custom"
   )
 
   mock_settings <- list(
@@ -100,7 +102,8 @@ test_that("CohortManifest queryCohortsByIds returns correct cohort data frame", 
   cohort <- CohortDef$new(
     label = "Test Cohort",
     tags = list(category = "test"),
-    filePath = temp_sql
+    filePath = temp_sql,
+    cohortType = "custom"
   )
 
   mock_settings <- list(
@@ -137,7 +140,8 @@ test_that("CohortManifest getCohortById returns CohortDef object", {
   cohort <- CohortDef$new(
     label = "Test Cohort",
     tags = list(),
-    filePath = temp_sql
+    filePath = temp_sql,
+    cohortType = "custom"
   )
 
   mock_settings <- list(
@@ -176,7 +180,8 @@ test_that("CohortManifest nCohorts returns correct count", {
     cohorts[[i]] <- CohortDef$new(
       label = paste("Cohort", i),
       tags = list(),
-      filePath = temp_sql
+      filePath = temp_sql,
+      cohortType = "custom"
     )
   }
 
@@ -214,13 +219,15 @@ test_that("CohortManifest queryCohortsByTag filters correctly", {
   cohort1 <- CohortDef$new(
     label = "Primary Cohort",
     tags = list(category = "primary"),
-    filePath = temp_sql1
+    filePath = temp_sql1,
+    cohortType = "custom"
   )
 
   cohort2 <- CohortDef$new(
     label = "Secondary Cohort",
     tags = list(category = "secondary"),
-    filePath = temp_sql2
+    filePath = temp_sql2,
+    cohortType = "custom"
   )
 
   mock_settings <- list(
@@ -260,13 +267,15 @@ test_that("CohortManifest queryCohortsByTag match='all' requires all tags", {
   cohort1 <- CohortDef$new(
     label = "Both Tags Cohort",
     tags = list(category = "primary", type = "exposure"),
-    filePath = temp_sql1
+    filePath = temp_sql1,
+    cohortType = "custom"
   )
 
   cohort2 <- CohortDef$new(
     label = "One Tag Cohort",
     tags = list(category = "primary", type = "outcome"),
-    filePath = temp_sql2
+    filePath = temp_sql2,
+    cohortType = "custom"
   )
 
   mock_settings <- list(
@@ -313,7 +322,8 @@ test_that("CohortManifest queryCohortsByIds accepts vector of IDs", {
     cohorts[[i]] <- CohortDef$new(
       label = paste("Cohort", i),
       tags = list(),
-      filePath = temp_sql
+      filePath = temp_sql,
+      cohortType = "custom"
     )
   }
 
@@ -353,7 +363,8 @@ test_that("createCohortTables requires executionSettings", {
   cohort <- CohortDef$new(
     label = "Test",
     tags = list(),
-    filePath = temp_sql
+    filePath = temp_sql,
+    cohortType = "custom"
   )
 
   mock_settings <- list(

@@ -41,7 +41,8 @@ test_that("parseTagsString round-trips with CohortDef formatTagsAsString", {
   cohort <- CohortDef$new(
     label = "Test",
     tags = list(category = "primary", source = "atlas"),
-    filePath = temp_sql
+    filePath = temp_sql,
+    cohortType = "custom"
   )
 
   tags_str <- cohort$formatTagsAsString()

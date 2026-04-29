@@ -347,7 +347,8 @@ buildSubsetCohortTemporal <- function(
       baseCohortId = as.character(baseCohortId),
       filterCohortId = as.character(filterCohortId)
     ),
-    filePath = sql_path
+    filePath = sql_path,
+    cohortType = "subset"
   )
 
   # Set dependent cohort metadata
@@ -490,7 +491,8 @@ buildSubsetCohortDemographic <- function(
       minAge = ifelse(!is.null(minAge), as.character(minAge), "NA"),
       maxAge = ifelse(!is.null(maxAge), as.character(maxAge), "NA")
     ),
-    filePath = sql_path
+    filePath = sql_path,
+    cohortType = "subset"
   )
 
   # Set dependent cohort metadata
@@ -633,7 +635,8 @@ buildUnionCohort <- function(
       type = "union",
       cohortCount = as.character(length(cohortIds))
     ),
-    filePath = sql_path
+    filePath = sql_path,
+    cohortType = "union"
   )
 
   # Set dependent cohort metadata
@@ -771,7 +774,8 @@ buildComplementCohort <- function(
       excludeCount = as.character(length(excludeCohortIds)),
       complementType = complementType
     ),
-    filePath = sql_path
+    filePath = sql_path,
+    cohortType = "complement"
   )
 
   # Set dependent cohort metadata
@@ -918,7 +922,8 @@ buildCompositeCohort <- function(
       type = "composite",
       criteriaCohortIds = paste(criteriaCohortIds, collapse = ",")
     ),
-    filePath = sql_path
+    filePath = sql_path,
+    cohortType = "composite"
   )
 
   # Set dependent cohort metadata
@@ -1153,7 +1158,8 @@ buildStratifiedCohorts <- function(
         baseCohortId = as.character(baseCohortId),
         stratumName = nm
       ),
-      filePath = sql_path
+      filePath = sql_path,
+      cohortType = "subset"
     )
 
     cohort_def$setCohortType("subset")
