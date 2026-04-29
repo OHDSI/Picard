@@ -375,7 +375,16 @@ CohortManifest <- R6::R6Class(
             cli::cli_alert_warning("Updated cohort {cohort_id}: {cohort$label} (SQL hash changed)")
             updated_count <- updated_count + 1
           } else {
-            # Hash hasn't changed
+            # Hash hasn't changed, but update label and tags from enrichment
+            DBI::dbExecute(
+              conn,
+              "UPDATE cohort_manifest SET label = ?, tags = ? WHERE id = ?",
+              list(
+                cohort$label,
+                cohort$formatTagsAsString(),
+                cohort_id
+              )
+            )
             cli::cli_alert_success("Unchanged cohort {cohort_id}: {cohort$label}")
             unchanged_count <- unchanged_count + 1
           }
@@ -812,7 +821,7 @@ CohortManifest <- R6::R6Class(
 
         if (length(all_tag_keys) > 0) {
           for (key in all_tag_keys) {
-            man[[paste0("tag", key)]] <- sapply(parsed_tags_list, function(tl) {
+            man[[glue::glue("tag_{key}")]] <- sapply(parsed_tags_list, function(tl) {
               val <- tl[[key]]
               if (is.null(val)) NA_character_ else val
             })
