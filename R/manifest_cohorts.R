@@ -18,7 +18,7 @@
 #'   for cohort generation. Optional; only required if you plan to generate cohorts or
 #'   retrieve cohort counts. Defaults to NULL. You can add settings later using
 #'   `setExecutionSettings()` on the returned CohortManifest object.
-#'
+#' @param verbose Logical. If TRUE, prints informative messages about loading process and any issues encountered. Defaults to TRUE.
 #' @return A CohortManifest R6 object initialized with all cohorts found.
 #'
 #' @details

@@ -11,6 +11,9 @@
 #' @param executionSettings ExecutionSettings object. Optional. Defaults to NULL. 
 #'   Only required for operations like extractSourceCodes(). You can add settings later 
 #'   using setExecutionSettings() on the returned ConceptSetManifest object.
+#' @param verbose Logical. If TRUE (default), prints informative messages about the
+#'   loading process and any issues encountered. Set to FALSE to suppress routine
+#'   output; file-level errors inside tryCatch handlers are always shown.
 #'
 #' @return ConceptSetManifest object containing all loaded concept sets with metadata.
 #'
@@ -59,8 +62,10 @@
 #' }
 #'
 loadConceptSetManifest <- function(conceptSetsFolderPath = here::here("inputs/conceptSets"),
-                                   executionSettings = NULL) {
+                                   executionSettings = NULL,
+                                   verbose = TRUE) {
   checkmate::assert_class(executionSettings, "ExecutionSettings", null.ok = TRUE)
+  checkmate::assert_logical(verbose, len = 1)
   dbPath <- fs::path(conceptSetsFolderPath, "conceptSetManifest.sqlite")
   concept_set_entries <- list()
 
@@ -77,7 +82,7 @@ loadConceptSetManifest <- function(conceptSetsFolderPath = here::here("inputs/co
 
     # Only load from manifest if it has entries
     if (nrow(existing_concept_sets) > 0) {
-      cli::cli_alert_info("Loading concept sets from existing manifest: {dbPath}")
+      if (verbose) cli::cli_alert_info("Loading concept sets from existing manifest: {dbPath}")
 
       # Process each concept set from database
       for (i in seq_len(nrow(existing_concept_sets))) {
@@ -91,7 +96,7 @@ loadConceptSetManifest <- function(conceptSetsFolderPath = here::here("inputs/co
 
         # Check if file still exists
         if (!file.exists(file_path)) {
-          cli::cli_alert_warning("Concept set file missing (will be marked): {record$label} ({record$filePath})")
+          if (verbose) cli::cli_alert_warning("Concept set file missing (will be marked): {record$label} ({record$filePath})")
           # Don't skip - we'll track this in the database with status='missing'
           # For now, skip it from loading into memory but it will be in the database
           next
@@ -120,7 +125,7 @@ loadConceptSetManifest <- function(conceptSetsFolderPath = here::here("inputs/co
       }
 
       if (length(concept_set_entries) > 0) {
-        cli::cli_alert_success("Loaded {length(concept_set_entries)} concept sets from manifest")
+        if (verbose) cli::cli_alert_success("Loaded {length(concept_set_entries)} concept sets from manifest")
         # Successfully loaded from manifest; now check for new files added manually since
         # the manifest was last created (mirrors loadCohortManifest incremental discovery)
         json_dir <- fs::path(conceptSetsFolderPath, "json")
@@ -136,14 +141,14 @@ loadConceptSetManifest <- function(conceptSetsFolderPath = here::here("inputs/co
         new_files <- all_files[new_files_mask]
 
         if (length(new_files) > 0) {
-          cli::cli_alert_info("Found {length(new_files)} new concept set file(s) not in manifest")
+          if (verbose) cli::cli_alert_info("Found {length(new_files)} new concept set file(s) not in manifest")
 
           for (file_path in new_files) {
             label <- tools::file_path_sans_ext(basename(file_path))
             tryCatch({
               new_cs_def <- ConceptSetDef$new(label = label, filePath = file_path)
               concept_set_entries[[length(concept_set_entries) + 1]] <- new_cs_def
-              cli::cli_alert_success("Added new concept set from file: {label}")
+              if (verbose) cli::cli_alert_success("Added new concept set from file: {label}")
             }, error = function(e) {
               cli::cli_alert_warning("Error adding new concept set {label}: {e$message}")
             })
@@ -151,18 +156,18 @@ loadConceptSetManifest <- function(conceptSetsFolderPath = here::here("inputs/co
         }
       } else {
         # Database had entries but none could be loaded, fall through to scan directories
-        cli::cli_alert_warning("No valid concept sets could be loaded from manifest. Scanning directories...")
+        if (verbose) cli::cli_alert_warning("No valid concept sets could be loaded from manifest. Scanning directories...")
         concept_set_entries <- list()  # Reset to empty for directory scan
       }
     } else {
       # Manifest exists but is empty, scan directories
-      cli::cli_alert_warning("Manifest exists but contains no concept set entries. Scanning directories...")
+      if (verbose) cli::cli_alert_warning("Manifest exists but contains no concept set entries. Scanning directories...")
     }
   }
 
   # If no concept sets loaded from manifest (or manifest didn't exist), scan directories
   if (length(concept_set_entries) == 0) {
-    cli::cli_alert_info("Scanning concept set directories...")
+    if (verbose) cli::cli_alert_info("Scanning concept set directories...")
 
     # Define directory to search
     json_dir <- fs::path(conceptSetsFolderPath, "json")
@@ -179,7 +184,7 @@ loadConceptSetManifest <- function(conceptSetsFolderPath = here::here("inputs/co
             filePath = file_path
         )
           concept_set_entries[[length(concept_set_entries) + 1]] <- concept_set_def
-          cli::cli_alert_success("Loaded concept set: {label}")
+          if (verbose) cli::cli_alert_success("Loaded concept set: {label}")
         }, error = function(e) {
           cli::cli_alert_danger("Error loading concept set {label}: {e$message}")
         })
@@ -190,13 +195,13 @@ loadConceptSetManifest <- function(conceptSetsFolderPath = here::here("inputs/co
       stop("No concept set files found in conceptSets/json directory")
     }
 
-    cli::cli_alert_success("Found {length(concept_set_entries)} total concept sets")
+    if (verbose) cli::cli_alert_success("Found {length(concept_set_entries)} total concept sets")
   }
 
   # Check for conceptSetsLoad.csv file to enrich entries with tags and labels
   concept_sets_load_path <- fs::path(conceptSetsFolderPath, "conceptSetsLoad.csv")
   if (file.exists(concept_sets_load_path)) {
-    cli::cli_alert_info("Found conceptSetsLoad.csv. Enriching entries with load metadata...")
+    if (verbose) cli::cli_alert_info("Found conceptSetsLoad.csv. Enriching entries with load metadata...")
 
     tryCatch({
       concept_sets_load <- readr::read_csv(concept_sets_load_path, show_col_types = FALSE)
@@ -246,14 +251,14 @@ loadConceptSetManifest <- function(conceptSetsFolderPath = here::here("inputs/co
             if (length(entry_tags) > 0) {
               entry$tags <- entry_tags
               tags_added <- tags_added + 1
-              cli::cli_alert_success("Added metadata to concept set: {entry$label}")
+              if (verbose) cli::cli_alert_success("Added metadata to concept set: {entry$label}")
             }
           }
         }
 
-        cli::cli_alert_success("Updated {labels_updated} labels and added tags to {tags_added} concept set entries from conceptSetsLoad.csv")
+        if (verbose) cli::cli_alert_success("Updated {labels_updated} labels and added tags to {tags_added} concept set entries from conceptSetsLoad.csv")
       } else {
-        cli::cli_alert_warning("conceptSetsLoad.csv is missing required columns: {paste(missing_cols, collapse = ', ')}")
+        if (verbose) cli::cli_alert_warning("conceptSetsLoad.csv is missing required columns: {paste(missing_cols, collapse = ', ')}")
       }
     }, error = function(e) {
       cli::cli_alert_danger("Error reading conceptSetsLoad.csv: {e$message}")
@@ -271,7 +276,7 @@ loadConceptSetManifest <- function(conceptSetsFolderPath = here::here("inputs/co
   validation_status <- manifest$validateManifest()
   missing_conceptsets <- validation_status[validation_status$status == "active" & !validation_status$file_exists, ]
 
-  if (nrow(missing_conceptsets) > 0) {
+  if (nrow(missing_conceptsets) > 0 && verbose) {
     cli::cli_rule("Missing Concept Set Files Detected")
     cli::cli_alert_warning("{nrow(missing_conceptsets)} concept set file(s) are missing:")
 
