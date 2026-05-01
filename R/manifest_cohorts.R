@@ -1,354 +1,135 @@
-#' Load Cohort Manifest from Database or Cohort Files
+#' Initialize a New Cohort Manifest
 #'
-#' Loads a CohortManifest R6 object by either reading from an existing
-#' cohortManifest.sqlite database or by scanning the inputs/cohorts directories.
-#' When a manifest database exists, automatically discovers any new cohort files
-#' that have been added to the directories since the manifest was created, allowing
-#' for incremental cohort development. ExecutionSettings are optional and only 
-#' required if you plan to generate cohorts or retrieve cohort counts. You can load 
-#' the manifest without them to review metadata.
+#' Creates a blank `cohortManifest.sqlite` database with the new schema.
+#' Directory creation (`json/`, `sql/`, `derived/`) is handled by the study repo
+#' initialization (see `listDefaultFolders()` in `R/Ulysses.R`).
 #'
-#' @param cohortsFolderPath Character. Path to the cohorts folder containing the manifest
-#'   database and cohort definition files. Defaults to "inputs/cohorts". The function
-#'   will look for:
-#'   - `cohortManifest.sqlite` in this folder for existing manifest data
-#'   - `json/` subfolder for CIRCE JSON cohort definitions
-#'   - `sql/` subfolder for SQL cohort definitions
-#' @param executionSettings An ExecutionSettings object containing database configuration
-#'   for cohort generation. Optional; only required if you plan to generate cohorts or
-#'   retrieve cohort counts. Defaults to NULL. You can add settings later using
-#'   `setExecutionSettings()` on the returned CohortManifest object.
-#' @param verbose Logical. If TRUE, prints informative messages about loading process and any issues encountered. Defaults to TRUE.
-#' @return A CohortManifest R6 object initialized with all cohorts found.
+#' @param path Character. Path to the cohorts folder where the SQLite file will be created.
+#'   Defaults to `"inputs/cohorts"`.
 #'
-#' @details
-#' **If database exists:**
-#' Loads cohort paths and metadata from the cohortManifest.sqlite database,
-#' verifies files still exist, checks if any files have changed by comparing
-#' the stored hash with the current file hash, and then scans the directories
-#' for any NEW cohort files that have been added since the manifest was created.
-#' These new files are automatically discovered and added to the manifest.
-#'
-#' **If database doesn't exist:**
-#' Scans `cohortsFolderPath/json` and `cohortsFolderPath/sql` directories to find cohort
-#' definition files and creates a new CohortDef for each file with:
-#' - label: The basename of the file without extension
-#' - tags: Empty list
-#' - filePath: The full path to the cohort file
-#'
-#' **Metadata Enrichment (optional):**
-#' If a `cohortsLoad.csv` file exists in `cohortsFolderPath`, the function will
-#' automatically enrich CohortDef objects with tags by matching the `file_name`
-#' column from the load file with the `filePath` of each entry. For matching entries,
-#' tags are added from the following columns:
-#' - `atlasId`: Added as an "atlasId" tag
-#' - `category`: Added as a "category" tag
-#' - `subCategory`: Added as a "subCategory" tag
-#'
-#' Hash comparison alerts:
-#' - **✓ Unchanged**: Hash matches stored value
-#' - **⚠ Changed**: Hash differs from stored value (file was modified)
+#' @return A `CohortManifest` R6 object (empty, ready for `$add*()` calls).
 #'
 #' @export
-#'
-#' @examples
-#' \dontrun{
-#'   # Load manifest for metadata review (no settings required)
-#'   manifest <- loadCohortManifest()
-#'   
-#'   # Or load from custom path
-#'   manifest <- loadCohortManifest(cohortsFolderPath = "path/to/cohorts")
-#'   
-#'   # Add execution settings later if needed for cohort generation
-#'   settings <- ExecutionSettings$new(
-#'     databaseName = "mydb",
-#'     dbms = "postgresql",
-#'     connectionDetails = list(...)
-#'   )
-#'   manifest$setExecutionSettings(settings)
-#' }
-#'
-loadCohortManifest <- function(cohortsFolderPath = here::here("inputs/cohorts"), executionSettings = NULL, verbose = TRUE) {
-  dbPath <- fs::path(cohortsFolderPath, "cohortManifest.sqlite")
-  cohort_entries <- list()
+initCohortManifest <- function(path = "inputs/cohorts") {
+  dbPath <- fs::path(path, "cohortManifest.sqlite")
 
-  # Check if database already exists and has entries
   if (file.exists(dbPath)) {
-    conn <- DBI::dbConnect(RSQLite::SQLite(), dbPath)
-    on.exit(DBI::dbDisconnect(conn))
-
-    # Check if cohort_manifest table exists
-    table_exists <- DBI::dbExistsTable(conn, "cohort_manifest")
-    
-    if (!table_exists) {
-      if (verbose) {
-        cli::cli_alert_warning("Database exists but cohort_manifest table not found. Scanning directories...")
-      }
-      # Fall through to directory scanning
-      DBI::dbDisconnect(conn)
-    } else {
-      # Query existing cohorts from database
-      existing_cohorts <- DBI::dbGetQuery(
-        conn,
-        "SELECT id, label, tags, filePath, hash, cohortType FROM cohort_manifest"
-      )
-
-      # Only load from manifest if it has entries
-      if (nrow(existing_cohorts) > 0) {
-        if (verbose) {
-          cli::cli_alert_info("Loading cohorts from existing manifest: {dbPath}")
-        }
-
-        # Process each cohort from database
-        for (i in seq_len(nrow(existing_cohorts))) {
-          record <- existing_cohorts[i, ]
-          file_path <- record$filePath
-          stored_hash <- record$hash
-          tags_string <- record$tags
-          cohort_id <- record$id
-          cohort_type <- record$cohortType
-
-          # Check if file still exists
-          if (!file.exists(file_path)) {
-            if (verbose) {
-              cli::cli_alert_warning("Cohort file missing (will be marked): {record$label} ({file_path})")
-            }
-            # Don't skip - we'll track this in the database with status='missing'
-            # For now, skip it from loading into memory but it will be in the database
-            next
-          }
-
-          tryCatch({
-            # Create CohortDef from file (this computes current hash)
-            cohort_entry <- CohortDef$new(
-              label = record$label,
-              tags = list(),
-              filePath = file_path
-            )
-
-            # Set the ID from the database to preserve it
-            cohort_entry$setId(as.integer(cohort_id))
-
-            # Restore cohortType from database
-            if (!is.na(cohort_type)) {
-              cohort_entry$setCohortType(cohort_type)
-            }
-
-            # Backfill tags from database
-            if (!is.na(tags_string) && tags_string != "") {
-              parsed_tags <- parseTagsString(tags_string)
-              cohort_entry$tags <- parsed_tags
-            }
-
-            cohort_entries[[length(cohort_entries) + 1]] <- cohort_entry
-          }, error = function(e) {
-            cli::cli_alert_danger("Error loading cohort {record$label}: {e$message}")
-          })
-        }
-
-        if (length(cohort_entries) > 0) {
-          if (verbose) {
-            cli::cli_alert_success("Loaded {length(cohort_entries)} cohorts from manifest")
-          }
-          # Successfully loaded from manifest, now check for new files in directories
-          
-          # Scan directories for all files to find any new cohorts not in database
-          json_dir <- fs::path(cohortsFolderPath, "json")
-          sql_dir <- fs::path(cohortsFolderPath, "sql")
-          
-          all_files <- c()
-          if (dir.exists(json_dir)) {
-            all_files <- c(all_files, list.files(json_dir, pattern = "\\.json$", full.names = TRUE, recursive = TRUE))
-          }
-          if (dir.exists(sql_dir)) {
-            all_files <- c(all_files, list.files(sql_dir, pattern = "\\.sql$", full.names = TRUE, recursive = TRUE))
-          }
-          
-          # Find which files are NOT in the database
-          existing_file_paths <- existing_cohorts$filePath
-          # make sure no new relative paths are accidentally treated as new if they match an existing absolute path
-          new_files_mask <- !(fs::path_rel(all_files) %in% existing_file_paths) 
-          new_files <- all_files[new_files_mask]  # keep absolute for CohortDef$new()
-          
-          # For each new file, create CohortDef and add to manifest
-          if (length(new_files) > 0) {
-            if (verbose) {
-              cli::cli_alert_info("Found {length(new_files)} new cohort file(s) not in manifest")
-            }
-            
-            for (file_path in new_files) {
-              label <- tools::file_path_sans_ext(basename(file_path))
-              tryCatch({
-                new_cohort_entry <- CohortDef$new(
-                  label = label,
-                  tags = list(),
-                  filePath = file_path
-                )
-                cohort_entries[[length(cohort_entries) + 1]] <- new_cohort_entry
-                if (verbose) {
-                  cli::cli_alert_success("Added new cohort from file: {label}")
-                }
-              }, error = function(e) {
-                cli::cli_alert_warning("Error adding new cohort {label}: {e$message}")
-              })
-            }
-          }
-        } else {
-          # Database had entries but none could be loaded, fall through to scan directories
-          if (verbose) {
-            cli::cli_alert_warning("No valid cohorts could be loaded from manifest. Scanning directories...")
-          }
-          cohort_entries <- list()  # Reset to empty for directory scan
-        }
-      } else {
-        # Manifest exists but is empty, scan directories
-        if (verbose) {
-          cli::cli_alert_warning("Manifest exists but contains no cohort entries. Scanning directories...")
-        }
-      }
-    }
+    cli::cli_alert_warning("Manifest already exists at {fs::path_rel(dbPath)}.")
+    cli::cli_alert_info("Use loadCohortManifest() to load the existing manifest.")
+    cli::cli_alert_info("Use resetCohortManifest() to delete and start fresh.")
+    return(invisible(NULL))
   }
 
-  # If no cohorts loaded from manifest (or manifest didn't exist), scan directories
-  if (length(cohort_entries) == 0) {
-    if (verbose) {
-      cli::cli_alert_info("Scanning cohort directories...")
-    }
+  # Ensure directory exists
 
-    # Define directories to search
-    json_dir <- fs::path(cohortsFolderPath, "json")
-    sql_dir <- fs::path(cohortsFolderPath, "sql")
-
-    # Process JSON directory if it exists
-    if (dir.exists(json_dir)) {
-      json_files <- list.files(json_dir, pattern = "\\.json$", full.names = TRUE, recursive = TRUE)
-
-      for (file_path in json_files) {
-        label <- tools::file_path_sans_ext(basename(file_path))
-        tryCatch({
-          cohort_entry <- CohortDef$new(
-            label = label,
-            tags = list(),
-            filePath = file_path
-          )
-          cohort_entries[[length(cohort_entries) + 1]] <- cohort_entry
-          if (verbose) {
-            cli::cli_alert_success("Loaded JSON cohort: {label}")
-          }
-        }, error = function(e) {
-          cli::cli_alert_danger("Error loading JSON cohort {label}: {e$message}")
-        })
-      }
-    }
-
-    # Process SQL directory if it exists
-    if (dir.exists(sql_dir)) {
-      sql_files <- list.files(sql_dir, pattern = "\\.sql$", full.names = TRUE, recursive = TRUE)
-
-      for (file_path in sql_files) {
-        label <- tools::file_path_sans_ext(basename(file_path))
-        tryCatch({
-          cohort_entry <- CohortDef$new(
-            label = label,
-            tags = list(),
-            filePath = file_path
-          )
-          cohort_entries[[length(cohort_entries) + 1]] <- cohort_entry
-          if (verbose) {
-            cli::cli_alert_success("Loaded SQL cohort: {label}")
-          }
-        }, error = function(e) {
-          cli::cli_alert_danger("Error loading SQL cohort {label}: {e$message}")
-        })
-      }
-    }
-
-    if (length(cohort_entries) == 0) {
-      stop("No cohort files found in cohorts/json or cohorts/sql directories")
-    }
-
-    if (verbose) {
-      cli::cli_alert_success("Found {length(cohort_entries)} total cohorts")
-    }
+  if (!dir.exists(path)) {
+    dir.create(path, recursive = TRUE, showWarnings = FALSE)
   }
 
-  # Check for cohortsLoad.csv file to enrich entries with tags and labels
-  cohorts_load_path <- fs::path(cohortsFolderPath, "cohortsLoad.csv")
-  if (file.exists(cohorts_load_path)) {
-    if (verbose) {
-      cli::cli_alert_info("Found cohortsLoad.csv. Enriching entries with load metadata...")
-    }
+  cm <- CohortManifest$new(dbPath = dbPath)
+  cli::cli_alert_success("Initialized empty cohort manifest at {fs::path_rel(dbPath)}")
+  cli::cli_alert_info("Add cohorts with $addAtlasCohort(), $addCaprCohort(), $addSqlCohort(), or $importAtlasCohorts()")
 
-    tryCatch({
-      cohorts_load <- readr::read_csv(cohorts_load_path, show_col_types = FALSE)
+  return(cm)
+}
 
-      # Validate required columns (label is optional)
-      required_cols <- c("file_name", "atlasId", "category", "subCategory")
-      missing_cols <- setdiff(required_cols, names(cohorts_load))
 
-      if (length(missing_cols) == 0) {
-        # Process each cohort entry to find matching load record
-        tags_added <- 0
-        labels_updated <- 0
-        for (i in seq_along(cohort_entries)) {
-          entry <- cohort_entries[[i]]
-          entry_filepath_rel <- fs::path_rel(entry$getFilePath())
+#' Load Cohort Manifest from SQLite Database
+#'
+#' Loads a CohortManifest R6 object from an existing `cohortManifest.sqlite` database.
+#' This is a pure read from SQLite — it does not scan directories or auto-add new files.
+#' If new files exist on disk that aren't in the manifest, a warning is printed
+#' suggesting the appropriate `$add*()` method.
+#'
+#' @param cohortsFolderPath Character. Path to the cohorts folder containing the manifest
+#'   database. Defaults to `here::here("inputs/cohorts")`.
+#' @param executionSettings An ExecutionSettings object containing database configuration
+#'   for cohort generation. Optional; can be added later using `$setExecutionSettings()`.
+#' @param verbose Logical. If TRUE, prints informative messages. Defaults to TRUE.
+#'
+#' @return A CohortManifest R6 object.
+#'
+#' @details
+#' If no SQLite database exists at the expected path, the function stops with an
+#' error directing the user to `initCohortManifest()`.
+#'
+#' After loading, the function checks for new files in `json/`, `sql/`, and `derived/`
+#' directories that are not tracked in the manifest. These are reported as warnings
+#' but NOT auto-added (because `category` is required and cannot be guessed).
+#'
+#' @export
+loadCohortManifest <- function(cohortsFolderPath = here::here("inputs/cohorts"),
+                               executionSettings = NULL,
+                               verbose = TRUE) {
+  dbPath <- fs::path(cohortsFolderPath, "cohortManifest.sqlite")
 
-          # Find matching record in cohortsLoad by file_name
-          matching_idx <- which(entry_filepath_rel == cohorts_load$file_name)
-
-          if (length(matching_idx) > 0) {
-            load_record <- cohorts_load[matching_idx[1], ]
-
-            # Update label if provided in cohortsLoad.csv
-            if ("label" %in% names(cohorts_load) && !is.na(load_record$label)) {
-              entry$label <- as.character(load_record$label)
-              labels_updated <- labels_updated + 1
-            }
-
-            # Add tags from load record
-            entry_tags <- list()
-            if (!is.na(load_record$atlasId)) {
-              entry_tags[["atlasId"]] <- as.character(load_record$atlasId)
-            }
-            if (!is.na(load_record$category)) {
-              entry_tags[["category"]] <- as.character(load_record$category)
-            }
-            if (!is.na(load_record$subCategory)) {
-              entry_tags[["subCategory"]] <- as.character(load_record$subCategory)
-            }
-
-            if (length(entry_tags) > 0) {
-              entry$tags <- entry_tags
-              tags_added <- tags_added + 1
-              if (verbose) {
-                cli::cli_alert_success("Added metadata to cohort: {entry$label}")
-              }
-            }
-          }
-        }
-
-        if (verbose) {
-          cli::cli_alert_success("Updated {labels_updated} labels and added tags to {tags_added} cohort entries from cohortsLoad.csv")
-        }
-      } else {
-        if (verbose) {
-          cli::cli_alert_warning("cohortsLoad.csv is missing required columns: {paste(missing_cols, collapse = ', ')}")
-        }
-      }
-    }, error = function(e) {
-      cli::cli_alert_danger("Error reading cohortsLoad.csv: {e$message}")
-    })
+  # Require existing database
+  if (!file.exists(dbPath)) {
+    cli::cli_abort(c(
+      "Cohort manifest not found at {.path {fs::path_rel(dbPath)}}.",
+      "i" = "Use {.code initCohortManifest()} to create a new manifest.",
+      "i" = "Use {.code migrateCohortManifest()} if upgrading from picard <= 0.0.3."
+    ))
   }
 
-  # Create and return the CohortManifest
-  manifest <- CohortManifest$new(
-    cohortEntries = cohort_entries,
-    executionSettings = executionSettings,
-    dbPath = dbPath
-  )
+  # Load manifest from SQLite
+  cm <- CohortManifest$new(dbPath = dbPath)
 
-  return(manifest)
+  # Attach execution settings if provided
+  if (!is.null(executionSettings)) {
+    cm$setExecutionSettings(executionSettings)
+  }
+
+  if (verbose) {
+    n_cohorts <- length(cm$getManifest())
+    cli::cli_alert_success("Loaded cohort manifest: {n_cohorts} active cohort(s)")
+  }
+
+  # Check for untracked files on disk
+  if (verbose) {
+    .warn_untracked_files(cohortsFolderPath, cm)
+  }
+
+  return(cm)
+}
+
+
+#' @noRd
+.warn_untracked_files <- function(cohortsFolderPath, cm) {
+  # Get file paths from manifest
+  manifest_files <- vapply(cm$getManifest(), function(cd) cd$getFilePath(), character(1))
+
+
+  # Scan directories for all cohort files
+  json_dir <- fs::path(cohortsFolderPath, "json")
+  sql_dir <- fs::path(cohortsFolderPath, "sql")
+  derived_dir <- fs::path(cohortsFolderPath, "derived")
+
+  all_files <- character(0)
+  if (dir.exists(json_dir)) {
+    all_files <- c(all_files, list.files(json_dir, pattern = "\\.(json|sql)$", full.names = TRUE, recursive = TRUE))
+  }
+  if (dir.exists(sql_dir)) {
+    all_files <- c(all_files, list.files(sql_dir, pattern = "\\.sql$", full.names = TRUE, recursive = TRUE))
+  }
+  if (dir.exists(derived_dir)) {
+    all_files <- c(all_files, list.files(derived_dir, pattern = "\\.sql$", full.names = TRUE, recursive = TRUE))
+  }
+
+  # Compare (using relative paths)
+  all_files_rel <- fs::path_rel(all_files)
+  untracked <- all_files_rel[!all_files_rel %in% manifest_files]
+
+  if (length(untracked) > 0) {
+    cli::cli_alert_warning("{length(untracked)} file(s) on disk not in manifest:")
+    for (f in utils::head(untracked, 5)) {
+      cli::cli_bullets(c("!" = "{f}"))
+    }
+    if (length(untracked) > 5) {
+      cli::cli_bullets(c("!" = "... and {length(untracked) - 5} more"))
+    }
+    cli::cli_alert_info("Use $addAtlasCohort(), $addSqlCohort(), or $importAtlasCohorts() to register them.")
+  }
 }
 
 #' Reset Cohort Manifest Database
@@ -1264,7 +1045,7 @@ visualizeCohortDependencies <- function(manifest, outputPath = NULL) {
 #'
 #' **SQL requirements:**
 #' Your SQL must use SqlRender parameters instead of hardcoded values. The following
-#' parameters are automatically injected by [CohortManifest]`$generateCohorts()`:
+#' parameters are automatically injected by [CohortManifest]`$executeCohortGeneration()`:
 #' - `@target_cohort_id` — the cohort definition ID assigned by the manifest
 #' - `@target_database_schema` — the schema where the cohort table resides
 #' - `@target_cohort_table` — the cohort table name

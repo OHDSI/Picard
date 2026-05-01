@@ -987,7 +987,7 @@ ExecOptions <- R6::R6Class(
 listDefaultFolders <- function(repoPath) {
   analysisFolders <- c("src", "tasks")
   execFolders <- c('logs', 'results')
-  inputFolders <- c("cohorts/json", "cohorts/sql", "conceptSets/json")
+  inputFolders <- c("cohorts/json", "cohorts/sql", "cohorts/derived", "conceptSets/json")
   disseminationFolders <- c("quarto", "export/merge", "export/pretty", "export/studyHubOutput", "documents")
 
   folders <- c(

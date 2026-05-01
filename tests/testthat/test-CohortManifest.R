@@ -375,10 +375,269 @@ test_that("createCohortTables requires executionSettings", {
   expect_error(manifest$createCohortTables())
 })
 
-test_that("generateCohorts requires executionSettings", {
+test_that("executeCohortGeneration requires executionSettings", {
   skip("Database testing not available - requires live database connection")
 })
 
 test_that("retrieveCohortCounts requires executionSettings", {
   skip("Database testing not available - requires live database connection")
+})
+
+# ========== PHASE C: ADD METHODS TESTS ==========
+
+test_that("addSqlCohort registers SQL cohort correctly", {
+  temp_dir <- tempfile(prefix = "picard_test_")
+  dir.create(temp_dir, recursive = TRUE)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  # Create temporary SQL file
+  sql_dir <- file.path(temp_dir, "sql")
+  dir.create(sql_dir, recursive = TRUE)
+  temp_sql <- file.path(sql_dir, "test_cohort.sql")
+  writeLines("SELECT * FROM person;", temp_sql)
+
+  # Create manifest
+  db_path <- file.path(temp_dir, "cohortManifest.sqlite")
+  manifest <- CohortManifest$new(dbPath = db_path)
+
+  # Add SQL cohort
+  cohort_id <- manifest$addSqlCohort(
+    filePath = temp_sql,
+    label = "Test SQL Cohort",
+    category = "outcome",
+    tags = list(type = "custom")
+  )
+
+  expect_type(cohort_id, "integer")
+  expect_true(cohort_id > 0)
+
+  # Verify it was registered
+  results <- manifest$queryCohortsByIds(cohort_id)
+  expect_true(!is.null(results))
+  expect_equal(nrow(results), 1)
+  expect_equal(results$label[1], "Test SQL Cohort")
+  expect_equal(results$source_type[1], "sql")
+})
+
+test_that("addSqlCohort enforces label uniqueness", {
+  temp_dir <- tempfile(prefix = "picard_test_")
+  dir.create(temp_dir, recursive = TRUE)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  # Create SQL files
+  sql_dir <- file.path(temp_dir, "sql")
+  dir.create(sql_dir, recursive = TRUE)
+  sql1 <- file.path(sql_dir, "test1.sql")
+  sql2 <- file.path(sql_dir, "test2.sql")
+  writeLines("SELECT 1;", sql1)
+  writeLines("SELECT 2;", sql2)
+
+  db_path <- file.path(temp_dir, "cohortManifest.sqlite")
+  manifest <- CohortManifest$new(dbPath = db_path)
+
+  # Add first cohort
+  manifest$addSqlCohort(filePath = sql1, label = "Unique Label", category = "outcome")
+
+  # Try to add second cohort with same label
+  expect_error(
+    manifest$addSqlCohort(filePath = sql2, label = "Unique Label", category = "outcome"),
+    "already in use"
+  )
+})
+
+# ========== PHASE D: MANAGEMENT METHODS TESTS ==========
+
+test_that("updateCohortDef updates cohort metadata", {
+  temp_dir <- tempfile(prefix = "picard_test_")
+  dir.create(temp_dir, recursive = TRUE)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  sql_dir <- file.path(temp_dir, "sql")
+  dir.create(sql_dir, recursive = TRUE)
+  temp_sql <- file.path(sql_dir, "test.sql")
+  writeLines("SELECT 1;", temp_sql)
+
+  db_path <- file.path(temp_dir, "cohortManifest.sqlite")
+  manifest <- CohortManifest$new(dbPath = db_path)
+
+  # Add a cohort
+  cohort_id <- manifest$addSqlCohort(
+    filePath = temp_sql,
+    label = "Original Label",
+    category = "target"
+  )
+
+  # Update the label
+  manifest$updateCohortDef(cohort_id, label = "Updated Label")
+
+  # Verify update
+  results <- manifest$queryCohortsByIds(cohort_id)
+  expect_equal(results$label[1], "Updated Label")
+})
+
+test_that("deleteCohort soft-deletes cohort", {
+  temp_dir <- tempfile(prefix = "picard_test_")
+  dir.create(temp_dir, recursive = TRUE)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  sql_dir <- file.path(temp_dir, "sql")
+  dir.create(sql_dir, recursive = TRUE)
+  temp_sql <- file.path(sql_dir, "test.sql")
+  writeLines("SELECT 1;", temp_sql)
+
+  db_path <- file.path(temp_dir, "cohortManifest.sqlite")
+  manifest <- CohortManifest$new(dbPath = db_path)
+
+  cohort_id <- manifest$addSqlCohort(
+    filePath = temp_sql,
+    label = "Test Cohort",
+    category = "outcome"
+  )
+
+  # Delete the cohort
+  manifest$deleteCohort(cohort_id)
+
+  # Verify it's marked as deleted (soft delete)
+  results <- manifest$queryCohortsByIds(cohort_id)
+  expect_null(results)
+
+  # But the database row still exists (for audit trail)
+  conn <- DBI::dbConnect(RSQLite::SQLite(), db_path)
+  on.exit(DBI::dbDisconnect(conn), add = TRUE)
+  check <- DBI::dbGetQuery(conn, "SELECT status FROM cohort_manifest WHERE id = ?", list(cohort_id))
+  expect_equal(check$status[1], "deleted")
+})
+
+test_that("cleanCohortTable hard-deletes cohort", {
+  temp_dir <- tempfile(prefix = "picard_test_")
+  dir.create(temp_dir, recursive = TRUE)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  sql_dir <- file.path(temp_dir, "sql")
+  dir.create(sql_dir, recursive = TRUE)
+  temp_sql <- file.path(sql_dir, "test.sql")
+  writeLines("SELECT 1;", temp_sql)
+
+  db_path <- file.path(temp_dir, "cohortManifest.sqlite")
+  manifest <- CohortManifest$new(dbPath = db_path)
+
+  cohort_id <- manifest$addSqlCohort(
+    filePath = temp_sql,
+    label = "Test Cohort",
+    category = "outcome"
+  )
+
+  # Hard delete with force=TRUE to skip confirmation
+  manifest$cleanCohortTable(cohort_id, force = TRUE)
+
+  # Verify file is deleted
+  expect_false(file.exists(temp_sql))
+
+  # Verify row is deleted from database
+  conn <- DBI::dbConnect(RSQLite::SQLite(), db_path)
+  on.exit(DBI::dbDisconnect(conn), add = TRUE)
+  check <- DBI::dbGetQuery(conn, "SELECT * FROM cohort_manifest WHERE id = ?", list(cohort_id))
+  expect_equal(nrow(check), 0)
+})
+
+test_that("syncManifest detects untracked files", {
+  temp_dir <- tempfile(prefix = "picard_test_")
+  dir.create(temp_dir, recursive = TRUE)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  # Create directories
+  sql_dir <- file.path(temp_dir, "sql")
+  json_dir <- file.path(temp_dir, "json")
+  dir.create(sql_dir, recursive = TRUE)
+  dir.create(json_dir, recursive = TRUE)
+
+  # Create an untracked SQL file
+  untracked_sql <- file.path(sql_dir, "untracked.sql")
+  writeLines("SELECT 1;", untracked_sql)
+
+  db_path <- file.path(temp_dir, "cohortManifest.sqlite")
+  manifest <- CohortManifest$new(dbPath = db_path)
+
+  # Run sync
+  untracked <- manifest$syncManifest()
+
+  # Should detect the untracked file
+  expect_true(!is.null(untracked))
+  expect_true(nrow(untracked) > 0)
+  expect_true(any(grepl("untracked.sql", untracked$path)))
+})
+
+test_that("statusReport generates summary tibble", {
+  temp_dir <- tempfile(prefix = "picard_test_")
+  dir.create(temp_dir, recursive = TRUE)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  sql_dir <- file.path(temp_dir, "sql")
+  dir.create(sql_dir, recursive = TRUE)
+  temp_sql <- file.path(sql_dir, "test.sql")
+  writeLines("SELECT 1;", temp_sql)
+
+  db_path <- file.path(temp_dir, "cohortManifest.sqlite")
+  manifest <- CohortManifest$new(dbPath = db_path)
+
+  # Add a cohort
+  manifest$addSqlCohort(
+    filePath = temp_sql,
+    label = "Test Cohort",
+    category = "target"
+  )
+
+  # Generate report
+  report <- manifest$statusReport()
+
+  expect_true(!is.null(report))
+  expect_true(nrow(report) == 1)
+  expect_true("label" %in% names(report))
+})
+
+test_that("print method displays manifest summary", {
+  temp_dir <- tempfile(prefix = "picard_test_")
+  dir.create(temp_dir, recursive = TRUE)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  db_path <- file.path(temp_dir, "cohortManifest.sqlite")
+  manifest <- CohortManifest$new(dbPath = db_path)
+
+  # print() should not error
+  expect_silent(capture.output(print(manifest)))
+})
+
+test_that("tabulateManifest returns correct schema columns", {
+  temp_dir <- tempfile(prefix = "picard_test_")
+  dir.create(temp_dir, recursive = TRUE)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  sql_dir <- file.path(temp_dir, "sql")
+  dir.create(sql_dir, recursive = TRUE)
+  temp_sql <- file.path(sql_dir, "test.sql")
+  writeLines("SELECT 1;", temp_sql)
+
+  db_path <- file.path(temp_dir, "cohortManifest.sqlite")
+  manifest <- CohortManifest$new(dbPath = db_path)
+
+  manifest$addSqlCohort(
+    filePath = temp_sql,
+    label = "Test Cohort",
+    category = "outcome"
+  )
+
+  # Get tabulated manifest
+  tab <- manifest$tabulateManifest()
+
+  # Check for new schema columns
+  expected_cols <- c("id", "label", "category", "source_type", "file_path", "hash")
+  for (col in expected_cols) {
+    expect_true(col %in% names(tab), info = paste("Missing column:", col))
+  }
+
+  # Old schema columns should NOT be present
+  old_cols <- c("filePath", "cohortType", "timestamp")
+  for (col in old_cols) {
+    expect_false(col %in% names(tab), info = paste("Old column still present:", col))
+  }
 })
