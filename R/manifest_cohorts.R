@@ -480,10 +480,17 @@ visualizeCohortDependencies <- function(manifest, outputPath = NULL) {
     node_id <- paste0("c", cohort_id)
     node_defs <- c(node_defs, paste0(node_id, node_shape))
     
-    # Get dependencies and create edges
-    deps <- cohort$getDependencies()
-    if (!is.null(deps) && length(deps$ids) > 0) {
-      for (parent_id in deps$ids) {
+    # Get dependencies from sidecar JSON and create edges
+    file_path <- cohort$getFilePath()
+    metadata_path <- gsub("\\.sql$", ".json", file_path)
+    parent_ids <- if (file.exists(metadata_path)) {
+      meta <- tryCatch(jsonlite::fromJSON(metadata_path), error = function(e) list())
+      if (!is.null(meta$dependsOnCohortIds)) as.integer(meta$dependsOnCohortIds) else integer(0)
+    } else {
+      integer(0)
+    }
+    if (length(parent_ids) > 0) {
+      for (parent_id in parent_ids) {
         parent_node_id <- paste0("c", parent_id)
         edge_defs <- c(edge_defs, paste0(parent_node_id, " --> ", node_id))
       }
@@ -501,12 +508,16 @@ visualizeCohortDependencies <- function(manifest, outputPath = NULL) {
     cohort_label <- cohort$label
     cohort_type <- cohort$getCohortType()
     
-    deps <- cohort$getDependencies()
-    depends_on_str <- ifelse(
-      is.null(deps) || length(deps$ids) == 0,
-      "None",
-      paste(deps$ids, collapse = ", ")
-    )
+    # Get dependencies from sidecar JSON
+    file_path <- cohort$getFilePath()
+    metadata_path <- gsub("\\.sql$", ".json", file_path)
+    parent_ids <- if (file.exists(metadata_path)) {
+      meta <- tryCatch(jsonlite::fromJSON(metadata_path), error = function(e) list())
+      if (!is.null(meta$dependsOnCohortIds)) as.integer(meta$dependsOnCohortIds) else integer(0)
+    } else {
+      integer(0)
+    }
+    depends_on_str <- ifelse(length(parent_ids) == 0, "None", paste(parent_ids, collapse = ", "))
     
     cohort_rows <- c(
       cohort_rows,
@@ -621,10 +632,17 @@ visualizeCohortDependencies <- function(manifest, outputPath = NULL) {
 .build_dependency_tree <- function(cohort_id, cohort_list, processed_env, indent = "", tree_lines = character()) {
   # Find all cohorts that depend on this cohort_id
   dependents <- list()
-  
+
   for (cohort in cohort_list) {
-    deps <- cohort$getDependencies()
-    if (!is.null(deps) && cohort_id %in% deps$ids && !(cohort$getId() %in% processed_env$ids)) {
+    file_path <- cohort$getFilePath()
+    metadata_path <- gsub("\\.sql$", ".json", file_path)
+    parent_ids <- if (file.exists(metadata_path)) {
+      meta <- tryCatch(jsonlite::fromJSON(metadata_path), error = function(e) list())
+      if (!is.null(meta$dependsOnCohortIds)) as.integer(meta$dependsOnCohortIds) else integer(0)
+    } else {
+      integer(0)
+    }
+    if (cohort_id %in% parent_ids && !(cohort$getId() %in% processed_env$ids)) {
       dependents[[length(dependents) + 1]] <- cohort
       processed_env$ids <- c(processed_env$ids, cohort$getId())
     }

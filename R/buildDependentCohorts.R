@@ -342,6 +342,8 @@ buildSubsetCohortTemporal <- function(
   # Create and return CohortDef object
   cohort_def <- CohortDef$new(
     label = label,
+    category = "derived",
+    sourceType = "derived",
     tags = list(
       type = "subset",
       baseCohortId = as.character(baseCohortId),
@@ -352,12 +354,6 @@ buildSubsetCohortTemporal <- function(
 
   # Set dependent cohort metadata
   cohort_def$setCohortType("subset")
-  cohort_def$setDependencies(
-    dependsOnCohortIds = c(baseCohortId, filterCohortId),
-    dependencyRule = list(
-      type = "temporal"
-    )
-  )
 
   manifest$addDependentCohort(cohort_def)
   invisible(cohort_def)
@@ -484,6 +480,8 @@ buildSubsetCohortDemographic <- function(
   # Create and return CohortDef object
   cohort_def <- CohortDef$new(
     label = label,
+    category = "derived",
+    sourceType = "derived",
     tags = list(
       type = "subset_demographic",
       baseCohortId = as.character(baseCohortId),
@@ -495,17 +493,6 @@ buildSubsetCohortDemographic <- function(
 
   # Set dependent cohort metadata
   cohort_def$setCohortType("subset")
-  cohort_def$setDependencies(
-    dependsOnCohortIds = c(baseCohortId),
-    dependencyRule = list(
-      type = "demographic",
-      minAge = minAge,
-      maxAge = maxAge,
-      genderConceptIds = genderConceptIds,
-      raceConceptIds = raceConceptIds,
-      ethnicityConceptIds = ethnicityConceptIds
-    )
-  )
 
   manifest$addDependentCohort(cohort_def)
   invisible(cohort_def)
@@ -554,6 +541,12 @@ buildUnionCohort <- function(
     firstEraOnly = FALSE,
     cohortsFolder = here::here("inputs/cohorts"),
     manifest) {
+
+  lifecycle::deprecate_warn(
+    "0.0.3", "buildUnionCohort()",
+    what2 = "CohortManifest$buildUnionCohort()",
+    details = "Use the R6 method: `manifest$buildUnionCohort(label, cohortIds, category, ...)`"
+  )
 
   # Validation
   checkmate::assert_string(x = label, min.chars = 1)
@@ -629,6 +622,8 @@ buildUnionCohort <- function(
   # Create and return CohortDef object
   cohort_def <- CohortDef$new(
     label = label,
+    category = "derived",
+    sourceType = "derived",
     tags = list(
       type = "union",
       cohortCount = as.character(length(cohortIds))
@@ -638,18 +633,6 @@ buildUnionCohort <- function(
 
   # Set dependent cohort metadata
   cohort_def$setCohortType("union")
-  cohort_def$setDependencies(
-    dependsOnCohortIds = as.integer(cohortIds),
-    dependencyRule = list(
-      type = "union",
-      gapDays = as.integer(gapDays),
-      eraPadDays = as.integer(eraPadDays),
-      minEraDays = as.integer(minEraDays),
-      minCohorts = as.integer(minCohorts),
-      washoutDays = as.integer(washoutDays),
-      firstEraOnly = firstEraOnly
-    )
-  )
 
   manifest$addDependentCohort(cohort_def)
   invisible(cohort_def)
@@ -689,6 +672,12 @@ buildComplementCohort <- function(
     complementType = "exclude_any",
     cohortsFolder = here::here("inputs/cohorts"),
     manifest) {
+
+  lifecycle::deprecate_warn(
+    "0.0.3", "buildComplementCohort()",
+    what2 = "CohortManifest$buildComplementCohort()",
+    details = "Use the R6 method: `manifest$buildComplementCohort(label, baseCohortId, populationCohortId, category, ...)`"
+  )
 
   # Validation
   checkmate::assert_string(x = label, min.chars = 1)
@@ -762,9 +751,11 @@ buildComplementCohort <- function(
 
   # Create and return CohortDef object
   all_deps <- c(populationCohortId, as.integer(excludeCohortIds))
-  
+
   cohort_def <- CohortDef$new(
     label = label,
+    category = "derived",
+    sourceType = "derived",
     tags = list(
       type = "complement",
       populationCohortId = as.character(populationCohortId),
@@ -776,15 +767,6 @@ buildComplementCohort <- function(
 
   # Set dependent cohort metadata
   cohort_def$setCohortType("complement")
-  cohort_def$setDependencies(
-    dependsOnCohortIds = all_deps,
-    dependencyRule = list(
-      type = "complement",
-      populationCohortId = populationCohortId,
-      excludeCohortIds = as.integer(excludeCohortIds),
-      rule = complementType
-    )
-  )
 
   manifest$addDependentCohort(cohort_def)
   invisible(cohort_def)
@@ -839,6 +821,12 @@ buildCompositeCohort <- function(
     eventSelection = "First",
     cohortsFolder = here::here("inputs/cohorts"),
     manifest) {
+
+  lifecycle::deprecate_warn(
+    "0.0.3", "buildCompositeCohort()",
+    what2 = "CohortManifest$buildCompositeCohort()",
+    details = "Use the R6 method: `manifest$buildCompositeCohort(label, cohortIds, category, ...)`"
+  )
 
   # Validation
   checkmate::assert_string(x = label, min.chars = 1)
@@ -914,6 +902,8 @@ buildCompositeCohort <- function(
   # Create and return CohortDef object
   cohort_def <- CohortDef$new(
     label = label,
+    category = "derived",
+    sourceType = "derived",
     tags = list(
       type = "composite",
       criteriaCohortIds = paste(criteriaCohortIds, collapse = ",")
@@ -923,14 +913,6 @@ buildCompositeCohort <- function(
 
   # Set dependent cohort metadata
   cohort_def$setCohortType("composite")
-  cohort_def$setDependencies(
-    dependsOnCohortIds = as.integer(criteriaCohortIds),
-    dependencyRule = list(
-      type = "composite",
-      minimumEventCount = minimumEventCount,
-      eventSelection = eventSelection
-    )
-  )
 
   manifest$addDependentCohort(cohort_def)
   invisible(cohort_def)
@@ -1148,6 +1130,8 @@ buildStratifiedCohorts <- function(
     # Build CohortDef — ID auto-assigned by addDependentCohort()
     cohort_def <- CohortDef$new(
       label = cohort_label,
+      category = "derived",
+      sourceType = "derived",
       tags = list(
         type = "stratified",
         baseCohortId = as.character(baseCohortId),
@@ -1157,15 +1141,6 @@ buildStratifiedCohorts <- function(
     )
 
     cohort_def$setCohortType("subset")
-    cohort_def$setDependencies(
-      dependsOnCohortIds = as.integer(baseCohortId),
-      dependencyRule = list(
-        type = "stratified",
-        baseCohortId = as.integer(baseCohortId),
-        stratumName = nm,
-        stratumCondition = condition
-      )
-    )
 
     manifest$addDependentCohort(cohort_def)
     result[[cohort_label]] <- cohort_def

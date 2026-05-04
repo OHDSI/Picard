@@ -491,19 +491,26 @@ CohortManifest <- R6::R6Class(
     # Creates an adjacency list representation of dependencies.
     # Returns a list where each cohort ID maps to a vector of cohorts it depends on.
     build_dependency_graph = function() {
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      rows <- DBI::dbGetQuery(
+        conn,
+        "SELECT id, depends_on FROM cohort_manifest WHERE status = 'active'"
+      )
+
       graph <- list()
+      for (i in seq_len(nrow(rows))) {
+        cohort_id <- rows$id[i]
+        depends_on_raw <- rows$depends_on[i]
 
-      for (cohort in private$.manifest) {
-        cohort_id <- cohort$getId()
-        deps <- cohort$getDependencies()
-        parent_ids <- deps$cohort_ids
-
-        # Each cohort maps to its dependencies
-        if (length(parent_ids) > 0) {
-          graph[[as.character(cohort_id)]] <- parent_ids
+        parent_ids <- if (!is.na(depends_on_raw) && nchar(depends_on_raw) > 0) {
+          as.integer(jsonlite::fromJSON(depends_on_raw))
         } else {
-          graph[[as.character(cohort_id)]] <- integer(0)
+          integer(0)
         }
+
+        graph[[as.character(cohort_id)]] <- parent_ids
       }
 
       return(graph)
@@ -644,9 +651,27 @@ CohortManifest <- R6::R6Class(
     # Compute dependency hash for a dependent cohort
     # Combines parent cohort hashes with the dependency rule parameters.
     compute_dependency_hash = function(cohort, parent_hashes) {
-      deps <- cohort$getDependencies()
-      parent_ids <- deps$cohort_ids
-      rule <- deps$rule
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      cohort_id <- cohort$getId()
+      row <- DBI::dbGetQuery(
+        conn,
+        "SELECT depends_on, dependency_rule FROM cohort_manifest WHERE id = ? AND status = 'active'",
+        list(cohort_id)
+      )
+
+      parent_ids <- if (nrow(row) > 0 && !is.na(row$depends_on[1]) && nchar(row$depends_on[1]) > 0) {
+        as.integer(jsonlite::fromJSON(row$depends_on[1]))
+      } else {
+        integer(0)
+      }
+
+      rule <- if (nrow(row) > 0 && !is.na(row$dependency_rule[1]) && nchar(row$dependency_rule[1]) > 0) {
+        jsonlite::fromJSON(row$dependency_rule[1], simplifyVector = FALSE)
+      } else {
+        list()
+      }
 
       # Combine parent hashes in dependency order
       parent_hash_strs <- character()
@@ -1135,37 +1160,60 @@ CohortManifest <- R6::R6Class(
     #' @param baseCohortId Integer. ID of the base cohort to subset.
     #' @param filterCohortId Integer. ID of the filter cohort.
     #' @param category Character. Required classification.
-    #' @param temporalOperator Character. One of 'before', 'after', 'during', 'any'.
-    #' @param temporalStartOffset Integer. Start of temporal window (days).
-    #' @param temporalEndOffset Integer. End of temporal window (days).
+    #' @param startWindow A SubsetWindowOperator object (from [createSubsetStartWindow()]) defining
+    #'   the temporal window for the filter cohort start date relative to the base cohort event.
+    #' @param endWindow A SubsetWindowOperator object (from [createSubsetEndWindow()]) or NULL.
+    #'   Defines the temporal window for the filter cohort end date. Default: NULL.
+    #' @param endDateType Character. Whether to use the base cohort end date ('base') or filter
+    #'   cohort end date ('filter') in the output. Default: 'base'.
+    #' @param subsetLimit Character. One of 'First', 'Last', or 'All'. Default: 'First'.
     #' @param tags Named list. Optional metadata tags.
     #'
     #' @return Invisible integer. The assigned cohort ID.
     buildSubsetCohortTemporal = function(label, baseCohortId, filterCohortId, category,
-                                         temporalOperator = "any",
-                                         temporalStartOffset = NULL,
-                                         temporalEndOffset = NULL,
+                                         startWindow,
+                                         endWindow = NULL,
+                                         endDateType = "base",
+                                         subsetLimit = "First",
                                          tags = list()) {
       checkmate::assert_string(label, min.chars = 1)
       checkmate::assert_int(baseCohortId)
       checkmate::assert_int(filterCohortId)
       checkmate::assert_string(category, min.chars = 1)
-      checkmate::assert_choice(temporalOperator, choices = c("before", "after", "during", "any"))
+      checkmate::assert_class(startWindow, classes = "SubsetWindowOperator")
+      checkmate::assert_class(endWindow, classes = "SubsetWindowOperator", null.ok = TRUE)
+      checkmate::assert_choice(endDateType, choices = c("base", "filter"))
+      checkmate::assert_choice(subsetLimit, choices = c("First", "Last", "All"))
       checkmate::assert_list(tags, names = "named")
 
       private$validate_label_unique(label)
       private$validate_parent_cohorts_exist(c(baseCohortId, filterCohortId))
 
-      # Build dependency rule
+      # Generate SQL snippets from SubsetWindowOperator objects
+      start_window_sql <- startWindow$makeSubsetWindowSql()
+      end_window_sql <- if (is.null(endWindow)) "" else endWindow$makeSubsetWindowSql()
+
+      # Build dependency rule capturing full window parameters
       dependency_rule <- list(
         baseCohortId = as.integer(baseCohortId),
         filterCohortId = as.integer(filterCohortId),
-        temporalOperator = temporalOperator,
-        temporalStartOffset = temporalStartOffset,
-        temporalEndOffset = temporalEndOffset
+        startWindow = list(
+          subsetCohortWindowAnchor = startWindow$subsetCohortWindowAnchor,
+          startDays = startWindow$startDays,
+          endDays = startWindow$endDays,
+          baseCohortWindowAnchor = startWindow$baseCohortWindowAnchor
+        ),
+        endWindow = if (is.null(endWindow)) NULL else list(
+          subsetCohortWindowAnchor = endWindow$subsetCohortWindowAnchor,
+          startDays = endWindow$startDays,
+          endDays = endWindow$endDays,
+          baseCohortWindowAnchor = endWindow$baseCohortWindowAnchor
+        ),
+        endDateType = endDateType,
+        subsetLimit = subsetLimit
       )
 
-      # Generate SQL
+      # Generate SQL from template
       cohorts_dir <- dirname(private$.dbPath)
       derived_dir <- fs::path(cohorts_dir, "derived")
       if (!dir.exists(derived_dir)) dir.create(derived_dir, recursive = TRUE)
@@ -1173,9 +1221,17 @@ CohortManifest <- R6::R6Class(
       safe_label <- gsub("[^a-zA-Z0-9_-]", "_", label)
       sql_path <- fs::path(derived_dir, paste0(safe_label, ".sql"))
 
-      sql_template <- readLines(system.file("sql", "createSubsetCohort_Cohort.sql", package = "picard"), warn = FALSE)
-      sql_content <- paste(sql_template, collapse = "\n")
-      writeLines(sql_content, sql_path)
+      template_path <- system.file("sql", "createSubsetCohort_Cohort.sql", package = "picard")
+      rendered_sql <- readr::read_file(template_path) |>
+        SqlRender::render(
+          base_cohort_id = baseCohortId,
+          filter_cohort_id = filterCohortId,
+          start_window = start_window_sql,
+          end_window = end_window_sql,
+          subset_limit = subsetLimit,
+          end_date_type = endDateType
+        )
+      writeLines(rendered_sql, sql_path)
 
       parent_ids <- unique(c(baseCohortId, filterCohortId))
 
@@ -2064,92 +2120,34 @@ CohortManifest <- R6::R6Class(
         cli::cli_abort("Invalid cohort type: {cohort_type}. Must be 'subset', 'union', 'composite', 'complement', or 'custom'")
       }
 
-      # Validate parent cohorts exist in this manifest
-      deps <- cohortDef$getDependencies()
-      parent_ids <- deps$cohort_ids
-
-      if (length(parent_ids) > 0) {
-        manifest_data <- self$tabulateManifest(filter = "active")
-        existing_ids <- manifest_data$id
-
-        missing_ids <- setdiff(parent_ids, existing_ids)
-        if (length(missing_ids) > 0) {
-          cli::cli_abort(
-            "Cannot add dependent cohort '{cohortDef$label}' (type: {cohort_type}): \\
-            Parent cohort {ifelse(length(missing_ids) == 1, 'ID', 'IDs')} {paste(missing_ids, collapse = ', ')} \\
-            {ifelse(length(missing_ids) == 1, 'does', 'do')} not exist in this manifest"
-          )
-        }
-      }
-
-      # Compute unique hash that includes file path (which now contains demographic param hash)
-      # This ensures different demographic subsets of the same base cohort are distinct
-      base_hash <- cohortDef$getHash()
+      # Read dependency info from sidecar JSON written by the builder function
       file_path <- cohortDef$getFilePath()
-      file_path_hash <- rlang::hash(file_path)
-      dep_hash <- rlang::hash(paste0(base_hash, "|", file_path_hash))
+      metadata <- private$load_metadata_for_cohort(file_path)
+      parent_ids <- if (!is.null(metadata$dependsOnCohortIds)) as.integer(metadata$dependsOnCohortIds) else integer(0)
 
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
-      on.exit(DBI::dbDisconnect(conn), add = TRUE)
-
-      # Query for existing cohort with same hash
-      existing_cohort <- tryCatch(
-        {
-          DBI::dbGetQuery(conn, "SELECT id, label FROM cohort_manifest WHERE hash = ?", list(dep_hash))
-        },
-        error = function(e) {
-          data.frame(id = integer(), label = character())
-        }
-      )
-
-      # If hash already exists, return existing ID
-      if (nrow(existing_cohort) > 0) {
-        existing_id <- existing_cohort$id[1]
-        existing_label <- existing_cohort$label[1]
-        cli::cli_alert_info("Dependent cohort with hash {substr(dep_hash, 1, 8)}... already exists")
-        cli::cli_alert_info("Reusing existing ID {existing_id}: {existing_label}")
-        invisible(existing_id)
+      # Validate parent cohorts exist in this manifest
+      if (length(parent_ids) > 0) {
+        private$validate_parent_cohorts_exist(parent_ids)
       }
 
-      # Get next ID by querying the database
-
-      # Get the maximum ID currently in the database
-      max_id_result <- tryCatch(
-        {
-          DBI::dbGetQuery(conn, "SELECT MAX(id) as max_id FROM cohort_manifest")
-        },
-        error = function(e) {
-          data.frame(max_id = NA)
-        }
+      # Delegate insert to the shared helper which uses the correct schema
+      cohort_id <- private$insert_cohort(
+        label = cohortDef$label,
+        category = cohortDef$getCategory(),
+        tags = cohortDef$tags,
+        file_path = file_path,
+        source_type = cohortDef$getSourceType(),
+        cohort_type = cohort_type,
+        depends_on = if (length(parent_ids) > 0) parent_ids else NULL,
+        dependency_rule = if (length(metadata) > 0) metadata else NULL
       )
 
-      max_id <- ifelse(!is.na(max_id_result$max_id[1]), max_id_result$max_id[1], 0)
-      next_id <- as.integer(max_id + 1)
+      cli::cli_alert_success("Added dependent cohort {cohort_id}: {cohortDef$label} (Type: {cohort_type})")
+      if (length(parent_ids) > 0) {
+        cli::cli_alert_info("Depends on cohort(s): {paste(parent_ids, collapse = ', ')}")
+      }
 
-      # Set the ID on the cohort object
-      cohortDef$setId(next_id)
-
-      # Insert into database
-      DBI::dbExecute(
-        conn,
-        "INSERT INTO cohort_manifest (id, label, tags, filePath, hash, cohortType, timestamp, status) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'active')",
-        list(
-          next_id,
-          cohortDef$label,
-          cohortDef$formatTagsAsString(),
-          cohortDef$getFilePath(),
-          cohortDef$getHash(),
-          cohortDef$getCohortType()
-        )
-      )
-
-      # Add to in-memory manifest
-      private$.manifest[[length(private$.manifest) + 1]] <- cohortDef
-
-      cli::cli_alert_success("Added dependent cohort {next_id}: {cohortDef$label} (Type: {cohort_type})")
-      cli::cli_alert_info("Depends on cohort(s): {paste(parent_ids, collapse = ', ')}")
-
-      invisible(next_id)
+      invisible(cohort_id)
     },
 
     #' Sync the manifest against cohort files on disk
@@ -2193,9 +2191,9 @@ CohortManifest <- R6::R6Class(
 
       db_records <- DBI::dbGetQuery(
         conn,
-        "SELECT id, label, tags, filePath, hash, cohortType, status
+        "SELECT id, label, category, tags, file_path, hash, source_type, cohort_type, status
          FROM cohort_manifest
-         WHERE cohortType IN ('circe', 'custom')"
+         WHERE cohort_type IN ('circe', 'custom')"
       )
 
       results <- data.frame(
@@ -2213,7 +2211,7 @@ CohortManifest <- R6::R6Class(
         rec_id     <- rec$id
         rec_label  <- rec$label
         rec_status <- rec$status
-        file_path  <- rec$filePath
+        file_path  <- rec$file_path
 
         if (rec_status == "active" && !file.exists(file_path)) {
           # File has gone missing — soft-delete
@@ -2236,21 +2234,26 @@ CohortManifest <- R6::R6Class(
 
         # Recompute hash and compare
         tryCatch({
-          tmp_def <- CohortDef$new(label = rec_label, tags = list(), filePath = file_path)
+          tmp_def <- CohortDef$new(
+            label = rec_label,
+            category = if (!is.na(rec$category) && nchar(rec$category) > 0) rec$category else "derived",
+            sourceType = if (!is.na(rec$source_type) && nchar(rec$source_type) > 0) rec$source_type else "derived",
+            tags = list(),
+            filePath = file_path
+          )
           new_hash <- tmp_def$getHash()
 
           if (new_hash != rec$hash) {
             DBI::dbExecute(
               conn,
-              "UPDATE cohort_manifest SET hash = ?, timestamp = CURRENT_TIMESTAMP WHERE id = ?",
+              "UPDATE cohort_manifest SET hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
               list(new_hash, rec_id)
             )
             # Update in-memory entry if present
             for (cohort in private$.manifest) {
               if (cohort$getId() == rec_id) {
-                # CohortDef reloads hash on construction; replace the stored object
                 tmp_def$setId(as.integer(rec_id))
-                tmp_def$setCohortType(rec$cohortType)
+                tmp_def$setCohortType(rec$cohort_type)
                 if (!is.na(rec$tags) && rec$tags != "") {
                   tmp_def$tags <- picard::parseTagsString(rec$tags)
                 }
@@ -2270,39 +2273,23 @@ CohortManifest <- R6::R6Class(
         })
       }
 
-      # ── Step 2: discover new files not yet in the manifest ───────────────────
-      existing_rel <- db_records$filePath  # stored as relative paths
+      # ── Step 2: warn about new files not yet in the manifest ────────────────
+      existing_rel <- db_records$file_path
       new_files    <- on_disk[!(on_disk_rel %in% existing_rel)]
 
       if (length(new_files) > 0) {
-        cli::cli_alert_info("Found {length(new_files)} new cohort file(s)")
-      }
-
-      for (file_path in new_files) {
-        label <- tools::file_path_sans_ext(basename(file_path))
-        tryCatch({
-          new_def <- CohortDef$new(label = label, tags = list(), filePath = file_path)
-
-          # Determine next ID
-          max_id_result <- DBI::dbGetQuery(conn, "SELECT MAX(id) as max_id FROM cohort_manifest")
-          max_id  <- ifelse(!is.na(max_id_result$max_id[1]), max_id_result$max_id[1], 0)
-          next_id <- as.integer(max_id + 1)
-          new_def$setId(next_id)
-
-          DBI::dbExecute(
-            conn,
-            "INSERT INTO cohort_manifest (id, label, tags, filePath, hash, cohortType, timestamp, status)
-             VALUES (?, ?, ?, ?, ?, 'circe', CURRENT_TIMESTAMP, 'active')",
-            list(next_id, label, "", new_def$getFilePath(), new_def$getHash())
-          )
-
-          private$.manifest[[length(private$.manifest) + 1]] <- new_def
-          cli::cli_alert_success("Added: {label} (ID {next_id})")
-          results <- rbind(results, data.frame(id = next_id, label = label,
-                                                action = "added", stringsAsFactors = FALSE))
-        }, error = function(e) {
-          cli::cli_alert_danger("Error adding {label}: {e$message}")
-        })
+        cli::cli_alert_warning("{length(new_files)} file(s) on disk not registered in the manifest:")
+        for (f in utils::head(on_disk_rel[!(on_disk_rel %in% existing_rel)], 5)) {
+          cli::cli_bullets(c("!" = "{f}"))
+        }
+        if (length(new_files) > 5) {
+          cli::cli_bullets(c("!" = "... and {length(new_files) - 5} more"))
+        }
+        cli::cli_alert_info("Use $addAtlasCohort(), $addSqlCohort(), or $addCaprCohort() to register them (category is required).")
+        for (f_rel in on_disk_rel[!(on_disk_rel %in% existing_rel)]) {
+          results <- rbind(results, data.frame(id = NA_integer_, label = tools::file_path_sans_ext(basename(f_rel)),
+                                                action = "untracked", stringsAsFactors = FALSE))
+        }
       }
 
       # ── Summary ──────────────────────────────────────────────────────────────
@@ -2552,6 +2539,10 @@ CohortManifest <- R6::R6Class(
       # Cache for storing hashes of each cohort (used for computing dependency hashes)
       cohort_hashes <- list()
 
+      # Open SQLite connection once for dependency lookups inside the loop
+      sqlite_conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(sqlite_conn), add = TRUE)
+
       # Check if checksum table is empty
       checksum_query <- paste0("SELECT COUNT(*) as count FROM ", cohort_schema, ".", checksum_table)
       checksum_count_result <- try(DatabaseConnector::querySql(conn, checksum_query), silent = TRUE)
@@ -2583,8 +2574,18 @@ CohortManifest <- R6::R6Class(
 
         cohort_label <- cohort$label
         cohort_type <- cohort$getCohortType()
-        deps <- cohort$getDependencies()
-        parent_ids <- deps$cohort_ids
+
+        # Query parent IDs from SQLite depends_on column
+        dep_row <- DBI::dbGetQuery(
+          sqlite_conn,
+          "SELECT depends_on FROM cohort_manifest WHERE id = ? AND status = 'active'",
+          list(cohort_id)
+        )
+        parent_ids <- if (nrow(dep_row) > 0 && !is.na(dep_row$depends_on[1]) && nchar(dep_row$depends_on[1]) > 0) {
+          as.integer(jsonlite::fromJSON(dep_row$depends_on[1]))
+        } else {
+          integer(0)
+        }
         depends_on_str <- ifelse(length(parent_ids) > 0, paste(parent_ids, collapse = ", "), "")
 
         # Check if we should skip this cohort based on hash
@@ -2826,8 +2827,17 @@ CohortManifest <- R6::R6Class(
               remaining_cohort_id <- sorted_cohort_ids[j]
               remaining_cohort <- self$getCohortById(remaining_cohort_id)
               if (!is.null(remaining_cohort)) {
-                remaining_deps <- remaining_cohort$getDependencies()
-                remaining_deps_str <- ifelse(length(remaining_deps$cohort_ids) > 0, paste(remaining_deps$cohort_ids, collapse = ", "), "")
+                rem_dep_row <- DBI::dbGetQuery(
+                  sqlite_conn,
+                  "SELECT depends_on FROM cohort_manifest WHERE id = ? AND status = 'active'",
+                  list(remaining_cohort_id)
+                )
+                rem_parent_ids <- if (nrow(rem_dep_row) > 0 && !is.na(rem_dep_row$depends_on[1]) && nchar(rem_dep_row$depends_on[1]) > 0) {
+                  as.integer(jsonlite::fromJSON(rem_dep_row$depends_on[1]))
+                } else {
+                  integer(0)
+                }
+                remaining_deps_str <- ifelse(length(rem_parent_ids) > 0, paste(rem_parent_ids, collapse = ", "), "")
                 results_df <- rbind(results_df, data.frame(
                   cohort_id = remaining_cohort_id,
                   label = remaining_cohort$label,

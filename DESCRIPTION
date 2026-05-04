@@ -13,6 +13,8 @@ Requires: R (>= 3.2)
 Imports:
     R6,
     DBI,
+    glue,
+    lifecycle,
     RSQLite,
     cli,
     checkmate,
