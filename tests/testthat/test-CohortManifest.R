@@ -508,7 +508,7 @@ test_that("deleteCohort soft-deletes cohort", {
   expect_equal(check$status[1], "deleted")
 })
 
-test_that("cleanCohortTable hard-deletes cohort", {
+test_that("hardDeleteCohort hard-deletes cohort and file", {
   temp_dir <- tempfile(prefix = "picard_test_")
   dir.create(temp_dir, recursive = TRUE)
   on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
@@ -528,7 +528,7 @@ test_that("cleanCohortTable hard-deletes cohort", {
   )
 
   # Hard delete with force=TRUE to skip confirmation
-  manifest$cleanCohortTable(cohort_id, force = TRUE)
+  manifest$hardDeleteCohort(cohort_id, force = TRUE)
 
   # Verify file is deleted
   expect_false(file.exists(temp_sql))

@@ -107,6 +107,10 @@ by finding the reverse mapping relationship. For each concept set:
 \item \href{#method-ConceptSetManifest-getDbPath}{\code{ConceptSetManifest$getDbPath()}}
 \item \href{#method-ConceptSetManifest-getExecutionSettings}{\code{ConceptSetManifest$getExecutionSettings()}}
 \item \href{#method-ConceptSetManifest-setExecutionSettings}{\code{ConceptSetManifest$setExecutionSettings()}}
+\item \href{#method-ConceptSetManifest-addConceptSetFile}{\code{ConceptSetManifest$addConceptSetFile()}}
+\item \href{#method-ConceptSetManifest-addAtlasConceptSet}{\code{ConceptSetManifest$addAtlasConceptSet()}}
+\item \href{#method-ConceptSetManifest-addCaprConceptSet}{\code{ConceptSetManifest$addCaprConceptSet()}}
+\item \href{#method-ConceptSetManifest-importAtlasConceptSets}{\code{ConceptSetManifest$importAtlasConceptSets()}}
 \item \href{#method-ConceptSetManifest-queryConceptSetsByIds}{\code{ConceptSetManifest$queryConceptSetsByIds()}}
 \item \href{#method-ConceptSetManifest-queryConceptSetsByTag}{\code{ConceptSetManifest$queryConceptSetsByTag()}}
 \item \href{#method-ConceptSetManifest-queryConceptSetsByLabel}{\code{ConceptSetManifest$queryConceptSetsByLabel()}}
@@ -132,23 +136,21 @@ by finding the reverse mapping relationship. For each concept set:
 Initialize a new ConceptSetManifest
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$new(
-  conceptSetEntries,
-  executionSettings = NULL,
-  dbPath = "inputs/conceptSets/conceptSetManifest.sqlite"
+  dbPath = "inputs/conceptSets/conceptSetManifest.sqlite",
+  executionSettings = NULL
 )}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{conceptSetEntries}}{List. A list of ConceptSetDef objects.}
-
-\item{\code{executionSettings}}{Object. (Optional) Execution settings for accessing the vocabulary database.
-Can be any object type containing configuration for vocabulary queries. Defaults to NULL.
-Only required for operations like extractSourceCodes().}
-
 \item{\code{dbPath}}{Character. Path to the SQLite database. Defaults to
-"inputs/conceptSets/conceptSetManifest.sqlite"
+"inputs/conceptSets/conceptSetManifest.sqlite". The directory is created
+automatically if it does not exist.}
+
+\item{\code{executionSettings}}{ExecutionSettings object. (Optional) Execution settings
+for accessing the vocabulary database. Defaults to NULL. Only required for
+operations like extractSourceCodes().
 Get the manifest as a list of ConceptSetDef objects}
 }
 \if{html}{\out{</div>}}
@@ -223,6 +225,138 @@ Set or update execution settings
 }
 \subsection{Returns}{
 Invisibly returns self for method chaining.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-addConceptSetFile"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-addConceptSetFile}{}}}
+\subsection{Method \code{addConceptSetFile()}}{
+Register a local CIRCE JSON file in the manifest
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$addConceptSetFile(
+  filePath,
+  label,
+  domain = "init",
+  tags = list()
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{filePath}}{Character. Absolute or relative path to a valid CIRCE JSON file.}
+
+\item{\code{label}}{Character. Display name for the concept set.}
+
+\item{\code{domain}}{Character. OMOP CDM domain. One of \code{"drug_exposure"},
+\code{"condition_occurrence"}, \code{"measurement"}, \code{"procedure"}, \code{"observation"},
+\code{"device_exposure"}, \code{"visit_occurrence"}, \code{"init"}. Defaults to \code{"init"}.}
+
+\item{\code{tags}}{Named list. Optional extra metadata tags. Defaults to \code{list()}.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible integer. The assigned concept set ID.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-addAtlasConceptSet"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-addAtlasConceptSet}{}}}
+\subsection{Method \code{addAtlasConceptSet()}}{
+Fetch a single concept set from ATLAS and register it in the manifest
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$addAtlasConceptSet(
+  atlasId,
+  label,
+  domain = "init",
+  tags = list(),
+  atlasConnection
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{atlasId}}{Integer. The ATLAS concept set definition ID.}
+
+\item{\code{label}}{Character. Display name for the concept set.}
+
+\item{\code{domain}}{Character. OMOP CDM domain. Defaults to \code{"init"}.}
+
+\item{\code{tags}}{Named list. Optional extra metadata tags. Defaults to \code{list()}.}
+
+\item{\code{atlasConnection}}{An ATLAS connection object with a
+\code{getConceptSetDefinition(conceptSetId)} method that returns a list with
+\code{expression} (CIRCE JSON string) and \code{saveName} elements.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible integer. The assigned concept set ID.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-addCaprConceptSet"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-addCaprConceptSet}{}}}
+\subsection{Method \code{addCaprConceptSet()}}{
+Export a Capr ConceptSet to JSON and register it in the manifest
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$addCaprConceptSet(
+  caprConceptSet,
+  label,
+  domain = "init",
+  tags = list()
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{caprConceptSet}}{A Capr \code{ConceptSet} object.}
+
+\item{\code{label}}{Character. Display name for the concept set.}
+
+\item{\code{domain}}{Character. OMOP CDM domain. Defaults to \code{"init"}.}
+
+\item{\code{tags}}{Named list. Optional extra metadata tags. Defaults to \code{list()}.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible integer. The assigned concept set ID.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-importAtlasConceptSets"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-importAtlasConceptSets}{}}}
+\subsection{Method \code{importAtlasConceptSets()}}{
+Batch-import concept sets from ATLAS via a conceptSetsLoad CSV
+
+Reads a CSV with columns \code{atlasId}, \code{label}, \code{domain} (required) plus any
+additional columns treated as tag key-value pairs. Calls
+\code{addAtlasConceptSet()} for each row inside a \code{tryCatch} so a single failure
+does not abort the entire batch.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$importAtlasConceptSets(
+  atlasConnection,
+  conceptSetsLoadPath = here::here("inputs/conceptSets/conceptSetsLoad.csv")
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{atlasConnection}}{An ATLAS connection object with a
+\code{getConceptSetDefinition(conceptSetId)} method.}
+
+\item{\code{conceptSetsLoadPath}}{Character. Path to the CSV file. Defaults to
+\code{here::here("inputs/conceptSets/conceptSetsLoad.csv")}.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible tibble with columns \code{id}, \code{label}, \code{status}.
 Query concept sets by IDs
 }
 }

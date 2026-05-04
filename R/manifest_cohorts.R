@@ -568,139 +568,88 @@ parseTagsString <- function(tags_str) {
 
 #' Import CIRCE Cohort Definitions from ATLAS
 #'
-#' Imports CIRCE JSON cohort definitions from an ATLAS WebAPI instance and saves
-#' them to the inputs/cohorts/json folder. This function reads a CSV file containing
-#' cohort metadata and fetches the actual cohort definitions from ATLAS.
-#' 
-#' @description this function looks for a CSV file called cohortsLoad.csv containing cohort metadata.
-#'   Must be located in or accessible from the inputs/cohorts folder.
-#'   The CSV must have the following columns:
-#'   - `atlasId`: ATLAS cohort definition ID (integer)
-#'   - `label`: Cohort name/label (character)
-#'   - `category`: Broad category for the cohort (character)
-#'   - `subCategory`: Sub-category for the cohort (character)
-#' The function will read this CSV, fetch the cohort definitions from ATLAS using the provided atlasConnection,
-#' extract the CIRCE JSON expressions, and save them to the specified output folder with filenames based on the label.
-#' Finally it updates the cohort load CSV with the relative file paths to the saved JSON files.
+#' Imports CIRCE JSON cohort definitions from an ATLAS WebAPI instance and registers
+#' them in the manifest database. This is a wrapper around [CohortManifest]`$importAtlasCohorts()`
+#' that provides a convenient standalone interface.
 #'
-#' @param cohortsFolderPath Character. Path to cohorts folder in Ulysses repo. 
+#' @note This function is deprecated. Use [CohortManifest]`$importAtlasCohorts()` method directly instead.
 #'
 #' @param atlasConnection An ATLAS connection object (typically from ROhdsiWebApi package)
 #'   with a method `getCohortDefinition(cohortId)` that returns a list containing
 #'   an `expression` element with the CIRCE JSON string.
+#' @param manifestPath Character. Path to the cohort manifest database. Defaults to
+#'   `here::here("inputs/cohorts/cohortManifest.sqlite")`. If the database doesn't
+#'   exist, it will be created.
+#' @param cohortsLoadPath Character. Path to the CSV file containing cohort metadata.
+#'   Defaults to `here::here("inputs/cohorts/cohortsLoad.csv")`.
+#'   The CSV must have columns: `atlasId`, `label`, `category`
+#'   (plus optional extra columns for tags).
 #'
-#' @param outputFolder Character. Path to the output folder where cohort JSON files
-#'   will be saved. Defaults to "inputs/cohorts/json". Files are saved as
-#'   `{label}.json`.
-#'
-#' @return Invisibly returns NULL. Saves CIRCE JSON files to outputFolder and
-#'   prints status messages via cli alerts.
+#' @return Invisibly returns a tibble with columns: id, label, status.
+#'   Each row represents an import attempt.
 #'
 #' @details
 #' **Workflow:**
-#' 1. Reads the cohort load CSV file
-#' 2. Validates that all required columns are present
-#' 3. For each row with a valid atlasId:
-#'    - Fetches the cohort definition from ATLAS WebAPI
-#'    - Extracts the CIRCE JSON expression
-#'    - Saves to `outputFolder/{label}.json`
-#' 4. Skips rows with missing atlasId with a warning
-#' 5. Catches and reports errors per cohort without stopping the entire import
+#' 1. Loads or initializes the CohortManifest at `manifestPath`
+#' 2. Calls `manifest$importAtlasCohorts(atlasConnection, cohortsLoadPath)`
+#' 3. Returns the import results tibble
 #'
-#' **Post-Import:**
-#' After running this function, use [loadCohortManifest()] to load the saved
-#' cohort JSON files and build the manifest with metadata.
+#' **CSV Format:**
+#' The cohortsLoad.csv file must have at minimum these columns:
+#' - `atlasId`: ATLAS cohort definition ID (integer)
+#' - `label`: Cohort name/label (character)
+#' - `category`: Broad category for the cohort (character)
+#' - Any additional columns are treated as tags (name = column name, value = cell value)
 #'
 #' @export
 #'
 #' @examples
 #' \dontrun{
 #'   # Assuming ATLAS connection is set up
-#'   importAtlasCohorts(
-#'     cohortFolderPath = here::here("inputs/cohorts"),
+#'   results <- importAtlasCohorts(
 #'     atlasConnection = setAtlasConnection()
 #'   )
 #'
-#'   # Then load the manifest (no settings required for metadata review)
+#'   # View import results
+#'   print(results)
+#'
+#'   # Load the manifest to work with the imported cohorts
 #'   manifest <- loadCohortManifest()
 #' }
 #'
-importAtlasCohorts <- function(cohortsFolderPath = here::here("inputs/cohorts"),
-                               atlasConnection) {
-  cohortLoadPath <- fs::path(cohortsFolderPath, "cohortsLoad.csv")                              
-  # Read cohort manifest CSV file
-  if (!file.exists(cohortLoadPath)) {
-    stop("Cohort load file not found: ", cohortLoadPath)
-  }
+importAtlasCohorts <- function(atlasConnection,
+                               manifestPath = here::here("inputs/cohorts/cohortManifest.sqlite"),
+                               cohortsLoadPath = here::here("inputs/cohorts/cohortsLoad.csv")) {
+  # Deprecation warning
+  lifecycle::deprecate_warn(
+    "0.1.0",
+    "importAtlasCohorts()",
+    details = c(
+      "i" = "Use CohortManifest$importAtlasCohorts() method directly:",
+      "i" = "  manifest <- CohortManifest$new(dbPath = '...')",
+      "i" = "  manifest$importAtlasCohorts(atlasConnection, cohortsLoadPath)"
+    )
+  )
 
-  cohort_load <- readr::read_csv(cohortLoadPath, show_col_types = FALSE)
-
-  # Validate required columns
-  required_cols <- c("atlasId", "label", "category", "subCategory")
-  missing_cols <- setdiff(required_cols, names(cohort_load))
-
-  if (length(missing_cols) > 0) {
-    stop("Cohort load is missing required columns: ", paste(missing_cols, collapse = ", "))
-  }
-
-  # Initialize file_name column
-  cohort_load$file_name <- NA_character_
-
-  cli::cli_alert_info("Importing {nrow(cohort_load)} cohorts from ATLAS...")
-
-  # Process each cohort
-  for (i in seq_len(nrow(cohort_load))) {
-    atlas_id <- cohort_load$atlasId[i]
-    label <- cohort_load$label[i]
-    category <- cohort_load$category[i]
-    sub_category <- cohort_load$subCategory[i]
-
-    # Skip rows with missing atlasId
-    if (is.na(atlas_id)) {
-      cli::cli_alert_warning("Row {i}: Skipping cohort with missing atlasId")
-      next
+  # Load or initialize manifest
+  if (file.exists(manifestPath)) {
+    manifest <- CohortManifest$new(dbPath = manifestPath)
+  } else {
+    # Initialize new manifest
+    cohorts_folder <- dirname(manifestPath)
+    if (!dir.exists(cohorts_folder)) {
+      dir.create(cohorts_folder, recursive = TRUE, showWarnings = FALSE)
     }
-
-    tryCatch({
-      # Get cohort definition from ATLAS
-      cli::cli_alert_info("Fetching cohort {atlas_id}: {label}...")
-      cohort_def <- atlasConnection$getCohortDefinition(cohortId = atlas_id)
-
-      # Extract expression
-      cohort_expression <- cohort_def$expression[1]
-      # extract cohort name from definition to use as file name (fallback to label if not available)
-      cohort_name <- ifelse(!is.null(cohort_def$saveName[1]) && cohort_def$saveName[1] != "", cohort_def$saveName[1], label)
-      # Ensure output folder exists
-      outputFolder <- fs::path(cohortsFolderPath, "json")
-      fs::dir_create(outputFolder)
-      save_path_rel <- fs::path_rel(outputFolder)
-
-      # Create file name from cohort_name (make it file-system friendly)
-      file_name <- fs::path(outputFolder, cohort_name, ext = "json")
-
-      # Write cohort JSON to file
-      readr::write_file(cohort_expression, file = file_name)
-
-      # Store the relative file name in the data frame
-      cohort_load$file_name[i] <- fs::path_rel(file_name)
-
-      cli::cli_alert_success(
-        "Imported cohort {crayon::magenta(cohort_name)} (ID: {atlas_id}) to {crayon::cyan(save_path_rel)}"
-      )
-    }, error = function(e) {
-      cli::cli_alert_danger(
-        "Error importing cohort {cohort_name} (ID: {atlas_id}): {e$message}"
-      )
-    })
+    manifest <- CohortManifest$new(dbPath = manifestPath)
   }
 
-  # Save the updated cohort_load file with file_name column to inputs/cohorts
-  # Generate save path from original file path, keeping the original filename
-  readr::write_csv(cohort_load, file = cohortLoadPath)
-  cli::cli_alert_success("Updated cohort load file saved to: {fs::path_rel(cohortLoadPath)}")
+  # Call the class method to do the actual import
+  results <- manifest$importAtlasCohorts(
+    atlasConnection = atlasConnection,
+    cohortsLoadPath = cohortsLoadPath
+  )
 
-  cli::cli_alert_success("ATLAS cohort import complete")
-  invisible(cohort_load)
+  return(invisible(results))
 }
 
 #' Visualize Cohort Dependencies in a Report

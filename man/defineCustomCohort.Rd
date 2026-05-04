@@ -47,7 +47,7 @@ and the filename as its label
 
 \strong{SQL requirements:}
 Your SQL must use SqlRender parameters instead of hardcoded values. The following
-parameters are automatically injected by \link{CohortManifest}\verb{$generateCohorts()}:
+parameters are automatically injected by \link{CohortManifest}\verb{$executeCohortGeneration()}:
 \itemize{
 \item \verb{@target_cohort_id} — the cohort definition ID assigned by the manifest
 \item \verb{@target_database_schema} — the schema where the cohort table resides

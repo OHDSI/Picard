@@ -178,26 +178,16 @@ ConceptSetManifest <- R6::R6Class(
     .dbPath = NULL,
     .executionSettings = NULL,
 
-    # Initialize the SQLite database
+    # Initialize the SQLite database schema (creates if needed, migrates if upgrading)
     init_manifest = function(dbPath) {
-      # Create inputs/conceptSets directory if it doesn't exist
+      # Create directory if it doesn't exist
       dbDir <- dirname(dbPath)
       if (!dir.exists(dbDir)) {
         dir.create(dbDir, recursive = TRUE, showWarnings = FALSE)
       }
 
-      # Check if database file already exists
-      db_exists <- file.exists(dbPath)
-
       conn <- DBI::dbConnect(RSQLite::SQLite(), dbPath)
-
-      if (!db_exists) {
-        cli::cat_bullet(
-            glue::glue("Initializing concept set manifest at {dbPath}."),
-            bullet = "info",
-            bullet_col = "blue"
-        )
-      }
+      on.exit(DBI::dbDisconnect(conn))
 
       # Create concept set table if it doesn't exist
       DBI::dbExecute(
@@ -214,116 +204,87 @@ ConceptSetManifest <- R6::R6Class(
         )"
       )
 
-      # Run schema migration to add status and deleted_at columns if they don't exist
+      # Run schema migration to add missing columns if upgrading
       private$migrate_schema(conn)
-
-      DBI::dbDisconnect(conn)
-
-      if (db_exists) {
-        cli::cat_bullet(
-            glue::glue("Concept set manifest already exists at {dbPath}."),
-            bullet = "warning",
-            bullet_col = "yellow"
-        )
-      }
     },
 
-    # Populate the manifest with concept set entries
-    populate_manifest = function(manifest) {
+    # Load active concept sets from SQLite into the in-memory manifest list
+    load_manifest_from_db = function() {
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
       on.exit(DBI::dbDisconnect(conn))
 
-      # Check if table is empty
-      existing_count <- DBI::dbGetQuery(
+      db_records <- DBI::dbGetQuery(
         conn,
-        "SELECT COUNT(*) as count FROM concept_set_manifest"
-      )$count
+        "SELECT id, label, tags, filePath FROM concept_set_manifest WHERE status = 'active' ORDER BY id"
+      )
 
-      if (existing_count == 0) {
-        # Table is empty, insert all concept set entries
-        cli::cli_alert_info("Concept set manifest table is empty. Inserting {length(manifest)} concept set entries...")
-        
-        for (i in seq_along(manifest)) {
-          concept_set <- manifest[[i]]
+      private$.manifest <- list()
 
-          DBI::dbExecute(
-            conn,
-            "INSERT INTO concept_set_manifest (id, label, tags, filePath, hash, timestamp) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
-            list(
-              concept_set$getId(),
-              concept_set$label,
-              concept_set$formatTagsAsString(),
-              concept_set$getFilePath(),
-              concept_set$getHash()
-            )
-          )
-          
-          cli::cli_alert_success("Inserted concept set {concept_set$getId()}: {concept_set$label}")
-        }
-        
-        cli::cli_alert_success("Successfully loaded {length(manifest)} concept sets into manifest")
-      } else {
-        # Table has existing entries, check for hash changes
-        cli::cli_alert_info("Checking {length(manifest)} concept sets against existing manifest ({existing_count} entries)...")
-        
-        updated_count <- 0
-        new_count <- 0
-        unchanged_count <- 0
-        
-        for (i in seq_along(manifest)) {
-          concept_set <- manifest[[i]]
-          cs_id <- concept_set$getId()
-          new_hash <- concept_set$getHash()
-
-          # Get existing hash from database
-          existing_record <- DBI::dbGetQuery(
-            conn,
-            "SELECT hash FROM concept_set_manifest WHERE id = ?",
-            list(cs_id)
-          )
-
-          if (nrow(existing_record) == 0) {
-            # New concept set entry, insert it
-            DBI::dbExecute(
-              conn,
-              "INSERT INTO concept_set_manifest (id, label, tags, filePath, hash, timestamp) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
-              list(
-                cs_id,
-                concept_set$label,
-                concept_set$formatTagsAsString(),
-                concept_set$getFilePath(),
-                new_hash
-              )
-            )
-            
-            cli::cli_alert_info("New concept set {cs_id}: {concept_set$label}")
-            new_count <- new_count + 1
-          } else if (existing_record$hash[1] != new_hash) {
-            # Hash has changed, update the record and timestamp
-            DBI::dbExecute(
-              conn,
-              "UPDATE concept_set_manifest SET label = ?, tags = ?, filePath = ?, hash = ?, timestamp = CURRENT_TIMESTAMP WHERE id = ?",
-              list(
-                concept_set$label,
-                concept_set$formatTagsAsString(),
-                concept_set$getFilePath(),
-                new_hash,
-                cs_id
-              )
-            )
-            
-            cli::cli_alert_warning("Updated concept set {cs_id}: {concept_set$label} (JSON hash changed)")
-            updated_count <- updated_count + 1
-          } else {
-            # Hash hasn't changed
-            cli::cli_alert_success("Unchanged concept set {cs_id}: {concept_set$label}")
-            unchanged_count <- unchanged_count + 1
-          }
-        }
-        
-        cli::cli_rule("Concept Set Manifest Update Summary")
-        cli::cli_alert_success("Updated: {updated_count} | New: {new_count} | Unchanged: {unchanged_count}")
+      if (nrow(db_records) == 0) {
+        invisible(NULL)
       }
+
+      for (i in seq_len(nrow(db_records))) {
+        rec <- db_records[i, ]
+        file_path <- private$resolve_file_path(rec$filePath)
+
+        if (!file.exists(file_path)) {
+          cli::cli_alert_warning("Concept set file missing, skipping: {rec$label} ({rec$filePath})")
+          next
+        }
+
+        tryCatch({
+          cs_def <- ConceptSetDef$new(label = rec$label, filePath = file_path)
+          cs_def$setId(as.integer(rec$id))
+
+          if (!is.na(rec$tags) && nchar(rec$tags) > 0) {
+            cs_def$tags <- parseTagsString(rec$tags)
+          }
+
+          private$.manifest[[length(private$.manifest) + 1]] <- cs_def
+        }, error = function(e) {
+          cli::cli_alert_danger("Error loading concept set {rec$label}: {e$message}")
+        })
+      }
+
+      invisible(NULL)
+    },
+
+    # Insert a new concept set record into SQLite and refresh the in-memory manifest
+    insert_concept_set = function(label, tags, file_path) {
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      # Auto-increment ID (never reuse IDs, even for deleted rows)
+      max_id_result <- DBI::dbGetQuery(conn, "SELECT MAX(id) as max_id FROM concept_set_manifest")
+      next_id <- if (is.na(max_id_result$max_id[1])) 1L else as.integer(max_id_result$max_id[1]) + 1L
+
+      # Compute hash from file content
+      hash <- if (file.exists(file_path)) {
+        rlang::hash(readr::read_file(file_path))
+      } else {
+        rlang::hash(label)
+      }
+
+      # Serialize tags to "name: value | ..." string
+      tags_str <- if (length(tags) > 0) {
+        parts <- mapply(function(n, v) paste0(n, ": ", v), names(tags), tags, SIMPLIFY = TRUE)
+        paste(parts, collapse = " | ")
+      } else {
+        ""
+      }
+
+      rel_path <- fs::path_rel(file_path)
+
+      DBI::dbExecute(
+        conn,
+        "INSERT INTO concept_set_manifest (id, label, tags, filePath, hash, timestamp, status)
+         VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'active')",
+        list(next_id, label, tags_str, rel_path, hash)
+      )
+
+      private$load_manifest_from_db()
+      return(next_id)
     },
 
     # Suggest source vocabularies based on domain
@@ -423,61 +384,24 @@ ConceptSetManifest <- R6::R6Class(
   public = list(
     #' @description Initialize a new ConceptSetManifest
     #'
-    #' @param conceptSetEntries List. A list of ConceptSetDef objects.
-    #' @param executionSettings Object. (Optional) Execution settings for accessing the vocabulary database.
-    #'   Can be any object type containing configuration for vocabulary queries. Defaults to NULL.
-    #'   Only required for operations like extractSourceCodes().
     #' @param dbPath Character. Path to the SQLite database. Defaults to
-    #'   "inputs/conceptSets/conceptSetManifest.sqlite"
-    initialize = function(conceptSetEntries, executionSettings = NULL, dbPath = "inputs/conceptSets/conceptSetManifest.sqlite") {
-      # Validate input is a list
-      checkmate::assert_list(x = conceptSetEntries, min.len = 1)
-
-      # Validate all elements are ConceptSetDef objects
-      valid_entries <- all(sapply(conceptSetEntries, function(x) {
-        inherits(x, "ConceptSetDef")
-      }))
-
-      if (!valid_entries) {
-        stop("All elements in conceptSetEntries must be ConceptSetDef objects")
-      }
-
-      private$.manifest <- conceptSetEntries
+    #'   "inputs/conceptSets/conceptSetManifest.sqlite". The directory is created
+    #'   automatically if it does not exist.
+    #' @param executionSettings ExecutionSettings object. (Optional) Execution settings
+    #'   for accessing the vocabulary database. Defaults to NULL. Only required for
+    #'   operations like extractSourceCodes().
+    initialize = function(dbPath = "inputs/conceptSets/conceptSetManifest.sqlite", executionSettings = NULL) {
       private$.dbPath <- dbPath
+      private$.manifest <- list()
 
       checkmate::assert_class(x = executionSettings, classes = "ExecutionSettings", null.ok = TRUE)
       private$.executionSettings <- executionSettings
 
-      # Assign IDs to each concept set entry
-      # Strategy: Preserve existing IDs (from database), assign new IDs to entries without them
-      conn <- DBI::dbConnect(RSQLite::SQLite(), dbPath)
-      on.exit(DBI::dbDisconnect(conn), add = TRUE)
-      
-      # Get the maximum ID ever assigned (including deleted concept sets)
-      max_id_result <- tryCatch({
-        DBI::dbGetQuery(conn, "SELECT MAX(id) as max_id FROM concept_set_manifest")
-      }, error = function(e) {
-        data.frame(max_id = NA)
-      })
-      
-      max_id <- if (!is.na(max_id_result$max_id[1])) max_id_result$max_id[1] else 0
-      next_id <- as.integer(max_id + 1)
-      
-      # Assign IDs: preserve existing ones, assign new ones
-      for (i in seq_along(conceptSetEntries)) {
-        current_id <- conceptSetEntries[[i]]$getId()
-        
-        if (is.na(current_id)) {
-          # No ID set yet, assign the next available ID
-          conceptSetEntries[[i]]$setId(next_id)
-          next_id <- next_id + 1L
-        }
-        # else: ID already set (loaded from database), keep it
-      }
-
-      # Initialize and populate manifest
+      # Initialize SQLite schema (creates DB and table if needed)
       private$init_manifest(dbPath)
-      private$populate_manifest(conceptSetEntries)
+
+      # Load existing active entries from SQLite into memory
+      private$load_manifest_from_db()
     },
 
     #' Get the manifest as a list of ConceptSetDef objects
@@ -521,6 +445,219 @@ ConceptSetManifest <- R6::R6Class(
     setExecutionSettings = function(executionSettings) {
       private$.executionSettings <- executionSettings
       invisible(self)
+    },
+
+    # ========== ADD / IMPORT METHODS ==========
+
+    #' @description Register a local CIRCE JSON file in the manifest
+    #'
+    #' @param filePath Character. Absolute or relative path to a valid CIRCE JSON file.
+    #' @param label Character. Display name for the concept set.
+    #' @param domain Character. OMOP CDM domain. One of `"drug_exposure"`,
+    #'   `"condition_occurrence"`, `"measurement"`, `"procedure"`, `"observation"`,
+    #'   `"device_exposure"`, `"visit_occurrence"`, `"init"`. Defaults to `"init"`.
+    #' @param tags Named list. Optional extra metadata tags. Defaults to `list()`.
+    #'
+    #' @return Invisible integer. The assigned concept set ID.
+    addConceptSetFile = function(filePath, label, domain = "init", tags = list()) {
+      checkmate::assert_file_exists(filePath)
+      checkmate::assert_string(label, min.chars = 1)
+      valid_domains <- c("drug_exposure", "condition_occurrence", "measurement", "procedure",
+                         "observation", "device_exposure", "visit_occurrence", "init")
+      checkmate::assert_choice(domain, valid_domains)
+      checkmate::assert_list(tags, names = "named")
+
+      ext <- tolower(tools::file_ext(filePath))
+
+      if (ext != "json") {
+        cli::cli_abort("filePath must be a .json file, got: .{ext}")
+      }
+
+      # Merge domain into tags
+      all_tags <- c(tags, list(domain = domain))
+
+      cs_id <- private$insert_concept_set(
+        label = label,
+        tags = all_tags,
+        file_path = filePath
+      )
+
+      cli::cli_alert_success("Added concept set {cs_id}: {label}")
+      invisible(cs_id)
+    },
+
+    #' @description Fetch a single concept set from ATLAS and register it in the manifest
+    #'
+    #' @param atlasId Integer. The ATLAS concept set definition ID.
+    #' @param label Character. Display name for the concept set.
+    #' @param domain Character. OMOP CDM domain. Defaults to `"init"`.
+    #' @param tags Named list. Optional extra metadata tags. Defaults to `list()`.
+    #' @param atlasConnection An ATLAS connection object with a
+    #'   `getConceptSetDefinition(conceptSetId)` method that returns a list with
+    #'   `expression` (CIRCE JSON string) and `saveName` elements.
+    #'
+    #' @return Invisible integer. The assigned concept set ID.
+    addAtlasConceptSet = function(atlasId, label, domain = "init", tags = list(), atlasConnection) {
+      checkmate::assert_int(atlasId)
+      checkmate::assert_string(label, min.chars = 1)
+      valid_domains <- c("drug_exposure", "condition_occurrence", "measurement", "procedure",
+                         "observation", "device_exposure", "visit_occurrence", "init")
+      checkmate::assert_choice(domain, valid_domains)
+      checkmate::assert_list(tags, names = "named")
+
+      # Merge domain into tags
+      all_tags <- c(tags, list(domain = domain))
+
+      # Fetch concept set JSON from ATLAS
+      cs_def <- tryCatch(
+        atlasConnection$getConceptSetDefinition(conceptSetId = atlasId),
+        error = function(e) cli::cli_abort("Failed to fetch concept set {atlasId} from ATLAS: {e$message}")
+      )
+      expression_json <- cs_def$expression[1]
+
+      # Save JSON to json/ directory under the manifest folder
+      concept_sets_dir <- dirname(private$.dbPath)
+      json_dir <- fs::path(concept_sets_dir, "json")
+
+      if (!dir.exists(json_dir)) {
+        dir.create(json_dir, recursive = TRUE)
+      }
+
+      cs_name <- ifelse(!is.null(cs_def$saveName[1]) && cs_def$saveName[1] != "", cs_def$saveName[1], label)
+      json_path <- fs::path(json_dir, paste0(cs_name, ".json"))
+      writeLines(expression_json, json_path)
+
+      cs_id <- private$insert_concept_set(
+        label = label,
+        tags = all_tags,
+        file_path = json_path
+      )
+
+      cli::cli_alert_success("Added ATLAS concept set {cs_id}: {label}")
+      invisible(cs_id)
+    },
+
+    #' @description Export a Capr ConceptSet to JSON and register it in the manifest
+    #'
+    #' @param caprConceptSet A Capr `ConceptSet` object.
+    #' @param label Character. Display name for the concept set.
+    #' @param domain Character. OMOP CDM domain. Defaults to `"init"`.
+    #' @param tags Named list. Optional extra metadata tags. Defaults to `list()`.
+    #'
+    #' @return Invisible integer. The assigned concept set ID.
+    addCaprConceptSet = function(caprConceptSet, label, domain = "init", tags = list()) {
+      if (!requireNamespace("Capr", quietly = TRUE)) {
+        cli::cli_abort(c(
+          "Package {.pkg Capr} is required for addCaprConceptSet().",
+          "i" = "Install with: {.code remotes::install_github('ohdsi/Capr')}"
+        ))
+      }
+
+      if (!inherits(caprConceptSet, "ConceptSet")) {
+        cli::cli_abort("caprConceptSet must be a Capr ConceptSet object")
+      }
+
+      checkmate::assert_string(label, min.chars = 1)
+      valid_domains <- c("drug_exposure", "condition_occurrence", "measurement", "procedure",
+                         "observation", "device_exposure", "visit_occurrence", "init")
+      checkmate::assert_choice(domain, valid_domains)
+      checkmate::assert_list(tags, names = "named")
+
+      # Merge domain into tags
+      all_tags <- c(tags, list(domain = domain))
+
+      concept_sets_dir <- dirname(private$.dbPath)
+      json_dir <- fs::path(concept_sets_dir, "json")
+
+      if (!dir.exists(json_dir)) {
+        dir.create(json_dir, recursive = TRUE)
+      }
+
+      safe_label <- gsub("[^a-zA-Z0-9_-]", "_", label)
+      json_path <- fs::path(json_dir, paste0(safe_label, ".json"))
+      Capr::writeCohort(caprConceptSet, json_path)
+
+      cs_id <- private$insert_concept_set(
+        label = label,
+        tags = all_tags,
+        file_path = json_path
+      )
+
+      cli::cli_alert_success("Added Capr concept set {cs_id}: {label}")
+      invisible(cs_id)
+    },
+
+    #' @description Batch-import concept sets from ATLAS via a conceptSetsLoad CSV
+    #'
+    #' Reads a CSV with columns `atlasId`, `label`, `domain` (required) plus any
+    #' additional columns treated as tag key-value pairs. Calls
+    #' `addAtlasConceptSet()` for each row inside a `tryCatch` so a single failure
+    #' does not abort the entire batch.
+    #'
+    #' @param atlasConnection An ATLAS connection object with a
+    #'   `getConceptSetDefinition(conceptSetId)` method.
+    #' @param conceptSetsLoadPath Character. Path to the CSV file. Defaults to
+    #'   `here::here("inputs/conceptSets/conceptSetsLoad.csv")`.
+    #'
+    #' @return Invisible tibble with columns `id`, `label`, `status`.
+    importAtlasConceptSets = function(atlasConnection,
+                                      conceptSetsLoadPath = here::here("inputs/conceptSets/conceptSetsLoad.csv")) {
+      checkmate::assert_file_exists(conceptSetsLoadPath)
+      concept_sets_load <- readr::read_csv(conceptSetsLoadPath, show_col_types = FALSE, comment = "#")
+
+      required_cols <- c("atlasId", "label", "domain")
+      missing_cols <- setdiff(required_cols, names(concept_sets_load))
+
+      if (length(missing_cols) > 0) {
+        cli::cli_abort("conceptSetsLoad.csv missing required columns: {paste(missing_cols, collapse = ', ')}")
+      }
+
+      reserved_cols <- c("atlasId", "label", "domain")
+      tag_cols <- setdiff(names(concept_sets_load), reserved_cols)
+
+      cli::cli_alert_info(
+        "Importing {nrow(concept_sets_load)} concept set(s) from {fs::path_rel(conceptSetsLoadPath)}"
+      )
+
+      results <- vector("list", nrow(concept_sets_load))
+
+      for (i in seq_len(nrow(concept_sets_load))) {
+        row <- concept_sets_load[i, ]
+
+        tags <- list()
+
+        for (col in tag_cols) {
+          val <- row[[col]]
+          if (!is.na(val) && nchar(as.character(val)) > 0) {
+            tags[[col]] <- as.character(val)
+          }
+        }
+
+        tryCatch({
+          cs_id <- self$addAtlasConceptSet(
+            atlasId = as.integer(row$atlasId),
+            label = as.character(row$label),
+            domain = as.character(row$domain),
+            tags = tags,
+            atlasConnection = atlasConnection
+          )
+          results[[i]] <- list(id = cs_id, label = as.character(row$label), status = "success")
+        }, error = function(e) {
+          cli::cli_alert_danger("Failed to import {row$label}: {e$message}")
+          results[[i]] <<- list(id = NA_integer_, label = as.character(row$label),
+                                status = paste("error:", e$message))
+        })
+      }
+
+      result_df <- tibble::tibble(
+        id     = vapply(results, function(x) if (is.null(x$id)) NA_integer_ else as.integer(x$id), integer(1)),
+        label  = vapply(results, function(x) x$label, character(1)),
+        status = vapply(results, function(x) x$status, character(1))
+      )
+
+      successful <- sum(result_df$status == "success")
+      cli::cli_alert_success("Imported {successful}/{nrow(concept_sets_load)} concept set(s)")
+      invisible(result_df)
     },
 
     #' Query concept sets by IDs
@@ -957,7 +1094,7 @@ ConceptSetManifest <- R6::R6Class(
       
       if (!exists) {
         cli::cli_alert_danger("Concept set with ID {id} not found in manifest")
-        return(invisible(FALSE))
+        invisible(FALSE)
       }
       
       # Update status and set deleted_at timestamp
@@ -978,10 +1115,10 @@ ConceptSetManifest <- R6::R6Class(
         
         reason_msg <- if (!is.null(reason)) glue::glue(" ({reason})") else ""
         cli::cli_alert_success("Deleted concept set {id}: {label}{reason_msg}")
-        return(invisible(TRUE))
+        invisible(TRUE)
       }, error = function(e) {
         cli::cli_alert_danger("Failed to delete concept set {id}: {e$message}")
-        return(invisible(FALSE))
+        invisible(FALSE)
       })
     },
 
@@ -1012,7 +1149,7 @@ ConceptSetManifest <- R6::R6Class(
       
       if (nrow(cs_info) == 0) {
         cli::cli_alert_danger("Concept set with ID {id} not found")
-        return(invisible(FALSE))
+        invisible(FALSE)
       }
       
       label <- cs_info$label[1]
@@ -1027,10 +1164,10 @@ ConceptSetManifest <- R6::R6Class(
         )
         
         cli::cli_alert_warning("Permanently removed concept set {id}: {label} (status was: {status})")
-        return(invisible(TRUE))
+        invisible(TRUE)
       }, error = function(e) {
         cli::cli_alert_danger("Failed to remove concept set {id}: {e$message}")
-        return(invisible(FALSE))
+        invisible(FALSE)
       })
     },
 
@@ -1049,7 +1186,7 @@ ConceptSetManifest <- R6::R6Class(
       
       if (nrow(missing_conceptsets) == 0) {
         cli::cli_alert_success("No missing concept sets to clean up")
-        return(invisible(NULL))
+        invisible(NULL)
       }
       
       cli::cli_rule("Cleaning Up Missing Concept Sets")
@@ -1069,7 +1206,7 @@ ConceptSetManifest <- R6::R6Class(
       cleanup_method <- if (keep_trace) "soft deleted (with trace)" else "hard deleted (permanently)"
       cli::cli_alert_success("Cleanup complete: {nrow(missing_conceptsets)} concept set(s) {cleanup_method}")
       
-      return(invisible(NULL))
+      invisible(NULL)
     },
 
     #' Sync the manifest against concept set files on disk

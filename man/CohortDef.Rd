@@ -9,8 +9,8 @@ CohortDef R6 Class
 CohortDef R6 Class
 }
 \details{
-An R6 class that stores key information about CIRCE cohorts that need to be
-generated for a study.
+An R6 class that stores key information about cohorts managed by the CohortManifest.
+Each CohortDef is a pointer to a file on disk (JSON or SQL) with associated metadata.
 
 The CohortDef class manages cohort metadata and SQL generation.
 Upon initialization, it loads and validates cohort definitions from either
@@ -22,7 +22,9 @@ the generated SQL.
 \describe{
 \item{\code{label}}{character to set the label to. If missing, returns the current label.}
 
-\item{\code{tags}}{list of the values to set the tags to. If missing, returns the current label.}
+\item{\code{tags}}{list of the values to set the tags to. If missing, returns the current tags.}
+
+\item{\code{category}}{character to set the category to. If missing, returns the current category.}
 }
 \if{html}{\out{</div>}}
 }
@@ -38,10 +40,9 @@ the generated SQL.
 \item \href{#method-CohortDef-formatTagsAsString}{\code{CohortDef$formatTagsAsString()}}
 \item \href{#method-CohortDef-getCohortType}{\code{CohortDef$getCohortType()}}
 \item \href{#method-CohortDef-setCohortType}{\code{CohortDef$setCohortType()}}
-\item \href{#method-CohortDef-getDependencies}{\code{CohortDef$getDependencies()}}
-\item \href{#method-CohortDef-setDependencies}{\code{CohortDef$setDependencies()}}
-\item \href{#method-CohortDef-getDependencyHash}{\code{CohortDef$getDependencyHash()}}
-\item \href{#method-CohortDef-setDependencyHash}{\code{CohortDef$setDependencyHash()}}
+\item \href{#method-CohortDef-getSourceType}{\code{CohortDef$getSourceType()}}
+\item \href{#method-CohortDef-getCategory}{\code{CohortDef$getCategory()}}
+\item \href{#method-CohortDef-setCategory}{\code{CohortDef$setCategory()}}
 \item \href{#method-CohortDef-clone}{\code{CohortDef$clone()}}
 }
 }
@@ -51,13 +52,17 @@ the generated SQL.
 \subsection{Method \code{new()}}{
 Initialize a new CohortDef
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortDef$new(label, tags = list(), filePath)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortDef$new(label, category, sourceType, tags = list(), filePath)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
 \item{\code{label}}{Character. The common name of the cohort.}
+
+\item{\code{category}}{Character. Required classification (e.g., 'target', 'exposure', 'outcome').}
+
+\item{\code{sourceType}}{Character. Provenance: 'atlas', 'capr', 'sql', or 'derived'.}
 
 \item{\code{tags}}{List. A named list of tags that give metadata about the cohort.}
 
@@ -158,7 +163,7 @@ Get the cohort type
 }
 
 \subsection{Returns}{
-Character. One of 'source', 'subset', 'union', 'complement'. Default: 'source'.
+Character. One of 'circe', 'custom', 'subset', 'union', 'complement', 'composite'.
 Set the cohort type (internal use)
 }
 }
@@ -173,69 +178,50 @@ Set the cohort type (internal use)
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{cohortType}}{Character. One of 'circe', 'subset', 'union', 'complement'.
-Get dependency information}
+\item{\code{cohortType}}{Character. One of 'circe', 'custom', 'subset', 'union', 'complement', 'composite'.
+Get the source type}
 }
 \if{html}{\out{</div>}}
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-CohortDef-getDependencies"></a>}}
-\if{latex}{\out{\hypertarget{method-CohortDef-getDependencies}{}}}
-\subsection{Method \code{getDependencies()}}{
+\if{html}{\out{<a id="method-CohortDef-getSourceType"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortDef-getSourceType}{}}}
+\subsection{Method \code{getSourceType()}}{
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortDef$getDependencies()}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortDef$getSourceType()}\if{html}{\out{</div>}}
 }
 
 \subsection{Returns}{
-List with elements: cohort_ids (integer vector), rule (list of parameters).
-Set dependency information (internal use)
+Character. One of 'atlas', 'capr', 'sql', 'derived'.
+Get the category
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-CohortDef-setDependencies"></a>}}
-\if{latex}{\out{\hypertarget{method-CohortDef-setDependencies}{}}}
-\subsection{Method \code{setDependencies()}}{
+\if{html}{\out{<a id="method-CohortDef-getCategory"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortDef-getCategory}{}}}
+\subsection{Method \code{getCategory()}}{
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortDef$setDependencies(dependsOnCohortIds, dependencyRule)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortDef$getCategory()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Character. The cohort category (e.g., 'target', 'exposure', 'outcome').
+Set the category
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortDef-setCategory"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortDef-setCategory}{}}}
+\subsection{Method \code{setCategory()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortDef$setCategory(category)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{dependsOnCohortIds}}{Integer vector of parent cohort IDs.}
-
-\item{\code{dependencyRule}}{List of dependency parameters.
-Get the dependency hash}
-}
-\if{html}{\out{</div>}}
-}
-}
-\if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-CohortDef-getDependencyHash"></a>}}
-\if{latex}{\out{\hypertarget{method-CohortDef-getDependencyHash}{}}}
-\subsection{Method \code{getDependencyHash()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortDef$getDependencyHash()}\if{html}{\out{</div>}}
-}
-
-\subsection{Returns}{
-Character. Hash of dependencies for change detection, or NULL if none.
-Set the dependency hash (internal use)
-}
-}
-\if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-CohortDef-setDependencyHash"></a>}}
-\if{latex}{\out{\hypertarget{method-CohortDef-setDependencyHash}{}}}
-\subsection{Method \code{setDependencyHash()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortDef$setDependencyHash(depHash)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{depHash}}{Character. Hash to set.}
+\item{\code{category}}{Character. The cohort category.}
 }
 \if{html}{\out{</div>}}
 }

@@ -299,7 +299,7 @@ CohortManifest <- R6::R6Class(
 
       if (nrow(rows) == 0) {
         private$.manifest <- list()
-        return(invisible(NULL))
+        invisible(NULL)
       }
 
       manifest <- list()
@@ -800,45 +800,38 @@ CohortManifest <- R6::R6Class(
     #' @param label Character. Display name for the cohort.
     #' @param category Character. Required classification (e.g., 'target', 'outcome').
     #' @param tags Named list. Optional metadata tags.
-    #' @param baseUrl Character. ATLAS WebAPI base URL.
+    #' @param atlasConnection An ATLAS connection object (e.g., from ROhdsiWebApi::createConnectionDetails)
+    #'   with a method `getCohortDefinition(cohortId)` that returns a list with an `expression` element.
     #'
     #' @return Invisible integer. The assigned cohort ID.
-    addAtlasCohort = function(atlasId, label, category, tags = list(), baseUrl) {
+    addAtlasCohort = function(atlasId, label, category, tags = list(), atlasConnection) {
       checkmate::assert_int(atlasId)
       checkmate::assert_string(label, min.chars = 1)
       checkmate::assert_string(category, min.chars = 1)
       checkmate::assert_list(tags, names = "named")
-      checkmate::assert_string(baseUrl, min.chars = 1)
 
       # Validate label uniqueness
       private$validate_label_unique(label)
 
-      # Fetch cohort JSON from ATLAS
-      cohort_url <- paste0(baseUrl, "/cohortdefinition/", atlasId)
-      response <- tryCatch(
-        httr::GET(cohort_url),
-        error = function(e) {
-          cli::cli_abort("Failed to connect to ATLAS at {baseUrl}: {e$message}")
-        }
-      )
-
-      if (httr::status_code(response) != 200) {
-        cli::cli_abort("ATLAS returned status {httr::status_code(response)} for cohort {atlasId}")
-      }
-
-      cohort_json <- httr::content(response, as = "text", encoding = "UTF-8")
-
-      # Extract the expression from the response
-      parsed <- jsonlite::fromJSON(cohort_json, simplifyVector = FALSE)
-      expression_json <- jsonlite::toJSON(parsed$expression, auto_unbox = TRUE)
+      # Fetch cohort JSON from ATLAS via connection object
+      tryCatch({
+        cohort_def <- atlasConnection$getCohortDefinition(cohortId = atlasId)
+        expression_json <- cohort_def$expression[1]
+      }, error = function(e) {
+        cli::cli_abort("Failed to fetch cohort {atlasId} from ATLAS: {e$message}")
+      })
 
       # Save JSON to json/ directory
       cohorts_dir <- dirname(private$.dbPath)
       json_dir <- fs::path(cohorts_dir, "json")
-      if (!dir.exists(json_dir)) dir.create(json_dir, recursive = TRUE)
 
-      safe_label <- gsub("[^a-zA-Z0-9_-]", "_", label)
-      json_path <- fs::path(json_dir, paste0(safe_label, ".json"))
+      if (!dir.exists(json_dir)) {
+        dir.create(json_dir, recursive = TRUE)
+      } 
+
+      # extract cohort name from definition to use as file name (fallback to label if not available)
+      cohort_name <- ifelse(!is.null(cohort_def$saveName[1]) && cohort_def$saveName[1] != "", cohort_def$saveName[1], label)
+      json_path <- fs::path(json_dir, paste0(cohort_name, ".json"))
       writeLines(expression_json, json_path)
 
       # Register in manifest
@@ -852,25 +845,22 @@ CohortManifest <- R6::R6Class(
       )
 
       cli::cli_alert_success("Added ATLAS cohort {cohort_id}: {label}")
-      return(invisible(cohort_id))
+      invisible(cohort_id)
     },
 
     #' @description Batch import cohorts from ATLAS via cohortsLoad.csv
     #'
-    #' Reads a CSV file with columns `atlasId`, `label`, `category`, `file_name`
+    #' Reads a CSV file with columns `atlasId`, `label`, `category`
     #' (plus optional extra columns for tags) and imports each cohort from ATLAS.
     #'
-    #' @param baseUrl Character. ATLAS WebAPI base URL.
+    #' @param atlasConnection An ATLAS connection object with a `getCohortDefinition(cohortId)` method.
     #' @param cohortsLoadPath Character. Path to the CSV file. Defaults to
-    #'   `"inputs/cohorts/cohortsLoad.csv"`.
+    #'   `here::here("inputs/cohorts/cohortsLoad.csv")`.
     #'
     #' @return Invisible tibble of imported cohorts.
-    importAtlasCohorts = function(baseUrl, cohortsLoadPath = NULL) {
-      checkmate::assert_string(baseUrl, min.chars = 1)
-
+    importAtlasCohorts = function(atlasConnection, cohortsLoadPath = here::here("inputs/cohorts/cohortsLoad.csv")) {
       if (is.null(cohortsLoadPath)) {
-        cohorts_dir <- dirname(private$.dbPath)
-        cohortsLoadPath <- fs::path(cohorts_dir, "cohortsLoad.csv")
+        cohortsLoadPath <- here::here("inputs/cohorts/cohortsLoad.csv")
       }
 
       checkmate::assert_file_exists(cohortsLoadPath)
@@ -908,7 +898,7 @@ CohortManifest <- R6::R6Class(
             label = as.character(row$label),
             category = as.character(row$category),
             tags = tags,
-            baseUrl = baseUrl
+            atlasConnection = atlasConnection
           )
           results[[length(results) + 1]] <- list(
             id = cohort_id, label = row$label, status = "success"
@@ -924,13 +914,14 @@ CohortManifest <- R6::R6Class(
       result_df <- tibble::tibble(
         id = vapply(results, function(x) x$id %||% NA_integer_, integer(1)),
         label = vapply(results, function(x) x$label, character(1)),
-        status = vapply(results, function(x) x$status, character(1))
+        status = vapply(results, function(x) x$status, character(1)
+      )
       )
 
       successful <- sum(result_df$status == "success")
       cli::cli_alert_success("Imported {successful}/{nrow(cohorts_load)} cohort(s)")
 
-      return(invisible(result_df))
+      invisible(result_df)
     },
 
     #' @description Add a Capr cohort
@@ -949,7 +940,8 @@ CohortManifest <- R6::R6Class(
         cli::cli_abort(c(
           "Package {.pkg Capr} is required for addCaprCohort().",
           "i" = "Install with: {.code remotes::install_github('ohdsi/Capr')}"
-        ))
+        )
+        )
       }
 
       if (!inherits(caprCohort, "Cohort")) {
@@ -984,7 +976,7 @@ CohortManifest <- R6::R6Class(
       )
 
       cli::cli_alert_success("Added Capr cohort {cohort_id}: {label}")
-      return(invisible(cohort_id))
+      invisible(cohort_id)
     },
 
     #' @description Add a custom SQL cohort
@@ -1032,7 +1024,7 @@ CohortManifest <- R6::R6Class(
       )
 
       cli::cli_alert_success("Added SQL cohort {cohort_id}: {label}")
-      return(invisible(cohort_id))
+      invisible(cohort_id)
     },
 
     #' @description Build a union cohort from existing cohorts
@@ -1086,7 +1078,7 @@ CohortManifest <- R6::R6Class(
       )
 
       cli::cli_alert_success("Built union cohort {cohort_id}: {label} (depends on: {paste(cohortIds, collapse = ', ')})")
-      return(invisible(cohort_id))
+      invisible(cohort_id)
     },
 
     #' @description Build a subset cohort with temporal criteria
@@ -1154,7 +1146,7 @@ CohortManifest <- R6::R6Class(
       )
 
       cli::cli_alert_success("Built subset cohort {cohort_id}: {label}")
-      return(invisible(cohort_id))
+      invisible(cohort_id)
     },
 
     #' @description Build a complement cohort
@@ -1210,7 +1202,7 @@ CohortManifest <- R6::R6Class(
       )
 
       cli::cli_alert_success("Built complement cohort {cohort_id}: {label}")
-      return(invisible(cohort_id))
+      invisible(cohort_id)
     },
 
     #' @description Build a composite cohort
@@ -1265,7 +1257,7 @@ CohortManifest <- R6::R6Class(
       )
 
       cli::cli_alert_success("Built composite cohort {cohort_id}: {label}")
-      return(invisible(cohort_id))
+      invisible(cohort_id)
     },
 
     # ========== QUERY METHODS ==========
@@ -1613,7 +1605,7 @@ CohortManifest <- R6::R6Class(
 
       if (length(updates) == 0) {
         cli::cli_alert_info("No fields provided to update")
-        return(invisible(NULL))
+        invisible(NULL)
       }
 
       # Build update query
@@ -1630,59 +1622,7 @@ CohortManifest <- R6::R6Class(
       private$load_manifest_from_db()
 
       cli::cli_alert_success("Updated cohort {cohortId}")
-      return(invisible(NULL))
-    },
-
-    #' @description Scan cohorts/ directories and warn about untracked files
-    #'
-    #' Compares files on disk in cohorts/ subdirectories (json/, sql/, derived/)
-    #' against entries in the manifest. Warns about orphaned files.
-    #'
-    #' @return Invisible tibble of untracked files (path, type).
-    syncManifest = function() {
-      cohorts_dir <- dirname(private$.dbPath)
-      subdirs <- c("json", "sql", "derived")
-      untracked <- list()
-
-      for (subdir in subdirs) {
-        subdir_path <- fs::path(cohorts_dir, subdir)
-        if (!dir.exists(subdir_path)) {
-          next
-        }
-
-        files <- list.files(subdir_path, pattern = "\\.(json|sql)$", full.names = FALSE)
-
-        for (file in files) {
-          rel_path <- fs::path(subdir, file)
-          exists_in_manifest <- any(
-            sapply(private$.manifest, function(cohort) cohort$filePath == rel_path)
-          )
-
-          if (!exists_in_manifest) {
-            untracked[[length(untracked) + 1]] <- list(
-              path = rel_path,
-              type = subdir,
-              status = "untracked"
-            )
-          }
-        }
-      }
-
-      if (length(untracked) > 0) {
-        untracked_df <- tibble::tibble(
-          path = vapply(untracked, function(x) x$path, character(1)),
-          type = vapply(untracked, function(x) x$type, character(1)),
-          status = vapply(untracked, function(x) x$status, character(1))
-        )
-
-        cli::cli_alert_warning("Found {nrow(untracked_df)} untracked file(s) in cohorts/")
-        print(untracked_df)
-
-        return(invisible(untracked_df))
-      } else {
-        cli::cli_alert_success("All files are tracked in the manifest")
-        return(invisible(tibble::tibble(path = character(0), type = character(0), status = character(0))))
-      }
+      invisible(NULL)
     },
 
     #' @description Generate a status report for the manifest
@@ -1702,7 +1642,7 @@ CohortManifest <- R6::R6Class(
 
       if (nrow(report) == 0) {
         cli::cli_alert_info("No active cohorts in manifest")
-        return(invisible(tibble::tibble()))
+        invisible(tibble::tibble())
       }
 
       # Parse depends_on JSON for display
@@ -1722,7 +1662,7 @@ CohortManifest <- R6::R6Class(
       cli::cli_h1("Cohort Manifest Status Report")
       print(report_tbl)
 
-      return(invisible(report_tbl))
+      invisible(report_tbl)
     },
 
     #' @description Print a friendly view of the CohortManifest
@@ -1759,43 +1699,6 @@ CohortManifest <- R6::R6Class(
       invisible(self)
     },
 
-    #' @description Soft-delete a cohort from the manifest
-    #'
-    #' Sets a cohort's status to 'deleted' without removing the row or file.
-    #' The cohort remains in the database for audit purposes.
-    #'
-    #' @param cohortId Integer. The cohort ID to delete.
-    #'
-    #' @return Invisible NULL. Marks the cohort as deleted.
-    deleteCohort = function(cohortId) {
-      checkmate::assert_int(cohortId)
-
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
-      on.exit(DBI::dbDisconnect(conn))
-
-      cohort_row <- DBI::dbGetQuery(
-        conn,
-        "SELECT label FROM cohort_manifest WHERE id = ? AND status = 'active'",
-        list(cohortId)
-      )
-
-      if (nrow(cohort_row) == 0) {
-        cli::cli_abort("Cohort {cohortId} not found or already deleted")
-      }
-
-      DBI::dbExecute(
-        conn,
-        "UPDATE cohort_manifest SET status = 'deleted', deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
-        list(cohortId)
-      )
-
-      # Refresh in-memory manifest
-      private$load_manifest_from_db()
-
-      cli::cli_alert_success("Deleted cohort {cohortId}: {cohort_row$label[1]}")
-      return(invisible(NULL))
-    },
-
     #' @description Hard-delete a cohort and its files
     #'
     #' Permanently removes a cohort from the manifest database AND deletes
@@ -1805,7 +1708,7 @@ CohortManifest <- R6::R6Class(
     #' @param force Logical. If FALSE (default), requires confirmation. If TRUE, skips confirmation.
     #'
     #' @return Invisible NULL. Removes the cohort from database and disk.
-    cleanCohortTable = function(cohortId, force = FALSE) {
+    hardDeleteCohort = function(cohortId, force = FALSE) {
       checkmate::assert_int(cohortId)
       checkmate::assert_flag(force)
 
@@ -1832,7 +1735,7 @@ CohortManifest <- R6::R6Class(
           response <- readline("Type 'yes' to confirm: ")
           if (!grepl("^yes$", trimws(tolower(response)))) {
             cli::cli_alert_info("Cancellation confirmed")
-            return(invisible(NULL))
+            invisible(NULL)
           }
         }
       }
@@ -1854,7 +1757,7 @@ CohortManifest <- R6::R6Class(
       private$load_manifest_from_db()
 
       cli::cli_alert_success("Permanently removed cohort {cohortId}: {label}")
-      return(invisible(NULL))
+      invisible(NULL)
     },
 
     #' Create cohort tables in the database
@@ -1865,7 +1768,7 @@ CohortManifest <- R6::R6Class(
     #'
     #' @details
     #' Requires that executionSettings has been set and includes:
-    #' - A database connection (via getConnection())
+    #' - A database connection (via getConnection()
     #' - workDatabaseSchema for the target schema
     #' - cohortTable with the desired table name
     #' - tempEmulationSchema if needed for the database platform
@@ -1972,7 +1875,7 @@ CohortManifest <- R6::R6Class(
     #'
     #' @details
     #' Requires that executionSettings has been set and includes:
-    #' - A database connection (via getConnection())
+    #' - A database connection (via getConnection()
     #' - workDatabaseSchema for the target schema
     #' - cohortTable with the desired table name
     #'
@@ -2041,7 +1944,8 @@ CohortManifest <- R6::R6Class(
 
         if (length(invalid_types) > 0) {
           stop("Invalid table types: ", paste(invalid_types, collapse = ", "),
-               "\nValid options: ", paste(valid_types, collapse = ", "))
+               "\nValid options: ", paste(valid_types, collapse = ", ")
+          )
         }
 
         tables_to_drop <- all_tables[tableTypes]
@@ -2518,7 +2422,7 @@ CohortManifest <- R6::R6Class(
     #' 7. Report results with cohort_type, depends_on, dependency_status columns
     #'
     #' Requires that executionSettings has been set and includes:
-    #' - A database connection (via getConnection())
+    #' - A database connection (via getConnection()
     #' - cdmDatabaseSchema (where the OMOP CDM data resides)
     #' - workDatabaseSchema (where cohort results are written)
     #' - cohortTable (destination table name)
@@ -3177,7 +3081,7 @@ CohortManifest <- R6::R6Class(
       
       if (!exists) {
         cli::cli_alert_danger("Cohort with ID {id} not found in manifest")
-        return(invisible(FALSE))
+        invisible(FALSE)
       }
       
       # Update status and set deleted_at timestamp
@@ -3198,10 +3102,10 @@ CohortManifest <- R6::R6Class(
         
         reason_msg <- ifelse(!is.null(reason), glue::glue(" ({reason})"), "")
         cli::cli_alert_success("Deleted cohort {id}: {label}{reason_msg}")
-        return(invisible(TRUE))
+        invisible(TRUE)
       }, error = function(e) {
         cli::cli_alert_danger("Failed to delete cohort {id}: {e$message}")
-        return(invisible(FALSE))
+        invisible(FALSE)
       })
     },
 
@@ -3233,7 +3137,7 @@ CohortManifest <- R6::R6Class(
       
       if (nrow(cohort_info) == 0) {
         cli::cli_alert_danger("Cohort with ID {id} not found")
-        return(invisible(FALSE))
+        invisible(FALSE)
       }
       
       label <- cohort_info$label[1]
@@ -3248,10 +3152,10 @@ CohortManifest <- R6::R6Class(
         )
         
         cli::cli_alert_warning("Permanently removed cohort {id}: {label} (status was: {status})")
-        return(invisible(TRUE))
+        invisible(TRUE)
       }, error = function(e) {
         cli::cli_alert_danger("Failed to remove cohort {id}: {e$message}")
-        return(invisible(FALSE))
+        invisible(FALSE)
       })
     },
 
@@ -3270,7 +3174,7 @@ CohortManifest <- R6::R6Class(
       
       if (nrow(missing_cohorts) == 0) {
         cli::cli_alert_success("No missing cohorts to clean up")
-        return(invisible(NULL))
+        invisible(NULL)
       }
       
       cli::cli_rule("Cleaning Up Missing Cohorts")
@@ -3290,7 +3194,7 @@ CohortManifest <- R6::R6Class(
       cleanup_method <- ifelse(keep_trace, "soft deleted (with trace)", "hard deleted (permanently)")
       cli::cli_alert_success("Cleanup complete: {nrow(missing_cohorts)} cohort(s) {cleanup_method}")
       
-      return(invisible(NULL))
+      invisible(NULL)
     }
   )
 )
