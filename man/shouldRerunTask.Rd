@@ -30,7 +30,7 @@ List with elements:
 \item reasons: Character vector. Why task should be rerun
 \item last_run_info: List with previous run details (time, version, status)
 \item task_file_hash: Current hash of task file
-\item cohort_hash_status: List comparing manifest hashes to database hashes
+\item cohort_manifest_hash: Current hash of cohort manifest definitions
 }
 }
 \description{
@@ -38,7 +38,7 @@ Determines whether a task needs to be rerun by checking:
 \enumerate{
 \item Task file modifications (file hash comparison)
 \item Dependency file modifications (extracted from source() calls)
-\item Cohort generation changes (hash comparison in database)
+\item Cohort manifest changes (hash comparison)
 \item Previous run errors (checked in logs and history)
 \item Version changes
 }
@@ -47,6 +47,6 @@ Determines whether a task needs to be rerun by checking:
 Creates/updates exec/logs/task_run_history.csv tracking:
 \itemize{
 \item task_name, config_block, last_run_time, pipeline_version
-\item task_file_hash, cohort_hash_match, status, error_message
+\item task_file_hash, cohort_manifest_hash, status, error_message
 }
 }

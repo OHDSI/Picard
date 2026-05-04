@@ -3,7 +3,7 @@
 #' @description Determines whether a task needs to be rerun by checking:
 #'   1. Task file modifications (file hash comparison)
 #'   2. Dependency file modifications (extracted from source() calls)
-#'   3. Cohort generation changes (hash comparison in database)
+#'   3. Cohort manifest changes (hash comparison)
 #'   4. Previous run errors (checked in logs and history)
 #'   5. Version changes
 #'
@@ -18,12 +18,12 @@
 #'   - reasons: Character vector. Why task should be rerun
 #'   - last_run_info: List with previous run details (time, version, status)
 #'   - task_file_hash: Current hash of task file
-#'   - cohort_hash_status: List comparing manifest hashes to database hashes
+#'   - cohort_manifest_hash: Current hash of cohort manifest definitions
 #'
 #' @details
 #' Creates/updates exec/logs/task_run_history.csv tracking:
 #' - task_name, config_block, last_run_time, pipeline_version
-#' - task_file_hash, cohort_hash_match, status, error_message
+#' - task_file_hash, cohort_manifest_hash, status, error_message
 #'
 #' @export
 shouldRerunTask <- function(
@@ -94,14 +94,16 @@ shouldRerunTask <- function(
     rerunNeeded <- TRUE
   }
 
-  # Check 3: Cohort generation changes (compare hashes)
-  cohortHashStatus <- .checkCohortHashChanges(executionSettings)
-  if (!is.null(cohortHashStatus)) {
-    if (cohortHashStatus$has_changes) {
-      reasons <- c(reasons, paste(
-        "Cohort generation changed:",
-        cohortHashStatus$changed_count, "cohort(s) updated"
-      ))
+  # Check 3: Cohort manifest has changed
+  currentCohortManifestHash <- .getCohortManifestHash()
+  if (!is.null(currentCohortManifestHash)) {
+    if (!is.null(lastRunInfo) && !is.na(lastRunInfo$cohort_manifest_hash)) {
+      if (lastRunInfo$cohort_manifest_hash != currentCohortManifestHash) {
+        reasons <- c(reasons, "Cohort manifest has changed")
+        rerunNeeded <- TRUE
+      }
+    } else {
+      reasons <- c(reasons, "No previous cohort manifest hash recorded")
       rerunNeeded <- TRUE
     }
   }
@@ -137,14 +139,14 @@ shouldRerunTask <- function(
   } else {
     cli::cli_alert_success(message)
   }
-
-  return(list(
+   ll <- list(
     should_rerun = rerunNeeded,
     reasons = reasons,
     last_run_info = if (nrow(previousRuns) > 0) previousRuns else NULL,
     task_file_hash = currentTaskHash,
-    cohort_hash_status = cohortHashStatus
-  ))
+    cohort_manifest_hash = currentCohortManifestHash
+  )
+  return(ll)
 }
 
 
@@ -155,6 +157,7 @@ shouldRerunTask <- function(
 #' @param configBlock Character. Config block name
 #' @param pipelineVersion Character. Pipeline version
 #' @param status Character. Execution status ("success", "failed", "skipped")
+#' @param cohortManifestHash Character. Hash of cohort manifest at time of execution (optional)
 #' @param errorMessage Character. Error message if status is "failed" (optional)
 #' @param tasksFolderPath Character. Path to tasks folder (optional)
 #'
@@ -165,6 +168,7 @@ recordTaskExecution <- function(
     configBlock,
     pipelineVersion,
     status,
+    cohortManifestHash = NA_character_,
     errorMessage = NA_character_,
     tasksFolderPath = here::here("analysis/tasks")) {
 
@@ -199,9 +203,9 @@ recordTaskExecution <- function(
     last_run_time = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
     pipeline_version = pipelineVersion,
     task_file_hash = taskHash,
-    cohort_hash_match = NA_character_,
+    cohort_manifest_hash = ifelse(is.na(cohortManifestHash), "", cohortManifestHash),
     status = status,
-    error_message = if (is.na(errorMessage)) "" else errorMessage,
+    error_message = ifelse(is.na(errorMessage), "", errorMessage),
     stringsAsFactors = FALSE
   )
 
@@ -240,7 +244,7 @@ recordTaskExecution <- function(
           last_run_time = readr::col_character(),
           pipeline_version = readr::col_character(),
           task_file_hash = readr::col_character(),
-          cohort_hash_match = readr::col_character(),
+          cohort_manifest_hash = readr::col_character(),
           status = readr::col_character(),
           error_message = readr::col_character()
         )
@@ -265,7 +269,7 @@ recordTaskExecution <- function(
     last_run_time = character(),
     pipeline_version = character(),
     task_file_hash = character(),
-    cohort_hash_match = character(),
+    cohort_manifest_hash = character(),
     status = character(),
     error_message = character(),
     stringsAsFactors = FALSE
@@ -318,78 +322,29 @@ recordTaskExecution <- function(
 }
 
 
-#' @title Check for Cohort Hash Changes
-#' @description Compares cohort manifest hashes with database checksum table.
-#' @param executionSettings ExecutionSettings object
-#' @return List with comparison results or NULL if errors occur
+#' @title Get Cohort Manifest Hash
+#' @description Loads the cohort manifest and computes a SHA256 hash of the entire manifest.
+#'   This hash is used to detect changes in cohort definitions that would require task reruns.
+#' @return Character. SHA256 hash of the cohort manifest, or NA_character_ if error occurs
 #' @keywords internal
-.checkCohortHashChanges <- function(executionSettings) {
+.getCohortManifestHash <- function() {
   tryCatch({
     # Load manifest
     cohortManifest <- loadCohortManifest(
-      executionSettings = executionSettings,
       cohortsFolderPath = here::here("inputs/cohorts"),
       verbose = FALSE
     )
+    # pull all manifest entries and compute hash
     cm <- cohortManifest$getManifest()
-    if (is.null(cohortManifest) || nrow(cm) == 0) {
-      return(list(
-        has_changes = FALSE,
-        changed_count = 0,
-        unchanged_count = 0
-      ))
-    }
-
-    # Connect to database
-    executionSettings$connect()
-    conn <- executionSettings$getConnection()
-    on.exit(executionSettings$disconnect(), add = TRUE)
-
-    # Query checksum table
-    workDatabaseSchema <- executionSettings$workDatabaseSchema
-    cohortTable <- executionSettings$cohortTable
-
-    checksumQuery <- glue::glue(
-      "SELECT cohort_definition_id, checksum FROM {workDatabaseSchema}.{cohortTable}_checksum",
-    )
-
-    dbChecksums <- tryCatch({
-      DatabaseConnector::querySql(conn, checksumQuery)
-    }, error = function(e) {
-      return(data.frame())
-    })
-
-    # Compare hashes
-    changedCount <- 0
-    unchangedCount <- 0
+    cmHashes <- purrr::map_chr(cm, ~.x$getHash())
     
-    for (i in seq_len(nrow(cm))) {
-      cohortId <- cm$id[i]
-      manifestHash <- cm$hash[i]
-
-      # Find corresponding database checksum
-      dbHash <- dbChecksums$CHECKSUM[
-        dbChecksums$COHORT_DEFINITION_ID == cohortId
-      ]
-
-      if (length(dbHash) > 0 && dbHash != manifestHash) {
-        changedCount <- changedCount + 1
-      } else if (length(dbHash) > 0) {
-        unchangedCount <- unchangedCount + 1
-      } else {
-        changedCount <- changedCount + 1 # New cohort
-      }
-    }
-
-    return(list(
-      has_changes = changedCount > 0,
-      changed_count = changedCount,
-      unchanged_count = unchangedCount,
-      total_count = nrow(cm)
-    ))
+    # Combine all hashes into a single string and hash that
+    manifestHash <- digest::digest(cmHashes, algo = "sha256")
+    
+    return(manifestHash)
   }, error = function(e) {
-    cli::cli_alert_warning("Could not check cohort hashes: {e$message}")
-    return(NULL)
+    cli::cli_alert_warning("Could not compute cohort manifest hash: {e$message}")
+    return(NA_character_)
   })
 }
 
@@ -419,7 +374,7 @@ getTaskRunSummary <- function(configBlock = NULL, taskName = NULL) {
         last_run_time = readr::col_character(),
         pipeline_version = readr::col_character(),
         task_file_hash = readr::col_character(),
-        cohort_hash_match = readr::col_character(),
+        cohort_manifest_hash = readr::col_character(),
         status = readr::col_character(),
         error_message = readr::col_character()
       )
@@ -466,7 +421,7 @@ displayTaskStatusReport <- function(limit = 20) {
         last_run_time = readr::col_character(),
         pipeline_version = readr::col_character(),
         task_file_hash = readr::col_character(),
-        cohort_hash_match = readr::col_character(),
+        cohort_manifest_hash = readr::col_character(),
         status = readr::col_character(),
         error_message = readr::col_character()
       )

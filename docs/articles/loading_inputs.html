@@ -6,12 +6,12 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <meta name="description" content="picard">
-<title>Loading Inputs: Cohorts and Concept Sets • picard</title>
+<title>Loading Inputs: Getting Started • picard</title>
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="../deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
 <script src="../deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><!-- Font Awesome icons --><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/all.min.css" integrity="sha256-mmgLkCYLUQbXn0B1SRqzHar6dCnv9oZFPEC1g1cwlkk=" crossorigin="anonymous">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/v4-shims.min.css" integrity="sha256-wZjR52fzng1pJHwx4aV2AO3yyTOXrcDW7jBpJtTwVxw=" crossorigin="anonymous">
-<!-- bootstrap-toc --><script src="https://cdn.jsdelivr.net/gh/afeld/bootstrap-toc@v1.0.1/dist/bootstrap-toc.min.js" integrity="sha256-4veVQbu7//Lk5TSmc7YV48MxtMy98e26cf5MrgZYnwo=" crossorigin="anonymous"></script><!-- headroom.js --><script src="https://cdnjs.cloudflare.com/ajax/libs/headroom/0.11.0/headroom.min.js" integrity="sha256-AsUX4SJE1+yuDu5+mAVzJbuYNPHj/WroHuZ8Ir/CkE0=" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/headroom/0.11.0/jQuery.headroom.min.js" integrity="sha256-ZX/yNShbjqsohH1k95liqY9Gd8uOiE1S4vZc+9KQ1K4=" crossorigin="anonymous"></script><!-- clipboard.js --><script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.11/clipboard.min.js" integrity="sha512-7O5pXpc0oCRrxk8RUfDYFgn0nO1t+jLuIOQdOMRp4APB7uZ4vSjspzp5y6YDtDs4VzUSTbWzBFZ/LKJhnyFOKw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script><!-- search --><script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/6.4.6/fuse.js" integrity="sha512-zv6Ywkjyktsohkbp9bb45V6tEMoWhzFzXis+LrMehmJZZSys19Yxf1dopHx7WzIKxr5tK2dVcYmaCk2uqdjF4A==" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/autocomplete.js/0.38.0/autocomplete.jquery.min.js" integrity="sha512-GU9ayf+66Xx2TmpxqJpliWbT5PiGYxpaG8rfnBEk1LL8l1KGkRShhngwdXK1UgqhAzWpZHSiYPc09/NwDQIGyg==" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/mark.js/8.11.1/mark.min.js" integrity="sha512-5CYOlHXGh6QpOFA/TeTylKLWfB3ftPsde7AnmhuitiTX4K5SqCLBeKro6sPS8ilsz1Q4NRx3v8Ko2IBiszzdww==" crossorigin="anonymous"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Loading Inputs: Cohorts and Concept Sets">
+<!-- bootstrap-toc --><script src="https://cdn.jsdelivr.net/gh/afeld/bootstrap-toc@v1.0.1/dist/bootstrap-toc.min.js" integrity="sha256-4veVQbu7//Lk5TSmc7YV48MxtMy98e26cf5MrgZYnwo=" crossorigin="anonymous"></script><!-- headroom.js --><script src="https://cdnjs.cloudflare.com/ajax/libs/headroom/0.11.0/headroom.min.js" integrity="sha256-AsUX4SJE1+yuDu5+mAVzJbuYNPHj/WroHuZ8Ir/CkE0=" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/headroom/0.11.0/jQuery.headroom.min.js" integrity="sha256-ZX/yNShbjqsohH1k95liqY9Gd8uOiE1S4vZc+9KQ1K4=" crossorigin="anonymous"></script><!-- clipboard.js --><script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.11/clipboard.min.js" integrity="sha512-7O5pXpc0oCRrxk8RUfDYFgn0nO1t+jLuIOQdOMRp4APB7uZ4vSjspzp5y6YDtDs4VzUSTbWzBFZ/LKJhnyFOKw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script><!-- search --><script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/6.4.6/fuse.js" integrity="sha512-zv6Ywkjyktsohkbp9bb45V6tEMoWhzFzXis+LrMehmJZZSys19Yxf1dopHx7WzIKxr5tK2dVcYmaCk2uqdjF4A==" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/autocomplete.js/0.38.0/autocomplete.jquery.min.js" integrity="sha512-GU9ayf+66Xx2TmpxqJpliWbT5PiGYxpaG8rfnBEk1LL8l1KGkRShhngwdXK1UgqhAzWpZHSiYPc09/NwDQIGyg==" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/mark.js/8.11.1/mark.min.js" integrity="sha512-5CYOlHXGh6QpOFA/TeTylKLWfB3ftPsde7AnmhuitiTX4K5SqCLBeKro6sPS8ilsz1Q4NRx3v8Ko2IBiszzdww==" crossorigin="anonymous"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Loading Inputs: Getting Started">
 <meta property="og:description" content="picard">
 <!-- mathjax --><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js" integrity="sha256-nvJJv9wWKEm88qvoQl9ekL2J+k/RWIsaSScxxlsrv8k=" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/config/TeX-AMS-MML_HTMLorMML.js" integrity="sha256-84DKXVJXs0/F8OTMzX4UR909+jtl4G7SPypPavF+GfA=" crossorigin="anonymous"></script><!--[if lt IE 9]>
 <script src="https://oss.maxcdn.com/html5shiv/3.7.3/html5shiv.min.js"></script>
@@ -26,7 +26,7 @@
     
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.3</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -57,7 +57,7 @@
 
       <ul class="navbar-nav">
 <li class="nav-item">
-  <a class="external-link nav-link" href="https://github.com/mdlavallee92/picard">
+  <a class="external-link nav-link" href="https://github.com/ohdsi/Picard">
     <span class="fab fa fab fa-github"></span>
      
   </a>
@@ -74,491 +74,283 @@
 
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
-      <img src="" class="logo" alt=""><h1>Loading Inputs: Cohorts and Concept Sets</h1>
+      <img src="" class="logo" alt=""><h1>Loading Inputs: Getting Started</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/mdlavallee92/picard/blob/HEAD/vignettes/loading_inputs.Rmd" class="external-link"><code>vignettes/loading_inputs.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/ohdsi/Picard/blob/HEAD/vignettes/loading_inputs.Rmd" class="external-link"><code>vignettes/loading_inputs.Rmd</code></a></small>
       <div class="d-none name"><code>loading_inputs.Rmd</code></div>
     </div>
 
     
     
+<div class="section level2">
+<h2 id="overview">Overview<a class="anchor" aria-label="anchor" href="#overview"></a>
+</h2>
+<p>Before running your study pipeline you need two types of inputs:</p>
+<ul>
+<li>
+<strong>Cohorts</strong> “” study populations, comparators, and
+outcomes as CIRCE JSON definitions (from ATLAS or Capr) or custom
+SQL</li>
+<li>
+<strong>Concept Sets</strong> “” phenotype definitions for diseases,
+exposures, covariates, etc.</li>
+</ul>
+<p>Picard tracks both through <em>manifests</em> “” SQLite databases
+that record every definition’s file path, MD5 hash, metadata, and
+provenance. Each session you load the manifest into memory; the SQLite
+file is the durable source of truth.</p>
 <blockquote>
-<p><strong>Note:</strong> This vignette is currently in development and
-subject to change.</p>
+<p>For a deep-dive into the manifest architecture, derived cohorts,
+mid-cycle changes, and reset options, see the <a href="manifest_overview.html">Manifest: Architecture, Workflows, and
+Helpers</a> vignette.</p>
 </blockquote>
-<div class="section level2">
-<h2 id="introduction">Introduction<a class="anchor" aria-label="anchor" href="#introduction"></a>
-</h2>
-<p>Before running your study pipeline, you need to define the
-populations and phenotypes your analysis will use. Picard organizes
-these through two key input types:</p>
-<ul>
-<li>
-<strong>Cohorts:</strong> Define study populations, comparators, and
-outcomes as CIRCE-based JSON definitions or custom SQL</li>
-<li>
-<strong>Concept Sets:</strong> Define phenotypes for diseases,
-exposures, covariates, etc. as CIRCE-based JSON definitions</li>
-</ul>
-<p>Picard uses <em>manifests</em> to catalog, version, and track these
-definitions throughout your study. This vignette walks through the
-complete workflow for loading and managing cohorts and concept sets.</p>
+<hr>
 </div>
 <div class="section level2">
-<h2 id="manifest-overview">Manifest Overview<a class="anchor" aria-label="anchor" href="#manifest-overview"></a>
+<h2 id="the-loadinginputs-r-template">The <code>loadingInputs.R</code> Template<a class="anchor" aria-label="anchor" href="#the-loadinginputs-r-template"></a>
 </h2>
-<p>A manifest is a SQLite database that catalogs and tracks definitions.
-For each cohort or concept set, the manifest stores:</p>
-<ul>
-<li>
-<strong>Metadata:</strong> ID, label, category, source (ATLAS or
-manual)</li>
-<li>
-<strong>File information:</strong> Path and MD5 hash for change
-detection</li>
-<li>
-<strong>Provenance:</strong> When added, last modified, execution
-status</li>
-<li>
-<strong>Tags:</strong> Categorization for querying and grouping</li>
-</ul>
-<p>Manifests enable reproducibility and change tracking as your study
-evolves.</p>
+<p>Every picard study is generated with a <code>loadingInputs.R</code>
+script in <code>extras/</code>. This script is the canonical place to
+run first-time setup and subsequent-session loading. Open it in RStudio
+and work through the sections in order.</p>
+<p>The template has three top-level sections:</p>
+<table class="table">
+<colgroup>
+<col width="50%">
+<col width="50%">
+</colgroup>
+<thead><tr class="header">
+<th>Section</th>
+<th>Purpose</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td><strong>A. Concept Sets “” First Time</strong></td>
+<td>
+<code><a href="../reference/initConceptSetManifest.html">initConceptSetManifest()</a></code>, fill CSV, connect ATLAS,
+<code><a href="../reference/importAtlasConceptSets.html">importAtlasConceptSets()</a></code>
+</td>
+</tr>
+<tr class="even">
+<td><strong>B. Cohorts “” First Time</strong></td>
+<td>
+<code><a href="../reference/initCohortManifest.html">initCohortManifest()</a></code>, fill CSV, connect ATLAS,
+<code><a href="../reference/importAtlasCohorts.html">importAtlasCohorts()</a></code>
+</td>
+</tr>
+<tr class="odd">
+<td><strong>C. Subsequent Sessions</strong></td>
+<td>
+<code><a href="../reference/loadConceptSetManifest.html">loadConceptSetManifest()</a></code> +
+<code><a href="../reference/loadCohortManifest.html">loadCohortManifest()</a></code>
+</td>
+</tr>
+</tbody>
+</table>
+<p>Run only the section that applies to your current situation.</p>
+<hr>
 </div>
 <div class="section level2">
-<h2 id="working-with-cohorts">Working with Cohorts<a class="anchor" aria-label="anchor" href="#working-with-cohorts"></a>
+<h2 id="concept-sets-first-time">Concept Sets “” First Time<a class="anchor" aria-label="anchor" href="#concept-sets-first-time"></a>
 </h2>
-<p>The cohort workflow has four main steps:</p>
 <div class="section level3">
-<h3 id="step-1-create-or-update-cohorts-load-file-optional">Step 1: Create or Update Cohorts Load File (Optional)<a class="anchor" aria-label="anchor" href="#step-1-create-or-update-cohorts-load-file-optional"></a>
+<h3 id="step-1-initialise-the-manifest">Step 1: Initialise the manifest<a class="anchor" aria-label="anchor" href="#step-1-initialise-the-manifest"></a>
 </h3>
-<p>The <code>cohortsLoad.csv</code> file provides metadata for
-organizing and enriching your cohorts. You can create a blank template
-or edit it interactively:</p>
-<p><strong>Option A: Create a blank template</strong></p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/createBlankCohortsLoadFile.html">createBlankCohortsLoadFile</a></span><span class="op">(</span>cohortsFolderPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<p>This creates <code>inputs/cohorts/cohortsLoad.csv</code> with
-columns: <code>atlasId</code>, <code>label</code>,
-<code>category</code>, <code>subCategory</code>,
-<code>file_name</code></p>
-<p><strong>Option B: Use the interactive editor</strong></p>
+<code class="sourceCode R"><span><span class="va">conceptSetManifest</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/initConceptSetManifest.html">initConceptSetManifest</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<p>This creates
+<code>inputs/conceptSets/conceptSetManifest.sqlite</code> if it does not
+already exist and returns a <code>ConceptSetManifest</code> R6
+object.</p>
+</div>
+<div class="section level3">
+<h3 id="step-2-create-and-fill-the-load-file">Step 2: Create and fill the load file<a class="anchor" aria-label="anchor" href="#step-2-create-and-fill-the-load-file"></a>
+</h3>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/launchCohortsLoadEditor.html">launchCohortsLoadEditor</a></span><span class="op">(</span>cohortsFolderPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<p>This launches a Shiny app where you can add/edit cohort metadata
-without touching the CSV directly.</p>
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/createBlankConceptSetsLoadFile.html">createBlankConceptSetsLoadFile</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<p>Opens <code>inputs/conceptSets/conceptSetsLoad.csv</code>. Fill in
+one row per concept set:</p>
+<table class="table">
+<thead><tr class="header">
+<th>Column</th>
+<th>Required</th>
+<th>Notes</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td><code>atlasId</code></td>
+<td>Yes</td>
+<td>ATLAS concept set ID</td>
+</tr>
+<tr class="even">
+<td><code>label</code></td>
+<td>Yes</td>
+<td>Display name</td>
+</tr>
+<tr class="odd">
+<td><code>domain</code></td>
+<td>Yes</td>
+<td>OMOP domain (e.g., <code>drug_exposure</code>)</td>
+</tr>
+<tr class="even">
+<td><code>sourceCode</code></td>
+<td>No</td>
+<td>
+<code>TRUE</code>/<code>FALSE</code> “” whether it uses source
+codes</td>
+</tr>
+</tbody>
+</table>
+<p>Any additional columns are stored as tags.</p>
 </div>
 <div class="section level3">
-<h3 id="step-2-import-cohort-definitions-from-atlas">Step 2: Import Cohort Definitions from ATLAS<a class="anchor" aria-label="anchor" href="#step-2-import-cohort-definitions-from-atlas"></a>
+<h3 id="step-3-connect-to-atlas-and-import">Step 3: Connect to ATLAS and import<a class="anchor" aria-label="anchor" href="#step-3-connect-to-atlas-and-import"></a>
 </h3>
-<p>Connect to ATLAS and download cohort JSON definitions:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Set up ATLAS connection (credentials from .Renviron or direct)</span></span>
-<span><span class="va">atlasConn</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setAtlasConnection.html">setAtlasConnection</a></span><span class="op">(</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="va">atlasConnection</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/getAtlasConnection.html">getAtlasConnection</a></span><span class="op">(</span><span class="op">)</span>            <span class="co"># reads credentials from .Renviron</span></span>
+<span><span class="va">conceptSetManifest</span><span class="op">$</span><span class="fu">setAtlasConnection</span><span class="op">(</span><span class="va">atlasConnection</span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># Import specific cohorts from ATLAS</span></span>
-<span><span class="fu"><a href="../reference/importAtlasCohorts.html">importAtlasCohorts</a></span><span class="op">(</span></span>
-<span>  cohortsFolderPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts"</span><span class="op">)</span>,</span>
-<span>  atlasConnection <span class="op">=</span> <span class="va">atlasConn</span></span>
+<span><span class="va">conceptSetManifest</span><span class="op">$</span><span class="fu">importAtlasConceptSets</span><span class="op">(</span></span>
+<span>  conceptSetsLoadPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/conceptSets/conceptSetsLoad.csv"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<p>This downloads JSON definitions to <code>inputs/cohorts/json/</code>
-and updates your manifest with metadata.</p>
+<p><code><a href="../reference/getAtlasConnection.html">getAtlasConnection()</a></code> reads <code>atlasBaseUrl</code>,
+<code>atlasAuthMethod</code>, <code>atlasUser</code>, and
+<code>atlasPassword</code> from <code>.Renviron</code>. Run
+<code><a href="https://usethis.r-lib.org/reference/edit.html" class="external-link">usethis::edit_r_environ()</a></code> to add them. For keyring-based
+storage use <code>getAtlasConnection(useKeyring = TRUE)</code>.</p>
 </div>
 <div class="section level3">
-<h3 id="step-3-load-the-cohort-manifest">Step 3: Load the Cohort Manifest<a class="anchor" aria-label="anchor" href="#step-3-load-the-cohort-manifest"></a>
+<h3 id="step-4-load-and-review">Step 4: Load and review<a class="anchor" aria-label="anchor" href="#step-4-load-and-review"></a>
 </h3>
-<p>Load the manifest to access all cohort definitions in your study:</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">cm</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadCohortManifest.html">loadCohortManifest</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="va">conceptSetManifest</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadConceptSetManifest.html">loadConceptSetManifest</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="va">conceptSetManifest</span><span class="op">$</span><span class="fu">tabulateManifest</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<p><strong>Auto-discovery:</strong>
+<code><a href="../reference/loadConceptSetManifest.html">loadConceptSetManifest()</a></code> scans
+<code>inputs/conceptSets/json/</code> and auto-registers any
+<code>.json</code> files not yet in the database. Drop new concept set
+JSON files there and re-run <code><a href="../reference/loadConceptSetManifest.html">loadConceptSetManifest()</a></code> to
+pick them up without any additional import step.</p>
+<hr>
 </div>
+</div>
+<div class="section level2">
+<h2 id="cohorts-first-time">Cohorts “” First Time<a class="anchor" aria-label="anchor" href="#cohorts-first-time"></a>
+</h2>
 <div class="section level3">
-<h3 id="step-4-review-and-validate-manifests">Step 4: Review and Validate Manifests<a class="anchor" aria-label="anchor" href="#step-4-review-and-validate-manifests"></a>
+<h3 id="step-1-initialise-the-manifest-1">Step 1: Initialise the manifest<a class="anchor" aria-label="anchor" href="#step-1-initialise-the-manifest-1"></a>
 </h3>
-<p>Examine the cohorts that were loaded:</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># View manifest list (metadata for all cohorts)</span></span>
-<span><span class="va">manifest_df</span> <span class="op">&lt;-</span> <span class="va">cm</span><span class="op">$</span><span class="fu">getManifest</span><span class="op">(</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Or get a formatted summary</span></span>
-<span><span class="va">summary_df</span> <span class="op">&lt;-</span> <span class="va">cm</span><span class="op">$</span><span class="fu">tabulateManifest</span><span class="op">(</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Query specific cohorts</span></span>
-<span><span class="va">cohort_1</span> <span class="op">&lt;-</span> <span class="va">cm</span><span class="op">$</span><span class="fu">getCohortById</span><span class="op">(</span>id <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
-<span><span class="va">cohorts_by_tag</span> <span class="op">&lt;-</span> <span class="va">cm</span><span class="op">$</span><span class="fu">getCohortsByTag</span><span class="op">(</span>tagString <span class="op">=</span> <span class="st">"category: Primary"</span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="va">cohortManifest</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/initCohortManifest.html">initCohortManifest</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
-<h3 id="step-5-apply-functions-for-cohort-operations">Step 5: Apply Functions for Cohort Operations<a class="anchor" aria-label="anchor" href="#step-5-apply-functions-for-cohort-operations"></a>
+<h3 id="step-2-create-and-fill-the-load-file-1">Step 2: Create and fill the load file<a class="anchor" aria-label="anchor" href="#step-2-create-and-fill-the-load-file-1"></a>
 </h3>
-<p>Once manifests are loaded, you need <code>ExecutionSettings</code> to
-interact with the database:</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Create execution settings for a specific database</span></span>
-<span><span class="va">settings</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/createExecutionSettingsFromConfig.html">createExecutionSettingsFromConfig</a></span><span class="op">(</span>configBlock <span class="op">=</span> <span class="st">"my_cdm"</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Set execution settings on the manifest</span></span>
-<span><span class="va">cm</span><span class="op">$</span><span class="fu">setExecutionSettings</span><span class="op">(</span><span class="va">settings</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Now you can use database functions</span></span>
-<span></span>
-<span><span class="co"># Create cohort tables in the database</span></span>
-<span><span class="va">cm</span><span class="op">$</span><span class="fu">createCohortTables</span><span class="op">(</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Generate cohort populations</span></span>
-<span><span class="co"># NOTE: This step is NOT required for typical use. Cohort generation happens</span></span>
-<span><span class="co"># automatically during pipeline execution (via execStudyPipeline).</span></span>
-<span><span class="co"># This code is for demonstrating the capability only.</span></span>
-<span><span class="va">cm</span><span class="op">$</span><span class="fu">generateCohorts</span><span class="op">(</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Get cohort counts (also typically done by pipeline)</span></span>
-<span><span class="va">counts</span> <span class="op">&lt;-</span> <span class="va">cm</span><span class="op">$</span><span class="fu">retrieveCohortCounts</span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">counts</span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/createBlankCohortsLoadFile.html">createBlankCohortsLoadFile</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<p>Opens <code>inputs/cohorts/cohortsLoad.csv</code>. Fill in one row
+per cohort:</p>
+<table class="table">
+<thead><tr class="header">
+<th>Column</th>
+<th>Required</th>
+<th>Notes</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td><code>atlasId</code></td>
+<td>Yes</td>
+<td>ATLAS cohort definition ID</td>
+</tr>
+<tr class="even">
+<td><code>label</code></td>
+<td>Yes</td>
+<td>Display name</td>
+</tr>
+<tr class="odd">
+<td><code>category</code></td>
+<td>Yes</td>
+<td>Broad grouping (e.g., <code>"Disease Populations"</code>)</td>
+</tr>
+<tr class="even">
+<td><code>subCategory</code></td>
+<td>No</td>
+<td>Optional sub-grouping</td>
+</tr>
+</tbody>
+</table>
+<p>Any additional columns are stored as tags.</p>
 </div>
-</div>
-<div class="section level2">
-<h2 id="building-dependent-cohorts">Building Dependent Cohorts<a class="anchor" aria-label="anchor" href="#building-dependent-cohorts"></a>
-</h2>
-<p>Beyond base cohorts (imported from ATLAS or written as SQL), you can
-define dependent cohorts that derive from other cohorts using
-demographic or temporal constraints. This is useful for subpopulation
-analyses (e.g., males only, adults over 65, patients with prior
-conditions).</p>
-<p>Dependent cohorts are built programmatically and stored in the
-manifest just like base cohorts.</p>
 <div class="section level3">
-<h3 id="temporal-subset-cohorts">Temporal Subset Cohorts<a class="anchor" aria-label="anchor" href="#temporal-subset-cohorts"></a>
+<h3 id="step-3-connect-to-atlas-and-import-1">Step 3: Connect to ATLAS and import<a class="anchor" aria-label="anchor" href="#step-3-connect-to-atlas-and-import-1"></a>
 </h3>
-<p>Build cohorts based on temporal relationships between events.
-Example: “Chronic Kidney Disease (CKD) in patients with prior Type 2
-Diabetes”:</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Assume cm already has base cohorts loaded</span></span>
-<span><span class="co"># Cohort 1 = CKD, Cohort 2 = Type 2 Diabetes</span></span>
+<code class="sourceCode R"><span><span class="co"># Reuse the connection from the concept sets step, or create a new one:</span></span>
+<span><span class="co"># atlasConnection &lt;- getAtlasConnection()</span></span>
+<span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">setAtlasConnection</span><span class="op">(</span><span class="va">atlasConnection</span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">ckd_given_t2d</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/buildSubsetCohortTemporal.html">buildSubsetCohortTemporal</a></span><span class="op">(</span></span>
-<span>  label <span class="op">=</span> <span class="st">"CKD given prior T2D"</span>,</span>
-<span>  baseCohortId <span class="op">=</span> <span class="fl">1</span>,          <span class="co"># CKD is the outcome</span></span>
-<span>  filterCohortId <span class="op">=</span> <span class="fl">2</span>,        <span class="co"># Must have T2D</span></span>
-<span>  temporalOperator <span class="op">=</span> <span class="st">"before"</span>,</span>
-<span>  temporalStartOffset <span class="op">=</span> <span class="fl">365</span>, <span class="co"># Within 1 year before CKD</span></span>
-<span>  manifest <span class="op">=</span> <span class="va">cm</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Add the dependent cohort to the manifest</span></span>
-<span><span class="va">cm</span><span class="op">$</span><span class="fu">addDependentCohort</span><span class="op">(</span><span class="va">ckd_given_t2d</span><span class="op">)</span></span></code></pre></div>
-<p><strong>Parameters:</strong> - <code>baseCohortId</code>: The main
-population cohort - <code>filterCohortId</code>: The condition that must
-occur - <code>temporalOperator</code>: <code>"before"</code>,
-<code>"after"</code>, or <code>"overlap"</code> relative to base cohort
-- <code>temporalStartOffset</code>: Days before/after the operator point
-- <code>temporalEndOffset</code>: Optional, defines the end window</p>
+<span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">importAtlasCohorts</span><span class="op">(</span></span>
+<span>  cohortsLoadPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts/cohortsLoad.csv"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>Downloads CIRCE JSON definitions to <code>inputs/cohorts/json/</code>
+and records each cohort in SQLite.</p>
 </div>
 <div class="section level3">
-<h3 id="demographic-subset-cohorts">Demographic Subset Cohorts<a class="anchor" aria-label="anchor" href="#demographic-subset-cohorts"></a>
+<h3 id="step-4-load-and-review-1">Step 4: Load and review<a class="anchor" aria-label="anchor" href="#step-4-load-and-review-1"></a>
 </h3>
-<p>Build cohorts based on demographic characteristics. Example: “CKD in
-males only”:</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">ckd_males</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/buildSubsetCohortDemographic.html">buildSubsetCohortDemographic</a></span><span class="op">(</span></span>
-<span>  label <span class="op">=</span> <span class="st">"CKD Males"</span>,</span>
-<span>  baseCohortId <span class="op">=</span> <span class="fl">1</span>,                  <span class="co"># CKD population</span></span>
-<span>  genderConceptIds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">8507</span><span class="op">)</span>,        <span class="co"># 8507 = Male</span></span>
-<span>  manifest <span class="op">=</span> <span class="va">cm</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">cm</span><span class="op">$</span><span class="fu">addDependentCohort</span><span class="op">(</span><span class="va">ckd_males</span><span class="op">)</span></span></code></pre></div>
-<p><strong>Parameters:</strong> - <code>baseCohor tId</code>: The main
-population cohort - <code>genderConceptIds</code>: Standard concept IDs
-for gender (e.g., 8507 for Male, 8532 for Female) - <code>minAge</code>:
-Minimum age (optional) - <code>maxAge</code>: Maximum age (optional)</p>
-<p>Example: “CKD in adults (18+) only”:</p>
+<code class="sourceCode R"><span><span class="va">cohortManifest</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadCohortManifest.html">loadCohortManifest</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">tabulateManifest</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<hr>
+</div>
+</div>
+<div class="section level2">
+<h2 id="subsequent-sessions">Subsequent Sessions<a class="anchor" aria-label="anchor" href="#subsequent-sessions"></a>
+</h2>
+<p>After the first-time import, subsequent sessions only need the two
+load calls:</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">ckd_adults</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/buildSubsetCohortDemographic.html">buildSubsetCohortDemographic</a></span><span class="op">(</span></span>
-<span>  label <span class="op">=</span> <span class="st">"CKD Adults"</span>,</span>
-<span>  baseCohortId <span class="op">=</span> <span class="fl">1</span>,</span>
-<span>  minAge <span class="op">=</span> <span class="fl">18</span>,</span>
-<span>  manifest <span class="op">=</span> <span class="va">cm</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">cm</span><span class="op">$</span><span class="fu">addDependentCohort</span><span class="op">(</span><span class="va">ckd_adults</span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level3">
-<h3 id="union-and-complement-cohorts">Union and Complement Cohorts<a class="anchor" aria-label="anchor" href="#union-and-complement-cohorts"></a>
-</h3>
-<p>Combine multiple cohorts or create exclusions:</p>
-<p><strong>Union:</strong> Patients in either CKD OR Diabetes:</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">ckd_or_t2d</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/buildUnionCohort.html">buildUnionCohort</a></span><span class="op">(</span></span>
-<span>  label <span class="op">=</span> <span class="st">"CKD or Type 2 Diabetes"</span>,</span>
-<span>  cohortIds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">2</span><span class="op">)</span>,    <span class="co"># Union of cohorts 1 and 2</span></span>
-<span>  manifest <span class="op">=</span> <span class="va">cm</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">cm</span><span class="op">$</span><span class="fu">addDependentCohort</span><span class="op">(</span><span class="va">ckd_or_t2d</span><span class="op">)</span></span></code></pre></div>
-<p><strong>Complement:</strong> All patients NOT in a cohort:</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">no_ckd</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/buildComplementCohort.html">buildComplementCohort</a></span><span class="op">(</span></span>
-<span>  label <span class="op">=</span> <span class="st">"No Chronic Kidney Disease"</span>,</span>
-<span>  cohortId <span class="op">=</span> <span class="fl">1</span>,           <span class="co"># Exclude cohort 1</span></span>
-<span>  manifest <span class="op">=</span> <span class="va">cm</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">cm</span><span class="op">$</span><span class="fu">addDependentCohort</span><span class="op">(</span><span class="va">no_ckd</span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level3">
-<h3 id="visualizing-dependencies">Visualizing Dependencies<a class="anchor" aria-label="anchor" href="#visualizing-dependencies"></a>
-</h3>
-<p>Once you’ve defined dependent cohorts, visualize the relationship
-graph:</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Generate a dependency report (Mermaid diagram + table)</span></span>
-<span><span class="va">report</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/visualizeCohortDependencies.html">visualizeCohortDependencies</a></span><span class="op">(</span><span class="va">cm</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Optionally save to file</span></span>
-<span><span class="fu"><a href="../reference/visualizeCohortDependencies.html">visualizeCohortDependencies</a></span><span class="op">(</span><span class="va">cm</span>, outputPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts"</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co"># Creates: inputs/cohorts/cohort_dependencies.md</span></span></code></pre></div>
-<p>The report shows: - Dependency structure (which cohorts depend on
-which) - Mermaid diagram for visualization - Table of all cohorts with
-their types</p>
-</div>
-<div class="section level3">
-<h3 id="complete-dependent-cohort-workflow">Complete Dependent Cohort Workflow<a class="anchor" aria-label="anchor" href="#complete-dependent-cohort-workflow"></a>
-</h3>
-<p>Here’s a full example combining base and dependent cohorts:</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># 1. Load base cohorts from ATLAS</span></span>
-<span><span class="va">cm</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadCohortManifest.html">loadCohortManifest</a></span><span class="op">(</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># 2. Create dependent cohorts</span></span>
-<span><span class="va">ckd_given_t2d</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/buildSubsetCohortTemporal.html">buildSubsetCohortTemporal</a></span><span class="op">(</span></span>
-<span>  label <span class="op">=</span> <span class="st">"CKD given prior T2D"</span>,</span>
-<span>  baseCohortId <span class="op">=</span> <span class="fl">1</span>,</span>
-<span>  filterCohortId <span class="op">=</span> <span class="fl">2</span>,</span>
-<span>  temporalOperator <span class="op">=</span> <span class="st">"before"</span>,</span>
-<span>  temporalStartOffset <span class="op">=</span> <span class="fl">365</span>,</span>
-<span>  manifest <span class="op">=</span> <span class="va">cm</span></span>
-<span><span class="op">)</span></span>
-<span><span class="va">cm</span><span class="op">$</span><span class="fu">addDependentCohort</span><span class="op">(</span><span class="va">ckd_given_t2d</span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">ckd_males</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/buildSubsetCohortDemographic.html">buildSubsetCohortDemographic</a></span><span class="op">(</span></span>
-<span>  label <span class="op">=</span> <span class="st">"CKD Males"</span>,</span>
-<span>  baseCohortId <span class="op">=</span> <span class="fl">1</span>,</span>
-<span>  genderConceptIds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">8507</span><span class="op">)</span>,</span>
-<span>  manifest <span class="op">=</span> <span class="va">cm</span></span>
-<span><span class="op">)</span></span>
-<span><span class="va">cm</span><span class="op">$</span><span class="fu">addDependentCohort</span><span class="op">(</span><span class="va">ckd_males</span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">ckd_adults</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/buildSubsetCohortDemographic.html">buildSubsetCohortDemographic</a></span><span class="op">(</span></span>
-<span>  label <span class="op">=</span> <span class="st">"CKD Adults"</span>,</span>
-<span>  baseCohortId <span class="op">=</span> <span class="fl">1</span>,</span>
-<span>  minAge <span class="op">=</span> <span class="fl">18</span>,</span>
-<span>  manifest <span class="op">=</span> <span class="va">cm</span></span>
-<span><span class="op">)</span></span>
-<span><span class="va">cm</span><span class="op">$</span><span class="fu">addDependentCohort</span><span class="op">(</span><span class="va">ckd_adults</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># 3. Visualize dependencies</span></span>
-<span><span class="va">report</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/visualizeCohortDependencies.html">visualizeCohortDependencies</a></span><span class="op">(</span><span class="va">cm</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># 4. Generate all cohorts (base + dependent)</span></span>
-<span><span class="va">settings</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/createExecutionSettingsFromConfig.html">createExecutionSettingsFromConfig</a></span><span class="op">(</span>configBlock <span class="op">=</span> <span class="st">"optum_dod"</span><span class="op">)</span></span>
-<span><span class="va">cm</span><span class="op">$</span><span class="fu">setExecutionSettings</span><span class="op">(</span><span class="va">settings</span><span class="op">)</span></span>
-<span><span class="va">cm</span><span class="op">$</span><span class="fu">createCohortTables</span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="va">results</span> <span class="op">&lt;-</span> <span class="va">cm</span><span class="op">$</span><span class="fu">generateCohorts</span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="va">counts</span> <span class="op">&lt;-</span> <span class="va">cm</span><span class="op">$</span><span class="fu">retrieveCohortCounts</span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">counts</span><span class="op">)</span></span></code></pre></div>
-<p><strong>Note:</strong> Dependent cohorts are generated using R code,
-not SQL files. When you call <code>cm$generateCohorts()</code>, Picard
-executes the logic for all dependent cohorts automatically.</p>
-<p>The concept set workflow is similar to cohorts:</p>
-</div>
-<div class="section level3">
-<h3 id="step-1-create-or-update-concept-sets-load-file-optional">Step 1: Create or Update Concept Sets Load File (Optional)<a class="anchor" aria-label="anchor" href="#step-1-create-or-update-concept-sets-load-file-optional"></a>
-</h3>
-<p>Create metadata for organizing your concept sets:</p>
-<p><strong>Option A: Create a blank template</strong></p>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/createBlankConceptSetsLoadFile.html">createBlankConceptSetsLoadFile</a></span><span class="op">(</span>conceptSetsFolderPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/conceptSets"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<p>This creates <code>inputs/conceptSets/conceptSetsLoad.csv</code> with
-columns: <code>atlasId</code>, <code>label</code>,
-<code>category</code>, <code>subCategory</code>, <code>domain</code>,
-<code>sourceCode</code>, <code>file_name</code></p>
-<p><strong>Option B: Use the interactive editor</strong></p>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/launchConceptSetsLoadEditor.html">launchConceptSetsLoadEditor</a></span><span class="op">(</span>conceptSetsFolderPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/conceptSets"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level3">
-<h3 id="step-2-import-concept-set-definitions-from-atlas">Step 2: Import Concept Set Definitions from ATLAS<a class="anchor" aria-label="anchor" href="#step-2-import-concept-set-definitions-from-atlas"></a>
-</h3>
-<p>Download concept set JSON definitions:</p>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Reuse or create ATLAS connection</span></span>
-<span><span class="va">atlasConn</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setAtlasConnection.html">setAtlasConnection</a></span><span class="op">(</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Import concept sets from ATLAS</span></span>
-<span><span class="fu"><a href="../reference/importAtlasConceptSets.html">importAtlasConceptSets</a></span><span class="op">(</span></span>
-<span>  conceptSetsFolderPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/conceptSets"</span><span class="op">)</span>,</span>
-<span>  atlasConnection <span class="op">=</span> <span class="va">atlasConn</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-<p>This downloads JSON definitions to
-<code>inputs/conceptSets/json/</code> and updates metadata.</p>
-</div>
-<div class="section level3">
-<h3 id="step-3-load-the-concept-set-manifest">Step 3: Load the Concept Set Manifest<a class="anchor" aria-label="anchor" href="#step-3-load-the-concept-set-manifest"></a>
-</h3>
-<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Load without execution settings (for review only)</span></span>
-<span><span class="va">csm</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadConceptSetManifest.html">loadConceptSetManifest</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level3">
-<h3 id="step-4-review-and-validate-manifests-1">Step 4: Review and Validate Manifests<a class="anchor" aria-label="anchor" href="#step-4-review-and-validate-manifests-1"></a>
-</h3>
-<p>Examine concept sets in your study:</p>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># View all concept sets</span></span>
-<span><span class="va">manifest_df</span> <span class="op">&lt;-</span> <span class="va">csm</span><span class="op">$</span><span class="fu">getManifest</span><span class="op">(</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Get formatted summary</span></span>
-<span><span class="va">summary_df</span> <span class="op">&lt;-</span> <span class="va">csm</span><span class="op">$</span><span class="fu">tabulateManifest</span><span class="op">(</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Query by criteria</span></span>
-<span><span class="va">concept_set</span> <span class="op">&lt;-</span> <span class="va">csm</span><span class="op">$</span><span class="fu">getConceptSetById</span><span class="op">(</span>id <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
-<span><span class="va">drug_expo</span> <span class="op">&lt;-</span> <span class="va">csm</span><span class="op">$</span><span class="fu">getConceptSetsByTag</span><span class="op">(</span>tagString <span class="op">=</span> <span class="st">"domain: drug_exposure"</span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level3">
-<h3 id="step-5-apply-functions-for-concept-set-operations">Step 5: Apply Functions for Concept Set Operations<a class="anchor" aria-label="anchor" href="#step-5-apply-functions-for-concept-set-operations"></a>
-</h3>
-<p>To extract source codes or access vocabularies, you need
-<code>ExecutionSettings</code>:</p>
-<p><strong>Extract source codes</strong> retrieves codes in specific
-vocabularies (e.g., NDC, RxNorm) for drug concepts:</p>
-<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Create execution settings</span></span>
-<span><span class="va">settings</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/createExecutionSettingsFromConfig.html">createExecutionSettingsFromConfig</a></span><span class="op">(</span>configBlock <span class="op">=</span> <span class="st">"optum_dod"</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Set execution settings on the manifest</span></span>
-<span><span class="va">csm</span><span class="op">$</span><span class="fu">setExecutionSettings</span><span class="op">(</span><span class="va">settings</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Extract source codes for a concept set</span></span>
-<span><span class="co"># (e.g., NDC codes for drug concepts)</span></span>
-<span><span class="va">source_codes</span> <span class="op">&lt;-</span> <span class="va">csm</span><span class="op">$</span><span class="fu">extractSourceCodes</span><span class="op">(</span></span>
-<span>  sourceVocabs <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"NDC"</span>, <span class="st">"RxNorm"</span><span class="op">)</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-<p><strong>Extract included codes</strong> builds a complete list of all
-standard concepts included in each concept set definition and exports to
-Excel:</p>
-<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Extract all included standard concepts from all concept sets</span></span>
-<span><span class="co"># Generates IncludedCodes.xlsx with one sheet per concept set</span></span>
-<span><span class="co"># Each sheet contains: concept_id, concept_name, vocabulary_id</span></span>
-<span><span class="va">csm</span><span class="op">$</span><span class="fu">extractIncludedCodes</span><span class="op">(</span></span>
-<span>  outputFolder <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/conceptSets"</span><span class="op">)</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-</div>
+<code class="sourceCode R"><span><span class="va">conceptSetManifest</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadConceptSetManifest.html">loadConceptSetManifest</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="va">cohortManifest</span>     <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadCohortManifest.html">loadCohortManifest</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<p>Both functions read from SQLite and rebuild the in-memory R6 objects.
+No network connection or CSV file is required.</p>
+<hr>
 </div>
 <div class="section level2">
-<h2 id="complete-workflow-example">Complete Workflow Example<a class="anchor" aria-label="anchor" href="#complete-workflow-example"></a>
+<h2 id="whats-next">What’s Next<a class="anchor" aria-label="anchor" href="#whats-next"></a>
 </h2>
-<p>Here’s a complete testing script combining cohorts and concept
-sets:</p>
-<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ohdsi.github.io/picard/">picard</a></span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># === COHORTS WORKFLOW ===</span></span>
-<span></span>
-<span><span class="co"># 1. Create ATLAS connection (credentials from .Renviron)</span></span>
-<span><span class="va">atlasConn</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setAtlasConnection.html">setAtlasConnection</a></span><span class="op">(</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># 2. Create load file or use editor</span></span>
-<span><span class="co"># Option A: Create blank template</span></span>
-<span><span class="fu"><a href="../reference/createBlankCohortsLoadFile.html">createBlankCohortsLoadFile</a></span><span class="op">(</span><span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts"</span><span class="op">)</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Option B: Use interactive editor</span></span>
-<span><span class="co"># launchCohortsLoadEditor(here::here("inputs/cohorts"))</span></span>
-<span></span>
-<span><span class="co"># 3. Import from ATLAS</span></span>
-<span><span class="fu"><a href="../reference/importAtlasCohorts.html">importAtlasCohorts</a></span><span class="op">(</span></span>
-<span>  cohortsFolderPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts"</span><span class="op">)</span>,</span>
-<span>  atlasConnection <span class="op">=</span> <span class="va">atlasConn</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># 4. Load manifest and review</span></span>
-<span><span class="va">cm</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadCohortManifest.html">loadCohortManifest</a></span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="va">cm</span><span class="op">$</span><span class="fu">getManifest</span><span class="op">(</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># 5. Set up database and generate cohorts</span></span>
-<span><span class="va">settings</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/createExecutionSettingsFromConfig.html">createExecutionSettingsFromConfig</a></span><span class="op">(</span>configBlock <span class="op">=</span> <span class="st">"optum_dod"</span><span class="op">)</span></span>
-<span><span class="va">cm</span><span class="op">$</span><span class="fu">setExecutionSettings</span><span class="op">(</span><span class="va">settings</span><span class="op">)</span></span>
-<span><span class="va">cm</span><span class="op">$</span><span class="fu">createCohortTables</span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="va">cm</span><span class="op">$</span><span class="fu">generateCohorts</span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="va">counts</span> <span class="op">&lt;-</span> <span class="va">cm</span><span class="op">$</span><span class="fu">retrieveCohortCounts</span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">counts</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># === CONCEPT SETS WORKFLOW ===</span></span>
-<span></span>
-<span><span class="co"># 1. Create load file</span></span>
-<span><span class="co"># Option A: Create blank template</span></span>
-<span><span class="fu"><a href="../reference/createBlankConceptSetsLoadFile.html">createBlankConceptSetsLoadFile</a></span><span class="op">(</span><span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/conceptSets"</span><span class="op">)</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Option B: Use interactive editor</span></span>
-<span><span class="co"># launchConceptSetsLoadEditor(here::here("inputs/conceptSets"))</span></span>
-<span></span>
-<span><span class="co"># 2. Import from ATLAS</span></span>
-<span><span class="fu"><a href="../reference/importAtlasConceptSets.html">importAtlasConceptSets</a></span><span class="op">(</span></span>
-<span>  conceptSetsFolderPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/conceptSets"</span><span class="op">)</span>,</span>
-<span>  atlasConnection <span class="op">=</span> <span class="va">atlasConn</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># 3. Load manifest and review</span></span>
-<span><span class="va">csm</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadConceptSetManifest.html">loadConceptSetManifest</a></span><span class="op">(</span>executionSettings <span class="op">=</span> <span class="va">settings</span><span class="op">)</span></span>
-<span><span class="va">csm</span><span class="op">$</span><span class="fu">getManifest</span><span class="op">(</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># 4. Extract source codes (if needed)</span></span>
-<span><span class="co"># csm$extractSourceCodes(sourceVocabs = c("NDC"))</span></span></code></pre></div>
-</div>
-<div class="section level2">
-<h2 id="key-points">Key Points<a class="anchor" aria-label="anchor" href="#key-points"></a>
-</h2>
-<p><strong>Manifests as audit trail:</strong> The manifest (SQLite
-database + load CSV) tracks exactly which definitions were used in each
-version of the study. Hash values detect if definitions change.</p>
-<p><strong>Load files for metadata:</strong> The
-<code>cohortsLoad.csv</code> and <code>conceptSetsLoad.csv</code> files
-organize and enrich definitions with human-readable metadata.</p>
-<p><strong>ExecutionSettings enable database operations:</strong>
-Without ExecutionSettings, you can load and review manifests. With
-ExecutionSettings, you can generate cohorts and extract source
-codes.</p>
-</div>
-<div class="section level2">
-<h2 id="next-steps">Next Steps<a class="anchor" aria-label="anchor" href="#next-steps"></a>
-</h2>
-<p>Now that you have cohorts and concept sets loaded:</p>
-<ol style="list-style-type: decimal">
-<li>
-<strong>Review the definitions:</strong> Ensure your manifests
-contain all needed populations and phenotypes</li>
-<li>
-<strong>Run the pipeline:</strong> See <a href="running_the_pipeline.html">Running the Pipeline</a> to execute
-your first analysis</li>
-<li>
-<strong>Track changes:</strong> Each manifest update via import or
-editor gets tracked with timestamps and hashes</li>
-</ol>
-</div>
-<div class="section level2">
-<h2 id="see-also">See Also<a class="anchor" aria-label="anchor" href="#see-also"></a>
-</h2>
-<ul>
-<li>
-<a href="picard_repository_structure.html">The Ulysses Standard
-Repository Structure</a> - Where inputs fit in the project</li>
-<li>
-<a href="launching_a_study.html">Launching a Study</a> - Initial
-setup</li>
-<li>
-<a href="running_the_pipeline.html">Running the Pipeline</a> - Using
-cohorts in tasks</li>
-</ul>
+<table class="table">
+<colgroup>
+<col width="50%">
+<col width="50%">
+</colgroup>
+<thead><tr class="header">
+<th>Task</th>
+<th>Where to go</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td>Derived cohorts (union, subset, complement, composite)</td>
+<td><a href="manifest_overview.html">Manifest: Architecture, Workflows,
+and Helpers</a></td>
+</tr>
+<tr class="even">
+<td>Custom SQL cohorts</td>
+<td><a href="manifest_overview.html">Manifest: Architecture, Workflows,
+and Helpers</a></td>
+</tr>
+<tr class="odd">
+<td>Mid-cycle changes, sync, delete, reset</td>
+<td><a href="manifest_overview.html">Manifest: Architecture, Workflows,
+and Helpers</a></td>
+</tr>
+<tr class="even">
+<td>Running the analysis pipeline</td>
+<td><a href="running_the_pipeline.html">Running the Pipeline</a></td>
+</tr>
+</tbody>
+</table>
 </div>
   </main><aside class="col-md-3"><nav id="toc"><h2>On this page</h2>
     </nav></aside>

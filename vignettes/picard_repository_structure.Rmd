@@ -461,7 +461,7 @@ atlasId,label,category,subCategory,file_name
 2,Diabetes Complications,Disease Populations,Endocrine,json/diabetes_complications.json
 ```
 
-When loaded, these metadata fields are converted to tags on each cohort for later querying (e.g., `$getCohortsByTag()`, `$getCohortsByLabel()`).
+When loaded, these metadata fields are converted to tags on each cohort for later querying (e.g., `$queryCohortsByTag()`, `$queryCohortsByLabel()`).
 
 **cohortManifest.sqlite:**
 
@@ -486,7 +486,7 @@ SQLite database created/managed by `CohortManifest` class. Contains `cohort_mani
 3. Add custom SQL or dependency-based cohorts to `sql/` (e.g., subsets, unions)
 4. Call `loadCohortManifest()` to scan directories and enrich with `cohortsLoad.csv` metadata
 5. First load creates `cohortManifest.sqlite` database; subsequent loads verify file hashes
-6. Use CohortManifest methods to query cohorts: `$getCohortById(1)`, `$getCohortsByTag("category: Disease Populations")`
+6. Use CohortManifest methods to query cohorts: `$queryCohortById(1)`, `$queryCohortsByTag("category: Disease Populations")`
 
 **See also:** [Loading Inputs](loading_inputs.html) for detailed guidance on creating, importing, and managing cohort manifests.
 

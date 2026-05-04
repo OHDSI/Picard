@@ -131,22 +131,13 @@ test_that("ConceptSetManifest initializes and creates SQLite database", {
   dir.create(temp_dir)
   on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
 
-  temp_json <- tempfile(fileext = ".json")
-  writeLines(make_circe_concept_set_json(), temp_json)
-  on.exit(unlink(temp_json), add = TRUE)
-
-  cs <- ConceptSetDef$new(label = "Test CS", filePath = temp_json)
   db_path <- file.path(temp_dir, "conceptSetManifest.sqlite")
-
-  manifest <- ConceptSetManifest$new(
-    conceptSetEntries = list(cs),
-    dbPath = db_path
-  )
+  manifest <- ConceptSetManifest$new(dbPath = db_path)
 
   expect_true(file.exists(db_path))
 })
 
-test_that("ConceptSetManifest getManifest returns data frame", {
+test_that("ConceptSetManifest getManifest returns list of ConceptSetDef objects", {
   temp_dir <- tempfile(prefix = "picard_csm_")
   dir.create(temp_dir)
   on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
@@ -155,15 +146,29 @@ test_that("ConceptSetManifest getManifest returns data frame", {
   writeLines(make_circe_concept_set_json(), temp_json)
   on.exit(unlink(temp_json), add = TRUE)
 
-  cs <- ConceptSetDef$new(label = "My CS", filePath = temp_json)
   db_path <- file.path(temp_dir, "test.sqlite")
+  manifest <- ConceptSetManifest$new(dbPath = db_path)
+  manifest$addConceptSetFile(filePath = temp_json, label = "My CS")
 
-  manifest <- ConceptSetManifest$new(
-    conceptSetEntries = list(cs),
-    dbPath = db_path
-  )
+  result <- manifest$getManifest()
+  expect_type(result, "list")
+  expect_s3_class(result[[1]], "ConceptSetDef")
+})
 
-  df <- manifest$getManifest()
+test_that("ConceptSetManifest tabulateManifest returns data frame", {
+  temp_dir <- tempfile(prefix = "picard_csm_")
+  dir.create(temp_dir)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  temp_json <- tempfile(fileext = ".json")
+  writeLines(make_circe_concept_set_json(), temp_json)
+  on.exit(unlink(temp_json), add = TRUE)
+
+  db_path <- file.path(temp_dir, "test.sqlite")
+  manifest <- ConceptSetManifest$new(dbPath = db_path)
+  manifest$addConceptSetFile(filePath = temp_json, label = "My CS")
+
+  df <- manifest$tabulateManifest()
   expect_true(is.data.frame(df))
   expect_equal(nrow(df), 1)
   expect_equal(df$label[1], "My CS")
@@ -174,19 +179,19 @@ test_that("ConceptSetManifest nConceptSets returns correct count", {
   dir.create(temp_dir)
   on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
 
-  concept_sets <- lapply(seq_len(3), function(i) {
+  db_path <- file.path(temp_dir, "test.sqlite")
+  manifest <- ConceptSetManifest$new(dbPath = db_path)
+
+  for (i in seq_len(3)) {
     temp_json <- tempfile(fileext = ".json")
     writeLines(make_circe_concept_set_json(), temp_json)
-    ConceptSetDef$new(label = paste("CS", i), filePath = temp_json)
-  })
-
-  db_path <- file.path(temp_dir, "test.sqlite")
-  manifest <- ConceptSetManifest$new(conceptSetEntries = concept_sets, dbPath = db_path)
+    manifest$addConceptSetFile(filePath = temp_json, label = paste("CS", i))
+  }
 
   expect_equal(manifest$nConceptSets(), 3)
 })
 
-test_that("ConceptSetManifest grabConceptSetById returns ConceptSetDef", {
+test_that("ConceptSetManifest getConceptSetById returns ConceptSetDef", {
   temp_dir <- tempfile(prefix = "picard_csm_")
   dir.create(temp_dir)
   on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
@@ -195,17 +200,16 @@ test_that("ConceptSetManifest grabConceptSetById returns ConceptSetDef", {
   writeLines(make_circe_concept_set_json(), temp_json)
   on.exit(unlink(temp_json), add = TRUE)
 
-  cs <- ConceptSetDef$new(label = "Grab Test", filePath = temp_json)
   db_path <- file.path(temp_dir, "test.sqlite")
+  manifest <- ConceptSetManifest$new(dbPath = db_path)
+  manifest$addConceptSetFile(filePath = temp_json, label = "Grab Test")
+  result <- manifest$getConceptSetById(1)
 
-  manifest <- ConceptSetManifest$new(conceptSetEntries = list(cs), dbPath = db_path)
-  grabbed <- manifest$grabConceptSetById(1)
-
-  expect_s3_class(grabbed, "ConceptSetDef")
-  expect_equal(grabbed$label, "Grab Test")
+  expect_s3_class(result, "ConceptSetDef")
+  expect_equal(result$label, "Grab Test")
 })
 
-test_that("ConceptSetManifest getConceptSetById returns data frame row", {
+test_that("ConceptSetManifest queryConceptSetsByIds returns data frame row", {
   temp_dir <- tempfile(prefix = "picard_csm_")
   dir.create(temp_dir)
   on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
@@ -214,15 +218,35 @@ test_that("ConceptSetManifest getConceptSetById returns data frame row", {
   writeLines(make_circe_concept_set_json(), temp_json)
   on.exit(unlink(temp_json), add = TRUE)
 
-  cs <- ConceptSetDef$new(label = "Query Test", filePath = temp_json)
   db_path <- file.path(temp_dir, "test.sqlite")
-
-  manifest <- ConceptSetManifest$new(conceptSetEntries = list(cs), dbPath = db_path)
-  row <- manifest$getConceptSetById(1)
+  manifest <- ConceptSetManifest$new(dbPath = db_path)
+  manifest$addConceptSetFile(filePath = temp_json, label = "Query Test")
+  row <- manifest$queryConceptSetsByIds(1L)
 
   expect_true(is.data.frame(row))
   expect_equal(nrow(row), 1)
   expect_equal(row$label[1], "Query Test")
+})
+
+test_that("ConceptSetManifest queryConceptSetsByIds accepts vector and returns multiple rows", {
+  temp_dir <- tempfile(prefix = "picard_csm_")
+  dir.create(temp_dir)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  db_path <- file.path(temp_dir, "test.sqlite")
+  manifest <- ConceptSetManifest$new(dbPath = db_path)
+
+  for (lbl in c("CS A", "CS B", "CS C")) {
+    f <- tempfile(fileext = ".json")
+    writeLines(make_circe_concept_set_json(), f)
+    manifest$addConceptSetFile(filePath = f, label = lbl)
+  }
+
+  rows <- manifest$queryConceptSetsByIds(c(1L, 3L))
+
+  expect_true(is.data.frame(rows))
+  expect_equal(nrow(rows), 2)
+  expect_true(all(c("CS A", "CS C") %in% rows$label))
 })
 
 # ---- createBlankConceptSetsLoadFile ----
@@ -324,4 +348,203 @@ test_that("loadConceptSetManifest loads from existing sqlite on second call", {
 
   expect_s3_class(manifest2, "ConceptSetManifest")
   expect_equal(manifest2$nConceptSets(), 1)
+})
+
+test_that("loadConceptSetManifest discovers new manual JSON files added after manifest exists", {
+  temp_dir <- tempfile(prefix = "picard_cs_")
+  json_dir <- file.path(temp_dir, "json")
+  dir.create(json_dir, recursive = TRUE)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  # First load: one concept set
+  writeLines(make_circe_concept_set_json(), file.path(json_dir, "cs1.json"))
+  loadConceptSetManifest(conceptSetsFolderPath = temp_dir)
+
+  # Manually add a second JSON without going through importAtlasConceptSets
+  writeLines(make_circe_concept_set_json(), file.path(json_dir, "cs2.json"))
+
+  # Second load should discover the new file
+  manifest2 <- loadConceptSetManifest(conceptSetsFolderPath = temp_dir)
+
+  expect_s3_class(manifest2, "ConceptSetManifest")
+  expect_equal(manifest2$nConceptSets(), 2)
+})
+
+test_that("loadConceptSetManifest handles stale DB rows for missing files without error", {
+  temp_dir <- tempfile(prefix = "picard_cs_")
+  json_dir <- file.path(temp_dir, "json")
+  dir.create(json_dir, recursive = TRUE)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  f1 <- file.path(json_dir, "cs1.json")
+  f2 <- file.path(json_dir, "cs2.json")
+  writeLines(make_circe_concept_set_json(), f1)
+  writeLines(make_circe_concept_set_json(), f2)
+
+  # First load registers both
+  loadConceptSetManifest(conceptSetsFolderPath = temp_dir)
+
+  # Remove one file (stale DB row scenario)
+  unlink(f2)
+
+  # Second load should not error; only the existing file is returned in memory
+  manifest2 <- expect_no_error(loadConceptSetManifest(conceptSetsFolderPath = temp_dir))
+  expect_equal(manifest2$nConceptSets(), 1)
+
+  # validateManifest still surfaces the stale row
+  status <- manifest2$validateManifest()
+  missing_rows <- status[status$status == "active" & !status$file_exists, ]
+  expect_equal(nrow(missing_rows), 1)
+})
+
+test_that("loadConceptSetManifest works when working directory differs from json folder", {
+  temp_dir <- tempfile(prefix = "picard_cs_")
+  json_dir <- file.path(temp_dir, "json")
+  dir.create(json_dir, recursive = TRUE)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  writeLines(make_circe_concept_set_json(), file.path(json_dir, "cs1.json"))
+
+  original_wd <- getwd()
+  on.exit(setwd(original_wd), add = TRUE)
+
+  # Change working directory to a different temp location
+  other_dir <- tempfile(prefix = "picard_wd_")
+  dir.create(other_dir)
+  on.exit(unlink(other_dir, recursive = TRUE), add = TRUE)
+  setwd(other_dir)
+
+  # Load using the absolute conceptSetsFolderPath — should work regardless of CWD
+  manifest <- expect_no_error(
+    loadConceptSetManifest(conceptSetsFolderPath = temp_dir)
+  )
+  expect_s3_class(manifest, "ConceptSetManifest")
+  expect_equal(manifest$nConceptSets(), 1)
+})
+
+# ---- queryConceptSetsByTag match= ----
+
+test_that("queryConceptSetsByTag match='all' filters correctly", {
+  temp_dir <- tempfile(prefix = "picard_csm_")
+  dir.create(temp_dir)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  db_path <- file.path(temp_dir, "test.sqlite")
+  manifest <- ConceptSetManifest$new(dbPath = db_path)
+
+  add_cs <- function(manifest, label, domain, category) {
+    f <- tempfile(fileext = ".json")
+    writeLines(make_circe_concept_set_json(), f)
+    manifest$addConceptSetFile(filePath = f, label = label, domain = domain,
+                               tags = list(category = category))
+  }
+
+  add_cs(manifest, "Primary Drug",   "drug_exposure",        "primary")
+  add_cs(manifest, "Secondary Cond", "condition_occurrence", "secondary")
+  add_cs(manifest, "Primary Cond",   "condition_occurrence", "primary")
+
+  # match = 'any': both primary and drug_exposure concepts returned
+  any_result <- manifest$queryConceptSetsByTag(
+    c("category: primary", "domain: drug_exposure"),
+    match = "any"
+  )
+  expect_true(nrow(any_result) >= 2)
+
+  # match = 'all': only the one with BOTH tags
+  all_result <- manifest$queryConceptSetsByTag(
+    c("category: primary", "domain: drug_exposure"),
+    match = "all"
+  )
+  expect_equal(nrow(all_result), 1)
+  expect_equal(all_result$label[1], "Primary Drug")
+})
+
+# ---- permanentlyDeleteConceptSet ----
+
+test_that("permanentlyDeleteConceptSet errors without confirm=TRUE", {
+  temp_dir <- tempfile(prefix = "picard_csm_")
+  dir.create(temp_dir)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  temp_json <- tempfile(fileext = ".json")
+  writeLines(make_circe_concept_set_json(), temp_json)
+  on.exit(unlink(temp_json), add = TRUE)
+
+  db_path <- file.path(temp_dir, "test.sqlite")
+  manifest <- ConceptSetManifest$new(dbPath = db_path)
+  manifest$addConceptSetFile(filePath = temp_json, label = "To Delete")
+
+  expect_error(manifest$permanentlyDeleteConceptSet(1L))
+  expect_error(manifest$permanentlyDeleteConceptSet(1L, confirm = FALSE))
+})
+
+test_that("permanentlyDeleteConceptSet succeeds with confirm=TRUE", {
+  temp_dir <- tempfile(prefix = "picard_csm_")
+  dir.create(temp_dir)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  temp_json <- tempfile(fileext = ".json")
+  writeLines(make_circe_concept_set_json(), temp_json)
+  on.exit(unlink(temp_json), add = TRUE)
+
+  db_path <- file.path(temp_dir, "test.sqlite")
+  manifest <- ConceptSetManifest$new(dbPath = db_path)
+  manifest$addConceptSetFile(filePath = temp_json, label = "To Delete")
+
+  result <- manifest$permanentlyDeleteConceptSet(1L, confirm = TRUE)
+  expect_true(isTRUE(result))
+
+  # Record should be gone
+  expect_null(manifest$queryConceptSetsByIds(1L))
+})
+
+# ---- syncManifest ----
+
+test_that("syncManifest detects new files and adds them", {
+  temp_dir <- tempfile(prefix = "picard_csm_")
+  json_dir <- file.path(temp_dir, "json")
+  dir.create(json_dir, recursive = TRUE)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  # Create initial concept set and manifest
+  f1 <- file.path(json_dir, "cs1.json")
+  writeLines(make_circe_concept_set_json(), f1)
+
+  db_path <- file.path(temp_dir, "conceptSetManifest.sqlite")
+  manifest <- ConceptSetManifest$new(dbPath = db_path)
+  manifest$addConceptSetFile(filePath = f1, label = "CS1")
+
+  # Add a new file on disk
+  f2 <- file.path(json_dir, "cs2.json")
+  writeLines(make_circe_concept_set_json(), f2)
+
+  sync_results <- manifest$syncManifest()
+
+  expect_true(is.data.frame(sync_results))
+  expect_true(all(c("id", "label", "action") %in% names(sync_results)))
+  expect_true("added" %in% sync_results$action)
+})
+
+test_that("syncManifest flags missing files as soft-deleted", {
+  temp_dir <- tempfile(prefix = "picard_csm_")
+  json_dir <- file.path(temp_dir, "json")
+  dir.create(json_dir, recursive = TRUE)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  f1 <- file.path(json_dir, "cs1.json")
+  writeLines(make_circe_concept_set_json(), f1)
+
+  db_path <- file.path(temp_dir, "conceptSetManifest.sqlite")
+  manifest <- ConceptSetManifest$new(dbPath = db_path)
+  manifest$addConceptSetFile(filePath = f1, label = "CS1")
+
+  # Remove the file
+  unlink(f1)
+
+  sync_results <- manifest$syncManifest()
+
+  expect_true("missing_flagged" %in% sync_results$action)
+  # Validate that the record is now deleted in SQLite
+  status_df <- manifest$validateManifest()
+  expect_true(any(status_df$status == "deleted"))
 })

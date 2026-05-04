@@ -2,10 +2,10 @@
 
 # A. Meta Info ----
 
-# Study: {studyName}
-# Author: {author}
-# Date: {lubridate::today()}
-# Description: {description}
+# Study: <<studyName>>
+# Author: <<author>>
+# Date: <<lubridate::today()>>
+# Description: <<description>>
 
 # B. Functions ----
 

@@ -12,7 +12,7 @@ CohortDef R6 Class"><!-- mathjax --><script src="https://cdnjs.cloudflare.com/aj
     
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.3</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -39,7 +39,7 @@ CohortDef R6 Class"><!-- mathjax --><script src="https://cdnjs.cloudflare.com/aj
         <input type="search" class="form-control me-sm-2" aria-label="Toggle navigation" name="search-input" data-search-index="../search.json" id="search-input" placeholder="Search for" autocomplete="off"></form>
 
       <ul class="navbar-nav"><li class="nav-item">
-  <a class="external-link nav-link" href="https://github.com/mdlavallee92/picard">
+  <a class="external-link nav-link" href="https://github.com/ohdsi/Picard">
     <span class="fab fa fab fa-github"></span>
      
   </a>
@@ -52,7 +52,7 @@ CohortDef R6 Class"><!-- mathjax --><script src="https://cdnjs.cloudflare.com/aj
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="" class="logo" alt=""><h1>CohortDef R6 Class</h1>
-      <small class="dont-index">Source: <a href="https://github.com/mdlavallee92/picard/blob/HEAD/R/CohortManifest.R" class="external-link"><code>R/CohortManifest.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/ohdsi/Picard/blob/HEAD/R/CohortManifest.R" class="external-link"><code>R/CohortManifest.R</code></a></small>
       <div class="d-none name"><code>CohortDef.Rd</code></div>
     </div>
 
@@ -64,8 +64,8 @@ CohortDef R6 Class"><!-- mathjax --><script src="https://cdnjs.cloudflare.com/aj
 
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p>An R6 class that stores key information about CIRCE cohorts that need to be
-generated for a study.</p>
+    <p>An R6 class that stores key information about cohorts managed by the CohortManifest.
+Each CohortDef is a pointer to a file on disk (JSON or SQL) with associated metadata.</p>
 <p>The CohortDef class manages cohort metadata and SQL generation.
 Upon initialization, it loads and validates cohort definitions from either
 JSON (CIRCE format) or SQL files, and creates a hash to uniquely identify
@@ -78,7 +78,11 @@ the generated SQL.</p>
 
 
 <dt><code>tags</code></dt>
-<dd><p>list of the values to set the tags to. If missing, returns the current label.</p></dd>
+<dd><p>list of the values to set the tags to. If missing, returns the current tags.</p></dd>
+
+
+<dt><code>category</code></dt>
+<dd><p>character to set the category to. If missing, returns the current category.</p></dd>
 
 
 </dl><p></p></div>
@@ -98,22 +102,29 @@ the generated SQL.</p>
 <li><p><a href="#method-CohortDef-formatTagsAsString"><code>CohortDef$formatTagsAsString()</code></a></p></li>
 <li><p><a href="#method-CohortDef-getCohortType"><code>CohortDef$getCohortType()</code></a></p></li>
 <li><p><a href="#method-CohortDef-setCohortType"><code>CohortDef$setCohortType()</code></a></p></li>
-<li><p><a href="#method-CohortDef-getDependencies"><code>CohortDef$getDependencies()</code></a></p></li>
-<li><p><a href="#method-CohortDef-setDependencies"><code>CohortDef$setDependencies()</code></a></p></li>
-<li><p><a href="#method-CohortDef-getDependencyHash"><code>CohortDef$getDependencyHash()</code></a></p></li>
-<li><p><a href="#method-CohortDef-setDependencyHash"><code>CohortDef$setDependencyHash()</code></a></p></li>
+<li><p><a href="#method-CohortDef-getSourceType"><code>CohortDef$getSourceType()</code></a></p></li>
+<li><p><a href="#method-CohortDef-getCategory"><code>CohortDef$getCategory()</code></a></p></li>
+<li><p><a href="#method-CohortDef-setCategory"><code>CohortDef$setCategory()</code></a></p></li>
 <li><p><a href="#method-CohortDef-clone"><code>CohortDef$clone()</code></a></p></li>
 </ul></div><p></p><hr><a id="method-CohortDef-new"></a><div class="section">
 <h3 id="method-new-">Method <code>new()</code><a class="anchor" aria-label="anchor" href="#method-new-"></a></h3>
 <p>Initialize a new CohortDef</p><div class="section">
 <h4 id="usage">Usage<a class="anchor" aria-label="anchor" href="#usage"></a></h4>
-<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va"><a href="../reference/CohortDef.html">CohortDef</a></span><span class="op">$</span><span class="fu">new</span><span class="op">(</span><span class="va">label</span>, tags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>, <span class="va">filePath</span><span class="op">)</span></span></code></pre></div><p></p></div>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va"><a href="../reference/CohortDef.html">CohortDef</a></span><span class="op">$</span><span class="fu">new</span><span class="op">(</span><span class="va">label</span>, <span class="va">category</span>, <span class="va">sourceType</span>, tags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>, <span class="va">filePath</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
 <h4 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>label</code></dt>
 <dd><p>Character. The common name of the cohort.</p></dd>
+
+
+<dt><code>category</code></dt>
+<dd><p>Character. Required classification (e.g., 'target', 'exposure', 'outcome').</p></dd>
+
+
+<dt><code>sourceType</code></dt>
+<dd><p>Character. Provenance: 'atlas', 'capr', 'sql', or 'derived'.</p></dd>
 
 
 <dt><code>tags</code></dt>
@@ -226,7 +237,7 @@ Get the cohort type</p>
 
 <div class="section">
 <h4 id="returns-5">Returns<a class="anchor" aria-label="anchor" href="#returns-5"></a></h4>
-<p>Character. One of 'source', 'subset', 'union', 'complement'. Default: 'source'.
+<p>Character. One of 'circe', 'custom', 'subset', 'union', 'complement', 'composite'.
 Set the cohort type (internal use)</p>
 </div>
 
@@ -241,75 +252,53 @@ Set the cohort type (internal use)</p>
 <div class="section">
 <h4 id="arguments-2">Arguments<a class="anchor" aria-label="anchor" href="#arguments-2"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>cohortType</code></dt>
-<dd><p>Character. One of 'circe', 'subset', 'union', 'complement'.
-Get dependency information</p></dd>
+<dd><p>Character. One of 'circe', 'custom', 'subset', 'union', 'complement', 'composite'.
+Get the source type</p></dd>
 
 
 </dl><p></p></div>
 </div>
 
-</div><p></p><hr><a id="method-CohortDef-getDependencies"></a><div class="section">
-<h3 id="method-getdependencies-">Method <code>getDependencies()</code><a class="anchor" aria-label="anchor" href="#method-getdependencies-"></a></h3>
+</div><p></p><hr><a id="method-CohortDef-getSourceType"></a><div class="section">
+<h3 id="method-getsourcetype-">Method <code>getSourceType()</code><a class="anchor" aria-label="anchor" href="#method-getsourcetype-"></a></h3>
 
 <div class="section">
 <h4 id="usage-9">Usage<a class="anchor" aria-label="anchor" href="#usage-9"></a></h4>
-<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortDef</span><span class="op">$</span><span class="fu">getDependencies</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortDef</span><span class="op">$</span><span class="fu">getSourceType</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
 <h4 id="returns-6">Returns<a class="anchor" aria-label="anchor" href="#returns-6"></a></h4>
-<p>List with elements: cohort_ids (integer vector), rule (list of parameters).
-Set dependency information (internal use)</p>
+<p>Character. One of 'atlas', 'capr', 'sql', 'derived'.
+Get the category</p>
 </div>
 
-</div><p></p><hr><a id="method-CohortDef-setDependencies"></a><div class="section">
-<h3 id="method-setdependencies-">Method <code>setDependencies()</code><a class="anchor" aria-label="anchor" href="#method-setdependencies-"></a></h3>
+</div><p></p><hr><a id="method-CohortDef-getCategory"></a><div class="section">
+<h3 id="method-getcategory-">Method <code>getCategory()</code><a class="anchor" aria-label="anchor" href="#method-getcategory-"></a></h3>
 
 <div class="section">
 <h4 id="usage-10">Usage<a class="anchor" aria-label="anchor" href="#usage-10"></a></h4>
-<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortDef</span><span class="op">$</span><span class="fu">setDependencies</span><span class="op">(</span><span class="va">dependsOnCohortIds</span>, <span class="va">dependencyRule</span><span class="op">)</span></span></code></pre></div><p></p></div>
-</div>
-
-<div class="section">
-<h4 id="arguments-3">Arguments<a class="anchor" aria-label="anchor" href="#arguments-3"></a></h4>
-<p></p><div class="arguments"><dl><dt><code>dependsOnCohortIds</code></dt>
-<dd><p>Integer vector of parent cohort IDs.</p></dd>
-
-
-<dt><code>dependencyRule</code></dt>
-<dd><p>List of dependency parameters.
-Get the dependency hash</p></dd>
-
-
-</dl><p></p></div>
-</div>
-
-</div><p></p><hr><a id="method-CohortDef-getDependencyHash"></a><div class="section">
-<h3 id="method-getdependencyhash-">Method <code>getDependencyHash()</code><a class="anchor" aria-label="anchor" href="#method-getdependencyhash-"></a></h3>
-
-<div class="section">
-<h4 id="usage-11">Usage<a class="anchor" aria-label="anchor" href="#usage-11"></a></h4>
-<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortDef</span><span class="op">$</span><span class="fu">getDependencyHash</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortDef</span><span class="op">$</span><span class="fu">getCategory</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
 <h4 id="returns-7">Returns<a class="anchor" aria-label="anchor" href="#returns-7"></a></h4>
-<p>Character. Hash of dependencies for change detection, or NULL if none.
-Set the dependency hash (internal use)</p>
+<p>Character. The cohort category (e.g., 'target', 'exposure', 'outcome').
+Set the category</p>
 </div>
 
-</div><p></p><hr><a id="method-CohortDef-setDependencyHash"></a><div class="section">
-<h3 id="method-setdependencyhash-">Method <code>setDependencyHash()</code><a class="anchor" aria-label="anchor" href="#method-setdependencyhash-"></a></h3>
+</div><p></p><hr><a id="method-CohortDef-setCategory"></a><div class="section">
+<h3 id="method-setcategory-">Method <code>setCategory()</code><a class="anchor" aria-label="anchor" href="#method-setcategory-"></a></h3>
 
 <div class="section">
-<h4 id="usage-12">Usage<a class="anchor" aria-label="anchor" href="#usage-12"></a></h4>
-<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortDef</span><span class="op">$</span><span class="fu">setDependencyHash</span><span class="op">(</span><span class="va">depHash</span><span class="op">)</span></span></code></pre></div><p></p></div>
+<h4 id="usage-11">Usage<a class="anchor" aria-label="anchor" href="#usage-11"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortDef</span><span class="op">$</span><span class="fu">setCategory</span><span class="op">(</span><span class="va">category</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-4">Arguments<a class="anchor" aria-label="anchor" href="#arguments-4"></a></h4>
-<p></p><div class="arguments"><dl><dt><code>depHash</code></dt>
-<dd><p>Character. Hash to set.</p></dd>
+<h4 id="arguments-3">Arguments<a class="anchor" aria-label="anchor" href="#arguments-3"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>category</code></dt>
+<dd><p>Character. The cohort category.</p></dd>
 
 
 </dl><p></p></div>
@@ -318,12 +307,12 @@ Set the dependency hash (internal use)</p>
 </div><p></p><hr><a id="method-CohortDef-clone"></a><div class="section">
 <h3 id="method-clone-">Method <code>clone()</code><a class="anchor" aria-label="anchor" href="#method-clone-"></a></h3>
 <p>The objects of this class are cloneable with this method.</p><div class="section">
-<h4 id="usage-13">Usage<a class="anchor" aria-label="anchor" href="#usage-13"></a></h4>
+<h4 id="usage-12">Usage<a class="anchor" aria-label="anchor" href="#usage-12"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortDef</span><span class="op">$</span><span class="fu">clone</span><span class="op">(</span>deep <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-5">Arguments<a class="anchor" aria-label="anchor" href="#arguments-5"></a></h4>
+<h4 id="arguments-4">Arguments<a class="anchor" aria-label="anchor" href="#arguments-4"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>deep</code></dt>
 <dd><p>Whether to make a deep clone.</p></dd>
 

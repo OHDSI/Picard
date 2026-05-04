@@ -37,8 +37,8 @@ Tests for the `CohortDef` R6 class, including:
 Tests for the `CohortManifest` R6 class, including:
 - Manifest initialization and SQLite database creation
 - Database table structure verification
-- Query methods (getCohortById, getCohortsByTag, etc.)
-- Object retrieval (grabCohortById, grabCohortsByTag, etc.)
+- Query methods returning data frames (queryCohortsByIds, queryCohortsByTag, etc.)
+- Object retrieval (getCohortById, getCohortsByTag, etc.)
 - Cohort counting
 
 **Note**: Tests for database-dependent methods (createCohortTables, generateCohorts, retrieveCohortCounts) are skipped because they require a live database connection. These can be adapted for integration testing with a test database.

@@ -1,4 +1,4 @@
-url: https://ohdsi.github.io/picard/
+url: https://ohdsi.github.io/Picard/
 template:
   bootstrap: 5
 
@@ -25,7 +25,7 @@ navbar:
       href: news/index.html
     github:
       icon: fab fa-github
-      href: https://github.com/mdlavallee92/picard
+      href: https://github.com/ohdsi/Picard
 
 reference:
   - title: "Core Classes"
@@ -57,12 +57,16 @@ reference:
     desc: "Functions for initializing components (init*)"
     contents:
       - initAgentMode
+      - initCohortManifest
+      - initConceptSetManifest
       - initializeRenv
 
   - title: "Build Functions"
     desc: "Functions for building study components (build*)"
     contents:
       - buildComplementCohort
+      - buildCompositeCohort
+      - buildStratifiedCohorts
       - buildStudyHub
       - buildSubsetCohortDemographic
       - buildSubsetCohortTemporal
@@ -77,6 +81,8 @@ reference:
       - createExecutionSettings
       - createExecutionSettingsFromConfig
       - createPullRequest
+      - createSubsetEndWindow
+      - createSubsetStartWindow
 
   - title: "Execution Functions"
     desc: "Functions for executing study tasks (exec*)"
@@ -86,6 +92,7 @@ reference:
   - title: "Configuration Functions"
     desc: "Functions for configuration and setup (set*)"
     contents:
+      - getAtlasConnection
       - getTaskRunSummary
       - setAtlasConnection
       - setContributor
@@ -104,6 +111,7 @@ reference:
       - agentSaveWork
       - cleanColumnNames
       - clearPendingPR
+      - defineCustomCohort
       - displayTaskStatusReport
       - documentDependencies
       - formatFloats
@@ -112,11 +120,11 @@ reference:
       - importAndBind
       - importAtlasCohorts
       - importAtlasConceptSets
-      - launchCohortsLoadEditor
-      - launchConceptSetsLoadEditor
+      - migrateCohortManifest
       - orchestratePipelineExport
       - pivotForComparison
       - placeHolderExecOptions
+      - plotCohortGraph
       - prepareDisseminationData
       - recordTaskExecution
       - resetCohortManifest
@@ -128,8 +136,10 @@ reference:
       - snapshotEnvironment
       - standardizeDataTypes
       - templateAtlasCredentials
+      - testOrchestratePipelineExport
       - testStudyPipeline
       - testStudyTask
+      - updateCohortMetadata
       - updateStudyVersion
       - validateCohortResults
       - validateConfigYaml

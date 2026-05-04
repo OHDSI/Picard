@@ -10,7 +10,7 @@
     
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.3</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -37,7 +37,7 @@
         <input type="search" class="form-control me-sm-2" aria-label="Toggle navigation" name="search-input" data-search-index="../search.json" id="search-input" placeholder="Search for" autocomplete="off"></form>
 
       <ul class="navbar-nav"><li class="nav-item">
-  <a class="external-link nav-link" href="https://github.com/mdlavallee92/picard">
+  <a class="external-link nav-link" href="https://github.com/ohdsi/Picard">
     <span class="fab fa fab fa-github"></span>
      
   </a>
@@ -177,6 +177,16 @@
         <dd>Initialize or Restore Agent Mode for Cloned Repository</dd>
       </dl><dl><dt>
           
+          <code><a href="initCohortManifest.html">initCohortManifest()</a></code> 
+        </dt>
+        <dd>Initialize a New Cohort Manifest</dd>
+      </dl><dl><dt>
+          
+          <code><a href="initConceptSetManifest.html">initConceptSetManifest()</a></code> 
+        </dt>
+        <dd>Initialize a New Concept Set Manifest</dd>
+      </dl><dl><dt>
+          
           <code><a href="initializeRenv.html">initializeRenv()</a></code> 
         </dt>
         <dd>Initialize Renv for Project</dd>
@@ -198,6 +208,16 @@
         <dd>Build a Complement Cohort Definition</dd>
       </dl><dl><dt>
           
+          <code><a href="buildCompositeCohort.html">buildCompositeCohort()</a></code> 
+        </dt>
+        <dd>Build a Composite Cohort Definition</dd>
+      </dl><dl><dt>
+          
+          <code><a href="buildStratifiedCohorts.html">buildStratifiedCohorts()</a></code> 
+        </dt>
+        <dd>Split a Base Cohort into Multiple Stratified Sub-Cohorts</dd>
+      </dl><dl><dt>
+          
           <code><a href="buildStudyHub.html">buildStudyHub()</a></code> 
         </dt>
         <dd>Build Study Hub</dd>
@@ -205,7 +225,7 @@
           
           <code><a href="buildSubsetCohortDemographic.html">buildSubsetCohortDemographic()</a></code> 
         </dt>
-        <dd>Build a Subset Cohort Definition (Demographic)</dd>
+        <dd>Build a Demographic Subset Cohort</dd>
       </dl><dl><dt>
           
           <code><a href="buildSubsetCohortTemporal.html">buildSubsetCohortTemporal()</a></code> 
@@ -257,6 +277,16 @@
           <code><a href="createPullRequest.html">createPullRequest()</a></code> 
         </dt>
         <dd>Create Pull Request Metadata</dd>
+      </dl><dl><dt>
+          
+          <code><a href="createSubsetEndWindow.html">createSubsetEndWindow()</a></code> 
+        </dt>
+        <dd>Create a Subset End Window Operator</dd>
+      </dl><dl><dt>
+          
+          <code><a href="createSubsetStartWindow.html">createSubsetStartWindow()</a></code> 
+        </dt>
+        <dd>Create a Subset Start Window Operator</dd>
       </dl></div><div class="section level2">
       <h2 id="execution-functions">Execution Functions<a class="anchor" aria-label="anchor" href="#execution-functions"></a></h2>
       
@@ -286,6 +316,11 @@
 
       <dl><dt>
           
+          <code><a href="getAtlasConnection.html">getAtlasConnection()</a></code> 
+        </dt>
+        <dd>Get Atlas Connection</dd>
+      </dl><dl><dt>
+          
           <code><a href="getTaskRunSummary.html">getTaskRunSummary()</a></code> 
         </dt>
         <dd>Get Task Run Summary</dd>
@@ -293,7 +328,7 @@
           
           <code><a href="setAtlasConnection.html">setAtlasConnection()</a></code> 
         </dt>
-        <dd>Set Atlas Connection</dd>
+        <dd>Set Atlas Connection (Deprecated)</dd>
       </dl><dl><dt>
           
           <code><a href="setContributor.html">setContributor()</a></code> 
@@ -324,7 +359,7 @@
           
           <code><a href="loadCohortManifest.html">loadCohortManifest()</a></code> 
         </dt>
-        <dd>Load Cohort Manifest from Database or Cohort Files</dd>
+        <dd>Load Cohort Manifest from SQLite Database</dd>
       </dl><dl><dt>
           
           <code><a href="loadConceptSetManifest.html">loadConceptSetManifest()</a></code> 
@@ -356,6 +391,11 @@
           <code><a href="clearPendingPR.html">clearPendingPR()</a></code> 
         </dt>
         <dd>Clear Pending PR Reference</dd>
+      </dl><dl><dt>
+          
+          <code><a href="defineCustomCohort.html">defineCustomCohort()</a></code> 
+        </dt>
+        <dd>Define (Enrich) a Custom SQL Cohort (Deprecated)</dd>
       </dl><dl><dt>
           
           <code><a href="displayTaskStatusReport.html">displayTaskStatusReport()</a></code> 
@@ -398,14 +438,9 @@
         <dd>Import CIRCE Concept Sets from ATLAS</dd>
       </dl><dl><dt>
           
-          <code><a href="launchCohortsLoadEditor.html">launchCohortsLoadEditor()</a></code> 
+          <code><a href="migrateCohortManifest.html">migrateCohortManifest()</a></code> 
         </dt>
-        <dd>Launch Interactive Cohort Load File Editor</dd>
-      </dl><dl><dt>
-          
-          <code><a href="launchConceptSetsLoadEditor.html">launchConceptSetsLoadEditor()</a></code> 
-        </dt>
-        <dd>Launch Interactive Concept Set Load Editor</dd>
+        <dd>Migrate Old CohortManifest SQLite to New Schema</dd>
       </dl><dl><dt>
           
           <code><a href="orchestratePipelineExport.html">orchestratePipelineExport()</a></code> 
@@ -423,6 +458,11 @@
         <dd>set the execOptions as placeholder.</dd>
       </dl><dl><dt>
           
+          <code><a href="plotCohortGraph.html">plotCohortGraph()</a></code> 
+        </dt>
+        <dd>Plot Cohort Dependency Graph</dd>
+      </dl><dl><dt>
+          
           <code><a href="prepareDisseminationData.html">prepareDisseminationData()</a></code> 
         </dt>
         <dd>Prepare Dissemination Data with Chained Transformations</dd>
@@ -435,12 +475,12 @@
           
           <code><a href="resetCohortManifest.html">resetCohortManifest()</a></code> 
         </dt>
-        <dd>Reset Cohort Manifest Database</dd>
+        <dd>Reset Cohort Manifest</dd>
       </dl><dl><dt>
           
           <code><a href="resetConceptSetManifest.html">resetConceptSetManifest()</a></code> 
         </dt>
-        <dd>Reset Concept Set Manifest Database</dd>
+        <dd>Reset Concept Set Manifest</dd>
       </dl><dl><dt>
           
           <code><a href="restoreEnvironment.html">restoreEnvironment()</a></code> 
@@ -478,6 +518,11 @@
         <dd>Template for setting Atlas Credentials</dd>
       </dl><dl><dt>
           
+          <code><a href="testOrchestratePipelineExport.html">testOrchestratePipelineExport()</a></code> 
+        </dt>
+        <dd>Test Orchestrate Pipeline Export</dd>
+      </dl><dl><dt>
+          
           <code><a href="testStudyPipeline.html">testStudyPipeline()</a></code> 
         </dt>
         <dd>Test Study Pipeline</dd>
@@ -486,6 +531,11 @@
           <code><a href="testStudyTask.html">testStudyTask()</a></code> 
         </dt>
         <dd>Test a Single Study Task</dd>
+      </dl><dl><dt>
+          
+          <code><a href="updateCohortMetadata.html">updateCohortMetadata()</a></code> 
+        </dt>
+        <dd>Update the Label and/or Tags of an Existing Manifest Cohort</dd>
       </dl><dl><dt>
           
           <code><a href="updateStudyVersion.html">updateStudyVersion()</a></code> 
@@ -515,7 +565,7 @@
           
           <code><a href="visualizeCohortDependencies.html">visualizeCohortDependencies()</a></code> 
         </dt>
-        <dd>Visualize Cohort Dependencies in a Report</dd>
+        <dd>Visualize Cohort Dependencies (Deprecated)</dd>
       </dl><dl><dt>
           
           <code><a href="zipAndArchive.html">zipAndArchive()</a></code> 

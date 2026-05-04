@@ -26,7 +26,7 @@
     
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.3</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -57,7 +57,7 @@
 
       <ul class="navbar-nav">
 <li class="nav-item">
-  <a class="external-link nav-link" href="https://github.com/mdlavallee92/picard">
+  <a class="external-link nav-link" href="https://github.com/ohdsi/Picard">
     <span class="fab fa fab fa-github"></span>
      
   </a>
@@ -77,7 +77,7 @@
       <img src="" class="logo" alt=""><h1>The Ulysses Standard Repository Structure</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/mdlavallee92/picard/blob/HEAD/vignettes/picard_repository_structure.Rmd" class="external-link"><code>vignettes/picard_repository_structure.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/ohdsi/Picard/blob/HEAD/vignettes/picard_repository_structure.Rmd" class="external-link"><code>vignettes/picard_repository_structure.Rmd</code></a></small>
       <div class="d-none name"><code>picard_repository_structure.Rmd</code></div>
     </div>
 
@@ -679,8 +679,8 @@ Sub-grouping (character, optional, e.g., <code>"Endocrine"</code>) -
 1,Type 2 Diabetes,Disease Populations,Endocrine,json/t2dm_patients.json
 2,Diabetes Complications,Disease Populations,Endocrine,json/diabetes_complications.json</code></pre>
 <p>When loaded, these metadata fields are converted to tags on each
-cohort for later querying (e.g., <code>$getCohortsByTag()</code>,
-<code>$getCohortsByLabel()</code>).</p>
+cohort for later querying (e.g., <code>$queryCohortsByTag()</code>,
+<code>$queryCohortsByLabel()</code>).</p>
 <p><strong>cohortManifest.sqlite:</strong></p>
 <p>SQLite database created/managed by <code>CohortManifest</code> class.
 Contains <code>cohort_manifest</code> table tracking all cohort
@@ -762,8 +762,8 @@ enrich with <code>cohortsLoad.csv</code> metadata</li>
 <li>First load creates <code>cohortManifest.sqlite</code> database;
 subsequent loads verify file hashes</li>
 <li>Use CohortManifest methods to query cohorts:
-<code>$getCohortById(1)</code>,
-<code>$getCohortsByTag("category: Disease Populations")</code>
+<code>$queryCohortById(1)</code>,
+<code>$queryCohortsByTag("category: Disease Populations")</code>
 </li>
 </ol>
 <p><strong>See also:</strong> <a href="loading_inputs.html">Loading

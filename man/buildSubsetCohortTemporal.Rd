@@ -8,30 +8,36 @@ buildSubsetCohortTemporal(
   label,
   baseCohortId,
   filterCohortId,
-  temporalOperator = "during",
-  temporalStartOffset = 0L,
-  temporalEndOffset = 0L,
-  cohortsDirectory = NULL,
-  manifest = NULL
+  startWindow,
+  endWindow = NULL,
+  endDateType = "base",
+  subsetLimit = "First",
+  category = "derived",
+  manifest
 )
 }
 \arguments{
-\item{label}{Character. User-friendly name for the subset (e.g., "CKD with T2D prior")}
+\item{label}{Character. User-friendly name for the subset (e.g., "CKD with T2D prior").}
 
 \item{baseCohortId}{Integer. The cohort ID to subset.}
 
 \item{filterCohortId}{Integer. The cohort ID to use for temporal filtering.}
 
-\item{temporalOperator}{Character. One of 'during', 'before', 'after', 'overlapping'. Default: 'during'}
+\item{startWindow}{SubsetWindowOperator object. Defines the temporal window for the subset cohort start date
+relative to the filter cohort event.}
 
-\item{temporalStartOffset}{Integer. Window start relative to base cohort (negative = before). Default: 0}
+\item{endWindow}{SubsetWindowOperator object (optional, NULL allowed). Defines the temporal window for the
+subset cohort end date relative to the filter cohort event. If NULL, the filter cohort end date is not used.}
 
-\item{temporalEndOffset}{Integer. Window end relative to base cohort. Default: 0}
+\item{endDateType}{Character. Whether to use the base cohort end date ('base') or filter cohort end date ('filter')
+as the cohort end date in the output subset cohort. Default: 'base'.}
 
-\item{cohortsDirectory}{Character. Path to inputs/cohorts/. Uses study hierarchy if not provided.}
+\item{subsetLimit}{Character. One of 'First', 'Last', or 'All'. Specifies which qualifying filter cohort event(s)
+to retain per subject. 'First' keeps the earliest event, 'Last' keeps the most recent event, 'All' keeps all
+qualifying events. Default: 'First'.}
 
-\item{manifest}{CohortManifest object (optional). If provided, validates that base cohorts exist.
-Recommended to ensure referential integrity. If NULL, a warning is issued.}
+\item{manifest}{CohortManifest object. Required. Validates that base cohorts exist and
+automatically registers the new cohort.}
 }
 \value{
 A CohortDef object with cohortType='subset' and dependencies set.
@@ -47,4 +53,28 @@ Creates three files:
 \item Metadata JSON: Same path with \code{.json} extension (parameters for execution)
 \item Context file: \code{.metadata} with rule description
 }
+}
+\examples{
+# Create subset: Chronic Kidney Disease patients with a Type 2 Diabetes diagnosis
+# in the 365 days before or after their CKD start date
+
+# Define window for start date: T2D diagnosis must occur within 365 days before to 0 days after CKD start
+start_window <- createSubsetStartWindow(
+  subsetCohortWindowAnchor = "cohort_start_date",
+  startDays = -365,
+  endDays = 0,
+  baseCohortWindowAnchor = "cohort_start_date"
+)
+
+# Create the subset cohort: keep first T2D event per patient
+ckd_with_t2d <- buildSubsetCohortTemporal(
+  label = "CKD with recent T2D",
+  baseCohortId = 101,
+  filterCohortId = 102,
+  startWindow = start_window,
+  endWindow = NULL,
+  endDateType = "base",
+  subsetLimit = "First"
+)
+
 }

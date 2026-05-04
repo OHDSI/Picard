@@ -242,9 +242,14 @@ zipAndArchive <- function(input) {
 #'   and retrieves their counts. This function serves as the foundational step
 #'   for all subsequent analytical tasks in the pipeline.
 #' @param executionSettings An ExecutionSettings object containing database configuration
-#'   for cohort generation.
+#'   for cohort generation. When created via \code{createExecutionSettingsFromConfig()} with
+#'   a non-semver \code{pipelineVersion} (e.g. "dev", "test"), the cohort table name will
+#'   already have a \code{_dev} suffix applied, keeping dev runs isolated from the
+#'   production cohort table.
 #' @param pipelineVersion Character. The pipeline version used to organize the output folder structure.
-#'   Output will be saved to exec/results/{databaseName}/{pipelineVersion}/00_buildCohorts/
+#'   Output will be saved to \code{exec/results/{databaseName}/{pipelineVersion}/00_buildCohorts/}.
+#'   Non-semver values (e.g. "dev") also trigger dev cohort table routing via
+#'   \code{createExecutionSettingsFromConfig()}.
 #' @param override Logical. If TRUE, skips the user confirmation prompt and proceeds
 #'   directly with cohort generation. Defaults to FALSE.
 #' @return Invisibly returns the cohort counts data frame (id, label, tags, 
@@ -261,11 +266,15 @@ generateCohorts <- function(executionSettings, pipelineVersion, override = FALSE
     cli::cli_alert_danger("Cohort Manifest not found!")
     cli::cli_alert_info("Expected location: {fs::path_rel(dbPath)}")
     cli::cli_rule("How to create a Cohort Manifest")
-    cli::cli_h2("Option 1: Use launchCohortsLoadEditor to create metadata file")
-    cli::cli_code("launchCohortsLoadEditor()")
-    cli::cli_h2("Option 2: Import cohorts from ATLAS")
-    cli::cli_code("importAtlasCohorts(atlasIds = c(123, 456, 789))")
-    cli::cli_h2("Option 3: Place cohort files and reload")
+    cli::cli_h2("Step 1: Initialize manifest")
+    cli::cli_code("cohortManifest <- initCohortManifest()")
+    cli::cli_h2("Step 2: Create cohortsLoad.csv in Excel")
+    cli::cli_code("createBlankCohortsLoadFile()")
+    cli::cli_h2("Step 3: Import cohorts from ATLAS")
+    cli::cli_code("atlasConnection <- getAtlasConnection()")
+    cli::cli_code("cohortManifest$importAtlasCohorts(atlasConnection, 'inputs/cohorts/cohortsLoad.csv')")
+    cli::cli_h2("Step 4: Load into a new session")
+    cli::cli_code("cohortManifest <- loadCohortManifest()")
     cli::cli_bullets(c(
       "Place JSON or SQL files in {.path {cohortsFolderPath}/json} or {.path {cohortsFolderPath}/sql}",
       "Then call: {.code loadCohortManifest()}"
@@ -320,7 +329,7 @@ generateCohorts <- function(executionSettings, pipelineVersion, override = FALSE
     if (!(response %in% c("yes", "y"))) {
       cli::cli_alert_info("Cohort generation cancelled by user.")
       cli::cli_bullets(c(
-        i = "To modify cohorts, use {.code launchCohortsLoadEditor()}",
+        i = "To modify cohorts, edit cohortsLoad.csv in Excel and re-run",
         i = "To import new cohorts from ATLAS, use {.code importAtlasCohorts()}"
       ))
       return(invisible(NULL))
@@ -332,7 +341,7 @@ generateCohorts <- function(executionSettings, pipelineVersion, override = FALSE
   
   tryCatch({
     cm$createCohortTables()
-    cm$generateCohorts()
+    cm$executeCohortGeneration()
     counts <- cm$retrieveCohortCounts()
     
     cli::cli_alert_success("Cohort generation completed successfully!")
@@ -400,7 +409,7 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
   if (!file.exists(fullTaskFilePath)) {
     cli::cli_alert_danger("Task file not found: {fs::path_rel(fullTaskFilePath)}")
     recordTaskExecution(taskFile, configBlock, pipelineVersion, "failed",
-                        "Task file does not exist")
+                        errorMessage = "Task file does not exist")
     stop("Task file does not exist")
   }
 
@@ -411,7 +420,7 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
       executionSettings <- createExecutionSettingsFromConfig(configBlock = configBlock)
     }, error = function(e) {
       cli::cli_alert_warning("Could not create execution settings for task status check: {e$message}")
-      executionSettings <<- NULL
+      executionSettings <- NULL
     })
     
     if (!is.null(executionSettings)) {
@@ -436,18 +445,20 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
   }, error = function(e) {
     cli::cli_alert_danger("Task validation failed: {e$message}")
     recordTaskExecution(taskFile, configBlock, pipelineVersion, "failed",
-                        paste("Validation failed:", e$message))
+                        errorMessage = paste("Validation failed:", e$message))
     stop("Invalid task structure - cannot execute")
   })
 
   # Read and process the task file
   tryCatch({
     rLines <- readr::read_file(fullTaskFilePath) |>
+      stringr::str_replace_all("\r\n", "\n") |>  # Convert CRLF to LF
+      stringr::str_replace_all("\r", "\n") |>     # Convert any remaining CR to LF
       glue::glue(.open = "!||", .close = "||!")
   }, error = function(e) {
     cli::cli_alert_danger("Failed to read task file: {e$message}")
     recordTaskExecution(taskFile, configBlock, pipelineVersion, "failed",
-                        paste("Read error:", e$message))
+                        errorMessage = paste("Read error:", e$message))
     stop("Error reading task file")
   })
 
@@ -457,7 +468,7 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
   }, error = function(e) {
     cli::cli_alert_danger("Failed to parse task file: {e$message}")
     recordTaskExecution(taskFile, configBlock, pipelineVersion, "failed",
-                        paste("Parse error:", e$message))
+                        errorMessage = paste("Parse error:", e$message))
     stop("Error parsing task expressions")
   })
 
@@ -481,7 +492,7 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
   # Record success or failure
   if (!is.null(executionError)) {
     recordTaskExecution(taskFile, configBlock, pipelineVersion, "failed",
-                        executionError)
+                        errorMessage = executionError)
     stop(executionError)
   } else {
     recordTaskExecution(taskFile, configBlock, pipelineVersion, "success")
@@ -540,140 +551,104 @@ testStudyTask <- function(taskFile, configBlock, env = rlang::caller_env()) {
 #' @param testMode Logical. If TRUE, skips all validations and uses "dev" version.
 #'   If FALSE, enforces code validation and version management. Default: FALSE
 #' @param skipRenv Logical. If TRUE, skips renv validation. Default: FALSE
+#' @param skipConnectivityCheck Logical. If TRUE (default), skips the optional
+#'   database connectivity pre-flight check. Set to FALSE to attempt a test
+#'   connection to each config block before execution begins.
 #' @param env the execution environment
 #' @return Invisibly returns task results list
 #' @keywords internal
-execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE, 
-                             skipRenv = FALSE, env = rlang::caller_env()) {
+execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
+                             skipRenv = FALSE, skipConnectivityCheck = TRUE,
+                             env = rlang::caller_env()) {
   
-  # Determine pipeline version and set mode-specific behavior
+  # Compute prospective pipeline version (needed for pre-flight checks)
   if (testMode) {
     pipelineVersion <- "dev"
-    cli::cli_alert_info("Using DEV version for test run")
+    currentVersion <- NULL
+    incrementLabel <- NULL
   } else {
-    # Production mode - validate and increment version
-    # Validate code state before proceeding
-    codeCommitSha <- validateCodeState()
-    
-    # Validate environment and snapshot dependencies
-    if (!skipRenv) {
-      validateEnvironment()
-      lockfileHash <- snapshotEnvironment()
-    } else {
-      cli::cli_alert_warning("Skipping renv validation and snapshot (testing mode)")
-      lockfileHash <- NULL
+    # Validate updateType
+    updateType <- tolower(trimws(updateType))
+    if (!(updateType %in% c("major", "minor", "patch"))) {
+      cli::cli_abort(c(
+        "Invalid updateType: {.val {updateType}}",
+        "i" = "Must be one of: major, minor, patch",
+        "i" = "MAJOR - Breaking changes, MINOR - New features, PATCH - Bug fixes"
+      ))
     }
-  }
-  
-  # Validate config.yml file structure
-  tryCatch({
-    validateConfigYaml()
-  }, error = function(e) {
-    cli::cli_alert_danger("Config validation failed: {e$message}")
-    stop("Pipeline cannot proceed with invalid configuration")
-  })
-  
-  # Validate updateType parameter (production mode only)
-  if (!testMode) {
-    tryCatch({
-      updateType <- tolower(trimws(updateType))
-      if (!(updateType %in% c("major", "minor", "patch"))) {
-        cli::cli_alert_danger("Invalid updateType: {updateType}")
-        cli::cli_bullets(c(
-          x = "updateType must be one of: major, minor, patch",
-          i = "MAJOR - Breaking changes",
-          i = "MINOR - New features, backward compatible",
-          i = "PATCH - Bug fixes, no new features"
-        ))
-        stop("Invalid updateType parameter")
-      }
-    }, error = function(e) {
-      if (grepl("Invalid", e$message)) {
-        stop(e$message)
-      } else {
-        cli::cli_alert_danger("Error validating updateType: {e$message}")
-        stop("Failed to validate updateType")
-      }
-    })
-    
+
     # Read current version from config.yml
-    tryCatch({
-      configPath <- fs::path(here::here(), "config.yml")
-      configYml <- readr::read_lines(configPath)
-      versionLine <- which(grepl("  version: ", configYml))
-      
-      if (length(versionLine) == 0) {
-        cli::cli_alert_danger("Version not found in config.yml")
-        stop("Cannot find version in config.yml")
-      }
-      
-      currentVersionLine <- configYml[versionLine[1]]
-      currentVersion <- gsub(".*version:\\s*", "", currentVersionLine)
-      currentVersion <- trimws(currentVersion)
-      
-      cli::cli_alert_info("Current version from config.yml: {currentVersion}")
-      
-    }, error = function(e) {
-      cli::cli_alert_danger("Failed to read version from config.yml: {e$message}")
-      stop("Cannot read current version")
-    })
-    
-    # Increment version based on updateType
+    configPath <- fs::path(here::here(), "config.yml")
+    configYml <- tryCatch(
+      readr::read_lines(configPath),
+      error = function(e) cli::cli_abort("Cannot read config.yml: {e$message}")
+    )
+    versionLine <- which(grepl("  version: ", configYml))
+    if (length(versionLine) == 0) cli::cli_abort("Version not found in config.yml")
+    currentVersion <- trimws(gsub(".*version:\\s*", "", configYml[versionLine[1]]))
+
+    # Compute prospective new version
+    versionParts <- as.integer(strsplit(currentVersion, "\\.")[[1]])
+
+    if (updateType == "major") {
+      versionParts[1] <- versionParts[1] + 1
+      versionParts[2] <- 0
+      versionParts[3] <- 0
+      incrementLabel <- "MAJOR"
+    } else if (updateType == "minor") {
+      versionParts[2] <- versionParts[2] + 1
+      versionParts[3] <- 0
+      incrementLabel <- "MINOR"
+    } else if (updateType == "patch") {
+      versionParts[3] <- versionParts[3] + 1
+      incrementLabel <- "PATCH"
+    }
+
+    pipelineVersion <- paste0(versionParts, collapse = ".")
+  }
+
+  # Run all pre-flight checks — consolidated banner before any execution
+  preFlightResult <- runPreflightChecks(
+    configBlock = configBlock,
+    pipelineVersion = pipelineVersion,
+    testMode = testMode,
+    skipRenv = skipRenv,
+    skipConnectivityCheck = skipConnectivityCheck,
+    resultsPath = here::here("exec/results"),
+    tasksFolderPath = here::here("analysis/tasks")
+  )
+
+  lockfileHash <- preFlightResult$lockfileHash
+  taskFilesToRun <- preFlightResult$taskFilesToRun
+
+  if (length(taskFilesToRun) == 0) {
+    cli::cli_alert_warning("No task files found in analysis/tasks folder")
+    return(invisible(NULL))
+  }
+
+  cli::cli_alert_info("Found {length(taskFilesToRun)} task(s) to execute")
+
+  # Apply version increment to files (production only, after pre-flight passes)
+  if (!testMode) {
     cli::cli_rule("Version Increment")
-    
+    cli::cli_alert_success("{incrementLabel} increment: {currentVersion} → {pipelineVersion}")
+    cli::cli_alert_info("Updating version in config.yml...")
     tryCatch({
-      # Parse current version
-      versionParts <- as.integer(strsplit(currentVersion, "\\.")[[1]])
-      
-      # Increment appropriate version part
-      if (updateType == "major") {
-        versionParts[1] <- versionParts[1] + 1
-        versionParts[2] <- 0
-        versionParts[3] <- 0
-        incrementLabel <- "MAJOR"
-      } else if (updateType == "minor") {
-        versionParts[2] <- versionParts[2] + 1
-        versionParts[3] <- 0
-        incrementLabel <- "MINOR"
-      } else if (updateType == "patch") {
-        versionParts[3] <- versionParts[3] + 1
-        incrementLabel <- "PATCH"
-      }
-      
-      pipelineVersion <- paste0(versionParts, collapse = ".")
-      
-      cli::cli_alert_success("{incrementLabel} increment: {currentVersion} → {pipelineVersion}")
-      
-      # Update version across entire repo (includes semantic version validation)
-      cli::cli_alert_info("Updating version in config.yml...")
       updateStudyVersion(versionNumber = pipelineVersion)
-      
     }, error = function(e) {
-      cli::cli_alert_danger("Failed to increment version: {e$message}")
+      cli::cli_alert_danger("Failed to apply version increment: {e$message}")
       stop("Version increment failed")
     })
   }
   
-  # Get list of tasks to run
+  # Create execution settings from first configBlock.
+  # Forwarding pipelineVersion so that dev versions (non-semver) automatically
+  # route cohort generation to the _dev table, leaving the production table untouched.
   tryCatch({
-    taskFilesToRun <- fs::dir_ls("analysis/tasks", type = "file") |>
-      basename() |>
-      sort()
-    
-    if (length(taskFilesToRun) == 0) {
-      cli::cli_alert_warning("No task files found in analysis/tasks folder")
-      return(invisible(NULL))
-    }
-    
-    cli::cli_alert_info("Found {length(taskFilesToRun)} task(s) to execute")
-  }, error = function(e) {
-    cli::cli_alert_danger("Failed to scan tasks folder: {e$message}")
-    stop("Cannot read analysis/tasks directory")
-  })
-  
-  # Create execution settings from first configBlock
-  tryCatch({
-    executionSettings <- createExecutionSettingsFromConfig(configBlock = configBlock[1])
+    executionSettings <- createExecutionSettingsFromConfig(
+      configBlock = configBlock[1],
+      pipelineVersion = pipelineVersion
+    )
     cli::cli_alert_success("Execution settings created for config: {configBlock[1]}")
   }, error = function(e) {
     cli::cli_alert_danger("Failed to create execution settings: {e$message}")
@@ -700,7 +675,7 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
     logHeader <- c(
       "================================================================================",
       glue::glue("Picard Pipeline Execution Log"),
-      glue::glue("Pipeline Version: {pipelineVersion}"),
+      glue::glue("Pipeline Version: {pipelineVersion}"), # add cohort version 
       glue::glue("Execution Start Time: {format(Sys.time(), '%Y-%m-%d %H:%M:%S')}"),
       glue::glue("Config Blocks: {paste(configBlock, collapse = ', ')}"),
       glue::glue("Update Type: {updateType}"),
@@ -723,59 +698,8 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
     cli::cli_alert_warning("Failed to setup logging: {e$message}")
   })
   
-  # Check cohort manifest status quietly before pipeline starts
-  tryCatch({
-    # Load manifest without verbose output
-    temp_manifest <- loadCohortManifest(
-      executionSettings = NULL,
-      verbose = FALSE
-    )
-    
-    # Validate manifest to get status
-    manifest_status <- temp_manifest$validateManifest()
-    
-    # Check for missing active cohorts (file_exists = FALSE but status = active)
-    missing_mask <- manifest_status$status == "active" & !manifest_status$file_exists
-    missing_cohorts <- manifest_status[missing_mask, ]
-    
-    # If cohorts are missing, alert user and ask to proceed
-    if (nrow(missing_cohorts) > 0) {
-      cli::cli_rule("Warning: Missing Cohort Files Detected")
-      cli::cli_alert_danger("{nrow(missing_cohorts)} cohort file(s) are missing from the pipeline:")
-      
-      for (i in seq_len(nrow(missing_cohorts))) {
-        cohort <- missing_cohorts[i, ]
-        cli::cli_bullets(c("✗" = "ID {cohort$id}: {cohort$label}"))
-      }
-      
-      cli::cli_rule()
-      cli::cli_alert_warning("Do you want to continue with pipeline execution?")
-      cli::cli_bullets(c(
-        i = "Option 1: Continue (missing cohorts will be skipped)",
-        i = "Option 2: Stop now (restore files or use cleanupMissing())"
-      ))
-      
-      response <- readline(prompt = "Continue with pipeline? (yes/no): ")
-      response <- tolower(trimws(response))
-      
-      if (!(response %in% c("yes", "y"))) {
-        cli::cli_alert_info("Pipeline cancelled by user")
-        cli::cli_bullets(c(
-          i = "Use {.code manifest$cleanupMissing()} to remove missing cohorts",
-          i = "Or restore the missing files and run again"
-        ))
-        stop("Pipeline execution cancelled due to missing cohorts")
-      }
-      
-      cli::cli_alert_success("Continuing with pipeline execution...")
-    }
-  }, error = function(e) {
-    # If status check fails, log warning but continue
-    if (grepl("Pipeline execution cancelled", e$message)) {
-      stop(e$message)  # Re-throw cancellation errors
-    }
-    cli::cli_alert_warning("Could not validate cohort status (will proceed with generation): {e$message}")
-  })
+  # Cohort manifest status and missing-cohort interactive prompt are handled
+  # in runPreflightChecks() before pipeline execution begins.
   
   # Generate cohorts before running pipeline
   cli::cli_alert_info("Generating cohorts for pipeline...")
@@ -931,6 +855,9 @@ testStudyPipeline <- function(configBlock, env = rlang::caller_env()) {
 #'   - PATCH: Bug fixes, no new features
 #' @param skipRenv Logical. If TRUE, skips renv validation. Defaults to FALSE.
 #'   Useful for testing issues. Default: FALSE
+#' @param skipConnectivityCheck Logical. If TRUE (default), skips the optional
+#'   database connectivity pre-flight check. Set to FALSE to attempt a test
+#'   connection to each config block before execution begins.
 #' @param env The execution environment. Defaults to caller environment.
 #' @return Invisibly returns task results list
 #' @export
@@ -939,10 +866,12 @@ testStudyPipeline <- function(configBlock, env = rlang::caller_env()) {
 #' # Run production pipeline with patch version increment
 #' execStudyPipeline(configBlock = "myConfig", updateType = "patch")
 #' }
-execStudyPipeline <- function(configBlock, updateType, skipRenv = FALSE, env = rlang::caller_env()) {
+execStudyPipeline <- function(configBlock, updateType, skipRenv = FALSE,
+                              skipConnectivityCheck = TRUE, env = rlang::caller_env()) {
   checkmate::assert_character(configBlock, min.len = 1, any.missing = FALSE)
   checkmate::assert_string(updateType, min.chars = 1)
   checkmate::assert_logical(skipRenv, len = 1)
+  checkmate::assert_logical(skipConnectivityCheck, len = 1)
   
   # Check current branch
   branch <- get_current_branch()
@@ -1030,6 +959,7 @@ execStudyPipeline <- function(configBlock, updateType, skipRenv = FALSE, env = r
     updateType = updateType,
     testMode = FALSE,
     skipRenv = skipRenv,
+    skipConnectivityCheck = skipConnectivityCheck,
     env = env
   )
   

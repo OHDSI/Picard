@@ -36,13 +36,7 @@ createBlankCohortsLoadFile(cohortsFolderPath = here::here("inputs/cohorts"))
 
 This creates `inputs/cohorts/cohortsLoad.csv` with columns: `atlasId`, `label`, `category`, `subCategory`, `file_name`
 
-**Option B: Use the interactive editor**
-
-```r
-launchCohortsLoadEditor(cohortsFolderPath = here::here("inputs/cohorts"))
-```
-
-This launches a Shiny app where you can add/edit cohort metadata without touching the CSV directly.
+Edit this file in Excel to add your cohort entries.
 
 ### Step 2: Import Cohort Definitions from ATLAS
 
@@ -107,7 +101,7 @@ Once stored in keyring, simply connect:
 
 ```r
 # All credentials are retrieved automatically from keyring service "picard"
-atlasConn <- setAtlasConnection(useKeyring = TRUE)
+atlasConn <- getAtlasConnection(useKeyring = TRUE)
 ```
 
 **Alternative: Add credentials directly to .Renviron (Less secure)**
@@ -120,7 +114,7 @@ If you prefer not to use keyring, you can add credentials directly:
 Once credentials are configured, connect to ATLAS and download cohort definitions:
 
 ```r
-atlasConn <- setAtlasConnection()
+atlasConn <- getAtlasConnection()
 
 importAtlasCohorts(
   cohortsFolderPath = here::here("inputs/cohorts"),
@@ -150,8 +144,8 @@ manifest_df <- cm$getManifest()
 summary_df <- cm$tabulateManifest()
 
 # Query specific cohorts
-cohort_1 <- cm$getCohortById(id = 1)
-cohorts_by_tag <- cm$getCohortsByTag(tagString = "category: Primary")
+cohort_1 <- cm$queryCohortsByIds(ids = 1L)
+cohorts_by_tag <- cm$queryCohortsByTag(tagStrings = "category: Primary")
 ```
 
 ### Step 5: Apply Functions for Cohort Operations
@@ -193,8 +187,6 @@ ckd_given_t2d <- buildSubsetCohortTemporal(
   temporalStartOffset = 365, # Within 1 year before CKD
   manifest = cm
 )
-
-cm$addDependentCohort(ckd_given_t2d)
 ```
 
 ### Demographic Subset Cohorts
@@ -208,8 +200,6 @@ ckd_males <- buildSubsetCohortDemographic(
   genderConceptIds = c(8507),        # 8507 = Male
   manifest = cm
 )
-
-cm$addDependentCohort(ckd_males)
 ```
 
 Example: "CKD in adults (18+) only":
@@ -221,8 +211,6 @@ ckd_adults <- buildSubsetCohortDemographic(
   minAge = 18,
   manifest = cm
 )
-
-cm$addDependentCohort(ckd_adults)
 ```
 
 ### Union and Complement Cohorts
@@ -237,8 +225,6 @@ ckd_or_t2d <- buildUnionCohort(
   cohortIds = c(1, 2),
   manifest = cm
 )
-
-cm$addDependentCohort(ckd_or_t2d)
 ```
 
 **Complement:** All patients NOT in a cohort:
@@ -249,9 +235,9 @@ no_ckd <- buildComplementCohort(
   cohortId = 1,
   manifest = cm
 )
-
-cm$addDependentCohort(no_ckd)
 ```
+
+> **Note:** All `build*` functions require a `manifest` argument and automatically register the new cohort via `addDependentCohort()` — no separate call is needed.
 
 ### Visualizing Dependencies
 
@@ -263,6 +249,88 @@ report <- visualizeCohortDependencies(cm)
 
 # Optionally save to file
 visualizeCohortDependencies(cm, outputPath = here::here("inputs/cohorts"))
+```
+
+---
+
+## Managing the Manifest Mid-Cycle
+
+Study development is rarely linear. Cohorts get revised in ATLAS, new definitions get added mid-analysis, or old definitions are retired. Use these methods to keep the manifest in sync without reloading from scratch.
+
+### Checking Manifest Health
+
+```r
+# Full status table: id, label, status, deleted_at, file_exists
+cm$validateManifest()
+
+# Summary counts
+cm$getManifestStatus()
+# Returns: active_count, missing_count, deleted_count, next_available_id
+```
+
+### syncManifest()
+
+Reconciles the SQLite manifest against `json/` and `sql/` on disk in a single call:
+
+- **New files** found on disk → added as new manifest entries
+- **Active records** whose file has disappeared → soft-deleted (`status = 'deleted'`)
+- **Existing files** whose SQL hash has changed → hash updated in manifest
+- **Derived cohorts** (`derived/`) are not touched
+
+```r
+synced <- cm$syncManifest()
+# Returns data frame: id, label, action
+# action: "added" | "hash_updated" | "missing_flagged" | "unchanged"
+```
+
+Use after: re-running `importAtlasCohorts()`, editing a SQL file directly, or deleting a cohort file.
+
+### deleteCohort() and removeCohort()
+
+```r
+# Soft-delete: marks status = 'deleted', keeps the record for audit trail
+cm$deleteCohort(id = 5, reason = "Replaced by updated phenotype")
+
+# Hard delete: permanently removes the SQLite record (no soft-delete trace)
+cm$removeCohort(id = 5, confirm = TRUE)
+
+# Also delete the file on disk
+cm$removeCohort(id = 5, deleteFile = TRUE, confirm = TRUE)
+
+# Also drop rows from the DBMS cohort and checksum tables (requires executionSettings)
+cm$removeCohort(id = 5, deleteFile = TRUE, dropFromCohortTable = TRUE, confirm = TRUE)
+```
+
+### cleanCohortTable()
+
+Purges DBMS rows for all `status = 'deleted'` cohorts, then marks them `'purged'` in SQLite. Requires `executionSettings`.
+
+```r
+cm$setExecutionSettings(settings)
+purge_results <- cm$cleanCohortTable()
+# Returns data frame: id, label for each purged cohort
+# Safe to call repeatedly — 'purged' records are skipped on subsequent calls
+```
+
+### Typical Mid-Cycle Workflow
+
+```r
+# 1. Re-import updated cohorts from ATLAS
+importAtlasCohorts(cohortsFolderPath = here::here("inputs/cohorts"), atlasConnection = atlasConn)
+
+# 2. Sync the manifest
+synced <- cm$syncManifest()
+synced[synced$action != "unchanged", ]  # review what changed
+
+# 3. Retire a cohort no longer needed
+cm$deleteCohort(id = 7, reason = "Out of scope for v2")
+
+# 4. Purge the retired cohort from DBMS
+cm$setExecutionSettings(settings)
+cm$cleanCohortTable()
+
+# 5. Re-generate to pick up revisions
+cm$generateCohorts()
 ```
 
 ---
@@ -282,7 +350,7 @@ createBlankConceptSetsLoadFile(conceptSetsFolderPath = here::here("inputs/concep
 ### Step 2: Import Concept Sets from ATLAS
 
 ```r
-atlasConn <- setAtlasConnection()
+atlasConn <- getAtlasConnection()
 
 importAtlasConceptSets(
   conceptSetsFolderPath = here::here("inputs/conceptSets"),
@@ -296,10 +364,10 @@ importAtlasConceptSets(
 csm <- loadConceptSetManifest()
 
 # View manifest
-manifest_df <- csm$getManifest()
+manifest_df <- csm$tabulateManifest()
 
 # Query by concept
-malaria_concepts <- csm$getConceptSetById(id = 1)
+malaria_concepts <- csm$queryConceptSetsByIds(1L)
 ```
 
 ---

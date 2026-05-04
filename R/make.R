@@ -199,7 +199,8 @@ createExecutionSettingsFromConfig <- function(
     workDatabaseSchema = NULL,
     tempEmulationSchema = NULL,
     cohortTable = NULL,
-    databaseName = NULL) {
+    databaseName = NULL,
+    pipelineVersion = "prod") {
 
   if (!file.exists(configFilePath)) {
     stop("Config file not found: ", configFilePath)
@@ -294,6 +295,14 @@ createExecutionSettingsFromConfig <- function(
   }
   if (is.na(cohortTable)) {
     stop("'cohortTable' not specified in config or as parameter")
+  }
+
+  # Route to dev cohort table for any non-semver pipeline version (e.g. "dev", "test").
+  # Semantic versions ("1.0.0", "2.1.3") always use the production table from config.
+  is_dev_version <- !grepl("^\\d+\\.\\d+\\.\\d+$", pipelineVersion)
+  if (is_dev_version) {
+    cohortTable <- paste0(cohortTable, "_dev")
+    cli::cli_alert_info("Dev pipeline version ({pipelineVersion}) — cohort table set to: {.val {cohortTable}}")
   }
 
   # Create and return ExecutionSettings
@@ -455,7 +464,9 @@ makeSrcFile <- function(
       fileName = fileName,
       author = author,
       description = description,
-      studyName = studyName
+      studyName = studyName,
+      .open = "<<",
+      .close = ">>"
     )
 
   # Display message

@@ -9,6 +9,7 @@ recordTaskExecution(
   configBlock,
   pipelineVersion,
   status,
+  cohortManifestHash = NA_character_,
   errorMessage = NA_character_,
   tasksFolderPath = here::here("analysis/tasks")
 )
@@ -21,6 +22,8 @@ recordTaskExecution(
 \item{pipelineVersion}{Character. Pipeline version}
 
 \item{status}{Character. Execution status ("success", "failed", "skipped")}
+
+\item{cohortManifestHash}{Character. Hash of cohort manifest at time of execution (optional)}
 
 \item{errorMessage}{Character. Error message if status is "failed" (optional)}
 

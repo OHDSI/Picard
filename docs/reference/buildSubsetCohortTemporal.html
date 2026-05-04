@@ -12,7 +12,7 @@ between two cohorts. Returns a CohortDef object ready to add to a CohortManifest
     
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.3</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -39,7 +39,7 @@ between two cohorts. Returns a CohortDef object ready to add to a CohortManifest
         <input type="search" class="form-control me-sm-2" aria-label="Toggle navigation" name="search-input" data-search-index="../search.json" id="search-input" placeholder="Search for" autocomplete="off"></form>
 
       <ul class="navbar-nav"><li class="nav-item">
-  <a class="external-link nav-link" href="https://github.com/mdlavallee92/picard">
+  <a class="external-link nav-link" href="https://github.com/ohdsi/Picard">
     <span class="fab fa fab fa-github"></span>
      
   </a>
@@ -52,7 +52,7 @@ between two cohorts. Returns a CohortDef object ready to add to a CohortManifest
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="" class="logo" alt=""><h1>Build a Subset Cohort Definition (Temporal)</h1>
-      <small class="dont-index">Source: <a href="https://github.com/mdlavallee92/picard/blob/HEAD/R/buildDependentCohorts.R" class="external-link"><code>R/buildDependentCohorts.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/ohdsi/Picard/blob/HEAD/R/buildDependentCohorts.R" class="external-link"><code>R/buildDependentCohorts.R</code></a></small>
       <div class="d-none name"><code>buildSubsetCohortTemporal.Rd</code></div>
     </div>
 
@@ -67,18 +67,19 @@ between two cohorts. Returns a CohortDef object ready to add to a CohortManifest
 <span>  <span class="va">label</span>,</span>
 <span>  <span class="va">baseCohortId</span>,</span>
 <span>  <span class="va">filterCohortId</span>,</span>
-<span>  temporalOperator <span class="op">=</span> <span class="st">"during"</span>,</span>
-<span>  temporalStartOffset <span class="op">=</span> <span class="fl">0L</span>,</span>
-<span>  temporalEndOffset <span class="op">=</span> <span class="fl">0L</span>,</span>
-<span>  cohortsDirectory <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  manifest <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  <span class="va">startWindow</span>,</span>
+<span>  endWindow <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  endDateType <span class="op">=</span> <span class="st">"base"</span>,</span>
+<span>  subsetLimit <span class="op">=</span> <span class="st">"First"</span>,</span>
+<span>  category <span class="op">=</span> <span class="st">"derived"</span>,</span>
+<span>  <span class="va">manifest</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
     <h2 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h2>
     <dl><dt>label</dt>
-<dd><p>Character. User-friendly name for the subset (e.g., "CKD with T2D prior")</p></dd>
+<dd><p>Character. User-friendly name for the subset (e.g., "CKD with T2D prior").</p></dd>
 
 
 <dt>baseCohortId</dt>
@@ -89,25 +90,30 @@ between two cohorts. Returns a CohortDef object ready to add to a CohortManifest
 <dd><p>Integer. The cohort ID to use for temporal filtering.</p></dd>
 
 
-<dt>temporalOperator</dt>
-<dd><p>Character. One of 'during', 'before', 'after', 'overlapping'. Default: 'during'</p></dd>
+<dt>startWindow</dt>
+<dd><p>SubsetWindowOperator object. Defines the temporal window for the subset cohort start date
+relative to the filter cohort event.</p></dd>
 
 
-<dt>temporalStartOffset</dt>
-<dd><p>Integer. Window start relative to base cohort (negative = before). Default: 0</p></dd>
+<dt>endWindow</dt>
+<dd><p>SubsetWindowOperator object (optional, NULL allowed). Defines the temporal window for the
+subset cohort end date relative to the filter cohort event. If NULL, the filter cohort end date is not used.</p></dd>
 
 
-<dt>temporalEndOffset</dt>
-<dd><p>Integer. Window end relative to base cohort. Default: 0</p></dd>
+<dt>endDateType</dt>
+<dd><p>Character. Whether to use the base cohort end date ('base') or filter cohort end date ('filter')
+as the cohort end date in the output subset cohort. Default: 'base'.</p></dd>
 
 
-<dt>cohortsDirectory</dt>
-<dd><p>Character. Path to inputs/cohorts/. Uses study hierarchy if not provided.</p></dd>
+<dt>subsetLimit</dt>
+<dd><p>Character. One of 'First', 'Last', or 'All'. Specifies which qualifying filter cohort event(s)
+to retain per subject. 'First' keeps the earliest event, 'Last' keeps the most recent event, 'All' keeps all
+qualifying events. Default: 'First'.</p></dd>
 
 
 <dt>manifest</dt>
-<dd><p>CohortManifest object (optional). If provided, validates that base cohorts exist.
-Recommended to ensure referential integrity. If NULL, a warning is issued.</p></dd>
+<dd><p>CohortManifest object. Required. Validates that base cohorts exist and
+automatically registers the new cohort.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -123,6 +129,33 @@ Recommended to ensure referential integrity. If NULL, a warning is issued.</p></
 <li><p>Context file: <code>.metadata</code> with rule description</p></li>
 </ul></div>
 
+    <div class="section level2">
+    <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># Create subset: Chronic Kidney Disease patients with a Type 2 Diabetes diagnosis</span></span></span>
+<span class="r-in"><span><span class="co"># in the 365 days before or after their CKD start date</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Define window for start date: T2D diagnosis must occur within 365 days before to 0 days after CKD start</span></span></span>
+<span class="r-in"><span><span class="va">start_window</span> <span class="op">&lt;-</span> <span class="fu"><a href="createSubsetStartWindow.html">createSubsetStartWindow</a></span><span class="op">(</span></span></span>
+<span class="r-in"><span>  subsetCohortWindowAnchor <span class="op">=</span> <span class="st">"cohort_start_date"</span>,</span></span>
+<span class="r-in"><span>  startDays <span class="op">=</span> <span class="op">-</span><span class="fl">365</span>,</span></span>
+<span class="r-in"><span>  endDays <span class="op">=</span> <span class="fl">0</span>,</span></span>
+<span class="r-in"><span>  baseCohortWindowAnchor <span class="op">=</span> <span class="st">"cohort_start_date"</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Create the subset cohort: keep first T2D event per patient</span></span></span>
+<span class="r-in"><span><span class="va">ckd_with_t2d</span> <span class="op">&lt;-</span> <span class="fu">buildSubsetCohortTemporal</span><span class="op">(</span></span></span>
+<span class="r-in"><span>  label <span class="op">=</span> <span class="st">"CKD with recent T2D"</span>,</span></span>
+<span class="r-in"><span>  baseCohortId <span class="op">=</span> <span class="fl">101</span>,</span></span>
+<span class="r-in"><span>  filterCohortId <span class="op">=</span> <span class="fl">102</span>,</span></span>
+<span class="r-in"><span>  startWindow <span class="op">=</span> <span class="va">start_window</span>,</span></span>
+<span class="r-in"><span>  endWindow <span class="op">=</span> <span class="cn">NULL</span>,</span></span>
+<span class="r-in"><span>  endDateType <span class="op">=</span> <span class="st">"base"</span>,</span></span>
+<span class="r-in"><span>  subsetLimit <span class="op">=</span> <span class="st">"First"</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-err co"><span class="r-pr">#&gt;</span> <span class="error">Error in checkmate::assert_class(x = manifest, classes = "CohortManifest"):</span> argument "manifest" is missing, with no default</span>
+<span class="r-in"><span></span></span>
+</code></pre></div>
+    </div>
   </main><aside class="col-md-3"><nav id="toc"><h2>On this page</h2>
     </nav></aside></div>
 

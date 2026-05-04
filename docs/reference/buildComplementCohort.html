@@ -14,7 +14,7 @@ Returns a CohortDef object ready to add to a CohortManifest."><!-- mathjax --><s
     
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.3</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -41,7 +41,7 @@ Returns a CohortDef object ready to add to a CohortManifest."><!-- mathjax --><s
         <input type="search" class="form-control me-sm-2" aria-label="Toggle navigation" name="search-input" data-search-index="../search.json" id="search-input" placeholder="Search for" autocomplete="off"></form>
 
       <ul class="navbar-nav"><li class="nav-item">
-  <a class="external-link nav-link" href="https://github.com/mdlavallee92/picard">
+  <a class="external-link nav-link" href="https://github.com/ohdsi/Picard">
     <span class="fab fa fab fa-github"></span>
      
   </a>
@@ -54,7 +54,7 @@ Returns a CohortDef object ready to add to a CohortManifest."><!-- mathjax --><s
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="" class="logo" alt=""><h1>Build a Complement Cohort Definition</h1>
-      <small class="dont-index">Source: <a href="https://github.com/mdlavallee92/picard/blob/HEAD/R/buildDependentCohorts.R" class="external-link"><code>R/buildDependentCohorts.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/ohdsi/Picard/blob/HEAD/R/buildDependentCohorts.R" class="external-link"><code>R/buildDependentCohorts.R</code></a></small>
       <div class="d-none name"><code>buildComplementCohort.Rd</code></div>
     </div>
 
@@ -71,8 +71,7 @@ Returns a CohortDef object ready to add to a CohortManifest.</p>
 <span>  <span class="va">populationCohortId</span>,</span>
 <span>  <span class="va">excludeCohortIds</span>,</span>
 <span>  complementType <span class="op">=</span> <span class="st">"exclude_any"</span>,</span>
-<span>  cohortsDirectory <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  manifest <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  <span class="va">manifest</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -96,13 +95,8 @@ Returns a CohortDef object ready to add to a CohortManifest.</p>
 </ul></dd>
 
 
-<dt>cohortsDirectory</dt>
-<dd><p>Character. Path to inputs/cohorts/. Uses study hierarchy if not provided.</p></dd>
-
-
 <dt>manifest</dt>
-<dd><p>CohortManifest object (optional). If provided, validates that population and exclude cohorts exist.
-Recommended to ensure referential integrity. If NULL, a warning is issued.</p></dd>
+<dd><p>CohortManifest object. Required. Validates that population and exclude cohorts exist.</p></dd>
 
 </dl></div>
     <div class="section level2">
