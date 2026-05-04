@@ -9,7 +9,6 @@ buildCompositeCohort(
   criteriaCohortIds,
   minimumEventCount = 1,
   eventSelection = "First",
-  cohortsFolder = here::here("inputs/cohorts"),
   manifest
 )
 }
@@ -31,10 +30,7 @@ retain as the cohort_start_date and cohort_end_date in the output:
 Default: 'First'.
 }}
 
-\item{cohortsFolder}{Character. Path to inputs/cohorts/. Defaults to \code{here::here("inputs/cohorts")}.}
-
-\item{manifest}{CohortManifest object. Required. Validates that all criteria cohorts exist and
-automatically registers the new cohort via addDependentCohort().}
+\item{manifest}{CohortManifest object. Required. Validates that all criteria cohorts exist.}
 }
 \value{
 A CohortDef object with cohortType='composite' and dependencies set.

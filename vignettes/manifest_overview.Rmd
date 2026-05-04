@@ -59,7 +59,7 @@ from SQLite at startup.
 | `hash` | MD5 of the file — used by `generateCohorts()` to skip unchanged cohorts |
 | `depends_on` | JSON array of parent cohort IDs (derived cohorts only) |
 | `dependency_rule` | JSON object of build parameters (derived cohorts only) |
-| `status` | `active`, `deleted`, or `purged` |
+| `status` | `active`, `stale`, `deleted`, or `purged` |
 | `created_at` | Timestamp of registration |
 
 ### In-memory R6 object vs SQLite
@@ -78,8 +78,11 @@ If you edit SQLite externally, call `manifest$reloadFromDb()` to sync.
 Every cohort file has an MD5 hash stored in the manifest. At execution time,
 `generateCohorts()` compares the current file hash to the stored hash and skips
 cohorts whose files have not changed. For derived cohorts, a combined hash of
-parent hashes plus the `dependency_rule` is used — so changing a parent cohort
-or its parameters triggers re-execution of all dependents.
+parent hashes plus the `dependency_rule` is used.
+
+**Stale cohorts** (`status = 'stale'`) bypass the hash check and are always
+re-executed. They are reset to `'active'` automatically after successful
+execution. See [Section 4](#mid-cycle-changes) for how cohorts become stale.
 
 ---
 
@@ -166,10 +169,10 @@ specified time window.
 library(picard)
 
 start_window <- createSubsetStartWindow(
-  subsetCohortWindowAnchor = "cohort start",
+  subsetCohortWindowAnchor = "cohort_start_date",
   startDays = -365L,
   endDays   = 0L,
-  baseCohortWindowAnchor = "cohort start"
+  baseCohortWindowAnchor = "cohort_start_date"
 )
 
 manifest$buildSubsetCohortTemporal(
@@ -224,10 +227,51 @@ plotCohortGraph(manifest)
 ### Sync manifest against disk files
 
 If SQL or JSON files have been edited outside picard, `$syncManifest()` updates
-stored hashes and reports any files that appear on disk but are not registered:
+stored hashes, reports unregistered files on disk, and — crucially — **cascades
+a `stale` flag to all derived cohorts that depend on any changed file**.
 
 ```{r}
 manifest$syncManifest()
+```
+
+When a base cohort's SQL/JSON file changes, `syncManifest()` will:
+
+1. Detect the hash difference and update the stored hash
+2. Walk the dependency graph and mark every downstream derived cohort as `'stale'`
+3. Report each staled cohort by name
+
+Stale derived cohorts still have valid SQL — their parent data has changed but
+their build logic has not. They will be **re-executed automatically** the next
+time `generateCohorts()` runs (the hash-skip is bypassed for stale cohorts).
+
+### Review stale cohorts
+
+```{r}
+# See which derived cohorts are waiting for re-execution
+manifest$reviewStaleCohorts()
+```
+
+### Rebuilding the derived pipeline
+
+If you need to change a build parameter (e.g. adjust `gapDays` on a union
+cohort, or change demographic filters), the derived cohort SQL needs to be
+re-rendered — not just re-executed. The workflow is:
+
+```{r}
+# 1. Clear all derived cohorts (keeps base cohort registrations)
+resetCohortManifest(manifest = manifest, scope = "derived")
+
+# 2. Re-run your build script with corrected parameters
+manifest$buildUnionCohort(
+  label     = "T2DM or HF - Any",
+  cohortIds = c(1L, 2L),
+  category  = "Composite Populations",
+  gapDays   = 7L   # corrected value
+)
+# ... other build calls ...
+
+# 3. Generate
+generateCohorts(executionSettings = execSettings, pipelineVersion = pipelineVersion)
 ```
 
 ### Update label or tags
@@ -318,6 +362,12 @@ resetConceptSetManifest(scope = "full")
 ```{r}
 # Full tabular view (all active cohorts)
 manifest$tabulateManifest()
+
+# Filter to stale cohorts only
+manifest$tabulateManifest(filter = "stale")
+
+# Stale cohorts with dependency context
+manifest$reviewStaleCohorts()
 
 # Derived cohorts only — with parent labels and rule summaries
 manifest$reviewDependentCohorts()

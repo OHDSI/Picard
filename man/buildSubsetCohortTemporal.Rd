@@ -9,9 +9,10 @@ buildSubsetCohortTemporal(
   baseCohortId,
   filterCohortId,
   startWindow,
-  endWindow,
+  endWindow = NULL,
   endDateType = "base",
   subsetLimit = "First",
+  category = "derived",
   cohortsFolder = here::here("inputs/cohorts"),
   manifest
 )
@@ -39,7 +40,7 @@ qualifying events. Default: 'First'.}
 \item{cohortsFolder}{Character. Path to inputs/cohorts/. Defaults to \code{here::here("inputs/cohorts")}.}
 
 \item{manifest}{CohortManifest object. Required. Validates that base cohorts exist and
-automatically registers the new cohort via addDependentCohort().}
+automatically registers the new cohort.}
 }
 \value{
 A CohortDef object with cohortType='subset' and dependencies set.

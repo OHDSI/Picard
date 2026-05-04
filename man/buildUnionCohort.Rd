@@ -13,7 +13,6 @@ buildUnionCohort(
   minCohorts = 1L,
   washoutDays = 0L,
   firstEraOnly = FALSE,
-  cohortsFolder = here::here("inputs/cohorts"),
   manifest
 )
 }
@@ -39,8 +38,6 @@ new era can open. Subjects must have no source cohort membership for this period
 Default: 0.}
 
 \item{firstEraOnly}{Logical. Return only the first collapsed era per subject. Default: FALSE.}
-
-\item{cohortsFolder}{Character. Path to inputs/cohorts/. Defaults to \code{here::here("inputs/cohorts")}.}
 
 \item{manifest}{CohortManifest object. Required. Validates that all input cohorts exist.}
 }

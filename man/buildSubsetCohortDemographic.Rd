@@ -2,7 +2,7 @@
 % Please edit documentation in R/buildDependentCohorts.R
 \name{buildSubsetCohortDemographic}
 \alias{buildSubsetCohortDemographic}
-\title{Build a Subset Cohort Definition (Demographic)}
+\title{Build a Demographic Subset Cohort}
 \usage{
 buildSubsetCohortDemographic(
   label,
@@ -12,7 +12,6 @@ buildSubsetCohortDemographic(
   genderConceptIds = NULL,
   raceConceptIds = NULL,
   ethnicityConceptIds = NULL,
-  cohortsFolder = here::here("inputs/cohorts"),
   manifest
 )
 }
@@ -31,23 +30,11 @@ buildSubsetCohortDemographic(
 
 \item{ethnicityConceptIds}{Numeric vector. Ethnicity concept IDs to include. NULL = all. Default: NULL}
 
-\item{cohortsFolder}{Character. Path to inputs/cohorts/. Defaults to \code{here::here("inputs/cohorts")}.}
-
-\item{manifest}{CohortManifest object. Required. Validates that the base cohort exists and
-automatically registers the new cohort via addDependentCohort().}
+\item{manifest}{CohortManifest object. Required.}
 }
 \value{
-A CohortDef object with cohortType='subset' and dependencies set.
+Invisible integer. The assigned cohort ID.
 }
 \description{
-Creates a SQL file and metadata for a subset cohort based on person-level demographics.
-Returns a CohortDef object ready to add to a CohortManifest.
-}
-\details{
-Creates three files:
-\itemize{
-\item SQL file: \verb{inputs/cohorts/derived/subset_demo/subset_demo_cohort_\{baseCohortId\}.sql}
-\item Metadata JSON: Same path with \code{.json} extension
-\item Context file: \code{.metadata} with filter description
-}
+\ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#deprecated}{\figure{lifecycle-deprecated.svg}{options: alt='[Deprecated]'}}}{\strong{[Deprecated]}} Use \code{manifest$buildDemographicCohort()} instead.
 }

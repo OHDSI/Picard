@@ -195,7 +195,7 @@ createSubsetEndWindow <- function(
 #'   qualifying events. Default: 'First'.
 #' @param cohortsFolder Character. Path to inputs/cohorts/. Defaults to `here::here("inputs/cohorts")`.
 #' @param manifest CohortManifest object. Required. Validates that base cohorts exist and
-#'   automatically registers the new cohort via addDependentCohort().
+#'   automatically registers the new cohort.
 #'
 #' @details
 #' Creates three files:
@@ -234,137 +234,38 @@ buildSubsetCohortTemporal <- function(
     baseCohortId,
     filterCohortId,
     startWindow,
-    endWindow,
-    endDateType = "base", 
+    endWindow = NULL,
+    endDateType = "base",
     subsetLimit = "First",
+    category = "derived",
     cohortsFolder = here::here("inputs/cohorts"),
     manifest) {
 
-  # Validation
   checkmate::assert_string(x = label, min.chars = 1)
   checkmate::assert_integerish(x = baseCohortId, len = 1, lower = 1)
   checkmate::assert_integerish(x = filterCohortId, len = 1, lower = 1)
-  checkmate::assert_choice(x = endDateType, choices = c("base", "filter"))
-  checkmate::assert_choice(x = subsetLimit, choices = c("First", "All", "Last"))
   checkmate::assert_class(x = startWindow, classes = "SubsetWindowOperator")
   checkmate::assert_class(x = endWindow, classes = "SubsetWindowOperator", null.ok = TRUE)
+  checkmate::assert_string(x = category, min.chars = 1)
   checkmate::assert_class(x = manifest, classes = "CohortManifest")
 
-  # Validate base cohorts exist in manifest
-  manifest_ids <- manifest$tabulateManifest(filter = "active")$id
-
-  if (!baseCohortId %in% manifest_ids) {
-    cli::cli_abort("Base cohort ID {baseCohortId} not found in manifest")
-  }
-
-  if (!filterCohortId %in% manifest_ids) {
-    cli::cli_abort("Filter cohort ID {filterCohortId} not found in manifest")
-  }
-
-  # Create derived/subset directory if it doesn't exist
-  subset_dir <- file.path(cohortsFolder, "derived", "subset")
-  if (!dir.exists(subset_dir)) {
-    dir.create(subset_dir, recursive = TRUE, showWarnings = FALSE)
-  }
-
-  # Generate file names
-  file_name <- sprintf("subset_cohort_%d_cohort_%d", baseCohortId, filterCohortId)
-  sql_path <- file.path(subset_dir, paste0(file_name, ".sql"))
-  metadata_path <- file.path(subset_dir, paste0(file_name, ".json"))
-
-  # Load SQL template
-  template_path <- system.file(
-    "sql",
-    "createSubsetCohort_Cohort.sql",
-    package = "picard"
+  manifest$buildSubsetCohortTemporal(
+    label          = label,
+    baseCohortId   = as.integer(baseCohortId),
+    filterCohortId = as.integer(filterCohortId),
+    category       = category,
+    startWindow    = startWindow,
+    endWindow      = endWindow,
+    endDateType    = endDateType,
+    subsetLimit    = subsetLimit
   )
-  
-  # get winow SQL from SubsetWindowOperator objects
-  start_window <- startWindow$makeSubsetWindowSql()
-  if (is.null(endWindow)) {
-    end_window <- ""
-  } else {
-    end_window <- endWindow$makeSubsetWindowSql()
-  }
-
-  template_sql <- readr::read_file(template_path) |>
-  SqlRender::render(
-    base_cohort_id = baseCohortId,
-    filter_cohort_id = filterCohortId,
-    start_window = start_window,
-    end_window = end_window,
-    subset_limit = subsetLimit,
-    end_date_type = endDateType
-  )
-
-  # Prepare metadata
-  if (is.null(endWindow)) {
-    endWindowMeta <- list(
-      subsetCohortWindowAnchor = NA_character_,
-      startDays = NA_integer_,
-      endDays = NA_integer_,
-      baseCohortWindowAnchor = NA_character_
-    )
-  } else {
-    endWindowMeta <- list(
-      subsetCohortWindowAnchor = endWindow$subsetCohortWindowAnchor,
-      startDays = endWindow$startDays,
-      endDays = endWindow$endDays,
-      baseCohortWindowAnchor = endWindow$baseCohortWindowAnchor
-    )
-  }
-  metadata <- list(
-    type = "subset_temporal",
-    label = label,
-    baseCohortId = baseCohortId,
-    filterCohortId = filterCohortId,
-    startWindow = list(
-      subsetCohortWindowAnchor = startWindow$subsetCohortWindowAnchor,
-      startDays = startWindow$startDays,
-      endDays = startWindow$endDays,
-      baseCohortWindowAnchor = startWindow$baseCohortWindowAnchor
-    ),
-    endWindow = endWindowMeta,
-    subsetLimit = subsetLimit,
-    endDateType = endDateType,
-    createdAt = Sys.time(),
-    dependsOnCohortIds = c(baseCohortId, filterCohortId)
-  )
-
-  # Write SQL template to file
-  writeLines(template_sql, con = sql_path)
-  cli::cli_alert_success("Created composite cohort SQL: {fs::path_rel(sql_path)}")
-
-  # Write metadata JSON
-  jsonlite::write_json(metadata, path = metadata_path, pretty = TRUE, auto_unbox = TRUE)
-  cli::cli_alert_success("Created metadata file: {fs::path_rel(metadata_path)}")
-
-  # Create and return CohortDef object
-  cohort_def <- CohortDef$new(
-    label = label,
-    category = "derived",
-    sourceType = "derived",
-    tags = list(
-      type = "subset",
-      baseCohortId = as.character(baseCohortId),
-      filterCohortId = as.character(filterCohortId)
-    ),
-    filePath = sql_path
-  )
-
-  # Set dependent cohort metadata
-  cohort_def$setCohortType("subset")
-
-  manifest$addDependentCohort(cohort_def)
-  invisible(cohort_def)
 }
 
 
-#' Build a Subset Cohort Definition (Demographic)
+#' Build a Demographic Subset Cohort
 #'
 #' @description
-#' Creates a SQL file and metadata for a subset cohort based on person-level demographics.
-#' Returns a CohortDef object ready to add to a CohortManifest.
+#' `r lifecycle::badge("deprecated")` Use `manifest$buildDemographicCohort()` instead.
 #'
 #' @param label Character. User-friendly name for the subset (e.g., "CKD - Males 40-75")
 #' @param baseCohortId Integer. The cohort ID to subset.
@@ -373,17 +274,9 @@ buildSubsetCohortTemporal <- function(
 #' @param genderConceptIds Numeric vector. Gender concept IDs to include. NULL = all. Default: NULL
 #' @param raceConceptIds Numeric vector. Race concept IDs to include. NULL = all. Default: NULL
 #' @param ethnicityConceptIds Numeric vector. Ethnicity concept IDs to include. NULL = all. Default: NULL
-#' @param cohortsFolder Character. Path to inputs/cohorts/. Defaults to `here::here("inputs/cohorts")`.
-#' @param manifest CohortManifest object. Required. Validates that the base cohort exists and
-#'   automatically registers the new cohort via addDependentCohort().
+#' @param manifest CohortManifest object. Required.
 #'
-#' @details
-#' Creates three files:
-#' - SQL file: `inputs/cohorts/derived/subset_demo/subset_demo_cohort_{baseCohortId}.sql`
-#' - Metadata JSON: Same path with `.json` extension
-#' - Context file: `.metadata` with filter description
-#'
-#' @return A CohortDef object with cohortType='subset' and dependencies set.
+#' @return Invisible integer. The assigned cohort ID.
 #'
 #' @export
 buildSubsetCohortDemographic <- function(
@@ -394,108 +287,25 @@ buildSubsetCohortDemographic <- function(
     genderConceptIds = NULL,
     raceConceptIds = NULL,
     ethnicityConceptIds = NULL,
-    cohortsFolder = here::here("inputs/cohorts"),
     manifest) {
 
-  # Validation
-  checkmate::assert_string(x = label, min.chars = 1)
-  checkmate::assert_integerish(x = baseCohortId, len = 1, lower = 1)
-  checkmate::assert_integerish(x = minAge, len = 1, lower = 0, null.ok = TRUE)
-  checkmate::assert_integerish(x = maxAge, len = 1, lower = 0, null.ok = TRUE)
-  checkmate::assert_vector(x = genderConceptIds, null.ok = TRUE)
-  checkmate::assert_vector(x = raceConceptIds, null.ok = TRUE)
-  checkmate::assert_vector(x = ethnicityConceptIds, null.ok = TRUE)
+  lifecycle::deprecate_warn(
+    "0.0.3", "buildSubsetCohortDemographic()",
+    what2 = "CohortManifest$buildDemographicCohort()"
+  )
+
   checkmate::assert_class(x = manifest, classes = "CohortManifest")
 
-  # Validate base cohort exists in manifest
-  manifest_ids <- manifest$tabulateManifest(filter = "active")$id
-
-  if (!baseCohortId %in% manifest_ids) {
-    cli::cli_abort("Base cohort ID {baseCohortId} not found in manifest")
-  }
-
-  # Create derived/subset_demo directory if it doesn't exist
-  subset_dir <- file.path(cohortsFolder, "derived", "subset_demo")
-  if (!dir.exists(subset_dir)) {
-    dir.create(subset_dir, recursive = TRUE, showWarnings = FALSE)
-  }
-
-  # Generate unique hash from demographic parameters
-  params_for_hash <- list(
-    minAge = minAge,
-    maxAge = maxAge,
-    genderConceptIds = genderConceptIds,
-    raceConceptIds = raceConceptIds,
+  manifest$buildDemographicCohort(
+    label               = label,
+    baseCohortId        = as.integer(baseCohortId),
+    category            = "derived",
+    minAge              = minAge,
+    maxAge              = maxAge,
+    genderConceptIds    = genderConceptIds,
+    raceConceptIds      = raceConceptIds,
     ethnicityConceptIds = ethnicityConceptIds
   )
-  params_json <- jsonlite::toJSON(params_for_hash, auto_unbox = TRUE)
-  params_hash <- substr(rlang::hash(params_json), 1, 8)
-
-  # Generate file names with hash to ensure uniqueness
-  file_name <- sprintf("subset_demo_cohort_%d_%s", baseCohortId, params_hash)
-  sql_path <- file.path(subset_dir, paste0(file_name, ".sql"))
-  metadata_path <- file.path(subset_dir, paste0(file_name, ".json"))
-
-  # Load SQL template
-  template_path <- system.file(
-    "sql",
-    "createSubsetCohort_Person.sql",
-    package = "picard"
-  )
-  
-
-  # Prepare metadata - convert NULLs to empty strings for SqlRender template conditions
-  # SqlRender checks {@param != ''} so empty strings will work correctly
-  metadata <- list(
-    type = "subset_demographic",
-    label = label,
-    baseCohortId = baseCohortId,
-    minAge = ifelse(is.null(minAge), "", minAge),
-    maxAge = ifelse(is.null(maxAge), "", maxAge),
-    genderConceptIds = ifelse(is.null(genderConceptIds) || length(genderConceptIds) == 0, "", ifelse(length(genderConceptIds) == 1, as.character(genderConceptIds[1]), paste(genderConceptIds, collapse = ","))),
-    raceConceptIds = ifelse(is.null(raceConceptIds) || length(raceConceptIds) == 0, "", ifelse(length(raceConceptIds) == 1, as.character(raceConceptIds[1]), paste(raceConceptIds, collapse = ","))),
-    ethnicityConceptIds = ifelse(is.null(ethnicityConceptIds) || length(ethnicityConceptIds) == 0, "", ifelse(length(ethnicityConceptIds) == 1, as.character(ethnicityConceptIds[1]), paste(ethnicityConceptIds, collapse = ","))),
-    createdAt = Sys.time(),
-    dependsOnCohortIds = c(baseCohortId)
-  )
-
-  template_sql <- readr::read_file(template_path) |>
-  SqlRender::render(
-    base_cohort_id = metadata$baseCohortId,
-    min_age = metadata$minAge,
-    max_age = metadata$maxAge,
-    gender_concept_ids = metadata$genderConceptIds,
-    race_concept_ids = metadata$raceConceptIds,
-    ethnicity_concept_ids = metadata$ethnicityConceptIds
-  )
-
-  # Write SQL template to file
-  writeLines(template_sql, con = sql_path)
-  cli::cli_alert_success("Created composite cohort SQL: {fs::path_rel(sql_path)}")
-
-  # Write metadata JSON
-  jsonlite::write_json(metadata, path = metadata_path, pretty = TRUE, auto_unbox = TRUE)
-  cli::cli_alert_success("Created metadata file: {fs::path_rel(metadata_path)}")
-
-  # Create and return CohortDef object
-  cohort_def <- CohortDef$new(
-    label = label,
-    category = "derived",
-    sourceType = "derived",
-    tags = list(
-      type = "subset_demographic",
-      baseCohortId = as.character(baseCohortId),
-      minAge = ifelse(!is.null(minAge), as.character(minAge), "NA"),
-      maxAge = ifelse(!is.null(maxAge), as.character(maxAge), "NA")
-    ),
-    filePath = sql_path
-  )
-
-  # Set dependent cohort metadata
-  cohort_def$setCohortType("subset")
-
-  manifest$addDependentCohort(cohort_def)
-  invisible(cohort_def)
 }
 
 #' Build a Union Cohort Definition
@@ -519,7 +329,6 @@ buildSubsetCohortDemographic <- function(
 #'   new era can open. Subjects must have no source cohort membership for this period.
 #'   Default: 0.
 #' @param firstEraOnly Logical. Return only the first collapsed era per subject. Default: FALSE.
-#' @param cohortsFolder Character. Path to inputs/cohorts/. Defaults to `here::here("inputs/cohorts")`.
 #' @param manifest CohortManifest object. Required. Validates that all input cohorts exist.
 #'
 #' @details
@@ -539,7 +348,6 @@ buildUnionCohort <- function(
     minCohorts = 1L,
     washoutDays = 0L,
     firstEraOnly = FALSE,
-    cohortsFolder = here::here("inputs/cohorts"),
     manifest) {
 
   lifecycle::deprecate_warn(
@@ -548,94 +356,14 @@ buildUnionCohort <- function(
     details = "Use the R6 method: `manifest$buildUnionCohort(label, cohortIds, category, ...)`"
   )
 
-  # Validation
-  checkmate::assert_string(x = label, min.chars = 1)
-  checkmate::assert_integerish(x = cohortIds, min.len = 2, unique = TRUE, lower = 1)
-  checkmate::assert_integerish(x = gapDays, len = 1, lower = 0)
-  checkmate::assert_integerish(x = eraPadDays, len = 1, lower = 0)
-  checkmate::assert_integerish(x = minEraDays, len = 1, lower = 0)
-  checkmate::assert_integerish(x = minCohorts, len = 1, lower = 1)
-  checkmate::assert_integerish(x = washoutDays, len = 1, lower = 0)
-  checkmate::assert_logical(x = firstEraOnly, len = 1)
   checkmate::assert_class(x = manifest, classes = "CohortManifest")
 
-  # Validate all input cohorts exist in manifest
-  manifest_ids <- manifest$tabulateManifest(filter = "active")$id
-  missing_ids <- setdiff(cohortIds, manifest_ids)
-
-  if (length(missing_ids) > 0) {
-    cli::cli_abort("Input cohort {if (length(missing_ids) == 1) 'ID' else 'IDs'} {paste(missing_ids, collapse = ', ')} not found in manifest")
-  }
-
-  # Create derived/union directory if it doesn't exist
-  union_dir <- file.path(cohortsFolder, "derived", "union")
-  if (!dir.exists(union_dir)) {
-    dir.create(union_dir, recursive = TRUE, showWarnings = FALSE)
-  }
-
-  # Generate file names
-  cohort_ids_str <- paste(cohortIds, collapse = "_")
-  file_name <- sprintf("union_cohorts_%s", cohort_ids_str)
-  sql_path <- file.path(union_dir, paste0(file_name, ".sql"))
-  metadata_path <- file.path(union_dir, paste0(file_name, ".json"))
-
-  # Load SQL template
-  template_path <- system.file(
-    "sql",
-    "createUnionCohort.sql",
-    package = "picard"
+  manifest$buildUnionCohort(
+    label     = label,
+    cohortIds = as.integer(cohortIds),
+    category  = "derived",
+    gapDays   = as.integer(gapDays)
   )
-  template_sql <- readr::read_file(template_path) |>
-    SqlRender::render(
-      cohort_ids = paste(cohortIds, collapse = ", "),
-      gap_days = gapDays,
-      era_pad_days = eraPadDays,
-      min_era_days = minEraDays,
-      min_cohorts = minCohorts,
-      washout_days = washoutDays,
-      first_era_only = as.integer(firstEraOnly)
-    )
-
-  # Prepare metadata
-  metadata <- list(
-    type = "union",
-    label = label,
-    cohortIds = as.list(as.integer(cohortIds)),
-    gapDays = as.integer(gapDays),
-    eraPadDays = as.integer(eraPadDays),
-    minEraDays = as.integer(minEraDays),
-    minCohorts = as.integer(minCohorts),
-    washoutDays = as.integer(washoutDays),
-    firstEraOnly = firstEraOnly,
-    createdAt = Sys.time(),
-    dependsOnCohortIds = as.integer(cohortIds)
-  )
-
-  # Write SQL template to file
-  writeLines(template_sql, con = sql_path)
-  cli::cli_alert_success("Created composite cohort SQL: {fs::path_rel(sql_path)}")
-
-  # Write metadata JSON
-  jsonlite::write_json(metadata, path = metadata_path, pretty = TRUE, auto_unbox = TRUE)
-  cli::cli_alert_success("Created metadata file: {fs::path_rel(metadata_path)}")
-
-  # Create and return CohortDef object
-  cohort_def <- CohortDef$new(
-    label = label,
-    category = "derived",
-    sourceType = "derived",
-    tags = list(
-      type = "union",
-      cohortCount = as.character(length(cohortIds))
-    ),
-    filePath = sql_path
-  )
-
-  # Set dependent cohort metadata
-  cohort_def$setCohortType("union")
-
-  manifest$addDependentCohort(cohort_def)
-  invisible(cohort_def)
 }
 
 
@@ -652,9 +380,7 @@ buildUnionCohort <- function(
 #' @param complementType Character. One of 'exclude_any', 'exclude_all'. Default: 'exclude_any'
 #'   - 'exclude_any': remove subjects in ANY exclude cohort
 #'   - 'exclude_all': remove subjects only if in ALL exclude cohorts
-#' @param cohortsFolder Character. Path to inputs/cohorts/. Defaults to `here::here("inputs/cohorts")`.
-#' @param manifest CohortManifest object. Required. Validates that population and exclude cohorts exist and
-#'   automatically registers the new cohort via addDependentCohort().
+#' @param manifest CohortManifest object. Required. Validates that population and exclude cohorts exist.
 #'
 #' @details
 #' Creates three files:
@@ -670,106 +396,22 @@ buildComplementCohort <- function(
     populationCohortId,
     excludeCohortIds,
     complementType = "exclude_any",
-    cohortsFolder = here::here("inputs/cohorts"),
     manifest) {
 
   lifecycle::deprecate_warn(
     "0.0.3", "buildComplementCohort()",
-    what2 = "CohortManifest$buildComplementCohort()",
-    details = "Use the R6 method: `manifest$buildComplementCohort(label, baseCohortId, populationCohortId, category, ...)`"
+    what2 = "CohortManifest$buildComplementCohort()"
   )
 
-  # Validation
-  checkmate::assert_string(x = label, min.chars = 1)
-  checkmate::assert_integerish(x = populationCohortId, len = 1, lower = 1)
-  checkmate::assert_integerish(x = excludeCohortIds, min.len = 1, unique = TRUE, lower = 1)
-  checkmate::assert_choice(x = complementType, choices = c("exclude_any", "exclude_all"))
   checkmate::assert_class(x = manifest, classes = "CohortManifest")
 
-  # Ensure populationCohortId not in excludeCohortIds
-  if (populationCohortId %in% excludeCohortIds) {
-    cli::cli_abort("Population cohort ID {populationCohortId} cannot be in exclude list")
-  }
-
-  # Validate population and exclude cohorts exist in manifest
-  manifest_ids <- manifest$tabulateManifest(filter = "active")$id
-
-  if (!populationCohortId %in% manifest_ids) {
-    cli::cli_abort("Population cohort ID {populationCohortId} not found in manifest")
-  }
-
-  missing_ids <- setdiff(excludeCohortIds, manifest_ids)
-
-  if (length(missing_ids) > 0) {
-    cli::cli_abort("Exclude cohort {if (length(missing_ids) == 1) 'ID' else 'IDs'} {paste(missing_ids, collapse = ', ')} not found in manifest")
-  }
-
-  # Create derived/complement directory if it doesn't exist
-  complement_dir <- file.path(cohortsFolder, "derived", "complement")
-  if (!dir.exists(complement_dir)) {
-    dir.create(complement_dir, recursive = TRUE, showWarnings = FALSE)
-  }
-
-  # Generate file names
-  exclude_ids_str <- paste(excludeCohortIds, collapse = "_")
-  file_name <- sprintf("complement_cohort_%d_exclude_%s_%s", populationCohortId, exclude_ids_str, complementType)
-  sql_path <- file.path(complement_dir, paste0(file_name, ".sql"))
-  metadata_path <- file.path(complement_dir, paste0(file_name, ".json"))
-
-  # Load SQL template
-  template_path <- system.file(
-    "sql",
-    "createComplementCohort.sql",
-    package = "picard"
+  manifest$buildComplementCohort(
+    label             = label,
+    populationCohortId = as.integer(populationCohortId),
+    excludeCohortIds  = as.integer(excludeCohortIds),
+    category          = "derived",
+    complementType    = complementType
   )
-  template_sql <- readr::read_file(template_path) |>
-  SqlRender::render(
-    population_cohort_id = populationCohortId,
-    exclude_cohort_ids = paste(excludeCohortIds, collapse = ", "),
-    exclude_cohort_ids_count = length(excludeCohortIds),
-    complement_type = complementType
-  )
-
-  # Prepare metadata
-  metadata <- list(
-    type = "complement",
-    label = label,
-    populationCohortId = populationCohortId,
-    excludeCohortIds = as.list(as.integer(excludeCohortIds)),
-    complementType = complementType,
-    createdAt = Sys.time(),
-    dependsOnCohortIds = c(populationCohortId, as.integer(excludeCohortIds))
-  )
-
-  # Write SQL template to file
-  writeLines(template_sql, con = sql_path)
-  cli::cli_alert_success("Created composite cohort SQL: {fs::path_rel(sql_path)}")
-
-  # Write metadata JSON
-  jsonlite::write_json(metadata, path = metadata_path, pretty = TRUE, auto_unbox = TRUE)
-  cli::cli_alert_success("Created metadata file: {fs::path_rel(metadata_path)}")
-
-  # Create and return CohortDef object
-  all_deps <- c(populationCohortId, as.integer(excludeCohortIds))
-
-  cohort_def <- CohortDef$new(
-    label = label,
-    category = "derived",
-    sourceType = "derived",
-    tags = list(
-      type = "complement",
-      populationCohortId = as.character(populationCohortId),
-      excludeCount = as.character(length(excludeCohortIds)),
-      complementType = complementType
-    ),
-    filePath = sql_path
-  )
-
-  # Set dependent cohort metadata
-  cohort_def$setCohortType("complement")
-
-  manifest$addDependentCohort(cohort_def)
-  invisible(cohort_def)
 }
 
 #' Build a Composite Cohort Definition
@@ -790,9 +432,7 @@ buildComplementCohort <- function(
 #'   - 'Last': Keep the most recent event
 #'   - 'All': Keep all qualifying events per subject (may result in multiple rows per subject)
 #'   Default: 'First'.
-#' @param cohortsFolder Character. Path to inputs/cohorts/. Defaults to `here::here("inputs/cohorts")`.
-#' @param manifest CohortManifest object. Required. Validates that all criteria cohorts exist and
-#'   automatically registers the new cohort via addDependentCohort().
+#' @param manifest CohortManifest object. Required. Validates that all criteria cohorts exist.
 #'
 #' @details
 #' Creates three files:
@@ -819,7 +459,6 @@ buildCompositeCohort <- function(
     criteriaCohortIds,
     minimumEventCount = 1,
     eventSelection = "First",
-    cohortsFolder = here::here("inputs/cohorts"),
     manifest) {
 
   lifecycle::deprecate_warn(
@@ -828,94 +467,14 @@ buildCompositeCohort <- function(
     details = "Use the R6 method: `manifest$buildCompositeCohort(label, cohortIds, category, ...)`"
   )
 
-  # Validation
-  checkmate::assert_string(x = label, min.chars = 1)
-  checkmate::assert_integerish(x = criteriaCohortIds, lower = 1, min.len = 1)
-  checkmate::assert_integerish(x = minimumEventCount, len = 1, lower = 1)
-  checkmate::assert_choice(x = eventSelection, choices = c("First", "Last", "All"))
   checkmate::assert_class(x = manifest, classes = "CohortManifest")
 
-  # Validate criteria cohorts exist in manifest
-  manifest_ids <- manifest$tabulateManifest(filter = "active")$id
-  missing_ids <- setdiff(criteriaCohortIds, manifest_ids)
-
-  if (length(missing_ids) > 0) {
-    cli::cli_abort("Criteria cohort IDs not found in manifest: {paste(missing_ids, collapse = ', ')}")
-  }
-
-  # Create derived/composite directory if it doesn't exist
-  composite_dir <- file.path(cohortsFolder, "derived", "composite")
-  if (!dir.exists(composite_dir)) {
-    dir.create(composite_dir, recursive = TRUE, showWarnings = FALSE)
-  }
-
-  # Generate unique hash from parameters to ensure uniqueness
-  params_for_hash <- list(
-    criteriaCohortIds = sort(criteriaCohortIds),
-    minimumEventCount = minimumEventCount,
-    eventSelection = eventSelection
+  manifest$buildCompositeCohort(
+    label      = label,
+    cohortIds  = as.integer(criteriaCohortIds),
+    category   = "derived",
+    minCohorts = as.integer(minimumEventCount)
   )
-  params_json <- jsonlite::toJSON(params_for_hash, auto_unbox = TRUE)
-  params_hash <- substr(rlang::hash(params_json), 1, 8)
-
-  # Generate file names
-  file_name <- sprintf("composite_cohort_%s", params_hash)
-  sql_path <- file.path(composite_dir, paste0(file_name, ".sql"))
-  metadata_path <- file.path(composite_dir, paste0(file_name, ".json"))
-
-  # Load SQL template
-  template_path <- system.file(
-    "sql",
-    "createCompositeCohort.sql",
-    package = "picard"
-  )
-
-  # Format cohort IDs for SQL IN clause
-  cohort_ids_str <- paste(criteriaCohortIds, collapse = ",")
-
-  template_sql <- readr::read_file(template_path) |>
-  SqlRender::render(
-    criteria_cohort_ids = cohort_ids_str,
-    minimum_event_count = minimumEventCount,
-    event_selection = eventSelection
-  )
-
-  # Prepare metadata
-  metadata <- list(
-    type = "composite",
-    label = label,
-    criteriaCohortIds = as.integer(criteriaCohortIds),
-    minimumEventCount = minimumEventCount,
-    eventSelection = eventSelection,
-    createdAt = Sys.time(),
-    dependsOnCohortIds = as.integer(criteriaCohortIds)
-  )
-
-  # Write SQL template to file
-  writeLines(template_sql, con = sql_path)
-  cli::cli_alert_success("Created composite cohort SQL: {fs::path_rel(sql_path)}")
-
-  # Write metadata JSON
-  jsonlite::write_json(metadata, path = metadata_path, pretty = TRUE, auto_unbox = TRUE)
-  cli::cli_alert_success("Created metadata file: {fs::path_rel(metadata_path)}")
-
-  # Create and return CohortDef object
-  cohort_def <- CohortDef$new(
-    label = label,
-    category = "derived",
-    sourceType = "derived",
-    tags = list(
-      type = "composite",
-      criteriaCohortIds = paste(criteriaCohortIds, collapse = ",")
-    ),
-    filePath = sql_path
-  )
-
-  # Set dependent cohort metadata
-  cohort_def$setCohortType("composite")
-
-  manifest$addDependentCohort(cohort_def)
-  invisible(cohort_def)
 }
 
 
@@ -1018,137 +577,30 @@ buildCompositeCohort <- function(
 #' @param labelPrefix Character or `NULL`. If provided, prepended to each
 #'   stratum name with a ` - ` separator (e.g. `"CKD"` + `"Male"` →
 #'   `"CKD - Male"`).
-#' @param cohortsFolder Character. Path to inputs/cohorts/. Defaults to
-#'   `here::here("inputs/cohorts")`.
 #' @param manifest A `CohortManifest` object. Required. Cohort IDs are
 #'   auto-assigned from the next available manifest ID — never supply them
 #'   manually.
 #'
-#' @return Invisibly returns a named list of `CohortDef` objects, one per
-#'   stratum including Unclassified. The list is keyed by the full cohort label.
+#' @return Invisibly returns a named list of cohort IDs, keyed by the full cohort label.
 #'
 #' @export
 buildStratifiedCohorts <- function(
     baseCohortId,
     strata,
     labelPrefix = NULL,
-    cohortsFolder = here::here("inputs/cohorts"),
     manifest) {
 
-  checkmate::assert_integerish(x = baseCohortId, len = 1, lower = 1)
-  checkmate::assert_list(x = strata, min.len = 1, names = "named")
-  checkmate::assert_string(x = labelPrefix, null.ok = TRUE)
+  lifecycle::deprecate_warn(
+    "0.0.3", "buildStratifiedCohorts()",
+    what2 = "CohortManifest$buildStratifiedCohorts()"
+  )
+
   checkmate::assert_class(x = manifest, classes = "CohortManifest")
 
-  # Validate base cohort exists
-  manifest_ids <- manifest$tabulateManifest(filter = "active")$id
-
-  if (!baseCohortId %in% manifest_ids) {
-    cli::cli_abort("Base cohort ID {baseCohortId} not found in manifest.")
-  }
-
-  # Validate each stratum entry
-  for (nm in names(strata)) {
-    s <- strata[[nm]]
-
-    if (!is.list(s) && !is.character(s)) {
-      cli::cli_abort("Stratum '{nm}' must be a named list (demographic) or a character SQL condition.")
-    }
-
-    if (is.character(s) && length(s) != 1) {
-      cli::cli_abort("Stratum '{nm}' character condition must be a single string.")
-    }
-  }
-
-  # Create output directory
-  strat_dir <- file.path(cohortsFolder, "derived", "stratified")
-
-  if (!dir.exists(strat_dir)) {
-    dir.create(strat_dir, recursive = TRUE, showWarnings = FALSE)
-  }
-
-  # Load SQL template once
-  template_path <- system.file("sql", "createStratifiedCohort_Stratum.sql", package = "picard")
-  template_sql <- readr::read_file(template_path)
-
-  # Build SQL condition for each named stratum
-  stratum_conditions <- lapply(strata, .stratum_to_sql_condition)
-
-  # Append Unclassified stratum — negation of every named condition
-  negated <- paste0("NOT (", unlist(stratum_conditions), ")")
-  unclassified_condition <- paste(negated, collapse = "\n    AND ")
-  stratum_conditions[["Unclassified"]] <- unclassified_condition
-
-  # Sanitise a stratum name to a safe file name fragment
-  sanitise_name <- function(nm) {
-    gsub("[^A-Za-z0-9_]", "_", tolower(nm))
-  }
-
-  result <- list()
-
-  cli::cli_rule("Building stratified cohorts from base cohort {baseCohortId}")
-
-  for (nm in names(stratum_conditions)) {
-    condition <- stratum_conditions[[nm]]
-
-    # Build cohort label
-    cohort_label <- if (!is.null(labelPrefix)) {
-      paste0(labelPrefix, " - ", nm)
-    } else {
-      nm
-    }
-
-    # Render SQL with build-time parameters baked in
-    rendered_sql <- SqlRender::render(
-      template_sql,
-      base_cohort_id = as.integer(baseCohortId),
-      stratum_where_clause = condition,
-      warnOnMissingParameters = FALSE
-    )
-
-    # Write per-stratum SQL and metadata files
-    file_name <- sprintf("stratified_%d_%s", as.integer(baseCohortId), sanitise_name(nm))
-    sql_path <- file.path(strat_dir, paste0(file_name, ".sql"))
-    metadata_path <- file.path(strat_dir, paste0(file_name, ".json"))
-
-    writeLines(rendered_sql, con = sql_path)
-
-    is_unclassified <- nm == "Unclassified"
-
-    metadata <- list(
-      type = "stratified",
-      label = cohort_label,
-      baseCohortId = as.integer(baseCohortId),
-      stratumName = nm,
-      stratumDefinition = if (is_unclassified) NULL else strata[[nm]],
-      isUnclassified = is_unclassified,
-      createdAt = format(Sys.time(), "%Y-%m-%dT%H:%M:%S")
-    )
-
-    jsonlite::write_json(metadata, path = metadata_path, pretty = TRUE, auto_unbox = TRUE)
-
-    # Build CohortDef — ID auto-assigned by addDependentCohort()
-    cohort_def <- CohortDef$new(
-      label = cohort_label,
-      category = "derived",
-      sourceType = "derived",
-      tags = list(
-        type = "stratified",
-        baseCohortId = as.character(baseCohortId),
-        stratumName = nm
-      ),
-      filePath = sql_path
-    )
-
-    cohort_def$setCohortType("subset")
-
-    manifest$addDependentCohort(cohort_def)
-    result[[cohort_label]] <- cohort_def
-
-    cli::cli_alert_success("Registered stratum: {cohort_label}")
-  }
-
-  cli::cli_rule("Done — {length(result)} cohorts registered (includes Unclassified)")
-
-  invisible(result)
+  manifest$buildStratifiedCohorts(
+    baseCohortId = as.integer(baseCohortId),
+    strata       = strata,
+    labelPrefix  = labelPrefix,
+    category     = "derived"
+  )
 }

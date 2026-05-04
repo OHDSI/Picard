@@ -2,7 +2,7 @@
 % Please edit documentation in R/manifest_helpers.R
 \name{defineCustomCohort}
 \alias{defineCustomCohort}
-\title{Define (Enrich) a Custom SQL Cohort in the Manifest}
+\title{Define (Enrich) a Custom SQL Cohort (Deprecated)}
 \usage{
 defineCustomCohort(
   manifest,
@@ -19,16 +19,14 @@ defineCustomCohort(
 
 \item{tags}{Named list. Optional metadata tags. Defaults to \code{list()}.}
 
-\item{cohortId}{Integer. The cohort ID in the manifest. Provide either \code{cohortId}
-or \code{sqlFilePath}, not both.}
+\item{cohortId}{Integer. The cohort ID in the manifest.}
 
-\item{sqlFilePath}{Character. Path to the SQL file. Provide either \code{sqlFilePath}
-or \code{cohortId}, not both.}
+\item{sqlFilePath}{Character. Path to the SQL file.}
 }
 \value{
 Invisibly returns \code{NULL}.
 }
 \description{
-Enriches a cohort that has already been discovered by \code{\link[=loadCohortManifest]{loadCohortManifest()}} with
-a user-friendly label, tags, and the \code{"custom"} cohort type.
+\strong{Deprecated.} Use \link{CohortManifest}\verb{$addSqlCohort()} instead, which registers
+a custom SQL cohort with the correct label, category, and tags in a single step.
 }

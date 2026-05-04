@@ -4,13 +4,7 @@
 \alias{buildStratifiedCohorts}
 \title{Split a Base Cohort into Multiple Stratified Sub-Cohorts}
 \usage{
-buildStratifiedCohorts(
-  baseCohortId,
-  strata,
-  labelPrefix = NULL,
-  cohortsFolder = here::here("inputs/cohorts"),
-  manifest
-)
+buildStratifiedCohorts(baseCohortId, strata, labelPrefix = NULL, manifest)
 }
 \arguments{
 \item{baseCohortId}{Integer. The cohort definition ID to split.}
@@ -23,16 +17,12 @@ labels (optionally prefixed by \code{labelPrefix}).}
 stratum name with a \code{-} separator (e.g. \code{"CKD"} + \code{"Male"} →
 \code{"CKD - Male"}).}
 
-\item{cohortsFolder}{Character. Path to inputs/cohorts/. Defaults to
-\code{here::here("inputs/cohorts")}.}
-
 \item{manifest}{A \code{CohortManifest} object. Required. Cohort IDs are
 auto-assigned from the next available manifest ID — never supply them
 manually.}
 }
 \value{
-Invisibly returns a named list of \code{CohortDef} objects, one per
-stratum including Unclassified. The list is keyed by the full cohort label.
+Invisibly returns a named list of cohort IDs, keyed by the full cohort label.
 }
 \description{
 Splits a single base cohort into N named stratum cohorts plus an automatic

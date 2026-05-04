@@ -696,6 +696,91 @@ CohortManifest <- R6::R6Class(
       )
       md5Hash <- rlang::hash(combined)
       return(md5Hash)
+    },
+
+    # Cascade 'stale' status to all transitive downstream dependents of the
+    # given cohort IDs. Only affects cohorts with status 'active' or 'stale'.
+    # Returns invisibly the integer vector of IDs that were updated.
+    cascade_stale_downstream = function(cohort_ids) {
+      cohort_ids <- as.integer(cohort_ids)
+
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      # Fetch all potentially relevant rows once
+      rows <- DBI::dbGetQuery(
+        conn,
+        "SELECT id, depends_on FROM cohort_manifest
+         WHERE status IN ('active', 'stale')"
+      )
+
+      if (nrow(rows) == 0) {
+        return(invisible(integer(0)))
+      }
+
+      # Build reverse graph: parent_id -> vector of child_ids
+      reverse_graph <- list()
+      for (i in seq_len(nrow(rows))) {
+        child_id <- rows$id[i]
+        dep_raw  <- rows$depends_on[i]
+
+        if (!is.na(dep_raw) && nchar(dep_raw) > 0) {
+          parent_ids <- tryCatch(
+            as.integer(jsonlite::fromJSON(dep_raw)),
+            error = function(e) integer(0)
+          )
+
+          for (pid in parent_ids) {
+            pid_str <- as.character(pid)
+            reverse_graph[[pid_str]] <- c(reverse_graph[[pid_str]], child_id)
+          }
+        }
+      }
+
+      # BFS from seed cohort_ids through the reverse graph
+      visited  <- integer(0)
+      queue    <- cohort_ids
+
+      while (length(queue) > 0) {
+        current  <- queue[1]
+        queue    <- queue[-1]
+        curr_str <- as.character(current)
+
+        children <- reverse_graph[[curr_str]]
+        if (!is.null(children)) {
+          new_children <- setdiff(children, visited)
+          visited <- c(visited, new_children)
+          queue   <- c(queue, new_children)
+        }
+      }
+
+      if (length(visited) == 0) {
+        return(invisible(integer(0)))
+      }
+
+      # Bulk update to stale
+      ids_str <- paste(visited, collapse = ", ")
+      DBI::dbExecute(
+        conn,
+        paste0(
+          "UPDATE cohort_manifest SET status = 'stale', updated_at = CURRENT_TIMESTAMP",
+          " WHERE id IN (", ids_str, ")"
+        )
+      )
+
+      # Report
+      labels <- DBI::dbGetQuery(
+        conn,
+        paste0("SELECT id, label FROM cohort_manifest WHERE id IN (", ids_str, ")")
+      )
+      for (i in seq_len(nrow(labels))) {
+        cli::cli_alert_warning(
+          "Marked stale: [{labels$id[i]}] {labels$label[i]}"
+        )
+      }
+
+      private$load_manifest_from_db()
+      invisible(visited)
     }
   ),
 
@@ -722,32 +807,6 @@ CohortManifest <- R6::R6Class(
       return(private$.manifest)
     },
 
-    #' Tabulate the manifest as a tibble
-    #'
-    #' @details
-    #' Returns a tabular view of the manifest from the SQLite database, suitable for
-    #' viewing, filtering, and reporting.
-    #'
-    #' Columns returned:
-    #' \itemize{
-    #'   \item \code{id} - Cohort definition ID
-    #'   \item \code{label} - User-friendly cohort name
-    #'   \item \code{tags} - Metadata tags formatted as "name: value | ..." string
-    #'   \item \code{filePath} - Relative path to the cohort SQL/JSON file
-    #'   \item \code{hash} - Hash of the cohort SQL (used for change detection)
-    #'   \item \code{cohortType} - One of 'circe', 'custom', 'subset', 'union', 'complement', 'composite'
-    #'   \item \code{status} - One of 'active', 'deleted', 'purged'
-    #'   \item \code{timestamp} - Datetime the record was last inserted or updated
-    #'   \item \code{deleted_at} - Datetime of soft-delete, or NA if active
-    #' }
-    #'
-    #' @param filter Character. Controls which rows are returned. One of:
-    #'   \itemize{
-    #'     \item \code{"active"} (default) - Only active cohorts
-    #'     \item \code{"deleted"} - Only soft-deleted cohorts (status = 'deleted')
-    #'     \item \code{"all"} - All rows regardless of status
-    #'   }
-    #'
     #' Review dependent cohorts and their dependency metadata
     #'
     #' @description
@@ -864,13 +923,14 @@ CohortManifest <- R6::R6Class(
     #'
     #' @return A tibble with columns: id, label, category, tags, file_path, hash,
     #'   source_type, cohort_type, status, created_at, deleted_at
-    tabulateManifest = function(filter = c("active", "deleted", "all")) {
+    tabulateManifest = function(filter = c("active", "deleted", "stale", "all")) {
       filter <- match.arg(filter)
 
       where_clause <- switch(
         filter,
         active  = "WHERE status = 'active'",
         deleted = "WHERE status IN ('deleted', 'purged')",
+        stale   = "WHERE status = 'stale'",
         all     = ""
       )
 
@@ -886,6 +946,57 @@ CohortManifest <- R6::R6Class(
 
       man <- DBI::dbGetQuery(conn, sql)
       return(tibble::as_tibble(man))
+    },
+
+    #' Review stale derived cohorts
+    #'
+    #' @description
+    #' Returns a summary of all cohorts currently marked \code{'stale'} — meaning a parent
+    #' cohort's SQL file has changed since the derived cohort was last executed. Stale cohorts
+    #' are still valid SQL; they just need to be re-executed. \code{executeCohortGeneration()}
+    #' will run them automatically regardless of checksum state.
+    #'
+    #' Use \code{resetCohortManifest(scope = "derived")} followed by re-running your build
+    #' script if you need to change build parameters rather than just re-execute.
+    #'
+    #' @return A tibble with columns: id, label, cohort_type, category, depends_on, updated_at.
+    #'   Returns \code{NULL} invisibly if no stale cohorts exist.
+    reviewStaleCohorts = function() {
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      rows <- DBI::dbGetQuery(
+        conn,
+        "SELECT id, label, cohort_type, category, depends_on, updated_at
+         FROM cohort_manifest
+         WHERE status = 'stale'
+         ORDER BY id"
+      )
+
+      if (nrow(rows) == 0) {
+        cli::cli_alert_success("No stale cohorts found.")
+        return(invisible(NULL))
+      }
+
+      cli::cli_rule("Stale Cohorts ({nrow(rows)} total)")
+      cli::cli_alert_info(
+        "These cohorts have a parent whose SQL file changed. They will be re-executed automatically by {.code executeCohortGeneration()}."
+      )
+      cli::cli_alert_info(
+        "To change build parameters, run {.code resetCohortManifest(scope = 'derived')} and rebuild."
+      )
+
+      result <- tibble::tibble(
+        id          = rows$id,
+        label       = rows$label,
+        cohort_type = rows$cohort_type,
+        category    = rows$category,
+        depends_on  = rows$depends_on,
+        updated_at  = rows$updated_at
+      )
+
+      print(result)
+      invisible(result)
     },
 
     #' Reload the in-memory manifest from the SQLite database
@@ -1359,30 +1470,42 @@ CohortManifest <- R6::R6Class(
 
     #' @description Build a complement cohort
     #'
-    #' Creates a derived cohort that is the complement of a base cohort
-    #' relative to a population cohort.
+    #' Creates a derived cohort containing all subjects from the population cohort who
+    #' do NOT appear in any (or all) of the exclude cohorts.
     #'
     #' @param label Character. Display name.
-    #' @param baseCohortId Integer. ID of the cohort to complement.
-    #' @param populationCohortId Integer. ID of the population cohort.
+    #' @param populationCohortId Integer. ID of the population (base) cohort.
+    #' @param excludeCohortIds Integer vector (min length 1). IDs of cohorts whose
+    #'   subjects should be excluded from the population.
     #' @param category Character. Required classification.
+    #' @param complementType Character. One of \code{"exclude_any"} (default) or
+    #'   \code{"exclude_all"}. \code{"exclude_any"} removes subjects present in ANY
+    #'   exclude cohort; \code{"exclude_all"} removes subjects only if they appear
+    #'   in ALL exclude cohorts.
     #' @param tags Named list. Optional metadata tags.
     #'
     #' @return Invisible integer. The assigned cohort ID.
-    buildComplementCohort = function(label, baseCohortId, populationCohortId, category, tags = list()) {
+    buildComplementCohort = function(label, populationCohortId, excludeCohortIds,
+                                     category, complementType = "exclude_any",
+                                     tags = list()) {
       checkmate::assert_string(label, min.chars = 1)
-      checkmate::assert_int(baseCohortId)
       checkmate::assert_int(populationCohortId)
+      checkmate::assert_integerish(excludeCohortIds, min.len = 1, unique = TRUE)
       checkmate::assert_string(category, min.chars = 1)
+      checkmate::assert_choice(complementType, choices = c("exclude_any", "exclude_all"))
       checkmate::assert_list(tags, names = "named")
 
+      if (populationCohortId %in% excludeCohortIds) {
+        cli::cli_abort("populationCohortId {populationCohortId} cannot also appear in excludeCohortIds")
+      }
+
       private$validate_label_unique(label)
-      private$validate_parent_cohorts_exist(c(baseCohortId, populationCohortId))
+      private$validate_parent_cohorts_exist(c(populationCohortId, as.integer(excludeCohortIds)))
 
       dependency_rule <- list(
-        baseCohortId = as.integer(baseCohortId),
         populationCohortId = as.integer(populationCohortId),
-        complementType = "exclude"
+        excludeCohortIds = as.integer(excludeCohortIds),
+        complementType = complementType
       )
 
       cohorts_dir <- dirname(private$.dbPath)
@@ -1392,11 +1515,17 @@ CohortManifest <- R6::R6Class(
       safe_label <- gsub("[^a-zA-Z0-9_-]", "_", label)
       sql_path <- fs::path(derived_dir, paste0(safe_label, ".sql"))
 
-      sql_template <- readLines(system.file("sql", "createComplementCohort.sql", package = "picard"), warn = FALSE)
-      sql_content <- paste(sql_template, collapse = "\n")
-      writeLines(sql_content, sql_path)
+      template_path <- system.file("sql", "createComplementCohort.sql", package = "picard")
+      rendered_sql <- readr::read_file(template_path) |>
+        SqlRender::render(
+          population_cohort_id = populationCohortId,
+          exclude_cohort_ids = paste(as.integer(excludeCohortIds), collapse = ", "),
+          exclude_cohort_ids_count = length(excludeCohortIds),
+          complement_type = complementType
+        )
+      writeLines(rendered_sql, sql_path)
 
-      parent_ids <- unique(c(baseCohortId, populationCohortId))
+      parent_ids <- unique(c(as.integer(populationCohortId), as.integer(excludeCohortIds)))
 
       cohort_id <- private$insert_cohort(
         label = label,
@@ -1405,7 +1534,7 @@ CohortManifest <- R6::R6Class(
         file_path = fs::path_rel(sql_path),
         source_type = "derived",
         cohort_type = "complement",
-        depends_on = as.integer(parent_ids),
+        depends_on = parent_ids,
         dependency_rule = dependency_rule
       )
 
@@ -1466,6 +1595,193 @@ CohortManifest <- R6::R6Class(
 
       cli::cli_alert_success("Built composite cohort {cohort_id}: {label}")
       invisible(cohort_id)
+    },
+
+    #' @description Build a demographic subset cohort
+    #'
+    #' Creates a derived cohort that subsets a base cohort by filtering on
+    #' person-level demographic attributes (age, gender, race, ethnicity).
+    #'
+    #' @param label Character. Display name (e.g., "CKD - Males 40-75").
+    #' @param baseCohortId Integer. ID of the base cohort to subset.
+    #' @param category Character. Required classification.
+    #' @param minAge Integer or NULL. Minimum age at cohort start. Default: NULL (no minimum).
+    #' @param maxAge Integer or NULL. Maximum age at cohort start. Default: NULL (no maximum).
+    #' @param genderConceptIds Integer vector or NULL. Gender concept IDs to include.
+    #'   Common values: 8507 = Male, 8532 = Female. Default: NULL (all genders).
+    #' @param raceConceptIds Integer vector or NULL. Race concept IDs to include. Default: NULL.
+    #' @param ethnicityConceptIds Integer vector or NULL. Ethnicity concept IDs to include. Default: NULL.
+    #' @param tags Named list. Optional metadata tags.
+    #'
+    #' @return Invisible integer. The assigned cohort ID.
+    buildDemographicCohort = function(label, baseCohortId, category,
+                                      minAge = NULL, maxAge = NULL,
+                                      genderConceptIds = NULL,
+                                      raceConceptIds = NULL,
+                                      ethnicityConceptIds = NULL,
+                                      tags = list()) {
+      checkmate::assert_string(label, min.chars = 1)
+      checkmate::assert_int(baseCohortId)
+      checkmate::assert_string(category, min.chars = 1)
+      checkmate::assert_integerish(minAge, len = 1, lower = 0, null.ok = TRUE)
+      checkmate::assert_integerish(maxAge, len = 1, lower = 0, null.ok = TRUE)
+      checkmate::assert_integerish(genderConceptIds, min.len = 1, null.ok = TRUE)
+      checkmate::assert_integerish(raceConceptIds, min.len = 1, null.ok = TRUE)
+      checkmate::assert_integerish(ethnicityConceptIds, min.len = 1, null.ok = TRUE)
+      checkmate::assert_list(tags, names = "named")
+
+      private$validate_label_unique(label)
+      private$validate_parent_cohorts_exist(baseCohortId)
+
+      # Convert NULLs to "" for SqlRender conditional blocks
+      sql_min_age            <- if (is.null(minAge))            "" else as.integer(minAge)
+      sql_max_age            <- if (is.null(maxAge))            "" else as.integer(maxAge)
+      sql_gender_ids         <- if (is.null(genderConceptIds))  "" else paste(as.integer(genderConceptIds),  collapse = ",")
+      sql_race_ids           <- if (is.null(raceConceptIds))    "" else paste(as.integer(raceConceptIds),    collapse = ",")
+      sql_ethnicity_ids      <- if (is.null(ethnicityConceptIds)) "" else paste(as.integer(ethnicityConceptIds), collapse = ",")
+
+      dependency_rule <- list(
+        baseCohortId       = as.integer(baseCohortId),
+        minAge             = if (!is.null(minAge)) as.integer(minAge) else NULL,
+        maxAge             = if (!is.null(maxAge)) as.integer(maxAge) else NULL,
+        genderConceptIds   = if (!is.null(genderConceptIds))   as.integer(genderConceptIds)   else NULL,
+        raceConceptIds     = if (!is.null(raceConceptIds))     as.integer(raceConceptIds)     else NULL,
+        ethnicityConceptIds = if (!is.null(ethnicityConceptIds)) as.integer(ethnicityConceptIds) else NULL
+      )
+
+      cohorts_dir <- dirname(private$.dbPath)
+      derived_dir <- fs::path(cohorts_dir, "derived")
+      if (!dir.exists(derived_dir)) dir.create(derived_dir, recursive = TRUE)
+
+      safe_label <- gsub("[^a-zA-Z0-9_-]", "_", label)
+      sql_path <- fs::path(derived_dir, paste0(safe_label, ".sql"))
+
+      template_path <- system.file("sql", "createSubsetCohort_Person.sql", package = "picard")
+      rendered_sql <- readr::read_file(template_path) |>
+        SqlRender::render(
+          base_cohort_id        = baseCohortId,
+          min_age               = sql_min_age,
+          max_age               = sql_max_age,
+          gender_concept_ids    = sql_gender_ids,
+          race_concept_ids      = sql_race_ids,
+          ethnicity_concept_ids = sql_ethnicity_ids
+        )
+      writeLines(rendered_sql, sql_path)
+
+      cohort_id <- private$insert_cohort(
+        label           = label,
+        category        = category,
+        tags            = tags,
+        file_path       = fs::path_rel(sql_path),
+        source_type     = "derived",
+        cohort_type     = "subset",
+        depends_on      = as.integer(baseCohortId),
+        dependency_rule = dependency_rule
+      )
+
+      cli::cli_alert_success("Built demographic cohort {cohort_id}: {label}")
+      invisible(cohort_id)
+    },
+
+    #' @description Split a base cohort into stratified sub-cohorts
+    #'
+    #' Splits a single base cohort into N named stratum cohorts plus an automatic
+    #' \strong{Unclassified} cohort containing subjects that match none of the named
+    #' strata. Each stratum is registered as a separate manifest entry with
+    #' \code{cohort_type = "subset"}.
+    #'
+    #' @param baseCohortId Integer. The cohort definition ID to split.
+    #' @param strata Named list. Each element is either a named list of demographic
+    #'   filters (keys: \code{genderConceptIds}, \code{raceConceptIds},
+    #'   \code{ethnicityConceptIds}, \code{minAge}, \code{maxAge}) or a character
+    #'   string SQL WHERE condition referencing \code{bc} (cohort table) and \code{p}
+    #'   (person table). Names become cohort labels.
+    #' @param labelPrefix Character or NULL. If provided, prepended to each stratum name
+    #'   with a \code{" - "} separator.
+    #' @param category Character. Category applied to every stratum cohort. Default: \code{"derived"}.
+    #' @param tags Named list. Optional metadata tags applied to every stratum cohort.
+    #'
+    #' @return Invisibly returns a named list of assigned cohort IDs, keyed by cohort label.
+    buildStratifiedCohorts = function(baseCohortId, strata, labelPrefix = NULL,
+                                      category = "derived", tags = list()) {
+      checkmate::assert_int(baseCohortId)
+      checkmate::assert_list(strata, min.len = 1, names = "named")
+      checkmate::assert_string(labelPrefix, null.ok = TRUE)
+      checkmate::assert_string(category, min.chars = 1)
+      checkmate::assert_list(tags, names = "named")
+
+      private$validate_parent_cohorts_exist(baseCohortId)
+
+      # Validate each stratum entry
+      for (nm in names(strata)) {
+        s <- strata[[nm]]
+        if (!is.list(s) && !is.character(s)) {
+          cli::cli_abort("Stratum '{nm}' must be a named list (demographic) or a character SQL condition.")
+        }
+        if (is.character(s) && length(s) != 1) {
+          cli::cli_abort("Stratum '{nm}' character condition must be a single string.")
+        }
+      }
+
+      # Build SQL condition for each named stratum
+      stratum_conditions <- lapply(strata, .stratum_to_sql_condition)
+
+      # Append Unclassified stratum — negation of every named condition
+      negated <- paste0("NOT (", unlist(stratum_conditions), ")")
+      stratum_conditions[["Unclassified"]] <- paste(negated, collapse = "\n    AND ")
+
+      cohorts_dir <- dirname(private$.dbPath)
+      derived_dir <- fs::path(cohorts_dir, "derived")
+      if (!dir.exists(derived_dir)) dir.create(derived_dir, recursive = TRUE)
+
+      template_path <- system.file("sql", "createStratifiedCohort_Stratum.sql", package = "picard")
+      template_sql <- readr::read_file(template_path)
+
+      sanitise_name <- function(nm) gsub("[^A-Za-z0-9_]", "_", tolower(nm))
+
+      result <- list()
+      cli::cli_rule("Building stratified cohorts from base cohort {baseCohortId}")
+
+      for (nm in names(stratum_conditions)) {
+        condition    <- stratum_conditions[[nm]]
+        cohort_label <- if (!is.null(labelPrefix)) paste0(labelPrefix, " - ", nm) else nm
+        is_unclassified <- nm == "Unclassified"
+
+        rendered_sql <- SqlRender::render(
+          template_sql,
+          base_cohort_id       = as.integer(baseCohortId),
+          stratum_where_clause = condition,
+          warnOnMissingParameters = FALSE
+        )
+
+        file_name <- sprintf("stratified_%d_%s", as.integer(baseCohortId), sanitise_name(nm))
+        sql_path  <- fs::path(derived_dir, paste0(file_name, ".sql"))
+        writeLines(rendered_sql, sql_path)
+
+        dependency_rule <- list(
+          baseCohortId      = as.integer(baseCohortId),
+          stratumName       = nm,
+          stratumDefinition = if (is_unclassified) NULL else strata[[nm]],
+          isUnclassified    = is_unclassified
+        )
+
+        cohort_id <- private$insert_cohort(
+          label           = cohort_label,
+          category        = category,
+          tags            = tags,
+          file_path       = fs::path_rel(sql_path),
+          source_type     = "derived",
+          cohort_type     = "subset",
+          depends_on      = as.integer(baseCohortId),
+          dependency_rule = dependency_rule
+        )
+
+        result[[cohort_label]] <- cohort_id
+        cli::cli_alert_success("Registered stratum {cohort_id}: {cohort_label}")
+      }
+
+      cli::cli_rule("Done — {length(result)} strata registered (includes Unclassified)")
+      invisible(result)
     },
 
     # ========== QUERY METHODS ==========
@@ -2198,70 +2514,6 @@ CohortManifest <- R6::R6Class(
       invisible(NULL)
     },
 
-    #' Add a dependent cohort to the manifest
-    #'
-    #' @description
-    #' Adds a dependent CohortDef object (subset, union, or complement) to the manifest.
-    #' Only works for cohorts created with the builder functions in buildDependentCohorts.R.
-    #' Validates that parent cohorts exist in this manifest before adding.
-    #'
-    #' @param cohortDef A CohortDef object with cohortType of 'subset', 'union', or 'complement'
-    #'   (created via buildSubsetCohort_Temporal, buildUnionCohort, etc.)
-    #'
-    #' @details
-    #' The cohort is assigned a new ID equal to max(existing_id) + 1. Parent cohorts
-    #' (specified in dependsOnCohortIds) must already exist in this manifest.
-    #' The cohort is immediately persisted to the SQLite manifest database.
-    #'
-    #' @return Invisibly returns the assigned cohort ID.
-    addDependentCohort = function(cohortDef) {
-      lifecycle::deprecate_warn(
-        "0.0.3",
-        "CohortManifest$addDependentCohort()",
-        details = "Use $buildUnionCohort(), $buildSubsetCohortTemporal(), $buildComplementCohort(), or $buildCompositeCohort() instead."
-      )
-      checkmate::assert_class(x = cohortDef, classes = "CohortDef")
-
-      # Validate this is actually a dependent cohort (not a circe cohort)
-      cohort_type <- cohortDef$getCohortType()
-      if (cohort_type == "circe") {
-        cli::cli_abort("addDependentCohort only accepts dependent cohorts (subset, union, complement, composite). Got type: {cohort_type}. Use loadCohortManifest() for circe cohorts.")
-      }
-
-      if (!cohort_type %in% c("subset", "union", "complement", "composite", "custom")) {
-        cli::cli_abort("Invalid cohort type: {cohort_type}. Must be 'subset', 'union', 'composite', 'complement', or 'custom'")
-      }
-
-      # Dependency metadata not available via this deprecated path — use R6 build methods
-      # ($buildUnionCohort, $buildSubsetCohortTemporal, etc.) to capture full dependency info.
-      file_path <- cohortDef$getFilePath()
-      parent_ids <- integer(0)
-
-      # Validate parent cohorts exist in this manifest
-      if (length(parent_ids) > 0) {
-        private$validate_parent_cohorts_exist(parent_ids)
-      }
-
-      # Delegate insert to the shared helper which uses the correct schema
-      cohort_id <- private$insert_cohort(
-        label = cohortDef$label,
-        category = cohortDef$getCategory(),
-        tags = cohortDef$tags,
-        file_path = file_path,
-        source_type = cohortDef$getSourceType(),
-        cohort_type = cohort_type,
-        depends_on = NULL,
-        dependency_rule = NULL
-      )
-
-      cli::cli_alert_success("Added dependent cohort {cohort_id}: {cohortDef$label} (Type: {cohort_type})")
-      if (length(parent_ids) > 0) {
-        cli::cli_alert_info("Depends on cohort(s): {paste(parent_ids, collapse = ', ')}")
-      }
-
-      invisible(cohort_id)
-    },
-
     #' Sync the manifest against cohort files on disk
     #'
     #' @description
@@ -2273,7 +2525,7 @@ CohortManifest <- R6::R6Class(
     #'   \item Existing files whose SQL hash has changed are updated in the manifest.
     #' }
     #' Only the \code{json/} and \code{sql/} source directories are scanned — derived cohorts
-    #' managed via \code{build*()} / \code{addDependentCohort()} are not touched.
+    #' managed via \code{build*()} methods are not touched.
     #'
     #' @return Data frame with columns: id, label, action
     #'   (\code{"added"}, \code{"hash_updated"}, \code{"missing_flagged"}, or \code{"unchanged"}).
@@ -2376,6 +2628,9 @@ CohortManifest <- R6::R6Class(
             cli::cli_alert_warning("Hash updated: {rec_label} (ID {rec_id})")
             results <- rbind(results, data.frame(id = rec_id, label = rec_label,
                                                   action = "hash_updated", stringsAsFactors = FALSE))
+
+            # Cascade stale to all derived cohorts that depend on this one
+            private$cascade_stale_downstream(rec_id)
           } else {
             results <- rbind(results, data.frame(id = rec_id, label = rec_label,
                                                   action = "unchanged", stringsAsFactors = FALSE))
@@ -2687,12 +2942,15 @@ CohortManifest <- R6::R6Class(
         cohort_label <- cohort$label
         cohort_type <- cohort$getCohortType()
 
-        # Query parent IDs from SQLite depends_on column
+        # Query parent IDs from SQLite depends_on column (include stale cohorts)
         dep_row <- DBI::dbGetQuery(
           sqlite_conn,
-          "SELECT depends_on FROM cohort_manifest WHERE id = ? AND status = 'active'",
+          "SELECT depends_on, status FROM cohort_manifest WHERE id = ? AND status IN ('active', 'stale')",
           list(cohort_id)
         )
+
+        # Stale cohorts must always be re-executed regardless of checksum
+        is_stale <- nrow(dep_row) > 0 && dep_row$status[1] == "stale"
         parent_ids <- if (nrow(dep_row) > 0 && !is.na(dep_row$depends_on[1]) && nchar(dep_row$depends_on[1]) > 0) {
           as.integer(jsonlite::fromJSON(dep_row$depends_on[1]))
         } else {
@@ -2726,7 +2984,11 @@ CohortManifest <- R6::R6Class(
           # Compute dependency hash using cached parent hashes
           current_dependency_hash <- private$compute_dependency_hash(cohort, cohort_hashes)
 
-          if (!is_checksum_empty && !is.null(stored_hash)) {
+          if (is_stale) {
+            # Stale: parent data changed — must re-run, skip hash check
+            dependency_status <- "Stale - parent changed"
+            should_skip <- FALSE
+          } else if (!is_checksum_empty && !is.null(stored_hash)) {
             # Check if dependency hash is available
             stored_dependency_hash <- stored_hash  # For now, store both as one; could extend DB schema
             if (!is.na(stored_dependency_hash) && stored_dependency_hash == current_dependency_hash) {
@@ -2739,7 +3001,7 @@ CohortManifest <- R6::R6Class(
             dependency_status <- "New"
           }
         } else {
-          # For circe cohorts, use standard SQL hash
+          # For circe cohorts, use standard SQL hash (stale not applicable for base cohorts)
           current_hash <- cohort$getHash()
           if (!is.null(stored_hash) && !is.na(stored_hash) && stored_hash == current_hash) {
             should_skip <- TRUE
@@ -3031,6 +3293,15 @@ CohortManifest <- R6::R6Class(
         }
 
         cli::cli_alert_success("Generated cohort {cohort_id}: {cohort_label} ({cohort_type}) ({execution_time_min |> round(2)} min)")
+
+        # If cohort was stale, reset to active now that it has been re-executed
+        if (isTRUE(is_stale)) {
+          DBI::dbExecute(
+            sqlite_conn,
+            "UPDATE cohort_manifest SET status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            list(cohort_id)
+          )
+        }
 
         # Cache this cohort's hash for dependency calculations
         cohort_hashes[[as.character(cohort_id)]] <- hash_to_store

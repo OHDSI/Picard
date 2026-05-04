@@ -1,4 +1,4 @@
-﻿---
+---
 title: "Loading Inputs: Getting Started"
 output: rmarkdown::html_vignette
 vignette: >
@@ -19,12 +19,12 @@ knitr::opts_chunk$set(
 
 Before running your study pipeline you need two types of inputs:
 
-- **Cohorts** â€” study populations, comparators, and outcomes as CIRCE JSON
+- **Cohorts** "” study populations, comparators, and outcomes as CIRCE JSON
   definitions (from ATLAS or Capr) or custom SQL
-- **Concept Sets** â€” phenotype definitions for diseases, exposures, covariates,
+- **Concept Sets** "” phenotype definitions for diseases, exposures, covariates,
   etc.
 
-Picard tracks both through *manifests* â€” SQLite databases that record every
+Picard tracks both through *manifests* "” SQLite databases that record every
 definition's file path, MD5 hash, metadata, and provenance. Each session you
 load the manifest into memory; the SQLite file is the durable source of truth.
 
@@ -46,15 +46,15 @@ The template has three top-level sections:
 
 | Section | Purpose |
 |---|---|
-| **A. Concept Sets â€” First Time** | `initConceptSetManifest()`, fill CSV, connect ATLAS, `importAtlasConceptSets()` |
-| **B. Cohorts â€” First Time** | `initCohortManifest()`, fill CSV, connect ATLAS, `importAtlasCohorts()` |
+| **A. Concept Sets "” First Time** | `initConceptSetManifest()`, fill CSV, connect ATLAS, `importAtlasConceptSets()` |
+| **B. Cohorts "” First Time** | `initCohortManifest()`, fill CSV, connect ATLAS, `importAtlasCohorts()` |
 | **C. Subsequent Sessions** | `loadConceptSetManifest()` + `loadCohortManifest()` |
 
 Run only the section that applies to your current situation.
 
 ---
 
-## Concept Sets â€” First Time
+## Concept Sets "” First Time
 
 ### Step 1: Initialise the manifest
 
@@ -78,7 +78,7 @@ Opens `inputs/conceptSets/conceptSetsLoad.csv`. Fill in one row per concept set:
 | `atlasId` | Yes | ATLAS concept set ID |
 | `label` | Yes | Display name |
 | `domain` | Yes | OMOP domain (e.g., `drug_exposure`) |
-| `sourceCode` | No | `TRUE`/`FALSE` â€” whether it uses source codes |
+| `sourceCode` | No | `TRUE`/`FALSE` "” whether it uses source codes |
 
 Any additional columns are stored as tags.
 
@@ -111,7 +111,7 @@ without any additional import step.
 
 ---
 
-## Cohorts â€” First Time
+## Cohorts "” First Time
 
 ### Step 1: Initialise the manifest
 

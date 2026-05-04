@@ -257,7 +257,7 @@ Stores a connection so it does not need to be passed to
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{atlasConnection}}{An ATLAS connection object (from \code{setAtlasConnection()}).}
+\item{\code{atlasConnection}}{An ATLAS connection object (from \code{getAtlasConnection()}).}
 }
 \if{html}{\out{</div>}}
 }
