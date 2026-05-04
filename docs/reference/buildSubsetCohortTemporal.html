@@ -52,7 +52,7 @@ between two cohorts. Returns a CohortDef object ready to add to a CohortManifest
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="" class="logo" alt=""><h1>Build a Subset Cohort Definition (Temporal)</h1>
-      <small class="dont-index">Source: <a href="https://github.com/mdlavallee92/picard/blob/HEAD/R/buildDependentCohorts.R" class="external-link"><code>R/buildDependentCohorts.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/ohdsi/Picard/blob/HEAD/R/buildDependentCohorts.R" class="external-link"><code>R/buildDependentCohorts.R</code></a></small>
       <div class="d-none name"><code>buildSubsetCohortTemporal.Rd</code></div>
     </div>
 
@@ -68,10 +68,10 @@ between two cohorts. Returns a CohortDef object ready to add to a CohortManifest
 <span>  <span class="va">baseCohortId</span>,</span>
 <span>  <span class="va">filterCohortId</span>,</span>
 <span>  <span class="va">startWindow</span>,</span>
-<span>  <span class="va">endWindow</span>,</span>
+<span>  endWindow <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  endDateType <span class="op">=</span> <span class="st">"base"</span>,</span>
 <span>  subsetLimit <span class="op">=</span> <span class="st">"First"</span>,</span>
-<span>  cohortsFolder <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts"</span><span class="op">)</span>,</span>
+<span>  category <span class="op">=</span> <span class="st">"derived"</span>,</span>
 <span>  <span class="va">manifest</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -111,13 +111,9 @@ to retain per subject. 'First' keeps the earliest event, 'Last' keeps the most r
 qualifying events. Default: 'First'.</p></dd>
 
 
-<dt>cohortsFolder</dt>
-<dd><p>Character. Path to inputs/cohorts/. Defaults to <code>here::here("inputs/cohorts")</code>.</p></dd>
-
-
 <dt>manifest</dt>
 <dd><p>CohortManifest object. Required. Validates that base cohorts exist and
-automatically registers the new cohort via addDependentCohort().</p></dd>
+automatically registers the new cohort.</p></dd>
 
 </dl></div>
     <div class="section level2">

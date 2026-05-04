@@ -54,7 +54,7 @@ Returns a CohortDef object ready to add to a CohortManifest."><!-- mathjax --><s
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="" class="logo" alt=""><h1>Build a Complement Cohort Definition</h1>
-      <small class="dont-index">Source: <a href="https://github.com/mdlavallee92/picard/blob/HEAD/R/buildDependentCohorts.R" class="external-link"><code>R/buildDependentCohorts.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/ohdsi/Picard/blob/HEAD/R/buildDependentCohorts.R" class="external-link"><code>R/buildDependentCohorts.R</code></a></small>
       <div class="d-none name"><code>buildComplementCohort.Rd</code></div>
     </div>
 
@@ -71,7 +71,6 @@ Returns a CohortDef object ready to add to a CohortManifest.</p>
 <span>  <span class="va">populationCohortId</span>,</span>
 <span>  <span class="va">excludeCohortIds</span>,</span>
 <span>  complementType <span class="op">=</span> <span class="st">"exclude_any"</span>,</span>
-<span>  cohortsFolder <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts"</span><span class="op">)</span>,</span>
 <span>  <span class="va">manifest</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -96,13 +95,8 @@ Returns a CohortDef object ready to add to a CohortManifest.</p>
 </ul></dd>
 
 
-<dt>cohortsFolder</dt>
-<dd><p>Character. Path to inputs/cohorts/. Defaults to <code>here::here("inputs/cohorts")</code>.</p></dd>
-
-
 <dt>manifest</dt>
-<dd><p>CohortManifest object. Required. Validates that population and exclude cohorts exist and
-automatically registers the new cohort via addDependentCohort().</p></dd>
+<dd><p>CohortManifest object. Required. Validates that population and exclude cohorts exist.</p></dd>
 
 </dl></div>
     <div class="section level2">

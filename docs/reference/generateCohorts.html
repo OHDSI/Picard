@@ -56,7 +56,7 @@ for all subsequent analytical tasks in the pipeline."><!-- mathjax --><script sr
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="" class="logo" alt=""><h1>Generate Cohorts for Pipeline Execution</h1>
-      <small class="dont-index">Source: <a href="https://github.com/mdlavallee92/picard/blob/HEAD/R/execute.R" class="external-link"><code>R/execute.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/ohdsi/Picard/blob/HEAD/R/execute.R" class="external-link"><code>R/execute.R</code></a></small>
       <div class="d-none name"><code>generateCohorts.Rd</code></div>
     </div>
 
@@ -76,12 +76,17 @@ for all subsequent analytical tasks in the pipeline.</p>
     <h2 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h2>
     <dl><dt>executionSettings</dt>
 <dd><p>An ExecutionSettings object containing database configuration
-for cohort generation.</p></dd>
+for cohort generation. When created via <code><a href="createExecutionSettingsFromConfig.html">createExecutionSettingsFromConfig()</a></code> with
+a non-semver <code>pipelineVersion</code> (e.g. "dev", "test"), the cohort table name will
+already have a <code>_dev</code> suffix applied, keeping dev runs isolated from the
+production cohort table.</p></dd>
 
 
 <dt>pipelineVersion</dt>
 <dd><p>Character. The pipeline version used to organize the output folder structure.
-Output will be saved to exec/results/databaseName/pipelineVersion/00_buildCohorts/</p></dd>
+Output will be saved to <code>exec/results/{databaseName}/{pipelineVersion}/00_buildCohorts/</code>.
+Non-semver values (e.g. "dev") also trigger dev cohort table routing via
+<code><a href="createExecutionSettingsFromConfig.html">createExecutionSettingsFromConfig()</a></code>.</p></dd>
 
 
 <dt>override</dt>

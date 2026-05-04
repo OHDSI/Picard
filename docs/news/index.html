@@ -50,9 +50,128 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="" class="logo" alt=""><h1>Changelog</h1>
-      <small>Source: <a href="https://github.com/mdlavallee92/picard/blob/HEAD/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
+      <small>Source: <a href="https://github.com/ohdsi/Picard/blob/HEAD/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.0.3" id="picard-003">picard 0.0.3<a class="anchor" aria-label="anchor" href="#picard-003"></a></h2>
+<div class="section level3">
+<h3 id="cohortmanifest-reboot-0-0-3">CohortManifest Reboot<a class="anchor" aria-label="anchor" href="#cohortmanifest-reboot-0-0-3"></a></h3>
+<p><code>CohortManifest</code> has been fully redesigned as an R6 class backed by SQLite. All cohort lifecycle management — adding, building, querying, syncing, deleting, and generating — is now encapsulated as methods on the class. The previous functional approach (<code>manifest_cohorts.R</code>, <code>manifest_conceptSets.R</code>) has been removed.</p>
+<div class="section level4">
+<h4 id="adding-cohorts-0-0-3">Adding Cohorts<a class="anchor" aria-label="anchor" href="#adding-cohorts-0-0-3"></a></h4>
+<ul><li>
+<code>$addAtlasCohort(atlasId, label, category, tags, atlasConnection)</code> — fetch a single cohort JSON from ATLAS and register it</li>
+<li>
+<code>$addCaprCohort(caprCohort, label, category, tags)</code> — export a Capr <code>Cohort</code> object to JSON and register it</li>
+<li>
+<code>$addSqlCohort(filePath, label, category, tags)</code> — register an existing <code>.sql</code> file; validates portability</li>
+<li>
+<code>$importAtlasCohorts(atlasConnection, cohortsLoadPath)</code> — batch import via <code>cohortsLoad.csv</code>; extra columns become tags</li>
+<li>
+<code>$setAtlasConnection(atlasConnection)</code> / <code>$getAtlasConnection()</code> — store a connection on the manifest so it does not need to be passed on every call</li>
+<li>
+<code><a href="../reference/getAtlasConnection.html">getAtlasConnection()</a></code> is now an exported standalone function (replaces <code><a href="../reference/setAtlasConnection.html">setAtlasConnection()</a></code> which is deprecated)</li>
+</ul></div>
+<div class="section level4">
+<h4 id="building-dependent-cohorts-0-0-3">Building Dependent Cohorts<a class="anchor" aria-label="anchor" href="#building-dependent-cohorts-0-0-3"></a></h4>
+<p>All dependent cohort methods are now on the <code>CohortManifest</code> class. Dependency metadata is stored in SQLite (<code>depends_on</code>, <code>dependency_rule</code> columns); no sidecar JSON files. When a parent’s SQL file changes, all downstream derived cohorts are automatically marked <code>stale</code>.</p>
+<ul><li>
+<code>$buildUnionCohort(label, cohortIds, category, gapDays)</code> — era-collapse union of ≥2 cohorts</li>
+<li>
+<code>$buildComplementCohort(label, populationCohortId, excludeCohortIds, category, complementType)</code> — exclude subjects; updated signature; supports <code>"exclude_any"</code> (default) and <code>"exclude_all"</code>
+</li>
+<li>
+<code>$buildCompositeCohort(label, cohortIds, category, minCohorts)</code> — intersection requiring membership in ≥ <code>minCohorts</code>
+</li>
+<li>
+<code>$buildSubsetCohortTemporal(label, baseCohortId, filterCohortId, category, startWindow, endWindow, endDateType, subsetLimit)</code> — temporal subset using <code>SubsetWindowOperator</code> objects</li>
+<li>
+<code>$buildDemographicCohort(label, baseCohortId, category, minAge, maxAge, genderConceptIds, raceConceptIds, ethnicityConceptIds)</code> — <strong>new</strong>: filter a base cohort by person-level demographics</li>
+<li>
+<code>$buildStratifiedCohorts(baseCohortId, strata, labelPrefix, category)</code> — <strong>new</strong>: split a cohort into N named strata; automatically appends an <code>Unclassified</code> stratum covering all non-matching subjects</li>
+<li>Removed: <code>addDependentCohort()</code> (replaced entirely by the <code>build*()</code> methods above)</li>
+</ul></div>
+<div class="section level4">
+<h4 id="mid-cycle-manifest-management-0-0-3">Mid-Cycle Manifest Management<a class="anchor" aria-label="anchor" href="#mid-cycle-manifest-management-0-0-3"></a></h4>
+<ul><li>
+<code>$tabulateManifest(filter)</code> — tabulate manifest to a tibble; filter now accepts <code>"active"</code> (default), <code>"deleted"</code>, <code>"stale"</code>, or <code>"all"</code>
+</li>
+<li>
+<code>$syncManifest()</code> — reconcile files on disk (<code>json/</code>, <code>sql/</code>) against SQLite; flags missing files as deleted, detects hash changes, reports unregistered files</li>
+<li>
+<code>$reviewDependentCohorts()</code> — <strong>new</strong>: tibble of all derived cohorts with parsed parent labels and rule summaries</li>
+<li>
+<code>$reviewStaleCohorts()</code> — <strong>new</strong>: list all cohorts marked <code>stale</code> (parent SQL changed since last build); these are re-executed automatically by <code>executeCohortGeneration()</code>
+</li>
+<li>
+<code>$reloadFromDb()</code> — <strong>new</strong>: refresh the in-memory manifest from SQLite (useful after external DB changes or <code><a href="../reference/resetCohortManifest.html">resetCohortManifest()</a></code>)</li>
+<li>
+<code>$statusReport()</code> — tabular status overview of all active cohorts and their dependencies</li>
+<li>
+<code>$validateManifest()</code> — check file presence for all active cohort records</li>
+<li>
+<code>$cleanupMissing(keep_trace)</code> — soft-delete (<code>keep_trace = TRUE</code>) or hard-remove (<code>keep_trace = FALSE</code>) cohorts whose files are missing</li>
+</ul></div>
+<div class="section level4">
+<h4 id="delete-api-0-0-3">Delete API<a class="anchor" aria-label="anchor" href="#delete-api-0-0-3"></a></h4>
+<ul><li>
+<code>$deleteCohort(id, reason)</code> — soft delete: marks <code>status = 'deleted'</code>, preserves the SQLite record and file on disk; recoverable</li>
+<li>
+<code>$removeCohort(id, deleteFile, dropFromCohortTable, confirm)</code> — <strong>new</strong>: hard, irreversible removal; deletes the SQLite record; optionally deletes the file on disk (<code>deleteFile = TRUE</code>) and/or drops rows from the DBMS cohort and checksum tables (<code>dropFromCohortTable = TRUE</code>, requires <code>executionSettings</code>); requires interactive confirmation or <code>confirm = TRUE</code>
+</li>
+<li>Removed: <code>permanentlyDeleteCohort()</code> and <code>hardDeleteCohort()</code> — both consolidated into <code>removeCohort()</code>
+</li>
+</ul></div>
+<div class="section level4">
+<h4 id="dbms-operations-0-0-3">DBMS Operations<a class="anchor" aria-label="anchor" href="#dbms-operations-0-0-3"></a></h4>
+<ul><li>
+<code>$createCohortTables()</code> — create all cohort-related DBMS tables (main, inclusion, stats, checksum); skips tables that already exist</li>
+<li>
+<code>$dropCohortTables(tableTypes)</code> — drop cohort tables; optionally limit to specific table types</li>
+<li>
+<code>$cleanCohortTable()</code> — for every <code>status = 'deleted'</code> cohort, delete its DBMS rows and mark the manifest record <code>'purged'</code>
+</li>
+<li>
+<code>$executeCohortGeneration()</code> — generate cohorts in topological dependency order; skips cohorts whose checksum is unchanged; marks stale derived cohorts for re-execution</li>
+</ul></div>
+<div class="section level4">
+<h4 id="reset-0-0-3">Reset<a class="anchor" aria-label="anchor" href="#reset-0-0-3"></a></h4>
+<p><code>resetCohortManifest(scope)</code> now supports three scopes:</p>
+<ul><li>
+<code>"derived"</code> — drop derived cohort rows from SQLite and delete the <code>derived/</code> SQL files; leaves base cohorts and <code>json/</code>/<code>sql/</code> intact</li>
+<li>
+<code>"manifest"</code> — delete the entire SQLite database; leaves files on disk</li>
+<li>
+<code>"full"</code> — delete SQLite, delete <code>derived/</code>, delete <code>json/</code> and <code>sql/</code> directories, drop DBMS cohort tables</li>
+</ul></div>
+<div class="section level4">
+<h4 id="visualization-0-0-3">Visualization<a class="anchor" aria-label="anchor" href="#visualization-0-0-3"></a></h4>
+<ul><li>
+<code>plotCohortGraph(manifest)</code> — <strong>new export</strong>: renders a Mermaid dependency diagram of derived cohorts and their parents</li>
+<li>
+<code><a href="../reference/visualizeCohortDependencies.html">visualizeCohortDependencies()</a></code> — deprecated; use <code><a href="../reference/plotCohortGraph.html">plotCohortGraph()</a></code> instead</li>
+</ul></div>
+</div>
+<div class="section level3">
+<h3 id="pipeline-execution-0-0-3">Pipeline Execution<a class="anchor" aria-label="anchor" href="#pipeline-execution-0-0-3"></a></h3>
+<ul><li>
+<code>preflightChecklist()</code> added to <code><a href="../reference/execStudyPipeline.html">execStudyPipeline()</a></code>; validates all prerequisites before a production run</li>
+<li>
+<code>postProcess</code> step now supports test mode (<code>testMode = TRUE</code>) to write outputs to a separate test directory</li>
+<li>Cohort tables are distinguished by test mode to prevent test runs from overwriting production cohort data</li>
+<li>Bug fixes in task caching and execution result recording</li>
+</ul></div>
+<div class="section level3">
+<h3 id="internal-0-0-3">Internal<a class="anchor" aria-label="anchor" href="#internal-0-0-3"></a></h3>
+<ul><li>
+<code>R/manifest_cohorts.R</code> and <code>R/manifest_conceptSets.R</code> removed; logic consolidated into <code>R/manifest_helpers.R</code>
+</li>
+<li>
+<code>R/buildDependentCohorts.R</code> refactored; standalone build functions removed in favour of <code>CohortManifest</code> methods</li>
+<li>Stale cascade detection: <code>cascade_stale_downstream()</code> marks all transitive dependents stale when a parent SQL file hash changes</li>
+</ul></div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.0.2" id="picard-002">picard 0.0.2<a class="anchor" aria-label="anchor" href="#picard-002"></a></h2>
 <ul><li>Split production and test mode for pipeline runs</li>

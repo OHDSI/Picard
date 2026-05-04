@@ -165,14 +165,16 @@
 <div class="section level3">
 <h3 id="import-cohorts-from-atlas">Import Cohorts from ATLAS<a class="anchor" aria-label="anchor" href="#import-cohorts-from-atlas"></a>
 </h3>
-<p>Before importing our cohorts we need to provide a load list. This can be done interactively:</p>
+<p>Before importing cohorts, create a load list by running:</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="reference/launchCohortsLoadEditor.html">launchCohortsLoadEditor</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-<p>Import cohort definitions from your ATLAS instance:</p>
+<code class="sourceCode R"><span><span class="fu"><a href="reference/createBlankCohortsLoadFile.html">createBlankCohortsLoadFile</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<p>Edit <code>inputs/cohorts/cohortsLoad.csv</code> in Excel to add your ATLAS cohort IDs and metadata. Then import:</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="reference/importAtlasCohorts.html">importAtlasCohorts</a></span><span class="op">(</span></span>
-<span>  cohortsFolderPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts"</span><span class="op">)</span>,</span>
-<span>  atlasConnection <span class="op">=</span> <span class="fu"><a href="reference/setAtlasConnection.html">setAtlasConnection</a></span><span class="op">(</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="va">cohortManifest</span> <span class="op">&lt;-</span> <span class="va"><a href="reference/CohortManifest.html">CohortManifest</a></span><span class="op">$</span><span class="fu">new</span><span class="op">(</span>dbPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts/manifest.sqlite"</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="reference/importAtlasCohorts.html">importAtlasCohorts</a></span><span class="op">(</span></span>
+<span>  manifest <span class="op">=</span> <span class="va">cohortManifest</span>,</span>
+<span>  atlasConnection <span class="op">=</span> <span class="fu"><a href="reference/setAtlasConnection.html">setAtlasConnection</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  cohortsLoadPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts/cohortsLoad.csv"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p>For you to set up the atlas connection you need to provide your credentials for logging into webApi. Follow this template to add credentials to .Renviron file:</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
@@ -214,7 +216,7 @@
   </main><aside class="col-md-3"><div class="links">
 <h2 data-toc-skip>Links</h2>
 <ul class="list-unstyled">
-<li><a href="https://github.com/mdlavallee92/picard/" class="external-link">Browse source code</a></li>
+<li><a href="https://github.com/ohdsi/Picard/" class="external-link">Browse source code</a></li>
 </ul>
 </div>
 

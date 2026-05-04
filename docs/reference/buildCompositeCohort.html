@@ -54,7 +54,7 @@ Returns a CohortDef object ready to add to a CohortManifest."><!-- mathjax --><s
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="" class="logo" alt=""><h1>Build a Composite Cohort Definition</h1>
-      <small class="dont-index">Source: <a href="https://github.com/mdlavallee92/picard/blob/HEAD/R/buildDependentCohorts.R" class="external-link"><code>R/buildDependentCohorts.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/ohdsi/Picard/blob/HEAD/R/buildDependentCohorts.R" class="external-link"><code>R/buildDependentCohorts.R</code></a></small>
       <div class="d-none name"><code>buildCompositeCohort.Rd</code></div>
     </div>
 
@@ -71,7 +71,6 @@ Returns a CohortDef object ready to add to a CohortManifest.</p>
 <span>  <span class="va">criteriaCohortIds</span>,</span>
 <span>  minimumEventCount <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  eventSelection <span class="op">=</span> <span class="st">"First"</span>,</span>
-<span>  cohortsFolder <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts"</span><span class="op">)</span>,</span>
 <span>  <span class="va">manifest</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -101,13 +100,8 @@ Default: 'First'.</p></li>
 </ul></dd>
 
 
-<dt>cohortsFolder</dt>
-<dd><p>Character. Path to inputs/cohorts/. Defaults to <code>here::here("inputs/cohorts")</code>.</p></dd>
-
-
 <dt>manifest</dt>
-<dd><p>CohortManifest object. Required. Validates that all criteria cohorts exist and
-automatically registers the new cohort via addDependentCohort().</p></dd>
+<dd><p>CohortManifest object. Required. Validates that all criteria cohorts exist.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -134,7 +128,7 @@ automatically registers the new cohort via addDependentCohort().</p></dd>
 <span class="r-in"><span>  minimumEventCount <span class="op">=</span> <span class="fl">1</span>,</span></span>
 <span class="r-in"><span>  eventSelection <span class="op">=</span> <span class="st">"First"</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
-<span class="r-err co"><span class="r-pr">#&gt;</span> <span class="error">Error in checkmate::assert_class(x = manifest, classes = "CohortManifest"):</span> argument "manifest" is missing, with no default</span>
+<span class="r-err co"><span class="r-pr">#&gt;</span> <span class="error">Error in lifecycle::deprecate_warn("0.0.3", "buildCompositeCohort()",     what2 = "CohortManifest$buildCompositeCohort()", details = "Use the R6 method: `manifest$buildCompositeCohort(label, cohortIds, category, ...)`"):</span> unused argument (what2 = "CohortManifest$buildCompositeCohort()")</span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
     </div>

@@ -177,6 +177,16 @@
         <dd>Initialize or Restore Agent Mode for Cloned Repository</dd>
       </dl><dl><dt>
           
+          <code><a href="initCohortManifest.html">initCohortManifest()</a></code> 
+        </dt>
+        <dd>Initialize a New Cohort Manifest</dd>
+      </dl><dl><dt>
+          
+          <code><a href="initConceptSetManifest.html">initConceptSetManifest()</a></code> 
+        </dt>
+        <dd>Initialize a New Concept Set Manifest</dd>
+      </dl><dl><dt>
+          
           <code><a href="initializeRenv.html">initializeRenv()</a></code> 
         </dt>
         <dd>Initialize Renv for Project</dd>
@@ -215,7 +225,7 @@
           
           <code><a href="buildSubsetCohortDemographic.html">buildSubsetCohortDemographic()</a></code> 
         </dt>
-        <dd>Build a Subset Cohort Definition (Demographic)</dd>
+        <dd>Build a Demographic Subset Cohort</dd>
       </dl><dl><dt>
           
           <code><a href="buildSubsetCohortTemporal.html">buildSubsetCohortTemporal()</a></code> 
@@ -306,6 +316,11 @@
 
       <dl><dt>
           
+          <code><a href="getAtlasConnection.html">getAtlasConnection()</a></code> 
+        </dt>
+        <dd>Get Atlas Connection</dd>
+      </dl><dl><dt>
+          
           <code><a href="getTaskRunSummary.html">getTaskRunSummary()</a></code> 
         </dt>
         <dd>Get Task Run Summary</dd>
@@ -313,7 +328,7 @@
           
           <code><a href="setAtlasConnection.html">setAtlasConnection()</a></code> 
         </dt>
-        <dd>Set Atlas Connection</dd>
+        <dd>Set Atlas Connection (Deprecated)</dd>
       </dl><dl><dt>
           
           <code><a href="setContributor.html">setContributor()</a></code> 
@@ -344,7 +359,7 @@
           
           <code><a href="loadCohortManifest.html">loadCohortManifest()</a></code> 
         </dt>
-        <dd>Load Cohort Manifest from Database or Cohort Files</dd>
+        <dd>Load Cohort Manifest from SQLite Database</dd>
       </dl><dl><dt>
           
           <code><a href="loadConceptSetManifest.html">loadConceptSetManifest()</a></code> 
@@ -380,7 +395,7 @@
           
           <code><a href="defineCustomCohort.html">defineCustomCohort()</a></code> 
         </dt>
-        <dd>Define (Enrich) a Custom SQL Cohort in the Manifest</dd>
+        <dd>Define (Enrich) a Custom SQL Cohort (Deprecated)</dd>
       </dl><dl><dt>
           
           <code><a href="displayTaskStatusReport.html">displayTaskStatusReport()</a></code> 
@@ -423,14 +438,9 @@
         <dd>Import CIRCE Concept Sets from ATLAS</dd>
       </dl><dl><dt>
           
-          <code><a href="launchCohortsLoadEditor.html">launchCohortsLoadEditor()</a></code> 
+          <code><a href="migrateCohortManifest.html">migrateCohortManifest()</a></code> 
         </dt>
-        <dd>Launch Interactive Cohort Load File Editor</dd>
-      </dl><dl><dt>
-          
-          <code><a href="launchConceptSetsLoadEditor.html">launchConceptSetsLoadEditor()</a></code> 
-        </dt>
-        <dd>Launch Interactive Concept Set Load Editor</dd>
+        <dd>Migrate Old CohortManifest SQLite to New Schema</dd>
       </dl><dl><dt>
           
           <code><a href="orchestratePipelineExport.html">orchestratePipelineExport()</a></code> 
@@ -448,6 +458,11 @@
         <dd>set the execOptions as placeholder.</dd>
       </dl><dl><dt>
           
+          <code><a href="plotCohortGraph.html">plotCohortGraph()</a></code> 
+        </dt>
+        <dd>Plot Cohort Dependency Graph</dd>
+      </dl><dl><dt>
+          
           <code><a href="prepareDisseminationData.html">prepareDisseminationData()</a></code> 
         </dt>
         <dd>Prepare Dissemination Data with Chained Transformations</dd>
@@ -460,12 +475,12 @@
           
           <code><a href="resetCohortManifest.html">resetCohortManifest()</a></code> 
         </dt>
-        <dd>Reset Cohort Manifest Database</dd>
+        <dd>Reset Cohort Manifest</dd>
       </dl><dl><dt>
           
           <code><a href="resetConceptSetManifest.html">resetConceptSetManifest()</a></code> 
         </dt>
-        <dd>Reset Concept Set Manifest Database</dd>
+        <dd>Reset Concept Set Manifest</dd>
       </dl><dl><dt>
           
           <code><a href="restoreEnvironment.html">restoreEnvironment()</a></code> 
@@ -503,6 +518,11 @@
         <dd>Template for setting Atlas Credentials</dd>
       </dl><dl><dt>
           
+          <code><a href="testOrchestratePipelineExport.html">testOrchestratePipelineExport()</a></code> 
+        </dt>
+        <dd>Test Orchestrate Pipeline Export</dd>
+      </dl><dl><dt>
+          
           <code><a href="testStudyPipeline.html">testStudyPipeline()</a></code> 
         </dt>
         <dd>Test Study Pipeline</dd>
@@ -515,7 +535,7 @@
           
           <code><a href="updateCohortMetadata.html">updateCohortMetadata()</a></code> 
         </dt>
-        <dd>Update the label and/or tags of an existing manifest cohort</dd>
+        <dd>Update the Label and/or Tags of an Existing Manifest Cohort</dd>
       </dl><dl><dt>
           
           <code><a href="updateStudyVersion.html">updateStudyVersion()</a></code> 
@@ -545,7 +565,7 @@
           
           <code><a href="visualizeCohortDependencies.html">visualizeCohortDependencies()</a></code> 
         </dt>
-        <dd>Visualize Cohort Dependencies in a Report</dd>
+        <dd>Visualize Cohort Dependencies (Deprecated)</dd>
       </dl><dl><dt>
           
           <code><a href="zipAndArchive.html">zipAndArchive()</a></code> 

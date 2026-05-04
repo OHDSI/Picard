@@ -1220,34 +1220,6 @@ createBlankConceptSetsLoadFile <- function(conceptSetsFolderPath = here::here("i
 }
 
 
-#' Launch Interactive Concept Set Load Editor (Deprecated)
-#'
-#' @description
-#' **Deprecated.** The interactive Shiny editor has been discontinued.
-#' Use [createBlankConceptSetsLoadFile()] and edit the CSV directly.
-#'
-#' @param conceptSetsFolderPath Character. Path to conceptSets folder.
-#'
-#' @return NULL invisibly.
-#'
-#' @export
-#' @keywords internal
-#' @noRd
-launchConceptSetsLoadEditor <- function(conceptSetsFolderPath = here::here("inputs/conceptSets")) {
-  lifecycle::deprecate_soft(
-    when = "3.0.0",
-    what = "launchConceptSetsLoadEditor()",
-    details = c(
-      "The interactive Shiny editor has been discontinued.",
-      i = "To create concept set metadata, use this workflow:",
-      "  1. Run createBlankConceptSetsLoadFile() to create a template",
-      "  2. Edit inputs/conceptSets/conceptSetsLoad.csv directly in Excel",
-      "  3. Use conceptSetManifest$importAtlasConceptSets() to import"
-    )
-  )
-}
-
-
 #' Import CIRCE Concept Sets from ATLAS
 #'
 #' @description

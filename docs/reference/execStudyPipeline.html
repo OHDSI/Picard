@@ -54,7 +54,7 @@ the complete pipeline, provides PR instructions, and saves reference to PENDING_
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="" class="logo" alt=""><h1>Production Study Pipeline Execution</h1>
-      <small class="dont-index">Source: <a href="https://github.com/mdlavallee92/picard/blob/HEAD/R/execute.R" class="external-link"><code>R/execute.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/ohdsi/Picard/blob/HEAD/R/execute.R" class="external-link"><code>R/execute.R</code></a></small>
       <div class="d-none name"><code>execStudyPipeline.Rd</code></div>
     </div>
 
@@ -70,6 +70,7 @@ the complete pipeline, provides PR instructions, and saves reference to PENDING_
 <span>  <span class="va">configBlock</span>,</span>
 <span>  <span class="va">updateType</span>,</span>
 <span>  skipRenv <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  skipConnectivityCheck <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  env <span class="op">=</span> <span class="fu">rlang</span><span class="fu">::</span><span class="fu"><a href="https://rlang.r-lib.org/reference/stack.html" class="external-link">caller_env</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -90,6 +91,12 @@ the complete pipeline, provides PR instructions, and saves reference to PENDING_
 <dt>skipRenv</dt>
 <dd><p>Logical. If TRUE, skips renv validation. Defaults to FALSE.
 Useful for testing issues. Default: FALSE</p></dd>
+
+
+<dt>skipConnectivityCheck</dt>
+<dd><p>Logical. If TRUE (default), skips the optional
+database connectivity pre-flight check. Set to FALSE to attempt a test
+connection to each config block before execution begins.</p></dd>
 
 
 <dt>env</dt>

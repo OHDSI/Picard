@@ -58,7 +58,7 @@ per stratum so generateCohorts() processes them independently.'><!-- mathjax -->
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="" class="logo" alt=""><h1>Split a Base Cohort into Multiple Stratified Sub-Cohorts</h1>
-      <small class="dont-index">Source: <a href="https://github.com/mdlavallee92/picard/blob/HEAD/R/buildDependentCohorts.R" class="external-link"><code>R/buildDependentCohorts.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/ohdsi/Picard/blob/HEAD/R/buildDependentCohorts.R" class="external-link"><code>R/buildDependentCohorts.R</code></a></small>
       <div class="d-none name"><code>buildStratifiedCohorts.Rd</code></div>
     </div>
 
@@ -72,13 +72,7 @@ per stratum so <code><a href="generateCohorts.html">generateCohorts()</a></code>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">buildStratifiedCohorts</span><span class="op">(</span></span>
-<span>  <span class="va">baseCohortId</span>,</span>
-<span>  <span class="va">strata</span>,</span>
-<span>  labelPrefix <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  cohortsFolder <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts"</span><span class="op">)</span>,</span>
-<span>  <span class="va">manifest</span></span>
-<span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">buildStratifiedCohorts</span><span class="op">(</span><span class="va">baseCohortId</span>, <span class="va">strata</span>, labelPrefix <span class="op">=</span> <span class="cn">NULL</span>, <span class="va">manifest</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -99,11 +93,6 @@ stratum name with a <code>-</code> separator (e.g. <code>"CKD"</code> + <code>"M
 <code>"CKD - Male"</code>).</p></dd>
 
 
-<dt>cohortsFolder</dt>
-<dd><p>Character. Path to inputs/cohorts/. Defaults to
-<code>here::here("inputs/cohorts")</code>.</p></dd>
-
-
 <dt>manifest</dt>
 <dd><p>A <code>CohortManifest</code> object. Required. Cohort IDs are
 auto-assigned from the next available manifest ID — never supply them
@@ -114,8 +103,7 @@ manually.</p></dd>
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     
 
-<p>Invisibly returns a named list of <code>CohortDef</code> objects, one per
-stratum including Unclassified. The list is keyed by the full cohort label.</p>
+<p>Invisibly returns a named list of cohort IDs, keyed by the full cohort label.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>

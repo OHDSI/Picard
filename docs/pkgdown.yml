@@ -6,10 +6,11 @@ articles:
   evidence_generation_plan: evidence_generation_plan.html
   launching_a_study: launching_a_study.html
   loading_inputs: loading_inputs.html
+  manifest_overview: manifest_overview.html
   picard_repository_structure: picard_repository_structure.html
   post_processing: post_processing.html
   running_the_pipeline: running_the_pipeline.html
-last_built: 2026-04-28T13:55Z
+last_built: 2026-05-04T22:27Z
 urls:
   reference: https://ohdsi.github.io/Picard/reference
   article: https://ohdsi.github.io/Picard/articles

@@ -57,6 +57,8 @@ reference:
     desc: "Functions for initializing components (init*)"
     contents:
       - initAgentMode
+      - initCohortManifest
+      - initConceptSetManifest
       - initializeRenv
 
   - title: "Build Functions"
@@ -90,6 +92,7 @@ reference:
   - title: "Configuration Functions"
     desc: "Functions for configuration and setup (set*)"
     contents:
+      - getAtlasConnection
       - getTaskRunSummary
       - setAtlasConnection
       - setContributor
@@ -117,10 +120,11 @@ reference:
       - importAndBind
       - importAtlasCohorts
       - importAtlasConceptSets
-
+      - migrateCohortManifest
       - orchestratePipelineExport
       - pivotForComparison
       - placeHolderExecOptions
+      - plotCohortGraph
       - prepareDisseminationData
       - recordTaskExecution
       - resetCohortManifest
@@ -132,6 +136,7 @@ reference:
       - snapshotEnvironment
       - standardizeDataTypes
       - templateAtlasCredentials
+      - testOrchestratePipelineExport
       - testStudyPipeline
       - testStudyTask
       - updateCohortMetadata
