@@ -36,13 +36,7 @@ createBlankCohortsLoadFile(cohortsFolderPath = here::here("inputs/cohorts"))
 
 This creates `inputs/cohorts/cohortsLoad.csv` with columns: `atlasId`, `label`, `category`, `subCategory`, `file_name`
 
-**Option B: Use the interactive editor**
-
-```r
-launchCohortsLoadEditor(cohortsFolderPath = here::here("inputs/cohorts"))
-```
-
-This launches a Shiny app where you can add/edit cohort metadata without touching the CSV directly.
+Edit this file in Excel to add your cohort entries.
 
 ### Step 2: Import Cohort Definitions from ATLAS
 

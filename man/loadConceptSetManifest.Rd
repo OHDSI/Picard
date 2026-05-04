@@ -6,7 +6,8 @@
 \usage{
 loadConceptSetManifest(
   conceptSetsFolderPath = here::here("inputs/conceptSets"),
-  executionSettings = NULL
+  executionSettings = NULL,
+  verbose = TRUE
 )
 }
 \arguments{
@@ -16,6 +17,10 @@ database. Defaults to "inputs/conceptSets".}
 \item{executionSettings}{ExecutionSettings object. Optional. Defaults to NULL.
 Only required for operations like extractSourceCodes(). You can add settings later
 using setExecutionSettings() on the returned ConceptSetManifest object.}
+
+\item{verbose}{Logical. If TRUE (default), prints informative messages about the
+loading process and any issues encountered. Set to FALSE to suppress routine
+output; file-level errors inside tryCatch handlers are always shown.}
 }
 \value{
 ConceptSetManifest object containing all loaded concept sets with metadata.

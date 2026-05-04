@@ -5,71 +5,65 @@
 \title{Import CIRCE Cohort Definitions from ATLAS}
 \usage{
 importAtlasCohorts(
-  cohortsFolderPath = here::here("inputs/cohorts"),
-  atlasConnection
+  atlasConnection,
+  manifestPath = here::here("inputs/cohorts/cohortManifest.sqlite"),
+  cohortsLoadPath = here::here("inputs/cohorts/cohortsLoad.csv")
 )
 }
 \arguments{
-\item{cohortsFolderPath}{Character. Path to cohorts folder in Ulysses repo.}
-
 \item{atlasConnection}{An ATLAS connection object (typically from ROhdsiWebApi package)
 with a method \code{getCohortDefinition(cohortId)} that returns a list containing
 an \code{expression} element with the CIRCE JSON string.}
 
-\item{outputFolder}{Character. Path to the output folder where cohort JSON files
-will be saved. Defaults to "inputs/cohorts/json". Files are saved as
-\verb{\{label\}.json}.}
+\item{manifestPath}{Character. Path to the cohort manifest database. Defaults to
+\code{here::here("inputs/cohorts/cohortManifest.sqlite")}. If the database doesn't
+exist, it will be created.}
+
+\item{cohortsLoadPath}{Character. Path to the CSV file containing cohort metadata.
+Defaults to \code{here::here("inputs/cohorts/cohortsLoad.csv")}.
+The CSV must have columns: \code{atlasId}, \code{label}, \code{category}
+(plus optional extra columns for tags).}
 }
 \value{
-Invisibly returns NULL. Saves CIRCE JSON files to outputFolder and
-prints status messages via cli alerts.
+Invisibly returns a tibble with columns: id, label, status.
+Each row represents an import attempt.
 }
 \description{
-this function looks for a CSV file called cohortsLoad.csv containing cohort metadata.
-Must be located in or accessible from the inputs/cohorts folder.
-The CSV must have the following columns:
+Imports CIRCE JSON cohort definitions from an ATLAS WebAPI instance and registers
+them in the manifest database. This is a wrapper around \link{CohortManifest}\verb{$importAtlasCohorts()}
+that provides a convenient standalone interface.
+}
+\details{
+\strong{Workflow:}
+\enumerate{
+\item Loads or initializes the CohortManifest at \code{manifestPath}
+\item Calls \code{manifest$importAtlasCohorts(atlasConnection, cohortsLoadPath)}
+\item Returns the import results tibble
+}
+
+\strong{CSV Format:}
+The cohortsLoad.csv file must have at minimum these columns:
 \itemize{
 \item \code{atlasId}: ATLAS cohort definition ID (integer)
 \item \code{label}: Cohort name/label (character)
 \item \code{category}: Broad category for the cohort (character)
-\item \code{subCategory}: Sub-category for the cohort (character)
-The function will read this CSV, fetch the cohort definitions from ATLAS using the provided atlasConnection,
-extract the CIRCE JSON expressions, and save them to the specified output folder with filenames based on the label.
-Finally it updates the cohort load CSV with the relative file paths to the saved JSON files.
+\item Any additional columns are treated as tags (name = column name, value = cell value)
 }
 }
-\details{
-Imports CIRCE JSON cohort definitions from an ATLAS WebAPI instance and saves
-them to the inputs/cohorts/json folder. This function reads a CSV file containing
-cohort metadata and fetches the actual cohort definitions from ATLAS.
-
-\strong{Workflow:}
-\enumerate{
-\item Reads the cohort load CSV file
-\item Validates that all required columns are present
-\item For each row with a valid atlasId:
-\itemize{
-\item Fetches the cohort definition from ATLAS WebAPI
-\item Extracts the CIRCE JSON expression
-\item Saves to \verb{outputFolder/\{label\}.json}
-}
-\item Skips rows with missing atlasId with a warning
-\item Catches and reports errors per cohort without stopping the entire import
-}
-
-\strong{Post-Import:}
-After running this function, use \code{\link[=loadCohortManifest]{loadCohortManifest()}} to load the saved
-cohort JSON files and build the manifest with metadata.
+\note{
+This function is deprecated. Use \link{CohortManifest}\verb{$importAtlasCohorts()} method directly instead.
 }
 \examples{
 \dontrun{
   # Assuming ATLAS connection is set up
-  importAtlasCohorts(
-    cohortFolderPath = here::here("inputs/cohorts"),
+  results <- importAtlasCohorts(
     atlasConnection = setAtlasConnection()
   )
 
-  # Then load the manifest (no settings required for metadata review)
+  # View import results
+  print(results)
+
+  # Load the manifest to work with the imported cohorts
   manifest <- loadCohortManifest()
 }
 

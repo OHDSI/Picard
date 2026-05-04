@@ -1,4 +1,39 @@
 
+#' Initialize a New Concept Set Manifest
+#'
+#' Creates a blank `conceptSetManifest.sqlite` database with the new schema.
+#' Directory creation (`json/`) is handled by the study repo
+#' initialization (see `listDefaultFolders()` in `R/Ulysses.R`).
+#'
+#' @param path Character. Path to the conceptSets folder where the SQLite file will be created.
+#'   Defaults to `"inputs/conceptSets"`.
+#'
+#' @return A `ConceptSetManifest` R6 object (empty, ready for `$add*()` calls).
+#'
+#' @export
+initConceptSetManifest <- function(path = "inputs/conceptSets") {
+  dbPath <- fs::path(path, "conceptSetManifest.sqlite")
+
+  if (file.exists(dbPath)) {
+    cli::cli_alert_warning("Manifest already exists at {fs::path_rel(dbPath)}.")
+    cli::cli_alert_info("Use loadConceptSetManifest() to load the existing manifest.")
+    cli::cli_alert_info("Use resetConceptSetManifest() to delete and start fresh.")
+    return(invisible(NULL))
+  }
+
+  # Ensure directory exists
+  if (!dir.exists(path)) {
+    dir.create(path, recursive = TRUE, showWarnings = FALSE)
+  }
+
+  csm <- ConceptSetManifest$new(dbPath = dbPath)
+  cli::cli_alert_success("Initialized empty concept set manifest at {fs::path_rel(dbPath)}")
+  cli::cli_alert_info("Add concept sets with $addConceptSetFile(), $addAtlasConceptSet(), $addCaprConceptSet(), or $importAtlasConceptSets()")
+
+  return(csm)
+}
+
+
 #' Load Concept Set Manifest
 #'
 #' Loads or creates a concept set manifest from CIRCE JSON files located in the
@@ -11,6 +46,9 @@
 #' @param executionSettings ExecutionSettings object. Optional. Defaults to NULL. 
 #'   Only required for operations like extractSourceCodes(). You can add settings later 
 #'   using setExecutionSettings() on the returned ConceptSetManifest object.
+#' @param verbose Logical. If TRUE (default), prints informative messages about the
+#'   loading process and any issues encountered. Set to FALSE to suppress routine
+#'   output; file-level errors inside tryCatch handlers are always shown.
 #'
 #' @return ConceptSetManifest object containing all loaded concept sets with metadata.
 #'
@@ -59,239 +97,80 @@
 #' }
 #'
 loadConceptSetManifest <- function(conceptSetsFolderPath = here::here("inputs/conceptSets"),
-                                   executionSettings = NULL) {
+                                   executionSettings = NULL,
+                                   verbose = TRUE) {
   checkmate::assert_class(executionSettings, "ExecutionSettings", null.ok = TRUE)
+  checkmate::assert_logical(verbose, len = 1)
   dbPath <- fs::path(conceptSetsFolderPath, "conceptSetManifest.sqlite")
-  concept_set_entries <- list()
 
-  # Check if database already exists and has entries
-  if (file.exists(dbPath)) {
-    conn <- DBI::dbConnect(RSQLite::SQLite(), dbPath)
-    on.exit(DBI::dbDisconnect(conn))
+  # Create manifest (initializes DB schema, loads active entries from SQLite)
+  manifest <- ConceptSetManifest$new(dbPath = dbPath, executionSettings = executionSettings)
 
-    # Query existing concept sets from database
-    existing_concept_sets <- DBI::dbGetQuery(
-      conn,
-      "SELECT id, label, tags, filePath, hash FROM concept_set_manifest"
-    )
+  # Discover JSON files in json/ that are not yet registered in the manifest
+  json_dir <- fs::path(conceptSetsFolderPath, "json")
 
-    # Only load from manifest if it has entries
-    if (nrow(existing_concept_sets) > 0) {
-      cli::cli_alert_info("Loading concept sets from existing manifest: {dbPath}")
+  if (dir.exists(json_dir)) {
+    on_disk <- list.files(json_dir, pattern = "\\.json$", full.names = TRUE, recursive = TRUE)
 
-      # Process each concept set from database
-      for (i in seq_len(nrow(existing_concept_sets))) {
-        record <- existing_concept_sets[i, ]
-        label <- record$label
-        # Resolve stored path to absolute so checks work regardless of working directory
-        file_path <- fs::path_abs(record$filePath)
-        stored_hash <- record$hash
-        tags_string <- record$tags
-        concept_set_id <- record$id
+    if (length(on_disk) > 0) {
+      # Check which on-disk files are not in the manifest DB
+      conn <- DBI::dbConnect(RSQLite::SQLite(), dbPath)
+      on.exit(DBI::dbDisconnect(conn))
 
-        # Check if file still exists
-        if (!file.exists(file_path)) {
-          cli::cli_alert_warning("Concept set file missing (will be marked): {record$label} ({record$filePath})")
-          # Don't skip - we'll track this in the database with status='missing'
-          # For now, skip it from loading into memory but it will be in the database
-          next
+      registered_paths <- DBI::dbGetQuery(
+        conn,
+        "SELECT filePath FROM concept_set_manifest WHERE status = 'active'"
+      )$filePath
+
+      new_files <- on_disk[!(fs::path_rel(on_disk) %in% registered_paths)]
+
+      if (length(new_files) > 0) {
+        if (verbose) {
+          cli::cli_alert_info("Registering {length(new_files)} new concept set file(s) found in {fs::path_rel(json_dir)}")
         }
 
-        tryCatch({
-          # Create ConceptSetDef from file (this computes current hash)
-          concept_set_def <- ConceptSetDef$new(
-            label = label,
-            filePath = file_path
-        )
-
-          # Set the ID from the database to preserve it
-          concept_set_def$setId(as.integer(concept_set_id))
-
-          # Backfill tags from database
-          if (!is.na(tags_string) && tags_string != "") {
-            parsed_tags <- parseTagsString(tags_string)
-            concept_set_def$tags <- parsed_tags
-          }
-
-          concept_set_entries[[length(concept_set_entries) + 1]] <- concept_set_def
-        }, error = function(e) {
-          cli::cli_alert_danger("Error loading concept set {record$label}: {e$message}")
-        })
+        for (file_path in new_files) {
+          label <- tools::file_path_sans_ext(basename(file_path))
+          tryCatch({
+            manifest$addConceptSetFile(filePath = file_path, label = label)
+          }, error = function(e) {
+            cli::cli_alert_warning("Skipping {label}: {e$message}")
+          })
+        }
       }
-
-      if (length(concept_set_entries) > 0) {
-        cli::cli_alert_success("Loaded {length(concept_set_entries)} concept sets from manifest")
-        # Successfully loaded from manifest; now check for new files added manually since
-        # the manifest was last created (mirrors loadCohortManifest incremental discovery)
-        json_dir <- fs::path(conceptSetsFolderPath, "json")
-        all_files <- character(0)
-
-        if (dir.exists(json_dir)) {
-          all_files <- list.files(json_dir, pattern = "\\.json$", full.names = TRUE, recursive = TRUE)
-        }
-
-        # Compare normalized relative paths against stored manifest file paths
-        existing_file_paths <- existing_concept_sets$filePath
-        new_files_mask <- !(fs::path_rel(all_files) %in% existing_file_paths)
-        new_files <- all_files[new_files_mask]
-
-        if (length(new_files) > 0) {
-          cli::cli_alert_info("Found {length(new_files)} new concept set file(s) not in manifest")
-
-          for (file_path in new_files) {
-            label <- tools::file_path_sans_ext(basename(file_path))
-            tryCatch({
-              new_cs_def <- ConceptSetDef$new(label = label, filePath = file_path)
-              concept_set_entries[[length(concept_set_entries) + 1]] <- new_cs_def
-              cli::cli_alert_success("Added new concept set from file: {label}")
-            }, error = function(e) {
-              cli::cli_alert_warning("Error adding new concept set {label}: {e$message}")
-            })
-          }
-        }
-      } else {
-        # Database had entries but none could be loaded, fall through to scan directories
-        cli::cli_alert_warning("No valid concept sets could be loaded from manifest. Scanning directories...")
-        concept_set_entries <- list()  # Reset to empty for directory scan
-      }
-    } else {
-      # Manifest exists but is empty, scan directories
-      cli::cli_alert_warning("Manifest exists but contains no concept set entries. Scanning directories...")
     }
   }
 
-  # If no concept sets loaded from manifest (or manifest didn't exist), scan directories
-  if (length(concept_set_entries) == 0) {
-    cli::cli_alert_info("Scanning concept set directories...")
+  # Alert about any active records whose files are missing
+  if (verbose) {
+    validation_status <- manifest$validateManifest()
+    missing_conceptsets <- validation_status[
+      !is.na(validation_status$status) &
+        validation_status$status == "active" &
+        !validation_status$file_exists,
+    ]
 
-    # Define directory to search
-    json_dir <- fs::path(conceptSetsFolderPath, "json")
+    if (nrow(missing_conceptsets) > 0) {
+      cli::cli_rule("Missing Concept Set Files Detected")
+      cli::cli_alert_warning("{nrow(missing_conceptsets)} concept set file(s) are missing:")
 
-    # Process JSON directory if it exists
-    if (dir.exists(json_dir)) {
-      json_files <- list.files(json_dir, pattern = "\\.json$", full.names = TRUE, recursive = TRUE)
-
-      for (file_path in json_files) {
-        label <- tools::file_path_sans_ext(basename(file_path))
-        tryCatch({
-          concept_set_def <- ConceptSetDef$new(
-            label = label,
-            filePath = file_path
-        )
-          concept_set_entries[[length(concept_set_entries) + 1]] <- concept_set_def
-          cli::cli_alert_success("Loaded concept set: {label}")
-        }, error = function(e) {
-          cli::cli_alert_danger("Error loading concept set {label}: {e$message}")
-        })
+      for (i in seq_len(nrow(missing_conceptsets))) {
+        cs_info <- missing_conceptsets[i, ]
+        cli::cli_bullets(c("x" = "ID {cs_info$id}: {cs_info$label}"))
       }
-    }
 
-    if (length(concept_set_entries) == 0) {
-      stop("No concept set files found in conceptSets/json directory")
-    }
-
-    cli::cli_alert_success("Found {length(concept_set_entries)} total concept sets")
-  }
-
-  # Check for conceptSetsLoad.csv file to enrich entries with tags and labels
-  concept_sets_load_path <- fs::path(conceptSetsFolderPath, "conceptSetsLoad.csv")
-  if (file.exists(concept_sets_load_path)) {
-    cli::cli_alert_info("Found conceptSetsLoad.csv. Enriching entries with load metadata...")
-
-    tryCatch({
-      concept_sets_load <- readr::read_csv(concept_sets_load_path, show_col_types = FALSE)
-
-      # Validate required columns (label is optional)
-      required_cols <- c("file_name", "atlasId", "category", "subCategory", "domain", "sourceCode")
-      missing_cols <- setdiff(required_cols, names(concept_sets_load))
-
-      if (length(missing_cols) == 0) {
-        # Process each concept set entry to find matching load record
-        tags_added <- 0
-        labels_updated <- 0
-        for (i in seq_along(concept_set_entries)) {
-          entry <- concept_set_entries[[i]]
-          entry_filepath_rel <- fs::path_rel(entry$getFilePath())
-
-          # Find matching record in conceptSetsLoad by file_name
-          matching_idx <- which(entry_filepath_rel == concept_sets_load$file_name)
-
-          if (length(matching_idx) > 0) {
-            load_record <- concept_sets_load[matching_idx[1], ]
-
-            # Update label if provided in conceptSetsLoad.csv
-            if ("label" %in% names(concept_sets_load) && !is.na(load_record$label)) {
-              entry$label <- as.character(load_record$label)
-              labels_updated <- labels_updated + 1
-            }
-
-            # Add tags from load record
-            entry_tags <- list()
-            if (!is.na(load_record$atlasId)) {
-              entry_tags[["atlasId"]] <- as.character(load_record$atlasId)
-            }
-            if (!is.na(load_record$domain)) {
-              entry_tags[["domain"]] <- as.character(load_record$domain)
-            }
-            if (!is.na(load_record$category)) {
-              entry_tags[["category"]] <- as.character(load_record$category)
-            }
-            if (!is.na(load_record$sourceCode)) {
-              entry_tags[["sourceCode"]] <- as.character(load_record$sourceCode)
-            }
-            if (!is.na(load_record$subCategory)) {
-              entry_tags[["subCategory"]] <- as.character(load_record$subCategory)
-            }
-
-            if (length(entry_tags) > 0) {
-              entry$tags <- entry_tags
-              tags_added <- tags_added + 1
-              cli::cli_alert_success("Added metadata to concept set: {entry$label}")
-            }
-          }
-        }
-
-        cli::cli_alert_success("Updated {labels_updated} labels and added tags to {tags_added} concept set entries from conceptSetsLoad.csv")
-      } else {
-        cli::cli_alert_warning("conceptSetsLoad.csv is missing required columns: {paste(missing_cols, collapse = ', ')}")
-      }
-    }, error = function(e) {
-      cli::cli_alert_danger("Error reading conceptSetsLoad.csv: {e$message}")
-    })
-  }
-
-  # Create and return the ConceptSetManifest
-  manifest <- ConceptSetManifest$new(
-    conceptSetEntries = concept_set_entries,
-    executionSettings = executionSettings,
-    dbPath = dbPath
-  )
-
-  # Detect and alert about missing concept sets using the public validateManifest() method
-  validation_status <- manifest$validateManifest()
-  missing_conceptsets <- validation_status[validation_status$status == "active" & !validation_status$file_exists, ]
-
-  if (nrow(missing_conceptsets) > 0) {
-    cli::cli_rule("Missing Concept Set Files Detected")
-    cli::cli_alert_warning("{nrow(missing_conceptsets)} concept set file(s) are missing:")
-
-    for (i in seq_len(nrow(missing_conceptsets))) {
-      cs_info <- missing_conceptsets[i, ]
+      cli::cli_rule()
       cli::cli_bullets(c(
-        "x" = "ID {cs_info$id}: {cs_info$label}"
+        "i" = "Use {.code manifest$validateManifest()} to see full status",
+        "i" = "Use {.code manifest$cleanupMissing()} to remove missing concept sets",
+        "i" = "Or restore the missing files and reload"
       ))
     }
-
-    cli::cli_rule()
-    cli::cli_bullets(c(
-      i = "Use {.code manifest$validateManifest()} to see full status",
-      i = "Use {.code manifest$cleanupMissing()} to remove missing concept sets",
-      i = "Or restore the missing files and reload"
-    ))
   }
 
   return(manifest)
 }
+
 
 
 #' Reset Concept Set Manifest Database
@@ -487,243 +366,20 @@ createBlankConceptSetsLoadFile <- function(conceptSetsFolderPath = here::here("i
 #' 5. Use [loadConceptSetManifest()] to load the imported conceptSets
 #' @export
 #'
-#' @examples
-#' \dontrun{
-#'   # Launch the concept set load editor
-#'   launchConceptSetsLoadEditor()
-#' }
-#'
+#' @keywords internal
+#' @noRd
 launchConceptSetsLoadEditor <- function(conceptSetsFolderPath = here::here("inputs/conceptSets")) {
-  # Check if Shiny is installed
-  if (!requireNamespace("shiny", quietly = TRUE)) {
-    stop("The 'shiny' package is required to use this function. Install it with: install.packages('shiny')")
-  }
-  if (!requireNamespace("DT", quietly = TRUE)) {
-    stop("The 'DT' package is required to use this function. Install it with: install.packages('DT')")
-  }
-
-  # Try to load existing conceptSetsLoad.csv
-  existing_load <- NULL
-  load_path <- fs::path(conceptSetsFolderPath, "conceptSetsLoad.csv")
-  if (file.exists(load_path)) {
-    existing_load <- readr::read_csv(load_path, show_col_types = FALSE)
-    
-    # Ensure file_name column exists; generate if missing
-    if (!"file_name" %in% names(existing_load)) {
-      existing_load$file_name <- fs::path("json", paste0(existing_load$label, ".json"))
-    }
-    
-    # Ensure columns are in the correct order
-    existing_load <- existing_load[, c("atlasId", "label", "category", "subCategory", "sourceCode", "domain", "file_name")]
-  }
-
-  # Create the Shiny app
-  app <- shiny::shinyApp(
-    ui = function() {
-      shiny::fluidPage(
-        shiny::titlePanel("Concept Set Load File Editor"),
-        shiny::sidebarLayout(
-          shiny::sidebarPanel(
-            shiny::h4("Add New Concept Set"),
-            shiny::numericInput("atlas_id", "ATLAS ID:", value = NA, min = 1),
-            shiny::textInput("label", "Label:", ""),
-            shiny::textInput("category", "Category:", ""),
-            shiny::textInput("sub_category", "Sub-Category (optional):", ""),
-            shiny::textInput("source_code", "Source Code (TRUE/FALSE):", ""),
-            shiny::selectInput("domain", "Domain:", choices = c("","drug_exposure", "condition_occurrence", "measurement", "procedure")),
-            shiny::actionButton("add_row", "Add Concept Set", class = "btn-primary"),
-            shiny::hr(),
-            shiny::h4("Actions"),
-            shiny::actionButton("delete_rows", "Delete Selected Rows", class = "btn-danger"),
-            shiny::hr(),
-            shiny::h4("Templates"),
-            shiny::downloadButton("download_template", "Download Blank Template", class = "btn-info"),
-            shiny::hr(),
-            shiny::actionButton("save_file", "Save Concept Set Load File", class = "btn-success"),
-            shiny::actionButton("cancel", "Cancel", class = "btn-secondary")
-          ),
-          shiny::mainPanel(
-            DT::DTOutput("concept_set_table"),
-            shiny::br(),
-            shiny::uiOutput("status_message")
-          )
-        )
-      )
-    },
-    server = function(input, output, session) {
-      # Reactive values to store the data
-      rv <- shiny::reactiveValues(
-        data = if (!is.null(existing_load)) existing_load else data.frame(
-          atlasId = integer(),
-          label = character(),
-          category = character(),
-          subCategory = character(),
-          sourceCode = logical(),
-          domain = character(),
-          file_name = character(),
-          stringsAsFactors = FALSE
-        ),
-        message = NULL,
-        message_type = NULL
-      )
-
-      # Display the data table
-      output$concept_set_table <- DT::renderDT({
-        DT::datatable(
-          rv$data,
-          editable = list(target = "cell", disable = list(columns = 5)),
-          selection = "multiple",
-          rownames = FALSE,
-          options = list(pageLength = 10)
-        )
-      })
-
-      # Handle table edits
-      shiny::observeEvent(input$concept_set_table_cell_edit, {
-        info <- input$concept_set_table_cell_edit
-        rv$data[info$row, info$col] <- info$value
-
-        # Update file_name automatically if label (column 2) changed
-        if (info$col == 2) {
-          rv$data$file_name[info$row] <- fs::path("json", paste0(info$value, ".json"))
-          rv$message <- "Label updated - file_name auto-generated"
-          rv$message_type <- "info"
-        }
-      })
-
-      # Add new concept set
-      shiny::observeEvent(input$add_row, {
-        # Validate inputs
-        if (is.na(input$atlas_id) || input$atlas_id == "") {
-          rv$message <- "ATLAS ID is required"
-          rv$message_type <- "danger"
-          return()
-        }
-        if (input$label == "") {
-          rv$message <- "Label is required"
-          rv$message_type <- "danger"
-          return()
-        }
-        if (input$category == "") {
-          rv$message <- "Category is required"
-          rv$message_type <- "danger"
-          return()
-        }
-        if (input$domain == "") {
-          rv$message <- "Domain is required"
-          rv$message_type <- "danger"
-          return()
-        }
-
-        # Add row
-        new_row <- data.frame(
-          atlasId = as.integer(input$atlas_id),
-          label = input$label,
-          category = input$category,
-          subCategory = if (input$sub_category == "") NA_character_ else input$sub_category,
-          sourceCode = input$source_code, 
-          domain = input$domain,
-          file_name = fs::path("json", paste0(input$label, ".json")),
-          stringsAsFactors = FALSE
-        )
-
-        rv$data <- rbind(rv$data, new_row)
-        rv$message <- paste("Added concept set:", input$label)
-        rv$message_type <- "success"
-
-        # Clear inputs
-        shiny::updateNumericInput(session, "atlas_id", value = NA)
-        shiny::updateTextInput(session, "label", value = "")
-        shiny::updateTextInput(session, "category", value = "")
-        shiny::updateTextInput(session, "sub_category", value = "")
-        shiny::updateTextInput(session, "source_code", value = "")
-        shiny::updateSelectInput(session, "domain", selected = "")
-      })
-
-      # Delete selected rows
-      shiny::observeEvent(input$delete_rows, {
-        selected <- input$concept_set_table_rows_selected
-        if (length(selected) == 0) {
-          rv$message <- "No rows selected"
-          rv$message_type <- "warning"
-        } else {
-          deleted_labels <- rv$data$label[selected]
-          rv$data <- rv$data[-selected, ]
-          rv$message <- paste("Deleted", length(selected), "concept set(s):", paste(deleted_labels, collapse = ", "))
-          rv$message_type <- "info"
-        }
-      })
-
-      # Save file
-      shiny::observeEvent(input$save_file, {
-        if (nrow(rv$data) == 0) {
-          rv$message <- "Cannot save: No concept sets in table"
-          rv$message_type <- "danger"
-          return()
-        }
-
-        fs::dir_create(conceptSetsFolderPath)
-        save_path <- fs::path(conceptSetsFolderPath, "conceptSetsLoad.csv")
-        readr::write_csv(rv$data, file = save_path)
-
-        rv$message <- paste("Concept Set Load file saved successfully!\nLocation:", fs::path_rel(save_path))
-        rv$message_type <- "success"
-
-        shiny::showNotification(
-          paste("Saved", nrow(rv$data), "concept sets to conceptSetLoad.csv"),
-          type = "message",
-          duration = 3
-        )
-      })
-
-      # Download blank template
-      output$download_template <- shiny::downloadHandler(
-        filename = function() {
-          paste0("conceptSetsLoad_template_", format(Sys.Date(), "%Y%m%d"), ".csv")
-        },
-        content = function(file) {
-          template <- data.frame(
-            atlasId = integer(1),
-            label = character(1),
-            category = character(1),
-            subCategory = character(1),
-            sourceCode = character(1),
-            domain = character(1),
-            file_name = character(1),
-            stringsAsFactors = FALSE
-          )
-          readr::write_csv(template, file = file)
-        }
-      )
-
-      # Cancel
-      shiny::observeEvent(input$cancel, {
-        shiny::stopApp()
-      })
-
-      # Display status message
-      output$status_message <- shiny::renderUI({
-        if (!is.null(rv$message)) {
-          class_name <- switch(rv$message_type,
-            success = "alert alert-success",
-            danger = "alert alert-danger",
-            warning = "alert alert-warning",
-            info = "alert alert-info"
-          )
-          shiny::div(class = class_name, HTML(gsub("\n", "<br/>", rv$message)))
-        }
-      })
-
-      # Stop app on session end
-      shiny::onSessionEnded(function() {
-        shiny::stopApp()
-      })
-    }
+  lifecycle::deprecate_soft(
+    when = "3.0.0",
+    what = "launchConceptSetsLoadEditor()",
+    details = c(
+      "The interactive Shiny editor has been discontinued.",
+      i = "To create concept set metadata, use this workflow:",
+      "  1. Run createBlankConceptSetsLoadFile() to create a template",
+      "  2. Edit inputs/conceptSets/conceptSetsLoad.csv directly in Excel",
+      "  3. Use conceptSetManifest$importAtlasConceptSets() to import"
+    )
   )
-
-  shiny::runApp(app)
-  invisible(NULL)
-
 }
 
 
@@ -794,81 +450,23 @@ launchConceptSetsLoadEditor <- function(conceptSetsFolderPath = here::here("inpu
 #'
 importAtlasConceptSets <- function(conceptSetsFolderPath = here::here("inputs/conceptSets"),
                                     atlasConnection) {
-  conceptSetLoadPath <- fs::path(conceptSetsFolderPath, "conceptSetsLoad.csv")
+  lifecycle::deprecate_warn(
+    when = "0.1.0",
+    what = "importAtlasConceptSets()",
+    details = c(
+      "i" = "Use ConceptSetManifest$importAtlasConceptSets() instead:",
+      "i" = "  manifest <- ConceptSetManifest$new(dbPath = '...')",
+      "i" = "  manifest$importAtlasConceptSets(atlasConnection)"
+    )
+  )
 
-  # Read concept set load CSV file
-  if (!file.exists(conceptSetLoadPath)) {
-    stop("Concept set load file not found: ", conceptSetLoadPath)
-  }
+  dbPath <- fs::path(conceptSetsFolderPath, "conceptSetManifest.sqlite")
+  manifest <- ConceptSetManifest$new(dbPath = dbPath)
+  conceptSetsLoadPath <- fs::path(conceptSetsFolderPath, "conceptSetsLoad.csv")
+  result <- manifest$importAtlasConceptSets(
+    atlasConnection = atlasConnection,
+    conceptSetsLoadPath = conceptSetsLoadPath
+  )
 
-  concept_set_load <- readr::read_csv(conceptSetLoadPath, show_col_types = FALSE)
-
-  # Validate required columns
-  required_cols <- c("atlasId", "label", "domain", "sourceCode")
-  missing_cols <- setdiff(required_cols, names(concept_set_load))
-
-  if (length(missing_cols) > 0) {
-    stop("Concept set load is missing required columns: ", paste(missing_cols, collapse = ", "))
-  }
-
-  # Initialize file_name column
-  concept_set_load$file_name <- NA_character_
-
-  cli::cli_alert_info("Importing {nrow(concept_set_load)} concept sets from ATLAS...")
-
-  # Process each concept set
-  for (i in seq_len(nrow(concept_set_load))) {
-    atlas_id <- concept_set_load$atlasId[i]
-    label <- concept_set_load$label[i]
-    domain <- concept_set_load$domain[i]
-    source_code <- concept_set_load$sourceCode[i]
-
-    # Skip rows with missing atlasId
-    if (is.na(atlas_id)) {
-      cli::cli_alert_warning("Row {i}: Skipping concept set with missing atlasId")
-      next
-    }
-
-    tryCatch({
-      # Get concept set definition from ATLAS
-      cli::cli_alert_info("Fetching concept set {atlas_id}: {label}...")
-      cs_def <- atlasConnection$getConceptSetDefinition(conceptSetId = atlas_id)
-
-      # Extract expression
-      cs_expression <- cs_def$expression[1]
-
-      # Extract concept set name from definition (fallback to label if not available)
-      cs_name <- ifelse(!is.null(cs_def$saveName[1]) && cs_def$saveName[1] != "",
-        cs_def$saveName[1], label
-      )
-
-      # Ensure output folder exists
-      outputFolder <- fs::path(conceptSetsFolderPath, "json")
-      fs::dir_create(outputFolder)
-
-      # Create file name from cs_name (make it file-system friendly)
-      file_name <- fs::path(outputFolder, cs_name, ext = "json")
-
-      # Write concept set JSON to file
-      readr::write_file(cs_expression, file = file_name)
-
-      # Store the relative file name in the data frame
-      concept_set_load$file_name[i] <- fs::path_rel(file_name)
-
-      cli::cli_alert_success(
-        "Imported concept set {crayon::magenta(cs_name)} (ID: {atlas_id}) to {crayon::cyan(fs::path_rel(outputFolder))}"
-      )
-    }, error = function(e) {
-      cli::cli_alert_danger(
-        "Error importing concept set {label} (ID: {atlas_id}): {e$message}"
-      )
-    })
-  }
-
-  # Save the updated concept_set_load file with file_name column
-  readr::write_csv(concept_set_load, file = conceptSetLoadPath)
-  cli::cli_alert_success("Updated concept set load file saved to: {fs::path_rel(conceptSetLoadPath)}")
-
-  cli::cli_alert_success("ATLAS concept set import complete")
-  invisible(concept_set_load)
+  return(invisible(result))
 }

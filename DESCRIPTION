@@ -12,12 +12,26 @@ URL: https://ohdsi.github.io/picard/, https://github.com/mdlavallee92/picard/
 Requires: R (>= 3.2)
 Imports:
     R6,
-    yaml,
+    DBI,
+    RSQLite,
+    cli,
+    checkmate,
     digest,
-    rlang
+    fs,
+    jsonlite,
+    readr,
+    rlang,
+    tibble,
+    yaml,
+    here,
+    SqlRender,
+    DatabaseConnector,
+    CirceR,
+    httr
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
 Suggests:
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    Capr

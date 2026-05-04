@@ -117,8 +117,7 @@ reference:
       - importAndBind
       - importAtlasCohorts
       - importAtlasConceptSets
-      - launchCohortsLoadEditor
-      - launchConceptSetsLoadEditor
+
       - orchestratePipelineExport
       - pivotForComparison
       - placeHolderExecOptions

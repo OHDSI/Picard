@@ -1,354 +1,135 @@
-#' Load Cohort Manifest from Database or Cohort Files
+#' Initialize a New Cohort Manifest
 #'
-#' Loads a CohortManifest R6 object by either reading from an existing
-#' cohortManifest.sqlite database or by scanning the inputs/cohorts directories.
-#' When a manifest database exists, automatically discovers any new cohort files
-#' that have been added to the directories since the manifest was created, allowing
-#' for incremental cohort development. ExecutionSettings are optional and only 
-#' required if you plan to generate cohorts or retrieve cohort counts. You can load 
-#' the manifest without them to review metadata.
+#' Creates a blank `cohortManifest.sqlite` database with the new schema.
+#' Directory creation (`json/`, `sql/`, `derived/`) is handled by the study repo
+#' initialization (see `listDefaultFolders()` in `R/Ulysses.R`).
 #'
-#' @param cohortsFolderPath Character. Path to the cohorts folder containing the manifest
-#'   database and cohort definition files. Defaults to "inputs/cohorts". The function
-#'   will look for:
-#'   - `cohortManifest.sqlite` in this folder for existing manifest data
-#'   - `json/` subfolder for CIRCE JSON cohort definitions
-#'   - `sql/` subfolder for SQL cohort definitions
-#' @param executionSettings An ExecutionSettings object containing database configuration
-#'   for cohort generation. Optional; only required if you plan to generate cohorts or
-#'   retrieve cohort counts. Defaults to NULL. You can add settings later using
-#'   `setExecutionSettings()` on the returned CohortManifest object.
+#' @param path Character. Path to the cohorts folder where the SQLite file will be created.
+#'   Defaults to `"inputs/cohorts"`.
 #'
-#' @return A CohortManifest R6 object initialized with all cohorts found.
-#'
-#' @details
-#' **If database exists:**
-#' Loads cohort paths and metadata from the cohortManifest.sqlite database,
-#' verifies files still exist, checks if any files have changed by comparing
-#' the stored hash with the current file hash, and then scans the directories
-#' for any NEW cohort files that have been added since the manifest was created.
-#' These new files are automatically discovered and added to the manifest.
-#'
-#' **If database doesn't exist:**
-#' Scans `cohortsFolderPath/json` and `cohortsFolderPath/sql` directories to find cohort
-#' definition files and creates a new CohortDef for each file with:
-#' - label: The basename of the file without extension
-#' - tags: Empty list
-#' - filePath: The full path to the cohort file
-#'
-#' **Metadata Enrichment (optional):**
-#' If a `cohortsLoad.csv` file exists in `cohortsFolderPath`, the function will
-#' automatically enrich CohortDef objects with tags by matching the `file_name`
-#' column from the load file with the `filePath` of each entry. For matching entries,
-#' tags are added from the following columns:
-#' - `atlasId`: Added as an "atlasId" tag
-#' - `category`: Added as a "category" tag
-#' - `subCategory`: Added as a "subCategory" tag
-#'
-#' Hash comparison alerts:
-#' - **✓ Unchanged**: Hash matches stored value
-#' - **⚠ Changed**: Hash differs from stored value (file was modified)
+#' @return A `CohortManifest` R6 object (empty, ready for `$add*()` calls).
 #'
 #' @export
-#'
-#' @examples
-#' \dontrun{
-#'   # Load manifest for metadata review (no settings required)
-#'   manifest <- loadCohortManifest()
-#'   
-#'   # Or load from custom path
-#'   manifest <- loadCohortManifest(cohortsFolderPath = "path/to/cohorts")
-#'   
-#'   # Add execution settings later if needed for cohort generation
-#'   settings <- ExecutionSettings$new(
-#'     databaseName = "mydb",
-#'     dbms = "postgresql",
-#'     connectionDetails = list(...)
-#'   )
-#'   manifest$setExecutionSettings(settings)
-#' }
-#'
-loadCohortManifest <- function(cohortsFolderPath = here::here("inputs/cohorts"), executionSettings = NULL, verbose = TRUE) {
-  dbPath <- fs::path(cohortsFolderPath, "cohortManifest.sqlite")
-  cohort_entries <- list()
+initCohortManifest <- function(path = "inputs/cohorts") {
+  dbPath <- fs::path(path, "cohortManifest.sqlite")
 
-  # Check if database already exists and has entries
   if (file.exists(dbPath)) {
-    conn <- DBI::dbConnect(RSQLite::SQLite(), dbPath)
-    on.exit(DBI::dbDisconnect(conn))
-
-    # Check if cohort_manifest table exists
-    table_exists <- DBI::dbExistsTable(conn, "cohort_manifest")
-    
-    if (!table_exists) {
-      if (verbose) {
-        cli::cli_alert_warning("Database exists but cohort_manifest table not found. Scanning directories...")
-      }
-      # Fall through to directory scanning
-      DBI::dbDisconnect(conn)
-    } else {
-      # Query existing cohorts from database
-      existing_cohorts <- DBI::dbGetQuery(
-        conn,
-        "SELECT id, label, tags, filePath, hash, cohortType FROM cohort_manifest"
-      )
-
-      # Only load from manifest if it has entries
-      if (nrow(existing_cohorts) > 0) {
-        if (verbose) {
-          cli::cli_alert_info("Loading cohorts from existing manifest: {dbPath}")
-        }
-
-        # Process each cohort from database
-        for (i in seq_len(nrow(existing_cohorts))) {
-          record <- existing_cohorts[i, ]
-          file_path <- record$filePath
-          stored_hash <- record$hash
-          tags_string <- record$tags
-          cohort_id <- record$id
-          cohort_type <- record$cohortType
-
-          # Check if file still exists
-          if (!file.exists(file_path)) {
-            if (verbose) {
-              cli::cli_alert_warning("Cohort file missing (will be marked): {record$label} ({file_path})")
-            }
-            # Don't skip - we'll track this in the database with status='missing'
-            # For now, skip it from loading into memory but it will be in the database
-            next
-          }
-
-          tryCatch({
-            # Create CohortDef from file (this computes current hash)
-            cohort_entry <- CohortDef$new(
-              label = record$label,
-              tags = list(),
-              filePath = file_path
-            )
-
-            # Set the ID from the database to preserve it
-            cohort_entry$setId(as.integer(cohort_id))
-
-            # Restore cohortType from database
-            if (!is.na(cohort_type)) {
-              cohort_entry$setCohortType(cohort_type)
-            }
-
-            # Backfill tags from database
-            if (!is.na(tags_string) && tags_string != "") {
-              parsed_tags <- parseTagsString(tags_string)
-              cohort_entry$tags <- parsed_tags
-            }
-
-            cohort_entries[[length(cohort_entries) + 1]] <- cohort_entry
-          }, error = function(e) {
-            cli::cli_alert_danger("Error loading cohort {record$label}: {e$message}")
-          })
-        }
-
-        if (length(cohort_entries) > 0) {
-          if (verbose) {
-            cli::cli_alert_success("Loaded {length(cohort_entries)} cohorts from manifest")
-          }
-          # Successfully loaded from manifest, now check for new files in directories
-          
-          # Scan directories for all files to find any new cohorts not in database
-          json_dir <- fs::path(cohortsFolderPath, "json")
-          sql_dir <- fs::path(cohortsFolderPath, "sql")
-          
-          all_files <- c()
-          if (dir.exists(json_dir)) {
-            all_files <- c(all_files, list.files(json_dir, pattern = "\\.json$", full.names = TRUE, recursive = TRUE))
-          }
-          if (dir.exists(sql_dir)) {
-            all_files <- c(all_files, list.files(sql_dir, pattern = "\\.sql$", full.names = TRUE, recursive = TRUE))
-          }
-          
-          # Find which files are NOT in the database
-          existing_file_paths <- existing_cohorts$filePath
-          # make sure no new relative paths are accidentally treated as new if they match an existing absolute path
-          new_files_mask <- !(fs::path_rel(all_files) %in% existing_file_paths) 
-          new_files <- all_files[new_files_mask]  # keep absolute for CohortDef$new()
-          
-          # For each new file, create CohortDef and add to manifest
-          if (length(new_files) > 0) {
-            if (verbose) {
-              cli::cli_alert_info("Found {length(new_files)} new cohort file(s) not in manifest")
-            }
-            
-            for (file_path in new_files) {
-              label <- tools::file_path_sans_ext(basename(file_path))
-              tryCatch({
-                new_cohort_entry <- CohortDef$new(
-                  label = label,
-                  tags = list(),
-                  filePath = file_path
-                )
-                cohort_entries[[length(cohort_entries) + 1]] <- new_cohort_entry
-                if (verbose) {
-                  cli::cli_alert_success("Added new cohort from file: {label}")
-                }
-              }, error = function(e) {
-                cli::cli_alert_warning("Error adding new cohort {label}: {e$message}")
-              })
-            }
-          }
-        } else {
-          # Database had entries but none could be loaded, fall through to scan directories
-          if (verbose) {
-            cli::cli_alert_warning("No valid cohorts could be loaded from manifest. Scanning directories...")
-          }
-          cohort_entries <- list()  # Reset to empty for directory scan
-        }
-      } else {
-        # Manifest exists but is empty, scan directories
-        if (verbose) {
-          cli::cli_alert_warning("Manifest exists but contains no cohort entries. Scanning directories...")
-        }
-      }
-    }
+    cli::cli_alert_warning("Manifest already exists at {fs::path_rel(dbPath)}.")
+    cli::cli_alert_info("Use loadCohortManifest() to load the existing manifest.")
+    cli::cli_alert_info("Use resetCohortManifest() to delete and start fresh.")
+    return(invisible(NULL))
   }
 
-  # If no cohorts loaded from manifest (or manifest didn't exist), scan directories
-  if (length(cohort_entries) == 0) {
-    if (verbose) {
-      cli::cli_alert_info("Scanning cohort directories...")
-    }
+  # Ensure directory exists
 
-    # Define directories to search
-    json_dir <- fs::path(cohortsFolderPath, "json")
-    sql_dir <- fs::path(cohortsFolderPath, "sql")
-
-    # Process JSON directory if it exists
-    if (dir.exists(json_dir)) {
-      json_files <- list.files(json_dir, pattern = "\\.json$", full.names = TRUE, recursive = TRUE)
-
-      for (file_path in json_files) {
-        label <- tools::file_path_sans_ext(basename(file_path))
-        tryCatch({
-          cohort_entry <- CohortDef$new(
-            label = label,
-            tags = list(),
-            filePath = file_path
-          )
-          cohort_entries[[length(cohort_entries) + 1]] <- cohort_entry
-          if (verbose) {
-            cli::cli_alert_success("Loaded JSON cohort: {label}")
-          }
-        }, error = function(e) {
-          cli::cli_alert_danger("Error loading JSON cohort {label}: {e$message}")
-        })
-      }
-    }
-
-    # Process SQL directory if it exists
-    if (dir.exists(sql_dir)) {
-      sql_files <- list.files(sql_dir, pattern = "\\.sql$", full.names = TRUE, recursive = TRUE)
-
-      for (file_path in sql_files) {
-        label <- tools::file_path_sans_ext(basename(file_path))
-        tryCatch({
-          cohort_entry <- CohortDef$new(
-            label = label,
-            tags = list(),
-            filePath = file_path
-          )
-          cohort_entries[[length(cohort_entries) + 1]] <- cohort_entry
-          if (verbose) {
-            cli::cli_alert_success("Loaded SQL cohort: {label}")
-          }
-        }, error = function(e) {
-          cli::cli_alert_danger("Error loading SQL cohort {label}: {e$message}")
-        })
-      }
-    }
-
-    if (length(cohort_entries) == 0) {
-      stop("No cohort files found in cohorts/json or cohorts/sql directories")
-    }
-
-    if (verbose) {
-      cli::cli_alert_success("Found {length(cohort_entries)} total cohorts")
-    }
+  if (!dir.exists(path)) {
+    dir.create(path, recursive = TRUE, showWarnings = FALSE)
   }
 
-  # Check for cohortsLoad.csv file to enrich entries with tags and labels
-  cohorts_load_path <- fs::path(cohortsFolderPath, "cohortsLoad.csv")
-  if (file.exists(cohorts_load_path)) {
-    if (verbose) {
-      cli::cli_alert_info("Found cohortsLoad.csv. Enriching entries with load metadata...")
-    }
+  cm <- CohortManifest$new(dbPath = dbPath)
+  cli::cli_alert_success("Initialized empty cohort manifest at {fs::path_rel(dbPath)}")
+  cli::cli_alert_info("Add cohorts with $addAtlasCohort(), $addCaprCohort(), $addSqlCohort(), or $importAtlasCohorts()")
 
-    tryCatch({
-      cohorts_load <- readr::read_csv(cohorts_load_path, show_col_types = FALSE)
+  return(cm)
+}
 
-      # Validate required columns (label is optional)
-      required_cols <- c("file_name", "atlasId", "category", "subCategory")
-      missing_cols <- setdiff(required_cols, names(cohorts_load))
 
-      if (length(missing_cols) == 0) {
-        # Process each cohort entry to find matching load record
-        tags_added <- 0
-        labels_updated <- 0
-        for (i in seq_along(cohort_entries)) {
-          entry <- cohort_entries[[i]]
-          entry_filepath_rel <- fs::path_rel(entry$getFilePath())
+#' Load Cohort Manifest from SQLite Database
+#'
+#' Loads a CohortManifest R6 object from an existing `cohortManifest.sqlite` database.
+#' This is a pure read from SQLite — it does not scan directories or auto-add new files.
+#' If new files exist on disk that aren't in the manifest, a warning is printed
+#' suggesting the appropriate `$add*()` method.
+#'
+#' @param cohortsFolderPath Character. Path to the cohorts folder containing the manifest
+#'   database. Defaults to `here::here("inputs/cohorts")`.
+#' @param executionSettings An ExecutionSettings object containing database configuration
+#'   for cohort generation. Optional; can be added later using `$setExecutionSettings()`.
+#' @param verbose Logical. If TRUE, prints informative messages. Defaults to TRUE.
+#'
+#' @return A CohortManifest R6 object.
+#'
+#' @details
+#' If no SQLite database exists at the expected path, the function stops with an
+#' error directing the user to `initCohortManifest()`.
+#'
+#' After loading, the function checks for new files in `json/`, `sql/`, and `derived/`
+#' directories that are not tracked in the manifest. These are reported as warnings
+#' but NOT auto-added (because `category` is required and cannot be guessed).
+#'
+#' @export
+loadCohortManifest <- function(cohortsFolderPath = here::here("inputs/cohorts"),
+                               executionSettings = NULL,
+                               verbose = TRUE) {
+  dbPath <- fs::path(cohortsFolderPath, "cohortManifest.sqlite")
 
-          # Find matching record in cohortsLoad by file_name
-          matching_idx <- which(entry_filepath_rel == cohorts_load$file_name)
-
-          if (length(matching_idx) > 0) {
-            load_record <- cohorts_load[matching_idx[1], ]
-
-            # Update label if provided in cohortsLoad.csv
-            if ("label" %in% names(cohorts_load) && !is.na(load_record$label)) {
-              entry$label <- as.character(load_record$label)
-              labels_updated <- labels_updated + 1
-            }
-
-            # Add tags from load record
-            entry_tags <- list()
-            if (!is.na(load_record$atlasId)) {
-              entry_tags[["atlasId"]] <- as.character(load_record$atlasId)
-            }
-            if (!is.na(load_record$category)) {
-              entry_tags[["category"]] <- as.character(load_record$category)
-            }
-            if (!is.na(load_record$subCategory)) {
-              entry_tags[["subCategory"]] <- as.character(load_record$subCategory)
-            }
-
-            if (length(entry_tags) > 0) {
-              entry$tags <- entry_tags
-              tags_added <- tags_added + 1
-              if (verbose) {
-                cli::cli_alert_success("Added metadata to cohort: {entry$label}")
-              }
-            }
-          }
-        }
-
-        if (verbose) {
-          cli::cli_alert_success("Updated {labels_updated} labels and added tags to {tags_added} cohort entries from cohortsLoad.csv")
-        }
-      } else {
-        if (verbose) {
-          cli::cli_alert_warning("cohortsLoad.csv is missing required columns: {paste(missing_cols, collapse = ', ')}")
-        }
-      }
-    }, error = function(e) {
-      cli::cli_alert_danger("Error reading cohortsLoad.csv: {e$message}")
-    })
+  # Require existing database
+  if (!file.exists(dbPath)) {
+    cli::cli_abort(c(
+      "Cohort manifest not found at {.path {fs::path_rel(dbPath)}}.",
+      "i" = "Use {.code initCohortManifest()} to create a new manifest.",
+      "i" = "Use {.code migrateCohortManifest()} if upgrading from picard <= 0.0.3."
+    ))
   }
 
-  # Create and return the CohortManifest
-  manifest <- CohortManifest$new(
-    cohortEntries = cohort_entries,
-    executionSettings = executionSettings,
-    dbPath = dbPath
-  )
+  # Load manifest from SQLite
+  cm <- CohortManifest$new(dbPath = dbPath)
 
-  return(manifest)
+  # Attach execution settings if provided
+  if (!is.null(executionSettings)) {
+    cm$setExecutionSettings(executionSettings)
+  }
+
+  if (verbose) {
+    n_cohorts <- length(cm$getManifest())
+    cli::cli_alert_success("Loaded cohort manifest: {n_cohorts} active cohort(s)")
+  }
+
+  # Check for untracked files on disk
+  if (verbose) {
+    .warn_untracked_files(cohortsFolderPath, cm)
+  }
+
+  return(cm)
+}
+
+
+#' @noRd
+.warn_untracked_files <- function(cohortsFolderPath, cm) {
+  # Get file paths from manifest
+  manifest_files <- vapply(cm$getManifest(), function(cd) cd$getFilePath(), character(1))
+
+
+  # Scan directories for all cohort files
+  json_dir <- fs::path(cohortsFolderPath, "json")
+  sql_dir <- fs::path(cohortsFolderPath, "sql")
+  derived_dir <- fs::path(cohortsFolderPath, "derived")
+
+  all_files <- character(0)
+  if (dir.exists(json_dir)) {
+    all_files <- c(all_files, list.files(json_dir, pattern = "\\.(json|sql)$", full.names = TRUE, recursive = TRUE))
+  }
+  if (dir.exists(sql_dir)) {
+    all_files <- c(all_files, list.files(sql_dir, pattern = "\\.sql$", full.names = TRUE, recursive = TRUE))
+  }
+  if (dir.exists(derived_dir)) {
+    all_files <- c(all_files, list.files(derived_dir, pattern = "\\.sql$", full.names = TRUE, recursive = TRUE))
+  }
+
+  # Compare (using relative paths)
+  all_files_rel <- fs::path_rel(all_files)
+  untracked <- all_files_rel[!all_files_rel %in% manifest_files]
+
+  if (length(untracked) > 0) {
+    cli::cli_alert_warning("{length(untracked)} file(s) on disk not in manifest:")
+    for (f in utils::head(untracked, 5)) {
+      cli::cli_bullets(c("!" = "{f}"))
+    }
+    if (length(untracked) > 5) {
+      cli::cli_bullets(c("!" = "... and {length(untracked) - 5} more"))
+    }
+    cli::cli_alert_info("Use $addAtlasCohort(), $addSqlCohort(), or $importAtlasCohorts() to register them.")
+  }
 }
 
 #' Reset Cohort Manifest Database
@@ -492,265 +273,6 @@ createBlankCohortsLoadFile <- function(cohortsFolderPath = here::here("inputs/co
   invisible(file_path)
 }
 
-#' Launch Interactive Cohort Load File Editor
-#'
-#' Opens an interactive Shiny application for creating, viewing and editing the cohort
-#' load metadata file (cohortsLoad.csv). This allows you to add, remove,
-#' and modify cohort metadata including labels, tags, and ATLAS IDs
-#' without manually editing the CSV file.
-#'
-#' @param cohortsFolderPath Character. Path to the cohorts folder where cohortsLoad.csv
-#'   will be saved. Defaults to "inputs/cohorts".
-#'
-#' @return Invisibly launches a Shiny app. Saves cohortsLoad.csv when the user user clicks "Save".
-#'
-#' @details
-#' **Features:**
-#' - View existing cohorts in a data table
-#' - Edit cells directly in the table
-#' - Add new cohort rows with form inputs
-#' - Delete selected rows
-#' - Save to cohortsLoad.csv
-#' - Input validation for required fields
-#'
-#' **Table Columns:**
-#' - `atlasId`: ATLAS cohort definition ID (numeric)
-#' - `label`: Cohort name/label (character) - editing updates file_name automatically
-#' - `category`: Broad category (character)
-#' - `subCategory`: Sub-category (character)
-#' - `file_name`: Auto-generated as `json/{label}.json` (read-only)
-#'
-#' **Workflow:**
-#' 1. Call this function to launch the editor app
-#' 2. Add/edit cohorts as needed
-#' 3. Click "Save Cohort Load File" to save to inputs/cohorts/cohortsLoad.csv
-#' 4. Use [importAtlasCohorts()] to import cohorts from ATLAS
-#' 5. Use [loadCohortManifest()] to load the imported cohorts
-#'
-#' @export
-#'
-#' @examples
-#' \dontrun{
-#'   # Launch the editor app
-#'   launchCohortsLoadEditor()
-#' }
-launchCohortsLoadEditor <- function(cohortsFolderPath = here::here("inputs/cohorts")) {
-  # Check if Shiny is installed
-  if (!requireNamespace("shiny", quietly = TRUE)) {
-    stop("The 'shiny' package is required to use this function. Install it with: install.packages('shiny')")
-  }
-  if (!requireNamespace("DT", quietly = TRUE)) {
-    stop("The 'DT' package is required to use this function. Install it with: install.packages('DT')")
-  }
-
-  # Try to load existing cohortsLoad.csv
-  existing_load <- NULL
-  load_path <- fs::path(cohortsFolderPath, "cohortsLoad.csv")
-  if (file.exists(load_path)) {
-    existing_load <- readr::read_csv(load_path, show_col_types = FALSE)
-    
-    # Ensure file_name column exists; generate if missing
-    if (!"file_name" %in% names(existing_load)) {
-      existing_load$file_name <- fs::path("json", paste0(existing_load$label, ".json"))
-    }
-    
-    # Ensure columns are in the correct order
-    existing_load <- existing_load[, c("atlasId", "label", "category", "subCategory", "file_name")]
-  }
-
-  # Create the Shiny app
-  app <- shiny::shinyApp(
-    ui = function() {
-      shiny::fluidPage(
-        shiny::titlePanel("Cohort Load File Editor"),
-        shiny::sidebarLayout(
-          shiny::sidebarPanel(
-            shiny::h4("Add New Cohort"),
-            shiny::numericInput("atlas_id", "ATLAS ID:", value = NA, min = 1),
-            shiny::textInput("label", "Label:", ""),
-            shiny::textInput("category", "Category:", ""),
-            shiny::textInput("sub_category", "Sub-Category (optional):", ""),
-            shiny::actionButton("add_row", "Add Cohort", class = "btn-primary"),
-            shiny::hr(),
-            shiny::h4("Actions"),
-            shiny::actionButton("delete_rows", "Delete Selected Rows", class = "btn-danger"),
-            shiny::hr(),
-            shiny::h4("Templates"),
-            shiny::downloadButton("download_template", "Download Blank Template", class = "btn-info"),
-            shiny::hr(),
-            shiny::actionButton("save_file", "Save Cohort Load File", class = "btn-success"),
-            shiny::actionButton("cancel", "Cancel", class = "btn-secondary")
-          ),
-          shiny::mainPanel(
-            DT::DTOutput("cohort_table"),
-            shiny::br(),
-            shiny::uiOutput("status_message")
-          )
-        )
-      )
-    },
-    server = function(input, output, session) {
-      # Reactive values to store the data
-      rv <- shiny::reactiveValues(
-        data = if (!is.null(existing_load)) existing_load else data.frame(
-          atlasId = integer(),
-          label = character(),
-          category = character(),
-          subCategory = character(),
-          file_name = character(),
-          stringsAsFactors = FALSE
-        ),
-        message = NULL,
-        message_type = NULL
-      )
-
-      # Display the data table
-      output$cohort_table <- DT::renderDT({
-        DT::datatable(
-          rv$data,
-          editable = list(target = "cell", disable = list(columns = 5)),
-          selection = "multiple",
-          rownames = FALSE,
-          options = list(pageLength = 10)
-        )
-      })
-
-      # Handle table edits
-      shiny::observeEvent(input$cohort_table_cell_edit, {
-        info <- input$cohort_table_cell_edit
-        rv$data[info$row, info$col] <- info$value
-
-        # Update file_name automatically if label (column 2) changed
-        if (info$col == 2) {
-          rv$data$file_name[info$row] <- fs::path("json", paste0(info$value, ".json"))
-          rv$message <- "Label updated - file_name auto-generated"
-          rv$message_type <- "info"
-        }
-      })
-
-      # Add new cohort
-      shiny::observeEvent(input$add_row, {
-        # Validate inputs
-        if (is.na(input$atlas_id) || input$atlas_id == "") {
-          rv$message <- "ATLAS ID is required"
-          rv$message_type <- "danger"
-          return()
-        }
-        if (input$label == "") {
-          rv$message <- "Label is required"
-          rv$message_type <- "danger"
-          return()
-        }
-        if (input$category == "") {
-          rv$message <- "Category is required"
-          rv$message_type <- "danger"
-          return()
-        }
-
-        # Add row
-        new_row <- data.frame(
-          atlasId = as.integer(input$atlas_id),
-          label = input$label,
-          category = input$category,
-          subCategory = if (input$sub_category == "") NA_character_ else input$sub_category,
-          file_name = fs::path("json", paste0(input$label, ".json")),
-          stringsAsFactors = FALSE
-        )
-
-        rv$data <- rbind(rv$data, new_row)
-        rv$message <- paste("Added cohort:", input$label)
-        rv$message_type <- "success"
-
-        # Clear inputs
-        shiny::updateNumericInput(session, "atlas_id", value = NA)
-        shiny::updateTextInput(session, "label", value = "")
-        shiny::updateTextInput(session, "category", value = "")
-        shiny::updateTextInput(session, "sub_category", value = "")
-      })
-
-      # Delete selected rows
-      shiny::observeEvent(input$delete_rows, {
-        selected <- input$cohort_table_rows_selected
-        if (length(selected) == 0) {
-          rv$message <- "No rows selected"
-          rv$message_type <- "warning"
-        } else {
-          deleted_labels <- rv$data$label[selected]
-          rv$data <- rv$data[-selected, ]
-          rv$message <- paste("Deleted", length(selected), "cohort(s):", paste(deleted_labels, collapse = ", "))
-          rv$message_type <- "info"
-        }
-      })
-
-      # Save file
-      shiny::observeEvent(input$save_file, {
-        if (nrow(rv$data) == 0) {
-          rv$message <- "Cannot save: No cohorts in table"
-          rv$message_type <- "danger"
-          return()
-        }
-
-        fs::dir_create(cohortsFolderPath)
-        save_path <- fs::path(cohortsFolderPath, "cohortsLoad.csv")
-        readr::write_csv(rv$data, file = save_path)
-
-        rv$message <- paste("Cohort load file saved successfully!\nLocation:", fs::path_rel(save_path))
-        rv$message_type <- "success"
-
-        shiny::showNotification(
-          paste("Saved", nrow(rv$data), "cohorts to cohortsLoad.csv"),
-          type = "message",
-          duration = 3
-        )
-      })
-
-      # Download blank template
-      output$download_template <- shiny::downloadHandler(
-        filename = function() {
-          paste0("cohortsLoad_template_", format(Sys.Date(), "%Y%m%d"), ".csv")
-        },
-        content = function(file) {
-          template <- data.frame(
-            atlasId = integer(1),
-            label = character(1),
-            category = character(1),
-            subCategory = character(1),
-            file_name = character(1),
-            stringsAsFactors = FALSE
-          )
-          readr::write_csv(template, file = file)
-        }
-      )
-
-      # Cancel
-      shiny::observeEvent(input$cancel, {
-        shiny::stopApp()
-      })
-
-      # Display status message
-      output$status_message <- shiny::renderUI({
-        if (!is.null(rv$message)) {
-          class_name <- switch(rv$message_type,
-            success = "alert alert-success",
-            danger = "alert alert-danger",
-            warning = "alert alert-warning",
-            info = "alert alert-info"
-          )
-          shiny::div(class = class_name, HTML(gsub("\n", "<br/>", rv$message)))
-        }
-      })
-
-      # Stop app on session end
-      shiny::onSessionEnded(function() {
-        shiny::stopApp()
-      })
-    }
-  )
-
-  shiny::runApp(app)
-  invisible(NULL)
-}
-
 
 #' Function to parse tags string from database into a named list
 #' @keywords internal
@@ -787,139 +309,88 @@ parseTagsString <- function(tags_str) {
 
 #' Import CIRCE Cohort Definitions from ATLAS
 #'
-#' Imports CIRCE JSON cohort definitions from an ATLAS WebAPI instance and saves
-#' them to the inputs/cohorts/json folder. This function reads a CSV file containing
-#' cohort metadata and fetches the actual cohort definitions from ATLAS.
-#' 
-#' @description this function looks for a CSV file called cohortsLoad.csv containing cohort metadata.
-#'   Must be located in or accessible from the inputs/cohorts folder.
-#'   The CSV must have the following columns:
-#'   - `atlasId`: ATLAS cohort definition ID (integer)
-#'   - `label`: Cohort name/label (character)
-#'   - `category`: Broad category for the cohort (character)
-#'   - `subCategory`: Sub-category for the cohort (character)
-#' The function will read this CSV, fetch the cohort definitions from ATLAS using the provided atlasConnection,
-#' extract the CIRCE JSON expressions, and save them to the specified output folder with filenames based on the label.
-#' Finally it updates the cohort load CSV with the relative file paths to the saved JSON files.
+#' Imports CIRCE JSON cohort definitions from an ATLAS WebAPI instance and registers
+#' them in the manifest database. This is a wrapper around [CohortManifest]`$importAtlasCohorts()`
+#' that provides a convenient standalone interface.
 #'
-#' @param cohortsFolderPath Character. Path to cohorts folder in Ulysses repo. 
+#' @note This function is deprecated. Use [CohortManifest]`$importAtlasCohorts()` method directly instead.
 #'
 #' @param atlasConnection An ATLAS connection object (typically from ROhdsiWebApi package)
 #'   with a method `getCohortDefinition(cohortId)` that returns a list containing
 #'   an `expression` element with the CIRCE JSON string.
+#' @param manifestPath Character. Path to the cohort manifest database. Defaults to
+#'   `here::here("inputs/cohorts/cohortManifest.sqlite")`. If the database doesn't
+#'   exist, it will be created.
+#' @param cohortsLoadPath Character. Path to the CSV file containing cohort metadata.
+#'   Defaults to `here::here("inputs/cohorts/cohortsLoad.csv")`.
+#'   The CSV must have columns: `atlasId`, `label`, `category`
+#'   (plus optional extra columns for tags).
 #'
-#' @param outputFolder Character. Path to the output folder where cohort JSON files
-#'   will be saved. Defaults to "inputs/cohorts/json". Files are saved as
-#'   `{label}.json`.
-#'
-#' @return Invisibly returns NULL. Saves CIRCE JSON files to outputFolder and
-#'   prints status messages via cli alerts.
+#' @return Invisibly returns a tibble with columns: id, label, status.
+#'   Each row represents an import attempt.
 #'
 #' @details
 #' **Workflow:**
-#' 1. Reads the cohort load CSV file
-#' 2. Validates that all required columns are present
-#' 3. For each row with a valid atlasId:
-#'    - Fetches the cohort definition from ATLAS WebAPI
-#'    - Extracts the CIRCE JSON expression
-#'    - Saves to `outputFolder/{label}.json`
-#' 4. Skips rows with missing atlasId with a warning
-#' 5. Catches and reports errors per cohort without stopping the entire import
+#' 1. Loads or initializes the CohortManifest at `manifestPath`
+#' 2. Calls `manifest$importAtlasCohorts(atlasConnection, cohortsLoadPath)`
+#' 3. Returns the import results tibble
 #'
-#' **Post-Import:**
-#' After running this function, use [loadCohortManifest()] to load the saved
-#' cohort JSON files and build the manifest with metadata.
+#' **CSV Format:**
+#' The cohortsLoad.csv file must have at minimum these columns:
+#' - `atlasId`: ATLAS cohort definition ID (integer)
+#' - `label`: Cohort name/label (character)
+#' - `category`: Broad category for the cohort (character)
+#' - Any additional columns are treated as tags (name = column name, value = cell value)
 #'
 #' @export
 #'
 #' @examples
 #' \dontrun{
 #'   # Assuming ATLAS connection is set up
-#'   importAtlasCohorts(
-#'     cohortFolderPath = here::here("inputs/cohorts"),
+#'   results <- importAtlasCohorts(
 #'     atlasConnection = setAtlasConnection()
 #'   )
 #'
-#'   # Then load the manifest (no settings required for metadata review)
+#'   # View import results
+#'   print(results)
+#'
+#'   # Load the manifest to work with the imported cohorts
 #'   manifest <- loadCohortManifest()
 #' }
 #'
-importAtlasCohorts <- function(cohortsFolderPath = here::here("inputs/cohorts"),
-                               atlasConnection) {
-  cohortLoadPath <- fs::path(cohortsFolderPath, "cohortsLoad.csv")                              
-  # Read cohort manifest CSV file
-  if (!file.exists(cohortLoadPath)) {
-    stop("Cohort load file not found: ", cohortLoadPath)
-  }
+importAtlasCohorts <- function(atlasConnection,
+                               manifestPath = here::here("inputs/cohorts/cohortManifest.sqlite"),
+                               cohortsLoadPath = here::here("inputs/cohorts/cohortsLoad.csv")) {
+  # Deprecation warning
+  lifecycle::deprecate_warn(
+    "0.1.0",
+    "importAtlasCohorts()",
+    details = c(
+      "i" = "Use CohortManifest$importAtlasCohorts() method directly:",
+      "i" = "  manifest <- CohortManifest$new(dbPath = '...')",
+      "i" = "  manifest$importAtlasCohorts(atlasConnection, cohortsLoadPath)"
+    )
+  )
 
-  cohort_load <- readr::read_csv(cohortLoadPath, show_col_types = FALSE)
-
-  # Validate required columns
-  required_cols <- c("atlasId", "label", "category", "subCategory")
-  missing_cols <- setdiff(required_cols, names(cohort_load))
-
-  if (length(missing_cols) > 0) {
-    stop("Cohort load is missing required columns: ", paste(missing_cols, collapse = ", "))
-  }
-
-  # Initialize file_name column
-  cohort_load$file_name <- NA_character_
-
-  cli::cli_alert_info("Importing {nrow(cohort_load)} cohorts from ATLAS...")
-
-  # Process each cohort
-  for (i in seq_len(nrow(cohort_load))) {
-    atlas_id <- cohort_load$atlasId[i]
-    label <- cohort_load$label[i]
-    category <- cohort_load$category[i]
-    sub_category <- cohort_load$subCategory[i]
-
-    # Skip rows with missing atlasId
-    if (is.na(atlas_id)) {
-      cli::cli_alert_warning("Row {i}: Skipping cohort with missing atlasId")
-      next
+  # Load or initialize manifest
+  if (file.exists(manifestPath)) {
+    manifest <- CohortManifest$new(dbPath = manifestPath)
+  } else {
+    # Initialize new manifest
+    cohorts_folder <- dirname(manifestPath)
+    if (!dir.exists(cohorts_folder)) {
+      dir.create(cohorts_folder, recursive = TRUE, showWarnings = FALSE)
     }
-
-    tryCatch({
-      # Get cohort definition from ATLAS
-      cli::cli_alert_info("Fetching cohort {atlas_id}: {label}...")
-      cohort_def <- atlasConnection$getCohortDefinition(cohortId = atlas_id)
-
-      # Extract expression
-      cohort_expression <- cohort_def$expression[1]
-      # extract cohort name from definition to use as file name (fallback to label if not available)
-      cohort_name <- ifelse(!is.null(cohort_def$saveName[1]) && cohort_def$saveName[1] != "", cohort_def$saveName[1], label)
-      # Ensure output folder exists
-      outputFolder <- fs::path(cohortsFolderPath, "json")
-      fs::dir_create(outputFolder)
-      save_path_rel <- fs::path_rel(outputFolder)
-
-      # Create file name from cohort_name (make it file-system friendly)
-      file_name <- fs::path(outputFolder, cohort_name, ext = "json")
-
-      # Write cohort JSON to file
-      readr::write_file(cohort_expression, file = file_name)
-
-      # Store the relative file name in the data frame
-      cohort_load$file_name[i] <- fs::path_rel(file_name)
-
-      cli::cli_alert_success(
-        "Imported cohort {crayon::magenta(cohort_name)} (ID: {atlas_id}) to {crayon::cyan(save_path_rel)}"
-      )
-    }, error = function(e) {
-      cli::cli_alert_danger(
-        "Error importing cohort {cohort_name} (ID: {atlas_id}): {e$message}"
-      )
-    })
+    manifest <- CohortManifest$new(dbPath = manifestPath)
   }
 
-  # Save the updated cohort_load file with file_name column to inputs/cohorts
-  # Generate save path from original file path, keeping the original filename
-  readr::write_csv(cohort_load, file = cohortLoadPath)
-  cli::cli_alert_success("Updated cohort load file saved to: {fs::path_rel(cohortLoadPath)}")
+  # Call the class method to do the actual import
+  results <- manifest$importAtlasCohorts(
+    atlasConnection = atlasConnection,
+    cohortsLoadPath = cohortsLoadPath
+  )
 
-  cli::cli_alert_success("ATLAS cohort import complete")
-  invisible(cohort_load)
+  return(invisible(results))
 }
 
 #' Visualize Cohort Dependencies in a Report
@@ -1264,7 +735,7 @@ visualizeCohortDependencies <- function(manifest, outputPath = NULL) {
 #'
 #' **SQL requirements:**
 #' Your SQL must use SqlRender parameters instead of hardcoded values. The following
-#' parameters are automatically injected by [CohortManifest]`$generateCohorts()`:
+#' parameters are automatically injected by [CohortManifest]`$executeCohortGeneration()`:
 #' - `@target_cohort_id` — the cohort definition ID assigned by the manifest
 #' - `@target_database_schema` — the schema where the cohort table resides
 #' - `@target_cohort_table` — the cohort table name

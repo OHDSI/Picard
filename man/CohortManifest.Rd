@@ -34,7 +34,7 @@ Columns returned:
 
 Requires that executionSettings has been set and includes:
 \itemize{
-\item A database connection (via getConnection())
+\item A database connection (via getConnection()
 \item workDatabaseSchema for the target schema
 \item cohortTable with the desired table name
 \item tempEmulationSchema if needed for the database platform
@@ -42,7 +42,7 @@ Requires that executionSettings has been set and includes:
 
 Requires that executionSettings has been set and includes:
 \itemize{
-\item A database connection (via getConnection())
+\item A database connection (via getConnection()
 \item workDatabaseSchema for the target schema
 \item cohortTable with the desired table name
 }
@@ -71,7 +71,7 @@ Execution flow:
 
 Requires that executionSettings has been set and includes:
 \itemize{
-\item A database connection (via getConnection())
+\item A database connection (via getConnection()
 \item cdmDatabaseSchema (where the OMOP CDM data resides)
 \item workDatabaseSchema (where cohort results are written)
 \item cohortTable (destination table name)
@@ -87,6 +87,16 @@ Requires that executionSettings has been set and includes:
 \item \href{#method-CohortManifest-getDbPath}{\code{CohortManifest$getDbPath()}}
 \item \href{#method-CohortManifest-getExecutionSettings}{\code{CohortManifest$getExecutionSettings()}}
 \item \href{#method-CohortManifest-setExecutionSettings}{\code{CohortManifest$setExecutionSettings()}}
+\item \href{#method-CohortManifest-getAtlasConnection}{\code{CohortManifest$getAtlasConnection()}}
+\item \href{#method-CohortManifest-setAtlasConnection}{\code{CohortManifest$setAtlasConnection()}}
+\item \href{#method-CohortManifest-addAtlasCohort}{\code{CohortManifest$addAtlasCohort()}}
+\item \href{#method-CohortManifest-importAtlasCohorts}{\code{CohortManifest$importAtlasCohorts()}}
+\item \href{#method-CohortManifest-addCaprCohort}{\code{CohortManifest$addCaprCohort()}}
+\item \href{#method-CohortManifest-addSqlCohort}{\code{CohortManifest$addSqlCohort()}}
+\item \href{#method-CohortManifest-buildUnionCohort}{\code{CohortManifest$buildUnionCohort()}}
+\item \href{#method-CohortManifest-buildSubsetCohortTemporal}{\code{CohortManifest$buildSubsetCohortTemporal()}}
+\item \href{#method-CohortManifest-buildComplementCohort}{\code{CohortManifest$buildComplementCohort()}}
+\item \href{#method-CohortManifest-buildCompositeCohort}{\code{CohortManifest$buildCompositeCohort()}}
 \item \href{#method-CohortManifest-queryCohortsByIds}{\code{CohortManifest$queryCohortsByIds()}}
 \item \href{#method-CohortManifest-queryCohortsByTag}{\code{CohortManifest$queryCohortsByTag()}}
 \item \href{#method-CohortManifest-queryCohortsByLabel}{\code{CohortManifest$queryCohortsByLabel()}}
@@ -94,12 +104,16 @@ Requires that executionSettings has been set and includes:
 \item \href{#method-CohortManifest-getCohortById}{\code{CohortManifest$getCohortById()}}
 \item \href{#method-CohortManifest-getCohortsByTag}{\code{CohortManifest$getCohortsByTag()}}
 \item \href{#method-CohortManifest-getCohortsByLabel}{\code{CohortManifest$getCohortsByLabel()}}
+\item \href{#method-CohortManifest-updateCohortDef}{\code{CohortManifest$updateCohortDef()}}
+\item \href{#method-CohortManifest-statusReport}{\code{CohortManifest$statusReport()}}
+\item \href{#method-CohortManifest-print}{\code{CohortManifest$print()}}
+\item \href{#method-CohortManifest-hardDeleteCohort}{\code{CohortManifest$hardDeleteCohort()}}
 \item \href{#method-CohortManifest-createCohortTables}{\code{CohortManifest$createCohortTables()}}
 \item \href{#method-CohortManifest-dropCohortTables}{\code{CohortManifest$dropCohortTables()}}
 \item \href{#method-CohortManifest-addDependentCohort}{\code{CohortManifest$addDependentCohort()}}
 \item \href{#method-CohortManifest-syncManifest}{\code{CohortManifest$syncManifest()}}
 \item \href{#method-CohortManifest-cleanCohortTable}{\code{CohortManifest$cleanCohortTable()}}
-\item \href{#method-CohortManifest-generateCohorts}{\code{CohortManifest$generateCohorts()}}
+\item \href{#method-CohortManifest-executeCohortGeneration}{\code{CohortManifest$executeCohortGeneration()}}
 \item \href{#method-CohortManifest-retrieveCohortCounts}{\code{CohortManifest$retrieveCohortCounts()}}
 \item \href{#method-CohortManifest-validateManifest}{\code{CohortManifest$validateManifest()}}
 \item \href{#method-CohortManifest-getManifestStatus}{\code{CohortManifest$getManifestStatus()}}
@@ -115,22 +129,12 @@ Requires that executionSettings has been set and includes:
 \subsection{Method \code{new()}}{
 Initialize a new CohortManifest
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$new(
-  cohortEntries,
-  executionSettings = NULL,
-  dbPath = "inputs/cohorts/cohortManifest.sqlite"
-)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$new(dbPath = "inputs/cohorts/cohortManifest.sqlite")}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{cohortEntries}}{List. A list of CohortDef objects.}
-
-\item{\code{executionSettings}}{Object. Execution settings for DBMS cohort generation (optional).
-If provided, enables database operations like generateCohorts(). Can be added later
-via setExecutionSettings(). Defaults to NULL for read-only mode.}
-
 \item{\code{dbPath}}{Character. Path to the SQLite database. Defaults to
 "inputs/cohorts/cohortManifest.sqlite"
 Get the manifest as a list of CohortDef objects}
@@ -172,7 +176,7 @@ Tabulate the manifest as a tibble
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-A tibble with columns: id, label, tags, filePath, hash, cohortType, status, timestamp, deleted_at
+A tibble with columns: id, label, category, tags, file_path, hash, source_type, cohort_type, status, created_at, deleted_at
 Get the manifest path
 }
 }
@@ -214,9 +218,329 @@ Set the execution settings
 \if{html}{\out{<div class="arguments">}}
 \describe{
 \item{\code{executionSettings}}{Object. Execution settings for DBMS cohort generation.
-Query cohorts by IDs}
+Get the stored ATLAS connection}
 }
 \if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-getAtlasConnection"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-getAtlasConnection}{}}}
+\subsection{Method \code{getAtlasConnection()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$getAtlasConnection()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+The ATLAS connection object, or NULL if not set.
+Set an ATLAS connection for use by add/import methods
+
+Stores a connection so it does not need to be passed to
+\code{addAtlasCohort()} or \code{importAtlasCohorts()} on every call.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-setAtlasConnection"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-setAtlasConnection}{}}}
+\subsection{Method \code{setAtlasConnection()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$setAtlasConnection(atlasConnection)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{atlasConnection}}{An ATLAS connection object (from \code{setAtlasConnection()}).}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible self for method chaining.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-addAtlasCohort"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-addAtlasCohort}{}}}
+\subsection{Method \code{addAtlasCohort()}}{
+Add a single cohort from ATLAS
+
+Fetches a cohort JSON from ATLAS, saves it to \verb{json/}, and registers
+the cohort in the manifest.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$addAtlasCohort(
+  atlasId,
+  label,
+  category,
+  tags = list(),
+  atlasConnection = NULL
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{atlasId}}{Integer. The ATLAS cohort definition ID.}
+
+\item{\code{label}}{Character. Display name for the cohort.}
+
+\item{\code{category}}{Character. Required classification (e.g., 'target', 'outcome').}
+
+\item{\code{tags}}{Named list. Optional metadata tags.}
+
+\item{\code{atlasConnection}}{An ATLAS connection object (e.g., from ROhdsiWebApi::createConnectionDetails)
+with a method \code{getCohortDefinition(cohortId)} that returns a list with an \code{expression} element.
+If \code{NULL}, falls back to the connection stored via \verb{$setAtlasConnection()}.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible integer. The assigned cohort ID.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-importAtlasCohorts"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-importAtlasCohorts}{}}}
+\subsection{Method \code{importAtlasCohorts()}}{
+Batch import cohorts from ATLAS via cohortsLoad.csv
+
+Reads a CSV file with columns \code{atlasId}, \code{label}, \code{category}
+(plus optional extra columns for tags) and imports each cohort from ATLAS.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$importAtlasCohorts(
+  atlasConnection = NULL,
+  cohortsLoadPath = here::here("inputs/cohorts/cohortsLoad.csv")
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{atlasConnection}}{An ATLAS connection object with a \code{getCohortDefinition(cohortId)} method.
+If \code{NULL}, falls back to the connection stored via \verb{$setAtlasConnection()}.}
+
+\item{\code{cohortsLoadPath}}{Character. Path to the CSV file. Defaults to
+\code{here::here("inputs/cohorts/cohortsLoad.csv")}.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible tibble of imported cohorts.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-addCaprCohort"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-addCaprCohort}{}}}
+\subsection{Method \code{addCaprCohort()}}{
+Add a Capr cohort
+
+Takes a Capr Cohort object, exports it to JSON in \verb{json/}, and registers
+the cohort in the manifest.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$addCaprCohort(caprCohort, label, category, tags = list())}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{caprCohort}}{A Capr Cohort object (inherits from "Cohort").}
+
+\item{\code{label}}{Character. Display name for the cohort.}
+
+\item{\code{category}}{Character. Required classification.}
+
+\item{\code{tags}}{Named list. Optional metadata tags.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible integer. The assigned cohort ID.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-addSqlCohort"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-addSqlCohort}{}}}
+\subsection{Method \code{addSqlCohort()}}{
+Add a custom SQL cohort
+
+Registers an existing SQL file in the manifest. The file must already exist
+on disk (typically in \verb{sql/}).
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$addSqlCohort(filePath, label, category, tags = list())}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{filePath}}{Character. Path to the SQL file.}
+
+\item{\code{label}}{Character. Display name for the cohort.}
+
+\item{\code{category}}{Character. Required classification.}
+
+\item{\code{tags}}{Named list. Optional metadata tags.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible integer. The assigned cohort ID.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-buildUnionCohort"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-buildUnionCohort}{}}}
+\subsection{Method \code{buildUnionCohort()}}{
+Build a union cohort from existing cohorts
+
+Creates a derived cohort that is the union of specified parent cohorts.
+Delegates SQL generation to the internal builder function.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildUnionCohort(
+  label,
+  cohortIds,
+  category,
+  tags = list(),
+  gapDays = 0L
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{label}}{Character. Display name for the derived cohort.}
+
+\item{\code{cohortIds}}{Integer vector. IDs of parent cohorts to union.}
+
+\item{\code{category}}{Character. Required classification.}
+
+\item{\code{tags}}{Named list. Optional metadata tags.}
+
+\item{\code{gapDays}}{Integer. Maximum gap between eras to merge. Default 0.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible integer. The assigned cohort ID.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-buildSubsetCohortTemporal"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-buildSubsetCohortTemporal}{}}}
+\subsection{Method \code{buildSubsetCohortTemporal()}}{
+Build a subset cohort with temporal criteria
+
+Creates a derived cohort that subsets a base cohort using temporal
+relationship to a filter cohort.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildSubsetCohortTemporal(
+  label,
+  baseCohortId,
+  filterCohortId,
+  category,
+  temporalOperator = "any",
+  temporalStartOffset = NULL,
+  temporalEndOffset = NULL,
+  tags = list()
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{label}}{Character. Display name.}
+
+\item{\code{baseCohortId}}{Integer. ID of the base cohort to subset.}
+
+\item{\code{filterCohortId}}{Integer. ID of the filter cohort.}
+
+\item{\code{category}}{Character. Required classification.}
+
+\item{\code{temporalOperator}}{Character. One of 'before', 'after', 'during', 'any'.}
+
+\item{\code{temporalStartOffset}}{Integer. Start of temporal window (days).}
+
+\item{\code{temporalEndOffset}}{Integer. End of temporal window (days).}
+
+\item{\code{tags}}{Named list. Optional metadata tags.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible integer. The assigned cohort ID.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-buildComplementCohort"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-buildComplementCohort}{}}}
+\subsection{Method \code{buildComplementCohort()}}{
+Build a complement cohort
+
+Creates a derived cohort that is the complement of a base cohort
+relative to a population cohort.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildComplementCohort(
+  label,
+  baseCohortId,
+  populationCohortId,
+  category,
+  tags = list()
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{label}}{Character. Display name.}
+
+\item{\code{baseCohortId}}{Integer. ID of the cohort to complement.}
+
+\item{\code{populationCohortId}}{Integer. ID of the population cohort.}
+
+\item{\code{category}}{Character. Required classification.}
+
+\item{\code{tags}}{Named list. Optional metadata tags.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible integer. The assigned cohort ID.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-buildCompositeCohort"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-buildCompositeCohort}{}}}
+\subsection{Method \code{buildCompositeCohort()}}{
+Build a composite cohort
+
+Creates a derived cohort that requires membership in multiple cohorts
+(intersection logic).
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildCompositeCohort(
+  label,
+  cohortIds,
+  category,
+  minCohorts = NULL,
+  tags = list()
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{label}}{Character. Display name.}
+
+\item{\code{cohortIds}}{Integer vector. IDs of cohorts to intersect.}
+
+\item{\code{category}}{Character. Required classification.}
+
+\item{\code{minCohorts}}{Integer. Minimum cohorts a subject must appear in. Default: all.}
+
+\item{\code{tags}}{Named list. Optional metadata tags.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible integer. The assigned cohort ID.
+Query cohorts by IDs
 }
 }
 \if{html}{\out{<hr>}}
@@ -260,7 +584,7 @@ argument controls whether a cohort must satisfy any or all of them.}
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Data frame. A subset of the manifest with columns id, label, tags, filePath, hash, timestamp for matching cohorts, or NULL if none found.
+Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
 Query cohorts by label
 }
 }
@@ -284,7 +608,7 @@ Defaults to "exact".}
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Data frame. A subset of the manifest with columns id, label, tags, filePath, hash, timestamp for matching cohorts, or NULL if none found.
+Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
 }
 }
 \if{html}{\out{<hr>}}
@@ -367,6 +691,93 @@ Defaults to "exact".}
 }
 \subsection{Returns}{
 List. A list of CohortDef objects with matching labels, or NULL if none found.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-updateCohortDef"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-updateCohortDef}{}}}
+\subsection{Method \code{updateCohortDef()}}{
+Update metadata for an existing cohort
+
+Modifies label, category, or tags for a cohort entry in the manifest.
+The file path remains immutable.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$updateCohortDef(
+  cohortId,
+  label = NULL,
+  category = NULL,
+  tags = NULL
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{cohortId}}{Integer. The cohort ID to update.}
+
+\item{\code{label}}{Character. New label. If NULL, keeps existing.}
+
+\item{\code{category}}{Character. New category. If NULL, keeps existing.}
+
+\item{\code{tags}}{Named list. New tags. If NULL, keeps existing.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible NULL. Updates the manifest.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-statusReport"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-statusReport}{}}}
+\subsection{Method \code{statusReport()}}{
+Generate a status report for the manifest
+
+Prints a summary table showing all active cohorts with their dependencies
+and source types. Useful for auditing the manifest structure.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$statusReport()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Invisible tibble with columns: id, label, category, source_type, depends_on, status.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-print"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-print}{}}}
+\subsection{Method \code{print()}}{
+Print a friendly view of the CohortManifest
+
+Displays key metadata about the manifest and its contents.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$print()}\if{html}{\out{</div>}}
+}
+
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-hardDeleteCohort"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-hardDeleteCohort}{}}}
+\subsection{Method \code{hardDeleteCohort()}}{
+Hard-delete a cohort and its files
+
+Permanently removes a cohort from the manifest database AND deletes
+its associated file(s) on disk. Use with caution.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$hardDeleteCohort(cohortId, force = FALSE)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{cohortId}}{Integer. The cohort ID to permanently remove.}
+
+\item{\code{force}}{Logical. If FALSE (default), requires confirmation. If TRUE, skips confirmation.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible NULL. Removes the cohort from database and disk.
 Create cohort tables in the database
 }
 }
@@ -472,16 +883,16 @@ Data frame with columns: id, label.
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-CohortManifest-generateCohorts"></a>}}
-\if{latex}{\out{\hypertarget{method-CohortManifest-generateCohorts}{}}}
-\subsection{Method \code{generateCohorts()}}{
+\if{html}{\out{<a id="method-CohortManifest-executeCohortGeneration"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-executeCohortGeneration}{}}}
+\subsection{Method \code{executeCohortGeneration()}}{
 Generates cohorts in the manifest in the target database using the execution settings.
 Checks dependency ordering and regenerates dependent cohorts when parents change.
 Checks the hash of each cohort definition and skips generation if the hash matches what's
 already stored in the cohort_checksum table. If hashes differ or the cohort is not yet in
 the checksum table, regenerates and updates the hash.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$generateCohorts()}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$executeCohortGeneration()}\if{html}{\out{</div>}}
 }
 
 \subsection{Returns}{

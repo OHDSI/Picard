@@ -45,13 +45,7 @@ createBlankCohortsLoadFile(cohortsFolderPath = here::here("inputs/cohorts"))
 
 This creates `inputs/cohorts/cohortsLoad.csv` with columns: `atlasId`, `label`, `category`, `subCategory`, `file_name`
 
-**Option B: Use the interactive editor**
-
-```{r eval = FALSE}
-launchCohortsLoadEditor(cohortsFolderPath = here::here("inputs/cohorts"))
-```
-
-This launches a Shiny app where you can add/edit cohort metadata without touching the CSV directly.
+Edit this file in Excel to add your cohort entries.
 
 ### Step 2: Import Cohort Definitions from ATLAS
 
@@ -110,10 +104,11 @@ atlasConn <- setAtlasConnection(useKeyring = TRUE)
 
 #### Connecting and Importing
 
-# Import specific cohorts from ATLAS
-importAtlasCohorts(
-  cohortsFolderPath = here::here("inputs/cohorts"),
-  atlasConnection = atlasConn
+```{r eval = FALSE}
+cm <- initCohortManifest()
+cm$setAtlasConnection(atlasConn)
+cm$importAtlasCohorts(
+  cohortsLoadPath = here::here("inputs/cohorts/cohortsLoad.csv")
 )
 ```
 
@@ -632,11 +627,7 @@ createBlankConceptSetsLoadFile(conceptSetsFolderPath = here::here("inputs/concep
 
 This creates `inputs/conceptSets/conceptSetsLoad.csv` with columns: `atlasId`, `label`, `category`, `subCategory`, `domain`, `sourceCode`, `file_name`
 
-**Option B: Use the interactive editor**
-
-```{r eval = FALSE}
-launchConceptSetsLoadEditor(conceptSetsFolderPath = here::here("inputs/conceptSets"))
-```
+Edit this file in Excel to add your concept set entries.
 
 ### Step 2: Import Concept Set Definitions from ATLAS
 
@@ -646,10 +637,11 @@ Download concept set JSON definitions:
 # Reuse or create ATLAS connection
 atlasConn <- setAtlasConnection()
 
-# Import concept sets from ATLAS
-importAtlasConceptSets(
-  conceptSetsFolderPath = here::here("inputs/conceptSets"),
-  atlasConnection = atlasConn
+# Initialize manifest and set connection
+csm <- initConceptSetManifest()
+csm$setAtlasConnection(atlasConn)
+csm$importAtlasConceptSets(
+  conceptSetsLoadPath = here::here("inputs/conceptSets/conceptSetsLoad.csv")
 )
 ```
 
@@ -718,17 +710,14 @@ library(picard)
 # 1. Create ATLAS connection (credentials from .Renviron)
 atlasConn <- setAtlasConnection()
 
-# 2. Create load file or use editor
-# Option A: Create blank template
+# 2. Initialize manifest, set connection, and create load file
+cm <- initCohortManifest()
+cm$setAtlasConnection(atlasConn)
 createBlankCohortsLoadFile(here::here("inputs/cohorts"))
 
-# Option B: Use interactive editor
-# launchCohortsLoadEditor(here::here("inputs/cohorts"))
-
-# 3. Import from ATLAS
-importAtlasCohorts(
-  cohortsFolderPath = here::here("inputs/cohorts"),
-  atlasConnection = atlasConn
+# 3. Import from ATLAS (edit cohortsLoad.csv in Excel first)
+cm$importAtlasCohorts(
+  cohortsLoadPath = here::here("inputs/cohorts/cohortsLoad.csv")
 )
 
 # 4. Load manifest and review
@@ -745,17 +734,14 @@ print(counts)
 
 # === CONCEPT SETS WORKFLOW ===
 
-# 1. Create load file
-# Option A: Create blank template
+# 1. Initialize manifest, set connection, and create load file
+csm <- initConceptSetManifest()
+csm$setAtlasConnection(atlasConn)
 createBlankConceptSetsLoadFile(here::here("inputs/conceptSets"))
 
-# Option B: Use interactive editor
-# launchConceptSetsLoadEditor(here::here("inputs/conceptSets"))
-
-# 2. Import from ATLAS
-importAtlasConceptSets(
-  conceptSetsFolderPath = here::here("inputs/conceptSets"),
-  atlasConnection = atlasConn
+# 2. Import from ATLAS (edit conceptSetsLoad.csv in Excel first)
+csm$importAtlasConceptSets(
+  conceptSetsLoadPath = here::here("inputs/conceptSets/conceptSetsLoad.csv")
 )
 
 # 3. Load manifest and review

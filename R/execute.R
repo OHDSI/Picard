@@ -266,11 +266,15 @@ generateCohorts <- function(executionSettings, pipelineVersion, override = FALSE
     cli::cli_alert_danger("Cohort Manifest not found!")
     cli::cli_alert_info("Expected location: {fs::path_rel(dbPath)}")
     cli::cli_rule("How to create a Cohort Manifest")
-    cli::cli_h2("Option 1: Use launchCohortsLoadEditor to create metadata file")
-    cli::cli_code("launchCohortsLoadEditor()")
-    cli::cli_h2("Option 2: Import cohorts from ATLAS")
-    cli::cli_code("importAtlasCohorts(atlasIds = c(123, 456, 789))")
-    cli::cli_h2("Option 3: Place cohort files and reload")
+    cli::cli_h2("Step 1: Initialize manifest")
+    cli::cli_code("cohortManifest <- initCohortManifest()")
+    cli::cli_h2("Step 2: Create cohortsLoad.csv in Excel")
+    cli::cli_code("createBlankCohortsLoadFile()")
+    cli::cli_h2("Step 3: Import cohorts from ATLAS")
+    cli::cli_code("atlasConnection <- setAtlasConnection()")
+    cli::cli_code("cohortManifest$importAtlasCohorts(atlasConnection, 'inputs/cohorts/cohortsLoad.csv')")
+    cli::cli_h2("Step 4: Load into a new session")
+    cli::cli_code("cohortManifest <- loadCohortManifest()")
     cli::cli_bullets(c(
       "Place JSON or SQL files in {.path {cohortsFolderPath}/json} or {.path {cohortsFolderPath}/sql}",
       "Then call: {.code loadCohortManifest()}"
@@ -325,7 +329,7 @@ generateCohorts <- function(executionSettings, pipelineVersion, override = FALSE
     if (!(response %in% c("yes", "y"))) {
       cli::cli_alert_info("Cohort generation cancelled by user.")
       cli::cli_bullets(c(
-        i = "To modify cohorts, use {.code launchCohortsLoadEditor()}",
+        i = "To modify cohorts, edit cohortsLoad.csv in Excel and re-run",
         i = "To import new cohorts from ATLAS, use {.code importAtlasCohorts()}"
       ))
       return(invisible(NULL))
@@ -337,7 +341,7 @@ generateCohorts <- function(executionSettings, pipelineVersion, override = FALSE
   
   tryCatch({
     cm$createCohortTables()
-    cm$generateCohorts()
+    cm$executeCohortGeneration()
     counts <- cm$retrieveCohortCounts()
     
     cli::cli_alert_success("Cohort generation completed successfully!")
