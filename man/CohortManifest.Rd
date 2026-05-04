@@ -83,7 +83,9 @@ Requires that executionSettings has been set and includes:
 \itemize{
 \item \href{#method-CohortManifest-new}{\code{CohortManifest$new()}}
 \item \href{#method-CohortManifest-getManifest}{\code{CohortManifest$getManifest()}}
+\item \href{#method-CohortManifest-reviewDependentCohorts}{\code{CohortManifest$reviewDependentCohorts()}}
 \item \href{#method-CohortManifest-tabulateManifest}{\code{CohortManifest$tabulateManifest()}}
+\item \href{#method-CohortManifest-reloadFromDb}{\code{CohortManifest$reloadFromDb()}}
 \item \href{#method-CohortManifest-getDbPath}{\code{CohortManifest$getDbPath()}}
 \item \href{#method-CohortManifest-getExecutionSettings}{\code{CohortManifest$getExecutionSettings()}}
 \item \href{#method-CohortManifest-setExecutionSettings}{\code{CohortManifest$setExecutionSettings()}}
@@ -156,11 +158,14 @@ Tabulate the manifest as a tibble
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-CohortManifest-tabulateManifest"></a>}}
-\if{latex}{\out{\hypertarget{method-CohortManifest-tabulateManifest}{}}}
-\subsection{Method \code{tabulateManifest()}}{
+\if{html}{\out{<a id="method-CohortManifest-reviewDependentCohorts"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-reviewDependentCohorts}{}}}
+\subsection{Method \code{reviewDependentCohorts()}}{
+Returns a summary tibble of all active derived cohorts (union, subset, complement,
+composite) with parsed dependency information sourced directly from SQLite. Useful
+for quickly auditing what each derived cohort depends on and how it was built.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$tabulateManifest(filter = c("active", "deleted", "all"))}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$reviewDependentCohorts()}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -171,12 +176,61 @@ Tabulate the manifest as a tibble
 \item \code{"active"} (default) - Only active cohorts
 \item \code{"deleted"} - Only soft-deleted cohorts (status = 'deleted')
 \item \code{"all"} - All rows regardless of status
-}}
+}
+
+Review dependent cohorts and their dependency metadata}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-A tibble with columns: id, label, category, tags, file_path, hash, source_type, cohort_type, status, created_at, deleted_at
+A tibble with columns:
+\itemize{
+\item \code{id} - Cohort ID
+\item \code{label} - Cohort label
+\item \code{cohort_type} - One of 'union', 'subset', 'complement', 'composite'
+\item \code{category} - User-defined category
+\item \code{parent_cohorts} - Human-readable parent list, e.g. "Label A (1), Label B (2)"
+\item \code{rule_summary} - Compact summary of the dependency rule parameters
+\item \code{created_at} - Timestamp of creation
+}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-tabulateManifest"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-tabulateManifest}{}}}
+\subsection{Method \code{tabulateManifest()}}{
+Tabulate the manifest as a tibble
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$tabulateManifest(filter = c("active", "deleted", "all"))}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{filter}}{Character. Controls which rows are returned. One of
+\code{"active"} (default), \code{"deleted"}, or \code{"all"}.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+A tibble with columns: id, label, category, tags, file_path, hash,
+source_type, cohort_type, status, created_at, deleted_at
+Reload the in-memory manifest from the SQLite database
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-reloadFromDb"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-reloadFromDb}{}}}
+\subsection{Method \code{reloadFromDb()}}{
+Re-reads all active cohort records from SQLite and rebuilds the in-memory
+list of CohortDef objects. Useful after external changes to the database
+(e.g., after \code{resetCohortManifest(scope = "derived")}).
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$reloadFromDb()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Invisible self.
 Get the manifest path
 }
 }
@@ -436,9 +490,10 @@ relationship to a filter cohort.
   baseCohortId,
   filterCohortId,
   category,
-  temporalOperator = "any",
-  temporalStartOffset = NULL,
-  temporalEndOffset = NULL,
+  startWindow,
+  endWindow = NULL,
+  endDateType = "base",
+  subsetLimit = "First",
   tags = list()
 )}\if{html}{\out{</div>}}
 }
@@ -454,11 +509,16 @@ relationship to a filter cohort.
 
 \item{\code{category}}{Character. Required classification.}
 
-\item{\code{temporalOperator}}{Character. One of 'before', 'after', 'during', 'any'.}
+\item{\code{startWindow}}{A SubsetWindowOperator object (from \code{\link[=createSubsetStartWindow]{createSubsetStartWindow()}}) defining
+the temporal window for the filter cohort start date relative to the base cohort event.}
 
-\item{\code{temporalStartOffset}}{Integer. Start of temporal window (days).}
+\item{\code{endWindow}}{A SubsetWindowOperator object (from \code{\link[=createSubsetEndWindow]{createSubsetEndWindow()}}) or NULL.
+Defines the temporal window for the filter cohort end date. Default: NULL.}
 
-\item{\code{temporalEndOffset}}{Integer. End of temporal window (days).}
+\item{\code{endDateType}}{Character. Whether to use the base cohort end date ('base') or filter
+cohort end date ('filter') in the output. Default: 'base'.}
+
+\item{\code{subsetLimit}}{Character. One of 'First', 'Last', or 'All'. Default: 'First'.}
 
 \item{\code{tags}}{Named list. Optional metadata tags.}
 }

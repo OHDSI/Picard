@@ -220,6 +220,9 @@ CohortDef <- R6::R6Class(
 #' metadata in a SQLite database located at inputs/cohorts/cohortManifest.sqlite.
 #' Each CohortDef is assigned a sequential ID based on its position in the manifest.
 #'
+#' @param dbPath Character. Path to the SQLite database file. Defaults to
+#'   \code{"inputs/cohorts/cohortManifest.sqlite"}.
+#'
 #' @export
 CohortManifest <- R6::R6Class(
   classname = "CohortManifest",
@@ -693,30 +696,6 @@ CohortManifest <- R6::R6Class(
       )
       md5Hash <- rlang::hash(combined)
       return(md5Hash)
-    },
-
-    # Load metadata JSON for a dependent cohort
-    load_metadata_for_cohort = function(cohortFilePath) {
-      # Replace .sql extension with .json
-      metadata_path <- gsub("\\.sql$", ".json", cohortFilePath)
-
-      if (!file.exists(metadata_path)) {
-        cli::cli_alert_warning("Metadata file not found: {metadata_path}")
-        return(list())
-      }
-
-      # Read and parse JSON
-      metadata_json <- readr::read_file(metadata_path)
-      tryCatch(
-        {
-          metadata <- jsonlite::fromJSON(metadata_json)
-          return(metadata)
-        },
-        error = function(e) {
-          cli::cli_alert_warning("Failed to parse metadata JSON: {e$message}")
-          return(list())
-        }
-      )
     }
   ),
 
@@ -769,7 +748,122 @@ CohortManifest <- R6::R6Class(
     #'     \item \code{"all"} - All rows regardless of status
     #'   }
     #'
-    #' @return A tibble with columns: id, label, category, tags, file_path, hash, source_type, cohort_type, status, created_at, deleted_at
+    #' Review dependent cohorts and their dependency metadata
+    #'
+    #' @description
+    #' Returns a summary tibble of all active derived cohorts (union, subset, complement,
+    #' composite) with parsed dependency information sourced directly from SQLite. Useful
+    #' for quickly auditing what each derived cohort depends on and how it was built.
+    #'
+    #' @return A tibble with columns:
+    #'   \itemize{
+    #'     \item \code{id} - Cohort ID
+    #'     \item \code{label} - Cohort label
+    #'     \item \code{cohort_type} - One of 'union', 'subset', 'complement', 'composite'
+    #'     \item \code{category} - User-defined category
+    #'     \item \code{parent_cohorts} - Human-readable parent list, e.g. "Label A (1), Label B (2)"
+    #'     \item \code{rule_summary} - Compact summary of the dependency rule parameters
+    #'     \item \code{created_at} - Timestamp of creation
+    #'   }
+    reviewDependentCohorts = function() {
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      # All active derived cohorts
+      derived <- DBI::dbGetQuery(
+        conn,
+        "SELECT id, label, cohort_type, category, depends_on, dependency_rule, created_at
+         FROM cohort_manifest
+         WHERE status = 'active'
+           AND cohort_type NOT IN ('circe', 'custom')
+         ORDER BY id"
+      )
+
+      if (nrow(derived) == 0) {
+        cli::cli_alert_info("No derived cohorts found in manifest.")
+        return(tibble::tibble(
+          id = integer(), label = character(), cohort_type = character(),
+          category = character(), parent_cohorts = character(),
+          rule_summary = character(), created_at = character()
+        ))
+      }
+
+      # Build id -> label lookup
+      all_labels <- DBI::dbGetQuery(conn, "SELECT id, label FROM cohort_manifest WHERE status = 'active'")
+      label_map <- stats::setNames(all_labels$label, as.character(all_labels$id))
+
+      # Helper: parse depends_on JSON -> "Label (id), ..."
+      parse_parents <- function(depends_on_json) {
+        if (is.na(depends_on_json) || nchar(depends_on_json) == 0) {
+          return("None")
+        }
+        ids <- tryCatch(as.integer(jsonlite::fromJSON(depends_on_json)), error = function(e) integer(0))
+        if (length(ids) == 0) {
+          return("None")
+        }
+        parts <- sapply(ids, function(i) {
+          lbl <- label_map[[as.character(i)]]
+          if (is.null(lbl) || is.na(lbl)) paste0("(unknown: ", i, ")") else paste0(lbl, " (", i, ")")
+        })
+        paste(parts, collapse = ", ")
+      }
+
+      # Helper: parse dependency_rule JSON -> compact type-specific string
+      parse_rule <- function(cohort_type, rule_json) {
+        if (is.na(rule_json) || nchar(rule_json) == 0) {
+          return("")
+        }
+        rule <- tryCatch(jsonlite::fromJSON(rule_json, simplifyVector = TRUE), error = function(e) list())
+        if (length(rule) == 0) {
+          return("")
+        }
+        switch(
+          cohort_type,
+          union = paste0("gapDays: ", rule$gapDays %||% 0),
+          subset = paste(
+            c(
+              if (!is.null(rule$baseCohortId))   paste0("base: ",    label_map[[as.character(rule$baseCohortId)]]   %||% rule$baseCohortId),
+              if (!is.null(rule$filterCohortId)) paste0("filter: ",  label_map[[as.character(rule$filterCohortId)]] %||% rule$filterCohortId),
+              if (!is.null(rule$subsetLimit))    paste0("limit: ",   rule$subsetLimit),
+              if (!is.null(rule$endDateType))    paste0("endDate: ", rule$endDateType)
+            ),
+            collapse = " | "
+          ),
+          complement = paste(
+            c(
+              if (!is.null(rule$baseCohortId))        paste0("base: ",       label_map[[as.character(rule$baseCohortId)]]        %||% rule$baseCohortId),
+              if (!is.null(rule$populationCohortId))  paste0("population: ", label_map[[as.character(rule$populationCohortId)]]  %||% rule$populationCohortId)
+            ),
+            collapse = " | "
+          ),
+          composite = {
+            n_ids <- if (!is.null(rule$cohortIds)) length(rule$cohortIds) else 0L
+            paste0("minCohorts: ", rule$minCohorts %||% n_ids, " of ", n_ids)
+          },
+          ""
+        )
+      }
+
+      result <- tibble::tibble(
+        id           = derived$id,
+        label        = derived$label,
+        cohort_type  = derived$cohort_type,
+        category     = derived$category,
+        parent_cohorts = mapply(parse_parents, derived$depends_on, USE.NAMES = FALSE),
+        rule_summary   = mapply(parse_rule, derived$cohort_type, derived$dependency_rule, USE.NAMES = FALSE),
+        created_at   = derived$created_at
+      )
+
+      return(result)
+    },
+
+    #' @description Tabulate the manifest as a tibble
+    #'
+    #' @param filter Character. Controls which rows are returned. One of
+    #'   \code{"active"} (default), \code{"deleted"}, or \code{"all"}.
+    #'
+    #' @return A tibble with columns: id, label, category, tags, file_path, hash,
+    #'   source_type, cohort_type, status, created_at, deleted_at
     tabulateManifest = function(filter = c("active", "deleted", "all")) {
       filter <- match.arg(filter)
 
@@ -792,6 +886,19 @@ CohortManifest <- R6::R6Class(
 
       man <- DBI::dbGetQuery(conn, sql)
       return(tibble::as_tibble(man))
+    },
+
+    #' Reload the in-memory manifest from the SQLite database
+    #'
+    #' @description
+    #' Re-reads all active cohort records from SQLite and rebuilds the in-memory
+    #' list of CohortDef objects. Useful after external changes to the database
+    #' (e.g., after \code{resetCohortManifest(scope = "derived")}).
+    #'
+    #' @return Invisible self.
+    reloadFromDb = function() {
+      private$load_manifest_from_db()
+      invisible(self)
     },
 
     #' Get the manifest path
@@ -2108,6 +2215,11 @@ CohortManifest <- R6::R6Class(
     #'
     #' @return Invisibly returns the assigned cohort ID.
     addDependentCohort = function(cohortDef) {
+      lifecycle::deprecate_warn(
+        "0.0.3",
+        "CohortManifest$addDependentCohort()",
+        details = "Use $buildUnionCohort(), $buildSubsetCohortTemporal(), $buildComplementCohort(), or $buildCompositeCohort() instead."
+      )
       checkmate::assert_class(x = cohortDef, classes = "CohortDef")
 
       # Validate this is actually a dependent cohort (not a circe cohort)
@@ -2120,10 +2232,10 @@ CohortManifest <- R6::R6Class(
         cli::cli_abort("Invalid cohort type: {cohort_type}. Must be 'subset', 'union', 'composite', 'complement', or 'custom'")
       }
 
-      # Read dependency info from sidecar JSON written by the builder function
+      # Dependency metadata not available via this deprecated path — use R6 build methods
+      # ($buildUnionCohort, $buildSubsetCohortTemporal, etc.) to capture full dependency info.
       file_path <- cohortDef$getFilePath()
-      metadata <- private$load_metadata_for_cohort(file_path)
-      parent_ids <- if (!is.null(metadata$dependsOnCohortIds)) as.integer(metadata$dependsOnCohortIds) else integer(0)
+      parent_ids <- integer(0)
 
       # Validate parent cohorts exist in this manifest
       if (length(parent_ids) > 0) {
@@ -2138,8 +2250,8 @@ CohortManifest <- R6::R6Class(
         file_path = file_path,
         source_type = cohortDef$getSourceType(),
         cohort_type = cohort_type,
-        depends_on = if (length(parent_ids) > 0) parent_ids else NULL,
-        dependency_rule = if (length(metadata) > 0) metadata else NULL
+        depends_on = NULL,
+        dependency_rule = NULL
       )
 
       cli::cli_alert_success("Added dependent cohort {cohort_id}: {cohortDef$label} (Type: {cohort_type})")
@@ -2703,7 +2815,7 @@ CohortManifest <- R6::R6Class(
           warnOnMissingParameters = FALSE
         )
 
-        # For dependent cohorts, load metadata and add to parameters
+        # For dependent cohorts, load dependency_rule from SQLite and add to parameters
         if (cohort_type %in% c("subset", "union", "complement", "composite")) {
           # Add execution context parameters for dependent cohorts
           output_table_name <- paste(cohort_schema, cohort_table, sep = ".")
@@ -2711,7 +2823,16 @@ CohortManifest <- R6::R6Class(
           sql_params$output_table <- output_table_name
           sql_params$base_cohort_table <- output_table_name
 
-          metadata <- private$load_metadata_for_cohort(cohort_file_path)
+          rule_row <- DBI::dbGetQuery(
+            sqlite_conn,
+            "SELECT dependency_rule FROM cohort_manifest WHERE id = ? AND status = 'active'",
+            list(cohort_id)
+          )
+          metadata <- if (nrow(rule_row) > 0 && !is.na(rule_row$dependency_rule[1]) && nchar(rule_row$dependency_rule[1]) > 0) {
+            tryCatch(jsonlite::fromJSON(rule_row$dependency_rule[1]), error = function(e) list())
+          } else {
+            list()
+          }
 
           if (length(metadata) > 0) {
             field_mapping <- list(

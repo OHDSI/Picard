@@ -81,7 +81,7 @@ createBlankCohortsLoadFile()
 # - label: Display name for your cohort (required)
 # - category: Broad category like "Disease Populations", "Treatment Groups" (required)
 # - subCategory: Optional sub-grouping within category
-# - file_name: Will be auto-populated as json/{label}.json
+# - file_name: Will be auto-populated as json/{{label}}.json
 # Any additional columns are treated as tags
 
 ## Step 3: Set up ATLAS connection (if not already done in concept sets section)
