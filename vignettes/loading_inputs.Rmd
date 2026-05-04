@@ -45,13 +45,7 @@ createBlankCohortsLoadFile(cohortsFolderPath = here::here("inputs/cohorts"))
 
 This creates `inputs/cohorts/cohortsLoad.csv` with columns: `atlasId`, `label`, `category`, `subCategory`, `file_name`
 
-**Option B: Use the interactive editor**
-
-```{r eval = FALSE}
-launchCohortsLoadEditor(cohortsFolderPath = here::here("inputs/cohorts"))
-```
-
-This launches a Shiny app where you can add/edit cohort metadata without touching the CSV directly.
+Edit this file in Excel to add your cohort entries.
 
 ### Step 2: Import Cohort Definitions from ATLAS
 
@@ -632,11 +626,7 @@ createBlankConceptSetsLoadFile(conceptSetsFolderPath = here::here("inputs/concep
 
 This creates `inputs/conceptSets/conceptSetsLoad.csv` with columns: `atlasId`, `label`, `category`, `subCategory`, `domain`, `sourceCode`, `file_name`
 
-**Option B: Use the interactive editor**
-
-```{r eval = FALSE}
-launchConceptSetsLoadEditor(conceptSetsFolderPath = here::here("inputs/conceptSets"))
-```
+Edit this file in Excel to add your concept set entries.
 
 ### Step 2: Import Concept Set Definitions from ATLAS
 
@@ -718,12 +708,8 @@ library(picard)
 # 1. Create ATLAS connection (credentials from .Renviron)
 atlasConn <- setAtlasConnection()
 
-# 2. Create load file or use editor
-# Option A: Create blank template
+# 2. Create load file  
 createBlankCohortsLoadFile(here::here("inputs/cohorts"))
-
-# Option B: Use interactive editor
-# launchCohortsLoadEditor(here::here("inputs/cohorts"))
 
 # 3. Import from ATLAS
 importAtlasCohorts(
@@ -748,9 +734,6 @@ print(counts)
 # 1. Create load file
 # Option A: Create blank template
 createBlankConceptSetsLoadFile(here::here("inputs/conceptSets"))
-
-# Option B: Use interactive editor
-# launchConceptSetsLoadEditor(here::here("inputs/conceptSets"))
 
 # 2. Import from ATLAS
 importAtlasConceptSets(

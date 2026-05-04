@@ -100,18 +100,20 @@ settings <- createExecutionSettingsFromConfig(configBlock = "omop_cdm")
 
 ### Import Cohorts from ATLAS
 
-Before importing our cohorts we need to provide a load list. This can be done interactively:
+Before importing cohorts, create a load list by running:
 
 ```r
-launchCohortsLoadEditor()
+createBlankCohortsLoadFile()
 ```
 
-Import cohort definitions from your ATLAS instance:
+Edit `inputs/cohorts/cohortsLoad.csv` in Excel to add your ATLAS cohort IDs and metadata. Then import:
 
 ```r
+cohortManifest <- CohortManifest$new(dbPath = here::here("inputs/cohorts/manifest.sqlite"))
 importAtlasCohorts(
-  cohortsFolderPath = here::here("inputs/cohorts"),
-  atlasConnection = setAtlasConnection()
+  manifest = cohortManifest,
+  atlasConnection = setAtlasConnection(),
+  cohortsLoadPath = here::here("inputs/cohorts/cohortsLoad.csv")
 )
 ```
 
