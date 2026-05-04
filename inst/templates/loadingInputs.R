@@ -39,7 +39,7 @@ createBlankConceptSetsLoadFile()
 
 ## Step 3: Set up ATLAS connection
 # ATLAS credentials must be configured in your .Renviron file before connecting
-atlasConnection <- setAtlasConnection()
+atlasConnection <- getAtlasConnection()
 conceptSetManifest$setAtlasConnection(atlasConnection)
 
 ## Step 4: Import concept sets from ATLAS
@@ -86,7 +86,7 @@ createBlankCohortsLoadFile()
 
 ## Step 3: Set up ATLAS connection (if not already done in concept sets section)
 # ATLAS credentials must be configured in your .Renviron file before connecting
-# atlasConnection <- setAtlasConnection()
+# atlasConnection <- getAtlasConnection()
 cohortManifest$setAtlasConnection(atlasConnection)
 
 ## Step 4: Import cohorts from ATLAS

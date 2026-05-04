@@ -767,19 +767,17 @@ visualizeCohortDependencies <- function(manifest, outputPath = NULL) {
 }
 
 
-#' Define (Enrich) a Custom SQL Cohort in the Manifest
+#' Define (Enrich) a Custom SQL Cohort (Deprecated)
 #'
 #' @description
-#' Enriches a cohort that has already been discovered by [loadCohortManifest()] with
-#' a user-friendly label, tags, and the `"custom"` cohort type.
+#' **Deprecated.** Use [CohortManifest]`$addSqlCohort()` instead, which registers
+#' a custom SQL cohort with the correct label, category, and tags in a single step.
 #'
 #' @param manifest A [CohortManifest] R6 object.
 #' @param label Character. The user-friendly display name.
 #' @param tags Named list. Optional metadata tags. Defaults to `list()`.
-#' @param cohortId Integer. The cohort ID in the manifest. Provide either `cohortId`
-#'   or `sqlFilePath`, not both.
-#' @param sqlFilePath Character. Path to the SQL file. Provide either `sqlFilePath`
-#'   or `cohortId`, not both.
+#' @param cohortId Integer. The cohort ID in the manifest.
+#' @param sqlFilePath Character. Path to the SQL file.
 #'
 #' @return Invisibly returns `NULL`.
 #'
@@ -789,6 +787,11 @@ defineCustomCohort <- function(manifest,
                                tags = list(),
                                cohortId = NULL,
                                sqlFilePath = NULL) {
+  lifecycle::deprecate_warn(
+    "0.0.3",
+    "defineCustomCohort()",
+    details = "Use manifest$addSqlCohort(filePath, label, category, tags) instead."
+  )
   checkmate::assert_class(x = manifest, classes = "CohortManifest")
   checkmate::assert_string(x = label, min.chars = 1)
   checkmate::assert_list(x = tags, names = "named")

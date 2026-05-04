@@ -460,7 +460,7 @@ ConceptSetManifest <- R6::R6Class(
     #' Stores a connection so it does not need to be passed to
     #' `addAtlasConceptSet()` or `importAtlasConceptSets()` on every call.
     #'
-    #' @param atlasConnection An ATLAS connection object (from `setAtlasConnection()`).
+    #' @param atlasConnection An ATLAS connection object (from `getAtlasConnection()`).
     #'
     #' @return Invisible self for method chaining.
     setAtlasConnection = function(atlasConnection) {

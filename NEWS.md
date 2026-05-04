@@ -1,10 +1,6 @@
 # picard 0.0.3
 
-- add more support for dependent cohorts
-    - union collapse to make erafied events
-    - composite cohorts to make a cohort on collection of criteria
-    - improve subset cohorts
-    - add demographic and strata cohorts
+
 - support for custom cohort sql 
 - fix bugs in cohort and concept set manifests
 - fix bugs in task caching
@@ -20,6 +16,16 @@
         - sync manifest match files to sqlite
         - delete old manifest entries
         - prune cohorts from cohort table 
+    - improve reset to handle different scopes (derived - drop derived cohorts, manifest - drop sqlite but not files, full - drop everything)
+    - fix dependent cohorts and add supprot
+        - support
+            - union collapse to make erafied events
+            - composite cohorts to make a cohort on collection of criteria
+            - improve subset cohorts
+            - add demographic and strata cohorts
+        - API 
+            - build dependent is a method to CohortMethod class
+            - remove sidecar json, all is specified in sqlite
 
 # picard 0.0.2
 

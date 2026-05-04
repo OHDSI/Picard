@@ -303,19 +303,23 @@ CirceConceptSetsToLoad <- R6::R6Class(
 
 # Atlas Connection ---------------
 
-#' @title Set Atlas Connection
-#' @description Create a WebApiConnection object using credentials from either .Renviron or keyring package.
-#'   Supports secure credential management through keyring for enhanced security.
+#' Get Atlas Connection
 #'
-#' @param useKeyring Logical. If TRUE, retrieves credentials from keyring package.
-#'   If FALSE (default), uses environment variables from .Renviron. Default: FALSE
+#' @description
+#' Creates a \code{WebApiConnection} object using credentials from either
+#' \code{.Renviron} or the \code{keyring} package. This is the standalone
+#' credential helper — to attach the connection to a manifest use
+#' \code{manifest$setAtlasConnection(getAtlasConnection())}.
+#'
+#' @param useKeyring Logical. If TRUE, retrieves credentials from the keyring
+#'   package. If FALSE (default), uses environment variables from .Renviron.
 #'
 #' @details
 #' Credentials are stored using a standardized structure in the system keyring.
 #' All ATLAS credentials are grouped under the service "picard" with individual
 #' identifiers for each credential type.
 #'
-#' ## Using .Renviron (Default - Backwards Compatible)
+#' ## Using .Renviron (Default)
 #'
 #' ```r
 #' # Credentials must be set in .Renviron:
@@ -324,7 +328,7 @@ CirceConceptSetsToLoad <- R6::R6Class(
 #' # atlasUser='user@organization.com'
 #' # atlasPassword='YourPassword'
 #'
-#' atlasCon <- setAtlasConnection()
+#' atlasCon <- getAtlasConnection()
 #' ```
 #'
 #' ## Using keyring (Recommended for Security)
@@ -332,20 +336,16 @@ CirceConceptSetsToLoad <- R6::R6Class(
 #' First, store credentials securely in the default keyring:
 #'
 #' ```r
-#' # Store each credential in keyring under service "picard"
 #' keyring::key_set(service = "picard", username = "atlasBaseUrl")
 #' keyring::key_set(service = "picard", username = "atlasAuthMethod")
 #' keyring::key_set(service = "picard", username = "atlasUser")
 #' keyring::key_set(service = "picard", username = "atlasPassword")
-#'
-#' # Verify stored credentials
-#' keyring::key_list(service = "picard")
 #' ```
 #'
 #' Then retrieve and connect:
 #'
 #' ```r
-#' atlasCon <- setAtlasConnection(useKeyring = TRUE)
+#' atlasCon <- getAtlasConnection(useKeyring = TRUE)
 #' ```
 #'
 #' @returns An R6 class of WebApiConnection containing the ATLAS WebAPI connection details
@@ -355,12 +355,12 @@ CirceConceptSetsToLoad <- R6::R6Class(
 #' @examples
 #' \dontrun{
 #'   # Using .Renviron (default)
-#'   atlasCon <- setAtlasConnection()
+#'   atlasCon <- getAtlasConnection()
 #'
 #'   # Using keyring
-#'   atlasCon <- setAtlasConnection(useKeyring = TRUE)
+#'   atlasCon <- getAtlasConnection(useKeyring = TRUE)
 #' }
-setAtlasConnection <- function(useKeyring = FALSE) {
+getAtlasConnection <- function(useKeyring = FALSE) {
 
   if (useKeyring) {
     # Retrieve from keyring
@@ -406,6 +406,21 @@ setAtlasConnection <- function(useKeyring = FALSE) {
     password = password
   )
   return(atlasCon)
+}
+
+#' Set Atlas Connection (Deprecated)
+#'
+#' @description
+#' **Deprecated.** Use [getAtlasConnection()] instead.
+#'
+#' @param useKeyring Logical. Passed to [getAtlasConnection()].
+#'
+#' @return A WebApiConnection object.
+#'
+#' @export
+setAtlasConnection <- function(useKeyring = FALSE) {
+  lifecycle::deprecate_warn("0.0.3", "setAtlasConnection()", "getAtlasConnection()")
+  getAtlasConnection(useKeyring = useKeyring)
 }
 
 pluckConceptSetExpression <- function(conceptSetId, baseUrl, bearerToken) {

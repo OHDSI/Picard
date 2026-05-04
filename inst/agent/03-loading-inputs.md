@@ -101,7 +101,7 @@ Once stored in keyring, simply connect:
 
 ```r
 # All credentials are retrieved automatically from keyring service "picard"
-atlasConn <- setAtlasConnection(useKeyring = TRUE)
+atlasConn <- getAtlasConnection(useKeyring = TRUE)
 ```
 
 **Alternative: Add credentials directly to .Renviron (Less secure)**
@@ -114,7 +114,7 @@ If you prefer not to use keyring, you can add credentials directly:
 Once credentials are configured, connect to ATLAS and download cohort definitions:
 
 ```r
-atlasConn <- setAtlasConnection()
+atlasConn <- getAtlasConnection()
 
 importAtlasCohorts(
   cohortsFolderPath = here::here("inputs/cohorts"),
@@ -344,7 +344,7 @@ createBlankConceptSetsLoadFile(conceptSetsFolderPath = here::here("inputs/concep
 ### Step 2: Import Concept Sets from ATLAS
 
 ```r
-atlasConn <- setAtlasConnection()
+atlasConn <- getAtlasConnection()
 
 importAtlasConceptSets(
   conceptSetsFolderPath = here::here("inputs/conceptSets"),

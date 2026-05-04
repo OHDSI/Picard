@@ -271,7 +271,7 @@ generateCohorts <- function(executionSettings, pipelineVersion, override = FALSE
     cli::cli_h2("Step 2: Create cohortsLoad.csv in Excel")
     cli::cli_code("createBlankCohortsLoadFile()")
     cli::cli_h2("Step 3: Import cohorts from ATLAS")
-    cli::cli_code("atlasConnection <- setAtlasConnection()")
+    cli::cli_code("atlasConnection <- getAtlasConnection()")
     cli::cli_code("cohortManifest$importAtlasCohorts(atlasConnection, 'inputs/cohorts/cohortsLoad.csv')")
     cli::cli_h2("Step 4: Load into a new session")
     cli::cli_code("cohortManifest <- loadCohortManifest()")
