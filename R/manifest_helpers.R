@@ -536,7 +536,7 @@ plotCohortGraph <- function(manifest) {
     conn,
     "SELECT id, label, cohort_type, depends_on
      FROM cohort_manifest
-     WHERE status = 'active'
+     WHERE status IN ('active', 'stale')
      ORDER BY id"
   )
 

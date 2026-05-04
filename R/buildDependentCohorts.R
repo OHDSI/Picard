@@ -193,7 +193,6 @@ createSubsetEndWindow <- function(
 #' @param subsetLimit Character. One of 'First', 'Last', or 'All'. Specifies which qualifying filter cohort event(s)
 #'   to retain per subject. 'First' keeps the earliest event, 'Last' keeps the most recent event, 'All' keeps all 
 #'   qualifying events. Default: 'First'.
-#' @param cohortsFolder Character. Path to inputs/cohorts/. Defaults to `here::here("inputs/cohorts")`.
 #' @param manifest CohortManifest object. Required. Validates that base cohorts exist and
 #'   automatically registers the new cohort.
 #'
@@ -238,7 +237,6 @@ buildSubsetCohortTemporal <- function(
     endDateType = "base",
     subsetLimit = "First",
     category = "derived",
-    cohortsFolder = here::here("inputs/cohorts"),
     manifest) {
 
   checkmate::assert_string(x = label, min.chars = 1)

@@ -285,14 +285,20 @@ synced <- cm$syncManifest()
 
 Use after: re-running `importAtlasCohorts()`, editing a SQL file directly, or deleting a cohort file.
 
-### deleteCohort() and permanentlyDeleteCohort()
+### deleteCohort() and removeCohort()
 
 ```r
 # Soft-delete: marks status = 'deleted', keeps the record for audit trail
 cm$deleteCohort(id = 5, reason = "Replaced by updated phenotype")
 
-# Hard delete: permanently removes the record (requires explicit confirmation)
-cm$permanentlyDeleteCohort(id = 5, confirm = TRUE)
+# Hard delete: permanently removes the SQLite record (no soft-delete trace)
+cm$removeCohort(id = 5, confirm = TRUE)
+
+# Also delete the file on disk
+cm$removeCohort(id = 5, deleteFile = TRUE, confirm = TRUE)
+
+# Also drop rows from the DBMS cohort and checksum tables (requires executionSettings)
+cm$removeCohort(id = 5, deleteFile = TRUE, dropFromCohortTable = TRUE, confirm = TRUE)
 ```
 
 ### cleanCohortTable()

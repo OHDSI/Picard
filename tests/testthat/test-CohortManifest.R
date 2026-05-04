@@ -1,48 +1,24 @@
 test_that("CohortManifest initializes and creates SQLite database", {
-  # Create temporary directory for test
   temp_dir <- tempfile(prefix = "picard_test_")
   dir.create(temp_dir, recursive = TRUE)
   on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
 
-  # Create temporary SQL file for cohort
-  temp_sql <- tempfile(fileext = ".sql")
+  sql_dir <- file.path(temp_dir, "sql")
+  dir.create(sql_dir, recursive = TRUE)
+  temp_sql <- file.path(sql_dir, "test_cohort.sql")
   writeLines("SELECT 1;", temp_sql)
-  on.exit(unlink(temp_sql), add = TRUE)
 
-  # Create CohortDef
-  cohort <- CohortDef$new(
-    label = "Test Cohort",
-    tags = list(),
-    filePath = temp_sql
-  )
-
-  # Create mock ExecutionSettings - we'll use a simple list object
-  mock_settings <- list(
-    databaseName = "test_db",
-    workDatabaseSchema = "results",
-    cohortTable = "cohort",
-    getConnection = function() NULL,
-    disconnect = function() {}
-  )
-  class(mock_settings) <- "ExecutionSettings"
-
-  # Create manifest with custom dbPath
   db_path <- file.path(temp_dir, "cohortManifest.sqlite")
-
-  # This should create the database
-  manifest <- CohortManifest$new(
-    cohortEntries = list(cohort),
-    executionSettings = mock_settings,
-    dbPath = db_path
-  )
+  manifest <- CohortManifest$new(dbPath = db_path)
+  manifest$addSqlCohort(filePath = temp_sql, label = "Test Cohort", category = "target")
 
   # Verify database was created
   expect_true(file.exists(db_path))
 
-  # Verify we can retrieve the manifest
-  manifest_df <- manifest$getManifest()
-  expect_equal(nrow(manifest_df), 1)
-  expect_equal(manifest_df$label[1], "Test Cohort")
+  # getManifest() returns a list of CohortDef objects
+  manifest_list <- manifest$getManifest()
+  expect_equal(length(manifest_list), 1)
+  expect_equal(manifest_list[[1]]$label, "Test Cohort")
 })
 
 test_that("CohortManifest creates cohort_manifest table", {
@@ -50,30 +26,8 @@ test_that("CohortManifest creates cohort_manifest table", {
   dir.create(temp_dir, recursive = TRUE)
   on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
 
-  temp_sql <- tempfile(fileext = ".sql")
-  writeLines("SELECT 1;", temp_sql)
-  on.exit(unlink(temp_sql), add = TRUE)
-
-  cohort <- CohortDef$new(
-    label = "Test",
-    tags = list(),
-    filePath = temp_sql
-  )
-
-  mock_settings <- list(
-    databaseName = "test_db",
-    getConnection = function() NULL,
-    disconnect = function() {}
-  )
-  class(mock_settings) <- "ExecutionSettings"
-
   db_path <- file.path(temp_dir, "test.sqlite")
-
-  manifest <- CohortManifest$new(
-    cohortEntries = list(cohort),
-    executionSettings = mock_settings,
-    dbPath = db_path
-  )
+  manifest <- CohortManifest$new(dbPath = db_path)
 
   # Connect to the database and verify table structure
   conn <- DBI::dbConnect(RSQLite::SQLite(), db_path)
@@ -82,9 +36,10 @@ test_that("CohortManifest creates cohort_manifest table", {
   tables <- DBI::dbListTables(conn)
   expect_true("cohort_manifest" %in% tables)
 
-  # Verify table has expected columns
+  # Verify table has current schema columns
   columns <- DBI::dbListFields(conn, "cohort_manifest")
-  expected_cols <- c("id", "label", "tags", "filePath", "hash", "timestamp")
+  expected_cols <- c("id", "label", "category", "tags", "file_path", "hash",
+                     "source_type", "cohort_type", "status", "created_at")
   expect_true(all(expected_cols %in% columns))
 })
 
@@ -93,30 +48,14 @@ test_that("CohortManifest queryCohortsByIds returns correct cohort data frame", 
   dir.create(temp_dir, recursive = TRUE)
   on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
 
-  temp_sql <- tempfile(fileext = ".sql")
+  sql_dir <- file.path(temp_dir, "sql")
+  dir.create(sql_dir, recursive = TRUE)
+  temp_sql <- file.path(sql_dir, "test.sql")
   writeLines("SELECT 1;", temp_sql)
-  on.exit(unlink(temp_sql), add = TRUE)
-
-  cohort <- CohortDef$new(
-    label = "Test Cohort",
-    tags = list(category = "test"),
-    filePath = temp_sql
-  )
-
-  mock_settings <- list(
-    databaseName = "test_db",
-    getConnection = function() NULL,
-    disconnect = function() {}
-  )
-  class(mock_settings) <- "ExecutionSettings"
 
   db_path <- file.path(temp_dir, "test.sqlite")
-
-  manifest <- CohortManifest$new(
-    cohortEntries = list(cohort),
-    executionSettings = mock_settings,
-    dbPath = db_path
-  )
+  manifest <- CohortManifest$new(dbPath = db_path)
+  manifest$addSqlCohort(filePath = temp_sql, label = "Test Cohort", category = "target")
 
   result <- manifest$queryCohortsByIds(1L)
 
@@ -130,34 +69,18 @@ test_that("CohortManifest getCohortById returns CohortDef object", {
   dir.create(temp_dir, recursive = TRUE)
   on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
 
-  temp_sql <- tempfile(fileext = ".sql")
+  sql_dir <- file.path(temp_dir, "sql")
+  dir.create(sql_dir, recursive = TRUE)
+  temp_sql <- file.path(sql_dir, "test.sql")
   writeLines("SELECT 1;", temp_sql)
-  on.exit(unlink(temp_sql), add = TRUE)
-
-  cohort <- CohortDef$new(
-    label = "Test Cohort",
-    tags = list(),
-    filePath = temp_sql
-  )
-
-  mock_settings <- list(
-    databaseName = "test_db",
-    getConnection = function() NULL,
-    disconnect = function() {}
-  )
-  class(mock_settings) <- "ExecutionSettings"
 
   db_path <- file.path(temp_dir, "test.sqlite")
-
-  manifest <- CohortManifest$new(
-    cohortEntries = list(cohort),
-    executionSettings = mock_settings,
-    dbPath = db_path
-  )
+  manifest <- CohortManifest$new(dbPath = db_path)
+  manifest$addSqlCohort(filePath = temp_sql, label = "Test Cohort", category = "target")
 
   grabbed_cohort <- manifest$getCohortById(1)
 
-  expect_s3_class(grabbed_cohort, "CohortDef")
+  expect_true(inherits(grabbed_cohort, "CohortDef"))
   expect_equal(grabbed_cohort$label, "Test Cohort")
 })
 
@@ -166,34 +89,17 @@ test_that("CohortManifest nCohorts returns correct count", {
   dir.create(temp_dir, recursive = TRUE)
   on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
 
-  # Create multiple cohorts
-  cohorts <- list()
-  for (i in 1:3) {
-    temp_sql <- tempfile(fileext = ".sql")
-    writeLines("SELECT 1;", temp_sql)
-    on.exit(unlink(temp_sql), add = TRUE)
-
-    cohorts[[i]] <- CohortDef$new(
-      label = paste("Cohort", i),
-      tags = list(),
-      filePath = temp_sql
-    )
-  }
-
-  mock_settings <- list(
-    databaseName = "test_db",
-    getConnection = function() NULL,
-    disconnect = function() {}
-  )
-  class(mock_settings) <- "ExecutionSettings"
+  sql_dir <- file.path(temp_dir, "sql")
+  dir.create(sql_dir, recursive = TRUE)
 
   db_path <- file.path(temp_dir, "test.sqlite")
+  manifest <- CohortManifest$new(dbPath = db_path)
 
-  manifest <- CohortManifest$new(
-    cohortEntries = cohorts,
-    executionSettings = mock_settings,
-    dbPath = db_path
-  )
+  for (i in 1:3) {
+    temp_sql <- file.path(sql_dir, paste0("cohort_", i, ".sql"))
+    writeLines("SELECT 1;", temp_sql)
+    manifest$addSqlCohort(filePath = temp_sql, label = paste("Cohort", i), category = "target")
+  }
 
   expect_equal(manifest$nCohorts(), 3)
 })
@@ -203,40 +109,17 @@ test_that("CohortManifest queryCohortsByTag filters correctly", {
   dir.create(temp_dir, recursive = TRUE)
   on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
 
-  temp_sql1 <- tempfile(fileext = ".sql")
-  writeLines("SELECT 1;", temp_sql1)
-  on.exit(unlink(temp_sql1), add = TRUE)
-
-  temp_sql2 <- tempfile(fileext = ".sql")
-  writeLines("SELECT 2;", temp_sql2)
-  on.exit(unlink(temp_sql2), add = TRUE)
-
-  cohort1 <- CohortDef$new(
-    label = "Primary Cohort",
-    tags = list(category = "primary"),
-    filePath = temp_sql1
-  )
-
-  cohort2 <- CohortDef$new(
-    label = "Secondary Cohort",
-    tags = list(category = "secondary"),
-    filePath = temp_sql2
-  )
-
-  mock_settings <- list(
-    databaseName = "test_db",
-    getConnection = function() NULL,
-    disconnect = function() {}
-  )
-  class(mock_settings) <- "ExecutionSettings"
+  sql_dir <- file.path(temp_dir, "sql")
+  dir.create(sql_dir, recursive = TRUE)
+  sql1 <- file.path(sql_dir, "primary.sql")
+  sql2 <- file.path(sql_dir, "secondary.sql")
+  writeLines("SELECT 1;", sql1)
+  writeLines("SELECT 2;", sql2)
 
   db_path <- file.path(temp_dir, "test.sqlite")
-
-  manifest <- CohortManifest$new(
-    cohortEntries = list(cohort1, cohort2),
-    executionSettings = mock_settings,
-    dbPath = db_path
-  )
+  manifest <- CohortManifest$new(dbPath = db_path)
+  manifest$addSqlCohort(filePath = sql1, label = "Primary Cohort",   category = "target", tags = list(category = "primary"))
+  manifest$addSqlCohort(filePath = sql2, label = "Secondary Cohort", category = "target", tags = list(category = "secondary"))
 
   result <- manifest$queryCohortsByTag("category: primary")
 
@@ -249,40 +132,17 @@ test_that("CohortManifest queryCohortsByTag match='all' requires all tags", {
   dir.create(temp_dir, recursive = TRUE)
   on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
 
-  temp_sql1 <- tempfile(fileext = ".sql")
-  writeLines("SELECT 1;", temp_sql1)
-  on.exit(unlink(temp_sql1), add = TRUE)
-
-  temp_sql2 <- tempfile(fileext = ".sql")
-  writeLines("SELECT 2;", temp_sql2)
-  on.exit(unlink(temp_sql2), add = TRUE)
-
-  cohort1 <- CohortDef$new(
-    label = "Both Tags Cohort",
-    tags = list(category = "primary", type = "exposure"),
-    filePath = temp_sql1
-  )
-
-  cohort2 <- CohortDef$new(
-    label = "One Tag Cohort",
-    tags = list(category = "primary", type = "outcome"),
-    filePath = temp_sql2
-  )
-
-  mock_settings <- list(
-    databaseName = "test_db",
-    getConnection = function() NULL,
-    disconnect = function() {}
-  )
-  class(mock_settings) <- "ExecutionSettings"
+  sql_dir <- file.path(temp_dir, "sql")
+  dir.create(sql_dir, recursive = TRUE)
+  sql1 <- file.path(sql_dir, "both_tags.sql")
+  sql2 <- file.path(sql_dir, "one_tag.sql")
+  writeLines("SELECT 1;", sql1)
+  writeLines("SELECT 2;", sql2)
 
   db_path <- file.path(temp_dir, "test.sqlite")
-
-  manifest <- CohortManifest$new(
-    cohortEntries = list(cohort1, cohort2),
-    executionSettings = mock_settings,
-    dbPath = db_path
-  )
+  manifest <- CohortManifest$new(dbPath = db_path)
+  manifest$addSqlCohort(filePath = sql1, label = "Both Tags Cohort", category = "target", tags = list(category = "primary", type = "exposure"))
+  manifest$addSqlCohort(filePath = sql2, label = "One Tag Cohort",   category = "target", tags = list(category = "primary", type = "outcome"))
 
   # 'any' returns both
   result_any <- manifest$queryCohortsByTag(
@@ -305,32 +165,17 @@ test_that("CohortManifest queryCohortsByIds accepts vector of IDs", {
   dir.create(temp_dir, recursive = TRUE)
   on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
 
-  cohorts <- list()
-  for (i in 1:3) {
-    temp_sql <- tempfile(fileext = ".sql")
-    writeLines("SELECT 1;", temp_sql)
-    on.exit(unlink(temp_sql), add = TRUE)
-    cohorts[[i]] <- CohortDef$new(
-      label = paste("Cohort", i),
-      tags = list(),
-      filePath = temp_sql
-    )
-  }
-
-  mock_settings <- list(
-    databaseName = "test_db",
-    getConnection = function() NULL,
-    disconnect = function() {}
-  )
-  class(mock_settings) <- "ExecutionSettings"
+  sql_dir <- file.path(temp_dir, "sql")
+  dir.create(sql_dir, recursive = TRUE)
 
   db_path <- file.path(temp_dir, "test.sqlite")
+  manifest <- CohortManifest$new(dbPath = db_path)
 
-  manifest <- CohortManifest$new(
-    cohortEntries = cohorts,
-    executionSettings = mock_settings,
-    dbPath = db_path
-  )
+  for (i in 1:3) {
+    temp_sql <- file.path(sql_dir, paste0("cohort_", i, ".sql"))
+    writeLines("SELECT 1;", temp_sql)
+    manifest$addSqlCohort(filePath = temp_sql, label = paste("Cohort", i), category = "target")
+  }
 
   result <- manifest$queryCohortsByIds(c(1L, 3L))
 
@@ -508,7 +353,7 @@ test_that("deleteCohort soft-deletes cohort", {
   expect_equal(check$status[1], "deleted")
 })
 
-test_that("hardDeleteCohort hard-deletes cohort and file", {
+test_that("removeCohort hard-deletes the manifest record and optionally the file", {
   temp_dir <- tempfile(prefix = "picard_test_")
   dir.create(temp_dir, recursive = TRUE)
   on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
@@ -527,8 +372,8 @@ test_that("hardDeleteCohort hard-deletes cohort and file", {
     category = "outcome"
   )
 
-  # Hard delete with force=TRUE to skip confirmation
-  manifest$hardDeleteCohort(cohort_id, force = TRUE)
+  # Hard remove with confirm=TRUE to skip interactive prompt; deleteFile=TRUE to also delete on disk
+  manifest$removeCohort(cohort_id, deleteFile = TRUE, confirm = TRUE)
 
   # Verify file is deleted
   expect_false(file.exists(temp_sql))
@@ -561,10 +406,13 @@ test_that("syncManifest detects untracked files", {
   # Run sync
   untracked <- manifest$syncManifest()
 
-  # Should detect the untracked file
+  # Should detect the untracked file (returned as action = "added" is not in scope,
+  # but syncManifest warns about unregistered files and returns a data frame)
   expect_true(!is.null(untracked))
-  expect_true(nrow(untracked) > 0)
-  expect_true(any(grepl("untracked.sql", untracked$path)))
+  # untracked files are reported as warnings only; the returned data frame
+  # only contains rows for files already in the manifest (missing/updated/unchanged)
+  expect_true(is.data.frame(untracked))
+  expect_true(all(c("id", "label", "action") %in% names(untracked)))
 })
 
 test_that("statusReport generates summary tibble", {

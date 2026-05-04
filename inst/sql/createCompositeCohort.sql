@@ -4,8 +4,8 @@ Creates a cohort where subjects must have at least N events from a set of cohort
 The index date can be the first event, last event, or all events are retained.
 
 Parameters:
-  criteria_cohort_ids - Comma-separated list of cohort definition IDs to include in the composite
-  minimum_event_count - Minimum number of distinct cohort events required for a subject to qualify.
+  cohort_ids - Comma-separated list of cohort definition IDs to include in the composite
+  min_cohorts - Minimum number of distinct cohort events required for a subject to qualify.
                         Default: 1 (any subject with at least 1 event qualifies)
   event_selection - 'First' (earliest event), 'Last' (most recent event), or 'All' (retain all events).
                     Default: 'First'
@@ -13,7 +13,7 @@ Parameters:
   output_table - Schema.table to insert results into
   base_cohort_table - Schema.table containing the cohort definitions
 */
-{DEFAULT @minimum_event_count = 1}
+{DEFAULT @min_cohorts = 1}
 {DEFAULT @event_selection = 'First'}
 
 DELETE FROM @output_table WHERE cohort_definition_id = @output_cohort_id;
@@ -35,9 +35,9 @@ FROM (
       ROW_NUMBER() OVER (PARTITION BY subject_id ORDER BY cohort_start_date) AS rn
     }
   FROM @base_cohort_table
-  WHERE cohort_definition_id IN (@criteria_cohort_ids)
+  WHERE cohort_definition_id IN (@cohort_ids)
 ) sub
-WHERE sub.event_count >= @minimum_event_count
+WHERE sub.event_count >= @min_cohorts
 {@event_selection == 'First' | @event_selection == 'Last'} ? {
   AND sub.rn = 1
 } : {

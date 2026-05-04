@@ -40,6 +40,8 @@ test_that("parseTagsString round-trips with CohortDef formatTagsAsString", {
 
   cohort <- CohortDef$new(
     label = "Test",
+    category = "target",
+    sourceType = "sql",
     tags = list(category = "primary", source = "atlas"),
     filePath = temp_sql
   )
@@ -95,129 +97,70 @@ test_that("createBlankCohortsLoadFile returns file path invisibly", {
 
 # ---- resetCohortManifest ----
 
-test_that("resetCohortManifest deletes existing SQLite file", {
+test_that("resetCohortManifest deletes SQLite file at manifest scope", {
   temp_dir <- tempfile(prefix = "picard_cohorts_")
   dir.create(temp_dir)
   on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
 
-  # Create a fake sqlite file to simulate an existing manifest
+  # Create a real SQLite manifest
   sqlite_path <- file.path(temp_dir, "cohortManifest.sqlite")
-  file.create(sqlite_path)
+  manifest <- CohortManifest$new(dbPath = sqlite_path)
   expect_true(file.exists(sqlite_path))
 
-  resetCohortManifest(cohortsFolderPath = temp_dir)
+  resetCohortManifest(
+    manifest = manifest,
+    cohortsFolderPath = temp_dir,
+    scope = "manifest",
+    confirm = FALSE
+  )
   expect_false(file.exists(sqlite_path))
-})
-
-test_that("resetCohortManifest warns gracefully when no manifest exists", {
-  temp_dir <- tempfile(prefix = "picard_cohorts_")
-  dir.create(temp_dir)
-  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
-
-  # Should not error, just warn
-  expect_no_error(resetCohortManifest(cohortsFolderPath = temp_dir))
 })
 
 # ---- loadCohortManifest ----
 
-test_that("loadCohortManifest scans sql/ subfolder and creates CohortManifest", {
+# loadCohortManifest now requires an existing SQLite (created by initCohortManifest);
+# the old auto-scan behaviour has been removed.
+
+test_that("loadCohortManifest returns CohortManifest from existing SQLite", {
   temp_dir <- tempfile(prefix = "picard_cohorts_")
-  sql_dir <- file.path(temp_dir, "sql")
-  dir.create(sql_dir, recursive = TRUE)
+  dir.create(temp_dir)
   on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
 
-  # Create a couple of dummy SQL files
-  writeLines("SELECT * FROM cohort WHERE cohort_definition_id = 1;",
-             file.path(sql_dir, "diabetes.sql"))
-  writeLines("SELECT * FROM cohort WHERE cohort_definition_id = 2;",
-             file.path(sql_dir, "hypertension.sql"))
+  # Create the manifest first (as initCohortManifest would)
+  sqlite_path <- file.path(temp_dir, "cohortManifest.sqlite")
+  CohortManifest$new(dbPath = sqlite_path)
 
   manifest <- loadCohortManifest(cohortsFolderPath = temp_dir, verbose = FALSE)
 
-  expect_s3_class(manifest, "CohortManifest")
-  expect_equal(manifest$nCohorts(), 2)
+  expect_true(inherits(manifest, "CohortManifest"))
+  expect_equal(manifest$nCohorts(), 0)
 })
 
-test_that("loadCohortManifest creates SQLite file after first load", {
+test_that("loadCohortManifest errors when no SQLite exists", {
+  temp_dir <- tempfile(prefix = "picard_cohorts_")
+  dir.create(temp_dir)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  expect_error(
+    loadCohortManifest(cohortsFolderPath = temp_dir, verbose = FALSE),
+    "not found"
+  )
+})
+
+test_that("loadCohortManifest round-trips cohorts added before reload", {
   temp_dir <- tempfile(prefix = "picard_cohorts_")
   sql_dir <- file.path(temp_dir, "sql")
   dir.create(sql_dir, recursive = TRUE)
   on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
 
-  writeLines("SELECT 1;", file.path(sql_dir, "test.sql"))
-
-  loadCohortManifest(cohortsFolderPath = temp_dir, verbose = FALSE)
-
-  expect_true(file.exists(file.path(temp_dir, "cohortManifest.sqlite")))
-})
-
-test_that("loadCohortManifest returns CohortManifest with correct labels from filenames", {
-  temp_dir <- tempfile(prefix = "picard_cohorts_")
-  sql_dir <- file.path(temp_dir, "sql")
-  dir.create(sql_dir, recursive = TRUE)
-  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
-
-  writeLines("SELECT 1;", file.path(sql_dir, "type2_diabetes.sql"))
-
-  manifest <- loadCohortManifest(cohortsFolderPath = temp_dir, verbose = FALSE)
-  manifest_df <- manifest$getManifest()
-
-  expect_true("type2_diabetes" %in% manifest_df$label)
-})
-
-test_that("loadCohortManifest loads from existing sqlite on second call", {
-  temp_dir <- tempfile(prefix = "picard_cohorts_")
-  sql_dir <- file.path(temp_dir, "sql")
-  dir.create(sql_dir, recursive = TRUE)
-  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+  sqlite_path <- file.path(temp_dir, "cohortManifest.sqlite")
+  cm1 <- CohortManifest$new(dbPath = sqlite_path)
 
   writeLines("SELECT 1;", file.path(sql_dir, "cohort_a.sql"))
+  cm1$addSqlCohort(filePath = file.path(sql_dir, "cohort_a.sql"), label = "Cohort A", category = "target")
 
-  # First load creates SQLite
-  loadCohortManifest(cohortsFolderPath = temp_dir, verbose = FALSE)
-
-  # Second load reads from SQLite
-  manifest2 <- loadCohortManifest(cohortsFolderPath = temp_dir, verbose = FALSE)
-  expect_s3_class(manifest2, "CohortManifest")
-  expect_equal(manifest2$nCohorts(), 1)
-})
-
-test_that("loadCohortManifest enriches tags from cohortsLoad.csv when present", {
-  temp_dir <- tempfile(prefix = "picard_cohorts_")
-  sql_dir <- file.path(temp_dir, "sql")
-  dir.create(sql_dir, recursive = TRUE)
-  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
-
-  # Create SQL file
-  sql_path <- file.path(sql_dir, "t2dm.sql")
-  writeLines("SELECT 1;", sql_path)
-
-  # Create cohortsLoad.csv that enriches with metadata
-  load_csv <- data.frame(
-    atlasId = 123L,
-    label = "T2DM Cohort",
-    category = "Disease Populations",
-    subCategory = "Diabetes",
-    file_name = file.path("sql", "t2dm.sql"),
-    stringsAsFactors = FALSE
-  )
-  readr::write_csv(load_csv, file.path(temp_dir, "cohortsLoad.csv"))
-
-  manifest <- loadCohortManifest(cohortsFolderPath = temp_dir, verbose = FALSE)
-  cohort <- manifest$getCohortById(1)
-
-  # Tags should be enriched from cohortsLoad
-  expect_true(!is.null(cohort$tags$category) || nchar(cohort$formatTagsAsString()) > 0)
-})
-
-test_that("loadCohortManifest returns empty manifest when folder has no cohort files", {
-  temp_dir <- tempfile(prefix = "picard_cohorts_")
-  dir.create(temp_dir, recursive = TRUE)
-  # Create empty sql/ dir
-  dir.create(file.path(temp_dir, "sql"))
-  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
-
-  manifest <- loadCohortManifest(cohortsFolderPath = temp_dir, verbose = FALSE)
-  expect_s3_class(manifest, "CohortManifest")
-  expect_equal(manifest$nCohorts(), 0)
+  # Load from the existing SQLite
+  cm2 <- loadCohortManifest(cohortsFolderPath = temp_dir, verbose = FALSE)
+  expect_equal(cm2$nCohorts(), 1)
+  expect_equal(cm2$getCohortById(1L)$label, "Cohort A")
 })

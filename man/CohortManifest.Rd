@@ -92,7 +92,7 @@ Requires that executionSettings has been set and includes:
 \item \href{#method-CohortManifest-updateCohortDef}{\code{CohortManifest$updateCohortDef()}}
 \item \href{#method-CohortManifest-statusReport}{\code{CohortManifest$statusReport()}}
 \item \href{#method-CohortManifest-print}{\code{CohortManifest$print()}}
-\item \href{#method-CohortManifest-hardDeleteCohort}{\code{CohortManifest$hardDeleteCohort()}}
+\item \href{#method-CohortManifest-removeCohort}{\code{CohortManifest$removeCohort()}}
 \item \href{#method-CohortManifest-createCohortTables}{\code{CohortManifest$createCohortTables()}}
 \item \href{#method-CohortManifest-dropCohortTables}{\code{CohortManifest$dropCohortTables()}}
 \item \href{#method-CohortManifest-syncManifest}{\code{CohortManifest$syncManifest()}}
@@ -102,7 +102,6 @@ Requires that executionSettings has been set and includes:
 \item \href{#method-CohortManifest-validateManifest}{\code{CohortManifest$validateManifest()}}
 \item \href{#method-CohortManifest-getManifestStatus}{\code{CohortManifest$getManifestStatus()}}
 \item \href{#method-CohortManifest-deleteCohort}{\code{CohortManifest$deleteCohort()}}
-\item \href{#method-CohortManifest-permanentlyDeleteCohort}{\code{CohortManifest$permanentlyDeleteCohort()}}
 \item \href{#method-CohortManifest-cleanupMissing}{\code{CohortManifest$cleanupMissing()}}
 \item \href{#method-CohortManifest-clone}{\code{CohortManifest$clone()}}
 }
@@ -908,28 +907,42 @@ Displays key metadata about the manifest and its contents.
 
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-CohortManifest-hardDeleteCohort"></a>}}
-\if{latex}{\out{\hypertarget{method-CohortManifest-hardDeleteCohort}{}}}
-\subsection{Method \code{hardDeleteCohort()}}{
-Hard-delete a cohort and its files
+\if{html}{\out{<a id="method-CohortManifest-removeCohort"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-removeCohort}{}}}
+\subsection{Method \code{removeCohort()}}{
+Remove a cohort from the manifest
 
-Permanently removes a cohort from the manifest database AND deletes
-its associated file(s) on disk. Use with caution.
+Permanently removes a cohort from the SQLite manifest and optionally deletes
+its file on disk and/or drops its rows from the DBMS cohort and checksum tables.
+This is a hard, irreversible removal — no soft-delete trace is left.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$hardDeleteCohort(cohortId, force = FALSE)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$removeCohort(
+  id,
+  deleteFile = FALSE,
+  dropFromCohortTable = FALSE,
+  confirm = FALSE
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{cohortId}}{Integer. The cohort ID to permanently remove.}
+\item{\code{id}}{Integer. The cohort ID to remove.}
 
-\item{\code{force}}{Logical. If FALSE (default), requires confirmation. If TRUE, skips confirmation.}
+\item{\code{deleteFile}}{Logical. If TRUE, deletes the associated SQL/JSON file on disk.
+Default: FALSE.}
+
+\item{\code{dropFromCohortTable}}{Logical. If TRUE, deletes the cohort's rows from the
+DBMS cohort table and checksum table. Requires \code{executionSettings} to be
+set via \code{$setExecutionSettings()}. Default: FALSE.}
+
+\item{\code{confirm}}{Logical. If FALSE (default), prompts for interactive confirmation.
+Pass TRUE to skip the prompt (suitable for scripts).}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Invisible NULL. Removes the cohort from database and disk.
+Invisible NULL.
 Create cohort tables in the database
 }
 }
@@ -1109,28 +1122,6 @@ Soft delete a cohort (mark as deleted, preserve record)
 \item{\code{id}}{Integer. The cohort ID to delete.}
 
 \item{\code{reason}}{Character. Optional reason for deletion.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisibly returns TRUE if successful, FALSE otherwise.
-}
-}
-\if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-CohortManifest-permanentlyDeleteCohort"></a>}}
-\if{latex}{\out{\hypertarget{method-CohortManifest-permanentlyDeleteCohort}{}}}
-\subsection{Method \code{permanentlyDeleteCohort()}}{
-Permanently delete a cohort (removes the record from database, irreversible)
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$permanentlyDeleteCohort(id, confirm = FALSE)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{id}}{Integer. The cohort ID to permanently remove.}
-
-\item{\code{confirm}}{Logical. Must be TRUE to proceed. Defaults to FALSE as a safety guard.}
 }
 \if{html}{\out{</div>}}
 }

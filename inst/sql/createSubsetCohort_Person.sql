@@ -22,6 +22,7 @@ Parameters-
 {DEFAULT @race_concept_ids = NULL}
 {DEFAULT @ethnicity_concept_ids = NULL}
 
+DELETE FROM @output_table WHERE cohort_definition_id = @output_cohort_id;
 INSERT INTO @output_table (cohort_definition_id, subject_id, cohort_start_date, cohort_end_date)
 SELECT DISTINCT
   @output_cohort_id AS cohort_definition_id,

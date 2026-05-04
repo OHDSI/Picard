@@ -2223,52 +2223,113 @@ CohortManifest <- R6::R6Class(
       invisible(self)
     },
 
-    #' @description Hard-delete a cohort and its files
+    #' @description Remove a cohort from the manifest
     #'
-    #' Permanently removes a cohort from the manifest database AND deletes
-    #' its associated file(s) on disk. Use with caution.
+    #' Permanently removes a cohort from the SQLite manifest and optionally deletes
+    #' its file on disk and/or drops its rows from the DBMS cohort and checksum tables.
+    #' This is a hard, irreversible removal — no soft-delete trace is left.
     #'
-    #' @param cohortId Integer. The cohort ID to permanently remove.
-    #' @param force Logical. If FALSE (default), requires confirmation. If TRUE, skips confirmation.
+    #' @param id Integer. The cohort ID to remove.
+    #' @param deleteFile Logical. If TRUE, deletes the associated SQL/JSON file on disk.
+    #'   Default: FALSE.
+    #' @param dropFromCohortTable Logical. If TRUE, deletes the cohort's rows from the
+    #'   DBMS cohort table and checksum table. Requires \code{executionSettings} to be
+    #'   set via \code{$setExecutionSettings()}. Default: FALSE.
+    #' @param confirm Logical. If FALSE (default), prompts for interactive confirmation.
+    #'   Pass TRUE to skip the prompt (suitable for scripts).
     #'
-    #' @return Invisible NULL. Removes the cohort from database and disk.
-    hardDeleteCohort = function(cohortId, force = FALSE) {
-      checkmate::assert_int(cohortId)
-      checkmate::assert_flag(force)
+    #' @return Invisible NULL.
+    removeCohort = function(id, deleteFile = FALSE, dropFromCohortTable = FALSE, confirm = FALSE) {
+      checkmate::assert_int(id)
+      checkmate::assert_flag(deleteFile)
+      checkmate::assert_flag(dropFromCohortTable)
+      checkmate::assert_flag(confirm)
 
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
       on.exit(DBI::dbDisconnect(conn))
 
       cohort_row <- DBI::dbGetQuery(
         conn,
-        "SELECT id, label, file_path, status FROM cohort_manifest WHERE id = ?",
-        list(cohortId)
+        "SELECT id, label, file_path FROM cohort_manifest WHERE id = ?",
+        list(id)
       )
 
       if (nrow(cohort_row) == 0) {
-        cli::cli_abort("Cohort {cohortId} not found")
+        cli::cli_abort("Cohort {id} not found")
       }
 
-      label <- cohort_row$label[1]
+      label     <- cohort_row$label[1]
       file_path <- cohort_row$file_path[1]
-      status <- cohort_row$status[1]
 
-      if (!force) {
-        if (status == "active") {
-          cli::cli_alert_warning("Cohort {cohortId} ({label}) is still ACTIVE. Proceed to permanently delete?")
-          response <- readline("Type 'yes' to confirm: ")
-          if (!grepl("^yes$", trimws(tolower(response)))) {
-            cli::cli_alert_info("Cancellation confirmed")
-            invisible(NULL)
-          }
+      if (dropFromCohortTable && is.null(private$.executionSettings)) {
+        cli::cli_abort(c(
+          "dropFromCohortTable = TRUE requires executionSettings.",
+          i = "Call {.code $setExecutionSettings()} first."
+        ))
+      }
+
+      if (!confirm) {
+        extras <- c(
+          if (deleteFile)          "delete its file on disk",
+          if (dropFromCohortTable) "drop it from the cohort and checksum tables"
+        )
+        extra_msg <- if (length(extras) > 0) paste0(", ", paste(extras, collapse = " and ")) else ""
+        cli::cli_alert_warning(
+          "This will permanently remove cohort {id} ({label}) from the manifest{extra_msg}."
+        )
+        response <- readline("Type 'yes' to confirm: ")
+        if (!grepl("^yes$", trimws(tolower(response)))) {
+          cli::cli_alert_info("Cancelled.")
+          return(invisible(NULL))
         }
       }
 
-      # Delete from database
-      DBI::dbExecute(conn, "DELETE FROM cohort_manifest WHERE id = ?", list(cohortId))
+      # Drop from DBMS cohort table and checksum table
+      if (dropFromCohortTable) {
+        settings    <- private$.executionSettings
+        conn_db     <- settings$getConnection()
+        if (is.null(conn_db)) {
+          settings$connect()
+          conn_db <- settings$getConnection()
+        }
+        on.exit(settings$disconnect(), add = TRUE)
+
+        cohort_schema  <- settings$workDatabaseSchema
+        cohort_table   <- settings$cohortTable
+        checksum_table <- getCohortTableNames(cohortTable = cohort_table)$cohortChecksumTable
+        dbms           <- settings$getDbms()
+
+        tryCatch({
+          del_sql <- SqlRender::translate(
+            SqlRender::render(
+              "DELETE FROM @schema.@table WHERE cohort_definition_id = @id;",
+              schema = cohort_schema, table = cohort_table, id = id
+            ),
+            targetDialect = dbms
+          )
+          DatabaseConnector::executeSql(conn_db, del_sql, progressBar = FALSE, reportOverallTime = FALSE)
+          cli::cli_alert_success("Removed cohort {id} from {cohort_schema}.{cohort_table}")
+        }, error = function(e) {
+          cli::cli_alert_warning("Could not remove from cohort table: {e$message}")
+        })
+
+        tryCatch({
+          chk_sql <- SqlRender::translate(
+            SqlRender::render(
+              "DELETE FROM @schema.@table WHERE cohort_definition_id = @id;",
+              schema = cohort_schema, table = checksum_table, id = id
+            ),
+            targetDialect = dbms
+          )
+          DatabaseConnector::executeSql(conn_db, chk_sql, progressBar = FALSE, reportOverallTime = FALSE)
+          cli::cli_alert_success("Removed cohort {id} from {cohort_schema}.{checksum_table}")
+        }, error = function(e) {
+          cli::cli_alert_warning("Could not remove from checksum table: {e$message}")
+        })
+      }
 
       # Delete file from disk
-      if (!is.na(file_path) && file.exists(file_path)) {
+      if (deleteFile && !is.na(file_path) && file.exists(file_path)) {
         tryCatch({
           unlink(file_path)
           cli::cli_alert_success("Deleted file: {file_path}")
@@ -2277,10 +2338,13 @@ CohortManifest <- R6::R6Class(
         })
       }
 
-      # Refresh in-memory manifest
-      private$load_manifest_from_db()
+      # Remove from SQLite
+      DBI::dbExecute(conn, "DELETE FROM cohort_manifest WHERE id = ?", list(id))
 
-      cli::cli_alert_success("Permanently removed cohort {cohortId}: {label}")
+      # Remove from in-memory manifest
+      private$.manifest <- Filter(function(c) c$getId() != id, private$.manifest)
+
+      cli::cli_alert_success("Removed cohort {id}: {label}")
       invisible(NULL)
     },
 
@@ -3087,7 +3151,7 @@ CohortManifest <- R6::R6Class(
 
           rule_row <- DBI::dbGetQuery(
             sqlite_conn,
-            "SELECT dependency_rule FROM cohort_manifest WHERE id = ? AND status = 'active'",
+            "SELECT dependency_rule FROM cohort_manifest WHERE id = ? AND status IN ('active', 'stale')",
             list(cohort_id)
           )
           metadata <- if (nrow(rule_row) > 0 && !is.na(rule_row$dependency_rule[1]) && nchar(rule_row$dependency_rule[1]) > 0) {
@@ -3556,56 +3620,6 @@ CohortManifest <- R6::R6Class(
       })
     },
 
-    #' @description Permanently delete a cohort (removes the record from database, irreversible)
-    #'
-    #' @param id Integer. The cohort ID to permanently remove.
-    #' @param confirm Logical. Must be TRUE to proceed. Defaults to FALSE as a safety guard.
-    #'
-    #' @return Invisibly returns TRUE if successful, FALSE otherwise.
-    permanentlyDeleteCohort = function(id, confirm = FALSE) {
-      checkmate::assert_int(id)
-
-      if (!confirm) {
-        cli::cli_abort(
-          "This operation permanently removes the cohort record from the database and cannot be undone. \
-          Pass confirm = TRUE to proceed."
-        )
-      }
-      
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
-      on.exit(DBI::dbDisconnect(conn))
-      
-      # Check if cohort exists
-      cohort_info <- DBI::dbGetQuery(
-        conn,
-        "SELECT label, status FROM cohort_manifest WHERE id = ?",
-        list(id)
-      )
-      
-      if (nrow(cohort_info) == 0) {
-        cli::cli_alert_danger("Cohort with ID {id} not found")
-        invisible(FALSE)
-      }
-      
-      label <- cohort_info$label[1]
-      status <- cohort_info$status[1]
-      
-      # Hard delete
-      tryCatch({
-        DBI::dbExecute(
-          conn,
-          "DELETE FROM cohort_manifest WHERE id = ?",
-          list(id)
-        )
-        
-        cli::cli_alert_warning("Permanently removed cohort {id}: {label} (status was: {status})")
-        invisible(TRUE)
-      }, error = function(e) {
-        cli::cli_alert_danger("Failed to remove cohort {id}: {e$message}")
-        invisible(FALSE)
-      })
-    },
-
     #' @description Clean up missing cohorts from manifest
     #'
     #' @param keep_trace Logical. If TRUE, marks missing as deleted with timestamp (soft delete).
@@ -3634,7 +3648,7 @@ CohortManifest <- R6::R6Class(
         if (keep_trace) {
           self$deleteCohort(cohort_id, reason = "missing file")
         } else {
-          self$permanentlyDeleteCohort(cohort_id, confirm = TRUE)
+          self$removeCohort(cohort_id, deleteFile = FALSE, confirm = TRUE)
         }
       }
       

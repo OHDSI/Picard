@@ -13,7 +13,6 @@ buildSubsetCohortTemporal(
   endDateType = "base",
   subsetLimit = "First",
   category = "derived",
-  cohortsFolder = here::here("inputs/cohorts"),
   manifest
 )
 }
@@ -36,8 +35,6 @@ as the cohort end date in the output subset cohort. Default: 'base'.}
 \item{subsetLimit}{Character. One of 'First', 'Last', or 'All'. Specifies which qualifying filter cohort event(s)
 to retain per subject. 'First' keeps the earliest event, 'Last' keeps the most recent event, 'All' keeps all
 qualifying events. Default: 'First'.}
-
-\item{cohortsFolder}{Character. Path to inputs/cohorts/. Defaults to \code{here::here("inputs/cohorts")}.}
 
 \item{manifest}{CohortManifest object. Required. Validates that base cohorts exist and
 automatically registers the new cohort.}

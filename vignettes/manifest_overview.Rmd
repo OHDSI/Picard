@@ -191,7 +191,7 @@ Members of a population cohort who are **not** in a base cohort.
 ```{r}
 manifest$buildComplementCohort(
   label              = "No T2DM - General Population",
-  baseCohortId       = 1L,
+  excludeCohortIds       = 1L,
   populationCohortId = 5L,
   category           = "Comparators"
 )
@@ -296,10 +296,18 @@ manifest$deleteCohort(cohortId = 3L)
 
 ### Hard-delete (permanent)
 
-Removes the row from SQLite entirely and optionally removes the file from disk.
+Removes the row from SQLite entirely and optionally deletes the file from disk
+and/or purges rows from the DBMS cohort table.
 
 ```{r}
-manifest$permanentlyDeleteCohort(cohortId = 3L)
+# Remove from manifest only
+manifest$removeCohort(id = 3L, confirm = TRUE)
+
+# Remove from manifest and delete the SQL file
+manifest$removeCohort(id = 3L, deleteFile = TRUE, confirm = TRUE)
+
+# Remove from manifest, delete the file, and drop DBMS rows (requires executionSettings)
+manifest$removeCohort(id = 3L, deleteFile = TRUE, dropFromCohortTable = TRUE, confirm = TRUE)
 ```
 
 ---

@@ -21,6 +21,7 @@ Parameters-
 {DEFAULT @washout_days = 0}
 {DEFAULT @first_era_only = FALSE}
 
+DELETE FROM @output_table WHERE cohort_definition_id = @output_cohort_id;
 INSERT INTO @output_table (cohort_definition_id, subject_id, cohort_start_date, cohort_end_date)
 
 /* Step 1 - Pad and deduplicate source periods.
