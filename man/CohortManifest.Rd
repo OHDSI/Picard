@@ -87,6 +87,8 @@ Requires that executionSettings has been set and includes:
 \item \href{#method-CohortManifest-getDbPath}{\code{CohortManifest$getDbPath()}}
 \item \href{#method-CohortManifest-getExecutionSettings}{\code{CohortManifest$getExecutionSettings()}}
 \item \href{#method-CohortManifest-setExecutionSettings}{\code{CohortManifest$setExecutionSettings()}}
+\item \href{#method-CohortManifest-getAtlasConnection}{\code{CohortManifest$getAtlasConnection()}}
+\item \href{#method-CohortManifest-setAtlasConnection}{\code{CohortManifest$setAtlasConnection()}}
 \item \href{#method-CohortManifest-addAtlasCohort}{\code{CohortManifest$addAtlasCohort()}}
 \item \href{#method-CohortManifest-importAtlasCohorts}{\code{CohortManifest$importAtlasCohorts()}}
 \item \href{#method-CohortManifest-addCaprCohort}{\code{CohortManifest$addCaprCohort()}}
@@ -215,9 +217,45 @@ Set the execution settings
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{executionSettings}}{Object. Execution settings for DBMS cohort generation.}
+\item{\code{executionSettings}}{Object. Execution settings for DBMS cohort generation.
+Get the stored ATLAS connection}
 }
 \if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-getAtlasConnection"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-getAtlasConnection}{}}}
+\subsection{Method \code{getAtlasConnection()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$getAtlasConnection()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+The ATLAS connection object, or NULL if not set.
+Set an ATLAS connection for use by add/import methods
+
+Stores a connection so it does not need to be passed to
+\code{addAtlasCohort()} or \code{importAtlasCohorts()} on every call.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-setAtlasConnection"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-setAtlasConnection}{}}}
+\subsection{Method \code{setAtlasConnection()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$setAtlasConnection(atlasConnection)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{atlasConnection}}{An ATLAS connection object (from \code{setAtlasConnection()}).}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible self for method chaining.
 }
 }
 \if{html}{\out{<hr>}}
@@ -234,7 +272,7 @@ the cohort in the manifest.
   label,
   category,
   tags = list(),
-  atlasConnection
+  atlasConnection = NULL
 )}\if{html}{\out{</div>}}
 }
 
@@ -250,7 +288,8 @@ the cohort in the manifest.
 \item{\code{tags}}{Named list. Optional metadata tags.}
 
 \item{\code{atlasConnection}}{An ATLAS connection object (e.g., from ROhdsiWebApi::createConnectionDetails)
-with a method \code{getCohortDefinition(cohortId)} that returns a list with an \code{expression} element.}
+with a method \code{getCohortDefinition(cohortId)} that returns a list with an \code{expression} element.
+If \code{NULL}, falls back to the connection stored via \verb{$setAtlasConnection()}.}
 }
 \if{html}{\out{</div>}}
 }
@@ -268,7 +307,7 @@ Reads a CSV file with columns \code{atlasId}, \code{label}, \code{category}
 (plus optional extra columns for tags) and imports each cohort from ATLAS.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$importAtlasCohorts(
-  atlasConnection,
+  atlasConnection = NULL,
   cohortsLoadPath = here::here("inputs/cohorts/cohortsLoad.csv")
 )}\if{html}{\out{</div>}}
 }
@@ -276,7 +315,8 @@ Reads a CSV file with columns \code{atlasId}, \code{label}, \code{category}
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{atlasConnection}}{An ATLAS connection object with a \code{getCohortDefinition(cohortId)} method.}
+\item{\code{atlasConnection}}{An ATLAS connection object with a \code{getCohortDefinition(cohortId)} method.
+If \code{NULL}, falls back to the connection stored via \verb{$setAtlasConnection()}.}
 
 \item{\code{cohortsLoadPath}}{Character. Path to the CSV file. Defaults to
 \code{here::here("inputs/cohorts/cohortsLoad.csv")}.}

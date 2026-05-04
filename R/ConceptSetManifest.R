@@ -177,6 +177,7 @@ ConceptSetManifest <- R6::R6Class(
     .manifest = NULL,
     .dbPath = NULL,
     .executionSettings = NULL,
+    .atlasConnection = NULL,
 
     # Initialize the SQLite database schema (creates if needed, migrates if upgrading)
     init_manifest = function(dbPath) {
@@ -447,6 +448,26 @@ ConceptSetManifest <- R6::R6Class(
       invisible(self)
     },
 
+    #' Get the stored ATLAS connection
+    #'
+    #' @return The ATLAS connection object, or NULL if not set.
+    getAtlasConnection = function() {
+      private$.atlasConnection
+    },
+
+    #' Set an ATLAS connection for use by add/import methods
+    #'
+    #' Stores a connection so it does not need to be passed to
+    #' `addAtlasConceptSet()` or `importAtlasConceptSets()` on every call.
+    #'
+    #' @param atlasConnection An ATLAS connection object (from `setAtlasConnection()`).
+    #'
+    #' @return Invisible self for method chaining.
+    setAtlasConnection = function(atlasConnection) {
+      private$.atlasConnection <- atlasConnection
+      invisible(self)
+    },
+
     # ========== ADD / IMPORT METHODS ==========
 
     #' @description Register a local CIRCE JSON file in the manifest
@@ -495,9 +516,21 @@ ConceptSetManifest <- R6::R6Class(
     #' @param atlasConnection An ATLAS connection object with a
     #'   `getConceptSetDefinition(conceptSetId)` method that returns a list with
     #'   `expression` (CIRCE JSON string) and `saveName` elements.
+    #'   If `NULL`, falls back to the connection stored via `$setAtlasConnection()`.
     #'
     #' @return Invisible integer. The assigned concept set ID.
-    addAtlasConceptSet = function(atlasId, label, domain = "init", tags = list(), atlasConnection) {
+    addAtlasConceptSet = function(atlasId, label, domain = "init", tags = list(), atlasConnection = NULL) {
+      if (is.null(atlasConnection)) {
+        atlasConnection <- private$.atlasConnection
+      }
+
+      if (is.null(atlasConnection)) {
+        cli::cli_abort(c(
+          "No ATLAS connection available.",
+          i = "Supply {.arg atlasConnection} or call {.code $setAtlasConnection()} first."
+        ))
+      }
+
       checkmate::assert_int(atlasId)
       checkmate::assert_string(label, min.chars = 1)
       valid_domains <- c("drug_exposure", "condition_occurrence", "measurement", "procedure",
@@ -596,12 +629,24 @@ ConceptSetManifest <- R6::R6Class(
     #'
     #' @param atlasConnection An ATLAS connection object with a
     #'   `getConceptSetDefinition(conceptSetId)` method.
+    #'   If `NULL`, falls back to the connection stored via `$setAtlasConnection()`.
     #' @param conceptSetsLoadPath Character. Path to the CSV file. Defaults to
     #'   `here::here("inputs/conceptSets/conceptSetsLoad.csv")`.
     #'
     #' @return Invisible tibble with columns `id`, `label`, `status`.
-    importAtlasConceptSets = function(atlasConnection,
+    importAtlasConceptSets = function(atlasConnection = NULL,
                                       conceptSetsLoadPath = here::here("inputs/conceptSets/conceptSetsLoad.csv")) {
+      if (is.null(atlasConnection)) {
+        atlasConnection <- private$.atlasConnection
+      }
+
+      if (is.null(atlasConnection)) {
+        cli::cli_abort(c(
+          "No ATLAS connection available.",
+          i = "Supply {.arg atlasConnection} or call {.code $setAtlasConnection()} first."
+        ))
+      }
+
       checkmate::assert_file_exists(conceptSetsLoadPath)
       concept_sets_load <- readr::read_csv(conceptSetsLoadPath, show_col_types = FALSE, comment = "#")
 

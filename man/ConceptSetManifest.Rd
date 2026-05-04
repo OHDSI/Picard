@@ -107,6 +107,8 @@ by finding the reverse mapping relationship. For each concept set:
 \item \href{#method-ConceptSetManifest-getDbPath}{\code{ConceptSetManifest$getDbPath()}}
 \item \href{#method-ConceptSetManifest-getExecutionSettings}{\code{ConceptSetManifest$getExecutionSettings()}}
 \item \href{#method-ConceptSetManifest-setExecutionSettings}{\code{ConceptSetManifest$setExecutionSettings()}}
+\item \href{#method-ConceptSetManifest-getAtlasConnection}{\code{ConceptSetManifest$getAtlasConnection()}}
+\item \href{#method-ConceptSetManifest-setAtlasConnection}{\code{ConceptSetManifest$setAtlasConnection()}}
 \item \href{#method-ConceptSetManifest-addConceptSetFile}{\code{ConceptSetManifest$addConceptSetFile()}}
 \item \href{#method-ConceptSetManifest-addAtlasConceptSet}{\code{ConceptSetManifest$addAtlasConceptSet()}}
 \item \href{#method-ConceptSetManifest-addCaprConceptSet}{\code{ConceptSetManifest$addCaprConceptSet()}}
@@ -225,6 +227,42 @@ Set or update execution settings
 }
 \subsection{Returns}{
 Invisibly returns self for method chaining.
+Get the stored ATLAS connection
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-getAtlasConnection"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-getAtlasConnection}{}}}
+\subsection{Method \code{getAtlasConnection()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$getAtlasConnection()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+The ATLAS connection object, or NULL if not set.
+Set an ATLAS connection for use by add/import methods
+
+Stores a connection so it does not need to be passed to
+\code{addAtlasConceptSet()} or \code{importAtlasConceptSets()} on every call.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-setAtlasConnection"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-setAtlasConnection}{}}}
+\subsection{Method \code{setAtlasConnection()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$setAtlasConnection(atlasConnection)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{atlasConnection}}{An ATLAS connection object (from \code{setAtlasConnection()}).}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible self for method chaining.
 }
 }
 \if{html}{\out{<hr>}}
@@ -271,7 +309,7 @@ Fetch a single concept set from ATLAS and register it in the manifest
   label,
   domain = "init",
   tags = list(),
-  atlasConnection
+  atlasConnection = NULL
 )}\if{html}{\out{</div>}}
 }
 
@@ -288,7 +326,8 @@ Fetch a single concept set from ATLAS and register it in the manifest
 
 \item{\code{atlasConnection}}{An ATLAS connection object with a
 \code{getConceptSetDefinition(conceptSetId)} method that returns a list with
-\code{expression} (CIRCE JSON string) and \code{saveName} elements.}
+\code{expression} (CIRCE JSON string) and \code{saveName} elements.
+If \code{NULL}, falls back to the connection stored via \verb{$setAtlasConnection()}.}
 }
 \if{html}{\out{</div>}}
 }
@@ -339,7 +378,7 @@ additional columns treated as tag key-value pairs. Calls
 does not abort the entire batch.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$importAtlasConceptSets(
-  atlasConnection,
+  atlasConnection = NULL,
   conceptSetsLoadPath = here::here("inputs/conceptSets/conceptSetsLoad.csv")
 )}\if{html}{\out{</div>}}
 }
@@ -348,7 +387,8 @@ does not abort the entire batch.
 \if{html}{\out{<div class="arguments">}}
 \describe{
 \item{\code{atlasConnection}}{An ATLAS connection object with a
-\code{getConceptSetDefinition(conceptSetId)} method.}
+\code{getConceptSetDefinition(conceptSetId)} method.
+If \code{NULL}, falls back to the connection stored via \verb{$setAtlasConnection()}.}
 
 \item{\code{conceptSetsLoadPath}}{Character. Path to the CSV file. Defaults to
 \code{here::here("inputs/conceptSets/conceptSetsLoad.csv")}.}

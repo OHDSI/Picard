@@ -104,10 +104,11 @@ atlasConn <- setAtlasConnection(useKeyring = TRUE)
 
 #### Connecting and Importing
 
-# Import specific cohorts from ATLAS
-importAtlasCohorts(
-  cohortsFolderPath = here::here("inputs/cohorts"),
-  atlasConnection = atlasConn
+```{r eval = FALSE}
+cm <- initCohortManifest()
+cm$setAtlasConnection(atlasConn)
+cm$importAtlasCohorts(
+  cohortsLoadPath = here::here("inputs/cohorts/cohortsLoad.csv")
 )
 ```
 
@@ -636,10 +637,11 @@ Download concept set JSON definitions:
 # Reuse or create ATLAS connection
 atlasConn <- setAtlasConnection()
 
-# Import concept sets from ATLAS
-importAtlasConceptSets(
-  conceptSetsFolderPath = here::here("inputs/conceptSets"),
-  atlasConnection = atlasConn
+# Initialize manifest and set connection
+csm <- initConceptSetManifest()
+csm$setAtlasConnection(atlasConn)
+csm$importAtlasConceptSets(
+  conceptSetsLoadPath = here::here("inputs/conceptSets/conceptSetsLoad.csv")
 )
 ```
 
@@ -708,13 +710,14 @@ library(picard)
 # 1. Create ATLAS connection (credentials from .Renviron)
 atlasConn <- setAtlasConnection()
 
-# 2. Create load file  
+# 2. Initialize manifest, set connection, and create load file
+cm <- initCohortManifest()
+cm$setAtlasConnection(atlasConn)
 createBlankCohortsLoadFile(here::here("inputs/cohorts"))
 
-# 3. Import from ATLAS
-importAtlasCohorts(
-  cohortsFolderPath = here::here("inputs/cohorts"),
-  atlasConnection = atlasConn
+# 3. Import from ATLAS (edit cohortsLoad.csv in Excel first)
+cm$importAtlasCohorts(
+  cohortsLoadPath = here::here("inputs/cohorts/cohortsLoad.csv")
 )
 
 # 4. Load manifest and review
@@ -731,14 +734,14 @@ print(counts)
 
 # === CONCEPT SETS WORKFLOW ===
 
-# 1. Create load file
-# Option A: Create blank template
+# 1. Initialize manifest, set connection, and create load file
+csm <- initConceptSetManifest()
+csm$setAtlasConnection(atlasConn)
 createBlankConceptSetsLoadFile(here::here("inputs/conceptSets"))
 
-# 2. Import from ATLAS
-importAtlasConceptSets(
-  conceptSetsFolderPath = here::here("inputs/conceptSets"),
-  atlasConnection = atlasConn
+# 2. Import from ATLAS (edit conceptSetsLoad.csv in Excel first)
+csm$importAtlasConceptSets(
+  conceptSetsLoadPath = here::here("inputs/conceptSets/conceptSetsLoad.csv")
 )
 
 # 3. Load manifest and review

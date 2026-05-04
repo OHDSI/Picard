@@ -366,7 +366,6 @@ createBlankConceptSetsLoadFile <- function(conceptSetsFolderPath = here::here("i
 #' 5. Use [loadConceptSetManifest()] to load the imported conceptSets
 #' @export
 #'
-#' @examples
 #' @keywords internal
 #' @noRd
 launchConceptSetsLoadEditor <- function(conceptSetsFolderPath = here::here("inputs/conceptSets")) {

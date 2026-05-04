@@ -227,6 +227,7 @@ CohortManifest <- R6::R6Class(
     .manifest = NULL,
     .dbPath = NULL,
     .executionSettings = NULL,
+    .atlasConnection = NULL,
 
     # Initialize the SQLite database
     init_manifest = function(dbPath) {
@@ -789,6 +790,26 @@ CohortManifest <- R6::R6Class(
       private$.executionSettings <- executionSettings
     },
 
+    #' Get the stored ATLAS connection
+    #'
+    #' @return The ATLAS connection object, or NULL if not set.
+    getAtlasConnection = function() {
+      private$.atlasConnection
+    },
+
+    #' Set an ATLAS connection for use by add/import methods
+    #'
+    #' Stores a connection so it does not need to be passed to
+    #' `addAtlasCohort()` or `importAtlasCohorts()` on every call.
+    #'
+    #' @param atlasConnection An ATLAS connection object (from `setAtlasConnection()`).
+    #'
+    #' @return Invisible self for method chaining.
+    setAtlasConnection = function(atlasConnection) {
+      private$.atlasConnection <- atlasConnection
+      invisible(self)
+    },
+
     # ========== ADD METHODS ==========
 
     #' @description Add a single cohort from ATLAS
@@ -802,9 +823,21 @@ CohortManifest <- R6::R6Class(
     #' @param tags Named list. Optional metadata tags.
     #' @param atlasConnection An ATLAS connection object (e.g., from ROhdsiWebApi::createConnectionDetails)
     #'   with a method `getCohortDefinition(cohortId)` that returns a list with an `expression` element.
+    #'   If `NULL`, falls back to the connection stored via `$setAtlasConnection()`.
     #'
     #' @return Invisible integer. The assigned cohort ID.
-    addAtlasCohort = function(atlasId, label, category, tags = list(), atlasConnection) {
+    addAtlasCohort = function(atlasId, label, category, tags = list(), atlasConnection = NULL) {
+      if (is.null(atlasConnection)) {
+        atlasConnection <- private$.atlasConnection
+      }
+
+      if (is.null(atlasConnection)) {
+        cli::cli_abort(c(
+          "No ATLAS connection available.",
+          i = "Supply {.arg atlasConnection} or call {.code $setAtlasConnection()} first."
+        ))
+      }
+
       checkmate::assert_int(atlasId)
       checkmate::assert_string(label, min.chars = 1)
       checkmate::assert_string(category, min.chars = 1)
@@ -854,11 +887,23 @@ CohortManifest <- R6::R6Class(
     #' (plus optional extra columns for tags) and imports each cohort from ATLAS.
     #'
     #' @param atlasConnection An ATLAS connection object with a `getCohortDefinition(cohortId)` method.
+    #'   If `NULL`, falls back to the connection stored via `$setAtlasConnection()`.
     #' @param cohortsLoadPath Character. Path to the CSV file. Defaults to
     #'   `here::here("inputs/cohorts/cohortsLoad.csv")`.
     #'
     #' @return Invisible tibble of imported cohorts.
-    importAtlasCohorts = function(atlasConnection, cohortsLoadPath = here::here("inputs/cohorts/cohortsLoad.csv")) {
+    importAtlasCohorts = function(atlasConnection = NULL, cohortsLoadPath = here::here("inputs/cohorts/cohortsLoad.csv")) {
+      if (is.null(atlasConnection)) {
+        atlasConnection <- private$.atlasConnection
+      }
+
+      if (is.null(atlasConnection)) {
+        cli::cli_abort(c(
+          "No ATLAS connection available.",
+          i = "Supply {.arg atlasConnection} or call {.code $setAtlasConnection()} first."
+        ))
+      }
+
       if (is.null(cohortsLoadPath)) {
         cohortsLoadPath <- here::here("inputs/cohorts/cohortsLoad.csv")
       }

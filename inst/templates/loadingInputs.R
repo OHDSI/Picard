@@ -40,11 +40,11 @@ createBlankConceptSetsLoadFile()
 ## Step 3: Set up ATLAS connection
 # ATLAS credentials must be configured in your .Renviron file before connecting
 atlasConnection <- setAtlasConnection()
+conceptSetManifest$setAtlasConnection(atlasConnection)
 
 ## Step 4: Import concept sets from ATLAS
 # Reads conceptSetsLoad.csv and downloads CIRCE JSON definitions from ATLAS
 conceptSetManifest$importAtlasConceptSets(
-  atlasConnection = atlasConnection,
   conceptSetsLoadPath = here::here("inputs/conceptSets/conceptSetsLoad.csv")
 )
 
@@ -87,11 +87,11 @@ createBlankCohortsLoadFile()
 ## Step 3: Set up ATLAS connection (if not already done in concept sets section)
 # ATLAS credentials must be configured in your .Renviron file before connecting
 # atlasConnection <- setAtlasConnection()
+cohortManifest$setAtlasConnection(atlasConnection)
 
 ## Step 4: Import cohorts from ATLAS
 # Reads cohortsLoad.csv and downloads CIRCE JSON definitions from ATLAS
 cohortManifest$importAtlasCohorts(
-  atlasConnection = atlasConnection,
   cohortsLoadPath = here::here("inputs/cohorts/cohortsLoad.csv")
 )
 
@@ -121,8 +121,7 @@ cohortManifest$tabulateManifest()
 # cohortManifest$addAtlasCohort(
 #   atlasId = 123,
 #   label = "Type 2 Diabetes",
-#   category = "Disease Populations",
-#   atlasConnection = atlasConnection
+#   category = "Disease Populations"
 # )
 
 ## Option 2: Add Capr-defined cohorts

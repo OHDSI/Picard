@@ -6,17 +6,20 @@
     - improve subset cohorts
     - add demographic and strata cohorts
 - support for custom cohort sql 
-- improve cm mid-cycle work
-    - review manifest state
-    - sync manifest match files to sqlite
-    - delete old manifest entries
-    - prune cohorts from cohort table 
 - fix bugs in cohort and concept set manifests
 - fix bugs in task caching
 - add test mode to postProcess step
 - distinguish cohort table by test mode
 - add preflightChecklist to execute. Prior to a production run check all validation steps are good then execute
 - add toggle to manifests to suppress output
+- Revamp Manifest Workflow
+    - init manifest, add information about files using add functions
+    - lazy load manifest in `loadManifest`
+    - improve cm mid-cycle work
+        - review manifest state
+        - sync manifest match files to sqlite
+        - delete old manifest entries
+        - prune cohorts from cohort table 
 
 # picard 0.0.2
 
