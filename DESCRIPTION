@@ -1,7 +1,7 @@
 Package: picard
 Type: Package
 Title: RWE Pipelining Tool
-Version: 0.0.3
+Version: 0.0.3.1
 Authors@R: c(
     person("Martin", "Lavallee", , "martin.lavallee@boehringer-ingelheim.com", role = c("aut", "cre"))
   )
