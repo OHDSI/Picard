@@ -62,7 +62,7 @@ Initialize a new CohortDef
 
 \item{\code{category}}{Character. Required classification (e.g., 'target', 'exposure', 'outcome').}
 
-\item{\code{sourceType}}{Character. Provenance: 'atlas', 'capr', 'sql', or 'derived'.}
+\item{\code{sourceType}}{Character. Provenance: 'atlas', 'capr', 'circe', 'sql', or 'derived'.}
 
 \item{\code{tags}}{List. A named list of tags that give metadata about the cohort.}
 

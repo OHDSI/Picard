@@ -5,76 +5,53 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<meta name="description" content="picard">
 <title>Launching a Picard Study • picard</title>
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="../deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
-<script src="../deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><!-- Font Awesome icons --><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/all.min.css" integrity="sha256-mmgLkCYLUQbXn0B1SRqzHar6dCnv9oZFPEC1g1cwlkk=" crossorigin="anonymous">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/v4-shims.min.css" integrity="sha256-wZjR52fzng1pJHwx4aV2AO3yyTOXrcDW7jBpJtTwVxw=" crossorigin="anonymous">
-<!-- bootstrap-toc --><script src="https://cdn.jsdelivr.net/gh/afeld/bootstrap-toc@v1.0.1/dist/bootstrap-toc.min.js" integrity="sha256-4veVQbu7//Lk5TSmc7YV48MxtMy98e26cf5MrgZYnwo=" crossorigin="anonymous"></script><!-- headroom.js --><script src="https://cdnjs.cloudflare.com/ajax/libs/headroom/0.11.0/headroom.min.js" integrity="sha256-AsUX4SJE1+yuDu5+mAVzJbuYNPHj/WroHuZ8Ir/CkE0=" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/headroom/0.11.0/jQuery.headroom.min.js" integrity="sha256-ZX/yNShbjqsohH1k95liqY9Gd8uOiE1S4vZc+9KQ1K4=" crossorigin="anonymous"></script><!-- clipboard.js --><script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.11/clipboard.min.js" integrity="sha512-7O5pXpc0oCRrxk8RUfDYFgn0nO1t+jLuIOQdOMRp4APB7uZ4vSjspzp5y6YDtDs4VzUSTbWzBFZ/LKJhnyFOKw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script><!-- search --><script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/6.4.6/fuse.js" integrity="sha512-zv6Ywkjyktsohkbp9bb45V6tEMoWhzFzXis+LrMehmJZZSys19Yxf1dopHx7WzIKxr5tK2dVcYmaCk2uqdjF4A==" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/autocomplete.js/0.38.0/autocomplete.jquery.min.js" integrity="sha512-GU9ayf+66Xx2TmpxqJpliWbT5PiGYxpaG8rfnBEk1LL8l1KGkRShhngwdXK1UgqhAzWpZHSiYPc09/NwDQIGyg==" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/mark.js/8.11.1/mark.min.js" integrity="sha512-5CYOlHXGh6QpOFA/TeTylKLWfB3ftPsde7AnmhuitiTX4K5SqCLBeKro6sPS8ilsz1Q4NRx3v8Ko2IBiszzdww==" crossorigin="anonymous"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Launching a Picard Study">
-<meta property="og:description" content="picard">
-<!-- mathjax --><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js" integrity="sha256-nvJJv9wWKEm88qvoQl9ekL2J+k/RWIsaSScxxlsrv8k=" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/config/TeX-AMS-MML_HTMLorMML.js" integrity="sha256-84DKXVJXs0/F8OTMzX4UR909+jtl4G7SPypPavF+GfA=" crossorigin="anonymous"></script><!--[if lt IE 9]>
-<script src="https://oss.maxcdn.com/html5shiv/3.7.3/html5shiv.min.js"></script>
-<script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
-<![endif]-->
+<script src="../deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
+<link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
+<script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Launching a Picard Study">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
-    
 
-    <nav class="navbar fixed-top navbar-light navbar-expand-lg bg-light" data-bs-theme="light"><div class="container">
-    
+
+    <nav class="navbar navbar-expand-lg fixed-top bg-light" data-bs-theme="light" aria-label="Site navigation"><div class="container">
+
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
     <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.3</small>
 
-    
+
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
-<li class="nav-item">
-  <a class="nav-link" href="../index.html">
-    <span class="fa fa-home"></span>
-     
-  </a>
-</li>
-<li class="nav-item">
-  <a class="nav-link" href="../reference/index.html">Reference</a>
-</li>
-<li class="active nav-item">
-  <a class="nav-link" href="../articles/index.html">Articles</a>
-</li>
-<li class="nav-item">
-  <a class="nav-link" href="../news/index.html">Changelog</a>
-</li>
+<li class="nav-item"><a class="nav-link" href="../index.html"><span class="fa fa-home"></span></a></li>
+<li class="nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
+<li class="active nav-item"><a class="nav-link" href="../articles/index.html">Articles</a></li>
+<li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul>
-<form class="form-inline my-2 my-lg-0" role="search">
-        <input type="search" class="form-control me-sm-2" aria-label="Toggle navigation" name="search-input" data-search-index="../search.json" id="search-input" placeholder="Search for" autocomplete="off">
-</form>
-
-      <ul class="navbar-nav">
-<li class="nav-item">
-  <a class="external-link nav-link" href="https://github.com/ohdsi/Picard">
-    <span class="fab fa fab fa-github"></span>
-     
-  </a>
-</li>
+<ul class="navbar-nav">
+<li class="nav-item"><form class="form-inline" role="search">
+ <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json">
+</form></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://github.com/ohdsi/Picard"><span class="fa fab fa-github"></span></a></li>
       </ul>
 </div>
 
-    
+
   </div>
 </nav><div class="container template-article">
 
 
 
-
-<div class="row">
+<script src="launching_a_study_files/accessible-code-block-0.0.1/empty-anchor.js"></script><div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
-      <img src="" class="logo" alt=""><h1>Launching a Picard Study</h1>
+
+      <h1>Launching a Picard Study</h1>
             
       
       <small class="dont-index">Source: <a href="https://github.com/ohdsi/Picard/blob/HEAD/vignettes/launching_a_study.Rmd" class="external-link"><code>vignettes/launching_a_study.Rmd</code></a></small>
@@ -84,195 +61,112 @@
     
     
 <blockquote>
-<p><strong>Note:</strong> This vignette is currently in development and
-subject to change.</p>
+<p><strong>Note:</strong> This vignette is currently in development and subject to change.</p>
 </blockquote>
 <div class="section level2">
 <h2 id="introduction">Introduction<a class="anchor" aria-label="anchor" href="#introduction"></a>
 </h2>
-<p>Launching a Picard study means initializing a new RWE study
-repository with the standard directory structure, configuration files,
-and execution scripts. This process creates a clean, organized workspace
-for your team to conduct analyses.</p>
+<p>Launching a Picard study means initializing a new RWE study repository with the standard directory structure, configuration files, and execution scripts. This process creates a clean, organized workspace for your team to conduct analyses.</p>
 <p>There are two ways to start a Picard study:</p>
 <ol style="list-style-type: decimal">
 <li>
-<strong>Create a new study from scratch</strong> (documented below)
-- Use <code><a href="../reference/makeUlyssesStudySettings.html">makeUlyssesStudySettings()</a></code> to configure and
-initialize a new repository</li>
+<strong>Create a new study from scratch</strong> (documented below) - Use <code><a href="../reference/makeUlyssesStudySettings.html">makeUlyssesStudySettings()</a></code> to configure and initialize a new repository</li>
 <li>
-<strong>Clone an existing study repository</strong> - Use
-<code>git clone</code> to download a pre-configured repository from a
-remote</li>
+<strong>Clone an existing study repository</strong> - Use <code>git clone</code> to download a pre-configured repository from a remote</li>
 </ol>
 <div class="section level3">
 <h3 id="option-1-create-a-new-study-from-scratch">Option 1: Create a New Study from Scratch<a class="anchor" aria-label="anchor" href="#option-1-create-a-new-study-from-scratch"></a>
 </h3>
 <p>The launch process has five key steps:</p>
 <ol style="list-style-type: decimal">
-<li>Create study metadata (title, therapeutic area, study type,
-contributors)</li>
+<li>Create study metadata (title, therapeutic area, study type, contributors)</li>
 <li>Define database configuration blocks</li>
-<li>Create execution options (DBMS settings, schemas, connection
-blocks)</li>
+<li>Create execution options (DBMS settings, schemas, connection blocks)</li>
 <li>Bundle everything into study settings</li>
 <li>Initialize the repository</li>
 </ol>
-<p>This vignette walks you through the complete workflow using the
-actual Picard functions.</p>
+<p>This vignette walks you through the complete workflow using the actual Picard functions.</p>
 </div>
 <div class="section level3">
 <h3 id="option-2-clone-an-existing-study-repository">Option 2: Clone an Existing Study Repository<a class="anchor" aria-label="anchor" href="#option-2-clone-an-existing-study-repository"></a>
 </h3>
-<p>If your study repository already exists on GitHub, GitLab, or another
-Git hosting service, you can clone it directly:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="co"># Clone the repository</span></span>
-<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/myorg/diabetes_study.git</span></code></pre></div>
-<p>After cloning, the repository has all configuration files, directory
-structure, and git history already in place. Next, click on the .Rproj
-file to open the project in RStudio and you can immediately start
-working.</p>
-<p>However, agent mode files are excluded from git (for security and
-customization). You’ll need to restore them using
-<code><a href="../reference/initAgentMode.html">initAgentMode()</a></code>:</p>
+<p>If your study repository already exists on GitHub, GitLab, or another Git hosting service, you can clone it directly:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a><span class="co"># Clone the repository</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a><span class="fu">git</span> clone https://github.com/myorg/diabetes_study.git</span></code></pre></div>
+<p>After cloning, the repository has all configuration files, directory structure, and git history already in place. Next, click on the .Rproj file to open the project in RStudio and you can immediately start working.</p>
+<p>However, agent mode files are excluded from git (for security and customization). You’ll need to restore them using <code><a href="../reference/initAgentMode.html">initAgentMode()</a></code>:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ohdsi.github.io/picard/" class="external-link">picard</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Restore agent mode configuration (if not already present)</span></span>
 <span><span class="fu"><a href="../reference/initAgentMode.html">initAgentMode</a></span><span class="op">(</span>projectPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="op">)</span>, verbose <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
-<p>This function: 1. <strong>Checks if agent mode exists</strong> -
-Looks for <code>.agent/</code> folder and
-<code>copilot-instructions.md</code> 2. <strong>If missing</strong>,
-restores from package templates by: - Extracting study metadata from
-README.md and config.yml - Creating <code>.agent/</code> folder with
-reference documentation - Writing customized
-<code>copilot-instructions.md</code> to workspace root (auto-loaded by
-VS Code Copilot) - Copying numbered reference guides to
-<code>.agent/reference-docs/</code></p>
-<p>After running <code><a href="../reference/initAgentMode.html">initAgentMode()</a></code>, you can open the
-repository in VS Code and Copilot will automatically use the study
-context to provide AI assistance tailored to your project.</p>
+<p>This function: 1. <strong>Checks if agent mode exists</strong> - Looks for <code>.agent/</code> folder and <code>copilot-instructions.md</code> 2. <strong>If missing</strong>, restores from package templates by: - Extracting study metadata from README.md and config.yml - Creating <code>.agent/</code> folder with reference documentation - Writing customized <code>copilot-instructions.md</code> to workspace root (auto-loaded by VS Code Copilot) - Copying numbered reference guides to <code>.agent/reference-docs/</code></p>
+<p>After running <code><a href="../reference/initAgentMode.html">initAgentMode()</a></code>, you can open the repository in VS Code and Copilot will automatically use the study context to provide AI assistance tailored to your project.</p>
 <hr>
 </div>
 </div>
 <div class="section level2">
 <h2 id="why-git-and-renv-matter-for-picard-studies">Why Git and renv Matter for Picard Studies<a class="anchor" aria-label="anchor" href="#why-git-and-renv-matter-for-picard-studies"></a>
 </h2>
-<p>Picard studies are designed for collaborative, reproducible research.
-Two tools are essential to this process:</p>
+<p>Picard studies are designed for collaborative, reproducible research. Two tools are essential to this process:</p>
 <div class="section level3">
 <h3 id="git-for-version-control">Git for Version Control<a class="anchor" aria-label="anchor" href="#git-for-version-control"></a>
 </h3>
-<p>Git tracks every change to your code and documentation throughout the
-project lifecycle. For pipeline-driven studies, this provides critical
-benefits:</p>
+<p>Git tracks every change to your code and documentation throughout the project lifecycle. For pipeline-driven studies, this provides critical benefits:</p>
 <ul>
 <li>
-<strong>Code reproducibility:</strong> Git records exactly which
-version of code produced which results. This is essential for regulatory
-compliance and peer review.</li>
+<strong>Code reproducibility:</strong> Git records exactly which version of code produced which results. This is essential for regulatory compliance and peer review.</li>
 <li>
-<strong>Audit trail:</strong> Every commit includes who made the
-change, when, and why. This accountability is crucial for study
-documentation and QC.</li>
+<strong>Audit trail:</strong> Every commit includes who made the change, when, and why. This accountability is crucial for study documentation and QC.</li>
 <li>
-<strong>Collaboration:</strong> Multiple team members can work on
-different analysis tasks simultaneously without conflicts. Git helps
-merge changes cleanly.</li>
+<strong>Collaboration:</strong> Multiple team members can work on different analysis tasks simultaneously without conflicts. Git helps merge changes cleanly.</li>
 <li>
-<strong>Pipeline provenance:</strong> When your pipeline generates
-results, you can trace those results back to the exact code commit that
-produced them.</li>
+<strong>Pipeline provenance:</strong> When your pipeline generates results, you can trace those results back to the exact code commit that produced them.</li>
 <li>
-<strong>Disaster recovery:</strong> Git acts as a backup. If
-something goes wrong, you can revert to a previous working state.</li>
+<strong>Disaster recovery:</strong> Git acts as a backup. If something goes wrong, you can revert to a previous working state.</li>
 <li>
-<strong>Feature branches:</strong> You can test new analysis
-approaches in isolated branches before merging into production.</li>
+<strong>Feature branches:</strong> You can test new analysis approaches in isolated branches before merging into production.</li>
 </ul>
-<p><strong>Picard’s Branching Model:</strong> Picard enforces a strict
-branching workflow that makes Git a requirement, not optional:</p>
+<p><strong>Picard’s Branching Model:</strong> Picard enforces a strict branching workflow that makes Git a requirement, not optional:</p>
 <ul>
 <li>
-<strong>Main branch:</strong> Protected branch used only for
-release-ready code. Production pipelines are executed from release
-branches created off main.</li>
+<strong>Main branch:</strong> Protected branch used only for release-ready code. Production pipelines are executed from release branches created off main.</li>
 <li>
-<strong>Develop branch:</strong> Integration branch where team
-members merge tested features. All testing and QC happens here before
-code is ready for production.</li>
+<strong>Develop branch:</strong> Integration branch where team members merge tested features. All testing and QC happens here before code is ready for production.</li>
 <li>
-<strong>Feature/task branches:</strong> Individual developers work
-on their analysis tasks in isolated branches, then submit pull requests
-for review before merging to develop.</li>
+<strong>Feature/task branches:</strong> Individual developers work on their analysis tasks in isolated branches, then submit pull requests for review before merging to develop.</li>
 </ul>
-<p>This branching strategy ensures: - Production work never runs on
-unstable code from main - All changes are reviewed before reaching
-production - Testing happens in a controlled environment before
-deployment - Team members can work independently without interfering
-with production results</p>
-<p>Without Git and this disciplined branching approach, there is no safe
-way to run production pipelines on a study with multiple
-contributors.</p>
-<p>For studies where data security and reproducibility are paramount,
-Git is not optional—it’s foundational.</p>
-<p><strong>Note:</strong> Git is automatically initialized when you
-create the repository. If you did not specify a <code>gitRemote</code>
-during setup, you will need to manually connect your local repository to
-a remote and push your changes. See the <a href="#setting-up-git-version-control">Setting Up Git Version
-Control</a> section below for instructions.</p>
+<p>This branching strategy ensures: - Production work never runs on unstable code from main - All changes are reviewed before reaching production - Testing happens in a controlled environment before deployment - Team members can work independently without interfering with production results</p>
+<p>Without Git and this disciplined branching approach, there is no safe way to run production pipelines on a study with multiple contributors.</p>
+<p>For studies where data security and reproducibility are paramount, Git is not optional—it’s foundational.</p>
+<p><strong>Note:</strong> Git is automatically initialized when you create the repository. If you did not specify a <code>gitRemote</code> during setup, you will need to manually connect your local repository to a remote and push your changes. See the <a href="#setting-up-git-version-control">Setting Up Git Version Control</a> section below for instructions.</p>
 </div>
 <div class="section level3">
 <h3 id="renv-for-package-management">renv for Package Management<a class="anchor" aria-label="anchor" href="#renv-for-package-management"></a>
 </h3>
-<p>R packages are constantly updated. Different versions can produce
-different results, even with identical data and code. renv solves this
-by creating a snapshot of your R environment:</p>
+<p>R packages are constantly updated. Different versions can produce different results, even with identical data and code. renv solves this by creating a snapshot of your R environment:</p>
 <ul>
 <li>
-<strong>Reproducibility across time:</strong> renv.lock captures the
-exact package versions used during your analysis. Six months or six
-years later, you can restore the identical environment and reproduce
-every result.</li>
+<strong>Reproducibility across time:</strong> renv.lock captures the exact package versions used during your analysis. Six months or six years later, you can restore the identical environment and reproduce every result.</li>
 <li>
-<strong>Team consistency:</strong> In collaborative studies,
-different team members might have different package versions installed.
-renv ensures everyone uses the same versions, eliminating “works on my
-machine” problems.</li>
+<strong>Team consistency:</strong> In collaborative studies, different team members might have different package versions installed. renv ensures everyone uses the same versions, eliminating “works on my machine” problems.</li>
 <li>
-<strong>Dependency management:</strong> renv tracks not just your
-direct dependencies but all nested dependencies. If package A depends on
-package B version 1.2, renv captures that relationship.</li>
+<strong>Dependency management:</strong> renv tracks not just your direct dependencies but all nested dependencies. If package A depends on package B version 1.2, renv captures that relationship.</li>
 <li>
-<strong>Production safety:</strong> Before promoting analysis code
-to production, renv ensures all dependencies are compatible and tested
-together.</li>
+<strong>Production safety:</strong> Before promoting analysis code to production, renv ensures all dependencies are compatible and tested together.</li>
 <li>
-<strong>Regulatory compliance:</strong> For studies subject to
-validation requirements, renv provides documented evidence that all
-package versions have been captured and are reproducible.</li>
+<strong>Regulatory compliance:</strong> For studies subject to validation requirements, renv provides documented evidence that all package versions have been captured and are reproducible.</li>
 </ul>
-<p>In collaborative, regulated research environments, renv is essential
-for ensuring that results are truly reproducible by any team member at
-any point in the future.</p>
-<p><strong>Note:</strong> Unlike Git, renv is NOT automatically
-initialized in your repository. You must set up renv yourself. This is
-<strong>highly encouraged</strong> as it: - Ensures your analysis
-produces consistent results when run by other team members - Protects
-against package updates that could silently break your pipeline -
-Creates an audit trail of which package versions were used for your
-study</p>
-<p>See the <a href="#setting-up-renv-for-reproducibility">Setting Up
-renv for Reproducibility</a> section below to get started.</p>
+<p>In collaborative, regulated research environments, renv is essential for ensuring that results are truly reproducible by any team member at any point in the future.</p>
+<p><strong>Note:</strong> Unlike Git, renv is NOT automatically initialized in your repository. You must set up renv yourself. This is <strong>highly encouraged</strong> as it: - Ensures your analysis produces consistent results when run by other team members - Protects against package updates that could silently break your pipeline - Creates an audit trail of which package versions were used for your study</p>
+<p>See the <a href="#setting-up-renv-for-reproducibility">Setting Up renv for Reproducibility</a> section below to get started.</p>
 <hr>
 </div>
 </div>
 <div class="section level2">
 <h2 id="step-1-define-study-metadata">Step 1: Define Study Metadata<a class="anchor" aria-label="anchor" href="#step-1-define-study-metadata"></a>
 </h2>
-<p>Study metadata describes the research project. Create a
-<code>StudyMeta</code> object with your project information using
-<code><a href="../reference/makeStudyMeta.html">makeStudyMeta()</a></code>:</p>
+<p>Study metadata describes the research project. Create a <code>StudyMeta</code> object with your project information using <code><a href="../reference/makeStudyMeta.html">makeStudyMeta()</a></code>:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ohdsi.github.io/picard/" class="external-link">picard</a></span><span class="op">)</span></span>
 <span></span>
@@ -294,22 +188,12 @@ renv for Reproducibility</a> section below to get started.</p>
 <span>  <span class="op">)</span>,</span>
 <span>  studyTags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"OMOP"</span>, <span class="st">"OHDSI"</span>, <span class="st">"Characterization"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<p><strong>Parameters:</strong> - <code>studyTitle</code>:
-Human-readable project name - <code>therapeuticArea</code>: Therapeutic
-or disease area (e.g., “CRM”, “Oncology”, “Cardiology”) -
-<code>studyType</code>: Type of study (e.g., “Characterization”,
-“Population-Level Estimation”, “Patient-Level Prediction”) -
-<code>contributors</code>: List of contributor profiles created with
-<code><a href="../reference/setContributor.html">setContributor()</a></code> - <code>name</code>: Full name -
-<code>email</code>: Contact email - <code>role</code>: Role type (e.g.,
-“developer”, “qc”, “principal investigator”) - <code>studyTags</code>:
-Character vector of study tags for organization</p>
+<p><strong>Parameters:</strong> - <code>studyTitle</code>: Human-readable project name - <code>therapeuticArea</code>: Therapeutic or disease area (e.g., “CRM”, “Oncology”, “Cardiology”) - <code>studyType</code>: Type of study (e.g., “Characterization”, “Population-Level Estimation”, “Patient-Level Prediction”) - <code>contributors</code>: List of contributor profiles created with <code><a href="../reference/setContributor.html">setContributor()</a></code> - <code>name</code>: Full name - <code>email</code>: Contact email - <code>role</code>: Role type (e.g., “developer”, “qc”, “principal investigator”) - <code>studyTags</code>: Character vector of study tags for organization</p>
 </div>
 <div class="section level2">
 <h2 id="step-2-configure-database-connection">Step 2: Configure Database Connection<a class="anchor" aria-label="anchor" href="#step-2-configure-database-connection"></a>
 </h2>
-<p>If analyzing a database (toolType = “dbms”), create a database
-configuration block using <code><a href="../reference/setDbConfigBlock.html">setDbConfigBlock()</a></code>:</p>
+<p>If analyzing a database (toolType = “dbms”), create a database configuration block using <code><a href="../reference/setDbConfigBlock.html">setDbConfigBlock()</a></code>:</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">db</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setDbConfigBlock.html">setDbConfigBlock</a></span><span class="op">(</span></span>
 <span>  configBlockName <span class="op">=</span> <span class="st">"my_cdm"</span>,</span>
@@ -318,13 +202,7 @@ configuration block using <code><a href="../reference/setDbConfigBlock.html">set
 <span>  cohortTable <span class="op">=</span> <span class="st">"study_cohorts"</span>,</span>
 <span>  databaseLabel <span class="op">=</span> <span class="st">"Primary CDM"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<p><strong>Parameters:</strong> - <code>configBlockName</code>:
-Identifier for this database configuration -
-<code>cdmDatabaseSchema</code>: Schema containing the OMOP CDM tables -
-<code>databaseName</code>: Name of the database (for internal tracking)
-- <code>cohortTable</code>: Name of the table where cohorts will be
-created - <code>databaseLabel</code>: Human-readable label for reports
-and documentation</p>
+<p><strong>Parameters:</strong> - <code>configBlockName</code>: Identifier for this database configuration - <code>cdmDatabaseSchema</code>: Schema containing the OMOP CDM tables - <code>databaseName</code>: Name of the database (for internal tracking) - <code>cohortTable</code>: Name of the table where cohorts will be created - <code>databaseLabel</code>: Human-readable label for reports and documentation</p>
 <p><strong>For multiple databases</strong>, create multiple blocks:</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">db1</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setDbConfigBlock.html">setDbConfigBlock</a></span><span class="op">(</span></span>
@@ -346,8 +224,7 @@ and documentation</p>
 <div class="section level2">
 <h2 id="step-3-create-execution-options">Step 3: Create Execution Options<a class="anchor" aria-label="anchor" href="#step-3-create-execution-options"></a>
 </h2>
-<p>Execution options define how your pipeline will execute (DBMS type,
-schemas, database connections). Use <code><a href="../reference/makeExecOptions.html">makeExecOptions()</a></code>:</p>
+<p>Execution options define how your pipeline will execute (DBMS type, schemas, database connections). Use <code><a href="../reference/makeExecOptions.html">makeExecOptions()</a></code>:</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">eo</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/makeExecOptions.html">makeExecOptions</a></span><span class="op">(</span></span>
 <span>  dbms <span class="op">=</span> <span class="st">"snowflake"</span>,</span>
@@ -355,19 +232,12 @@ schemas, database connections). Use <code><a href="../reference/makeExecOptions.
 <span>  tempEmulationSchema <span class="op">=</span> <span class="st">"work_schema"</span>,</span>
 <span>  dbConnectionBlocks <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">db</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<p><strong>Parameters:</strong> - <code>dbms</code>: Database management
-system type (e.g., “snowflake”, “postgresql”, “sql server”, “bigquery”)
-- <code>workDatabaseSchema</code>: Schema for creating temporary/working
-tables - <code>tempEmulationSchema</code>: Schema for emulating
-temporary tables - <code>dbConnectionBlocks</code>: List of database
-configuration blocks created in Step 2</p>
+<p><strong>Parameters:</strong> - <code>dbms</code>: Database management system type (e.g., “snowflake”, “postgresql”, “sql server”, “bigquery”) - <code>workDatabaseSchema</code>: Schema for creating temporary/working tables - <code>tempEmulationSchema</code>: Schema for emulating temporary tables - <code>dbConnectionBlocks</code>: List of database configuration blocks created in Step 2</p>
 </div>
 <div class="section level2">
 <h2 id="step-4-create-study-settings">Step 4: Create Study Settings<a class="anchor" aria-label="anchor" href="#step-4-create-study-settings"></a>
 </h2>
-<p>Bundle study metadata and execution options into
-<code>UlyssesStudySettings</code> using
-<code><a href="../reference/makeUlyssesStudySettings.html">makeUlyssesStudySettings()</a></code>:</p>
+<p>Bundle study metadata and execution options into <code>UlyssesStudySettings</code> using <code><a href="../reference/makeUlyssesStudySettings.html">makeUlyssesStudySettings()</a></code>:</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">ulySt</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/makeUlyssesStudySettings.html">makeUlyssesStudySettings</a></span><span class="op">(</span></span>
 <span>  repoName <span class="op">=</span> <span class="st">"diabetes_study"</span>,</span>
@@ -376,12 +246,7 @@ configuration blocks created in Step 2</p>
 <span>  studyMeta <span class="op">=</span> <span class="va">sm</span>,</span>
 <span>  execOptions <span class="op">=</span> <span class="va">eo</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<p><strong>Required Parameters:</strong> - <code>repoName</code>: Name
-of the repository directory - <code>toolType</code>: Type of tool
-(“dbms” for database-connected, “external” for standalone) -
-<code>repoFolder</code>: Parent folder where the repository will be
-created - <code>studyMeta</code>: StudyMeta object from Step 1 -
-<code>execOptions</code>: ExecOptions object from Step 3</p>
+<p><strong>Required Parameters:</strong> - <code>repoName</code>: Name of the repository directory - <code>toolType</code>: Type of tool (“dbms” for database-connected, “external” for standalone) - <code>repoFolder</code>: Parent folder where the repository will be created - <code>studyMeta</code>: StudyMeta object from Step 1 - <code>execOptions</code>: ExecOptions object from Step 3</p>
 <p><strong>Optional Parameters:</strong></p>
 <p>You can also specify Git and renv configuration at setup time:</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
@@ -394,35 +259,23 @@ created - <code>studyMeta</code>: StudyMeta object from Step 1 -
 <span>  gitRemote <span class="op">=</span> <span class="st">"https://github.com/myorg/diabetes_study.git"</span>,</span>
 <span>  renvLockFile <span class="op">=</span> <span class="st">"~/my_dependencies/renv.lock"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<p><strong>Optional Parameters:</strong> - <code>gitRemote</code>: URL
-to a Git remote repository (for version control integration) -
-<code>renvLockFile</code>: Path to an existing <code>renv.lock</code>
-file to copy into the project (for reproducible environments)</p>
+<p><strong>Optional Parameters:</strong> - <code>gitRemote</code>: URL to a Git remote repository (for version control integration) - <code>renvLockFile</code>: Path to an existing <code>renv.lock</code> file to copy into the project (for reproducible environments)</p>
 </div>
 <div class="section level2">
 <h2 id="step-5-initialize-the-repository">Step 5: Initialize the Repository<a class="anchor" aria-label="anchor" href="#step-5-initialize-the-repository"></a>
 </h2>
-<p>Finally, initialize the repository with
-<code>initUlyssesRepo()</code>:</p>
+<p>Finally, initialize the repository with <code>initUlyssesRepo()</code>:</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">ulySt</span><span class="op">$</span><span class="fu">initUlyssesRepo</span><span class="op">(</span>verbose <span class="op">=</span> <span class="cn">TRUE</span>, openProject <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
-<p><strong>Parameters:</strong> - <code>verbose</code>: Print detailed
-initialization messages (TRUE/FALSE) - <code>openProject</code>:
-Automatically open the project in RStudio if TRUE</p>
-<p>This creates your complete repository structure at the location
-specified in repoFolder.</p>
+<p><strong>Parameters:</strong> - <code>verbose</code>: Print detailed initialization messages (TRUE/FALSE) - <code>openProject</code>: Automatically open the project in RStudio if TRUE</p>
+<p>This creates your complete repository structure at the location specified in repoFolder.</p>
 </div>
 <div class="section level2">
 <h2 id="setting-up-git-version-control">Setting Up Git Version Control<a class="anchor" aria-label="anchor" href="#setting-up-git-version-control"></a>
 </h2>
 <p>Git is automatically initialized when you launch the repository.</p>
-<p><strong>If you provided <code>gitRemote</code> during setup:</strong>
-- The repository is automatically configured with your remote - All
-initial files are committed with message: “Prep Ulysses repo with
-remote” - Your code is automatically pushed to the remote</p>
-<p><strong>If you did NOT provide <code>gitRemote</code> during
-setup:</strong> Follow these steps to add a remote and sync your
-repository:</p>
+<p><strong>If you provided <code>gitRemote</code> during setup:</strong> - The repository is automatically configured with your remote - All initial files are committed with message: “Prep Ulysses repo with remote” - Your code is automatically pushed to the remote</p>
+<p><strong>If you did NOT provide <code>gitRemote</code> during setup:</strong> Follow these steps to add a remote and sync your repository:</p>
 <div class="section level3">
 <h3 id="open-the-project">1. Open the Project<a class="anchor" aria-label="anchor" href="#open-the-project"></a>
 </h3>
@@ -435,43 +288,38 @@ repository:</p>
 <h3 id="check-git-status">2. Check Git Status<a class="anchor" aria-label="anchor" href="#check-git-status"></a>
 </h3>
 <p>Open a terminal in your project directory:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a><span class="bu">cd</span> ~/studies/diabetes_study</span>
-<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a><span class="fu">git</span> status</span></code></pre></div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true"></a><span class="bu">cd</span> ~/studies/diabetes_study</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true"></a><span class="fu">git</span> status</span></code></pre></div>
 <p>You should see that initial files are already committed locally.</p>
 </div>
 <div class="section level3">
 <h3 id="add-remote-repository">3. Add Remote Repository<a class="anchor" aria-label="anchor" href="#add-remote-repository"></a>
 </h3>
 <p>Link your local repository to a remote:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a><span class="co"># Add remote named 'origin'</span></span>
-<span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a><span class="fu">git</span> remote add origin https://github.com/myorg/diabetes_study.git</span>
-<span id="cb13-3"><a href="#cb13-3" tabindex="-1"></a></span>
-<span id="cb13-4"><a href="#cb13-4" tabindex="-1"></a><span class="co"># Verify remote was added</span></span>
-<span id="cb13-5"><a href="#cb13-5" tabindex="-1"></a><span class="fu">git</span> remote <span class="at">-v</span></span></code></pre></div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true"></a><span class="co"># Add remote named 'origin'</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true"></a><span class="fu">git</span> remote add origin https://github.com/myorg/diabetes_study.git</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true"></a></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true"></a><span class="co"># Verify remote was added</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true"></a><span class="fu">git</span> remote -v</span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="push-to-remote">4. Push to Remote<a class="anchor" aria-label="anchor" href="#push-to-remote"></a>
 </h3>
 <p>Sync your local repository with the remote:</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a><span class="co"># Push to remote</span></span>
-<span id="cb14-2"><a href="#cb14-2" tabindex="-1"></a><span class="fu">git</span> push <span class="at">-u</span> origin main</span></code></pre></div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true"></a><span class="co"># Push to remote</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true"></a><span class="fu">git</span> push -u origin main</span></code></pre></div>
 </div>
 </div>
 <div class="section level2">
 <h2 id="setting-up-renv-for-reproducibility">Setting Up renv for Reproducibility<a class="anchor" aria-label="anchor" href="#setting-up-renv-for-reproducibility"></a>
 </h2>
-<p>renv configuration is handled automatically during repository
-initialization.</p>
-<p><strong>If you provided <code>renvLockFile</code> during
-setup:</strong> - Your <code>renv.lock</code> file is automatically
-copied to the project root - Run <code><a href="https://rstudio.github.io/renv/reference/restore.html" class="external-link">renv::restore()</a></code> in the
-project to install the locked packages</p>
+<p>renv configuration is handled automatically during repository initialization.</p>
+<p><strong>If you provided <code>renvLockFile</code> during setup:</strong> - Your <code>renv.lock</code> file is automatically copied to the project root - Run <code>renv::restore()</code> in the project to install the locked packages</p>
 <div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">renv</span><span class="fu">::</span><span class="fu"><a href="https://rstudio.github.io/renv/reference/restore.html" class="external-link">restore</a></span><span class="op">(</span>project <span class="op">=</span> <span class="st">"~/studies/diabetes_study"</span><span class="op">)</span></span></code></pre></div>
-<p><strong>If you did NOT provide <code>renvLockFile</code> during
-setup:</strong> Initialize renv in your project:</p>
+<code class="sourceCode R"><span><span class="fu">renv</span><span class="fu">::</span><span class="fu">restore</span><span class="op">(</span>project <span class="op">=</span> <span class="st">"~/studies/diabetes_study"</span><span class="op">)</span></span></code></pre></div>
+<p><strong>If you did NOT provide <code>renvLockFile</code> during setup:</strong> Initialize renv in your project:</p>
 <div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">renv</span><span class="fu">::</span><span class="fu"><a href="https://rstudio.github.io/renv/reference/init.html" class="external-link">init</a></span><span class="op">(</span>project <span class="op">=</span> <span class="st">"~/studies/diabetes_study"</span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu">renv</span><span class="fu">::</span><span class="fu">init</span><span class="op">(</span>project <span class="op">=</span> <span class="st">"~/studies/diabetes_study"</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="complete-example">Complete Example<a class="anchor" aria-label="anchor" href="#complete-example"></a>
@@ -537,55 +385,45 @@ setup:</strong> Initialize renv in your project:</p>
 <p>After successful initialization, your repository contains:</p>
 <ul>
 <li>
-<strong>Standard directories:</strong> analysis/, inputs/,
-dissemination/, exec/, extras/</li>
+<strong>Standard directories:</strong> analysis/, inputs/, dissemination/, exec/, extras/</li>
 <li>
-<strong>Configuration file:</strong> config.yml with your study
-settings</li>
+<strong>Configuration file:</strong> config.yml with your study settings</li>
 <li>
 <strong>Project file:</strong> .Rproj file for RStudio</li>
 <li>
 <strong>README and documentation:</strong> README.md, NEWS.md</li>
 <li>
-<strong>Git setup:</strong> .gitignore configured for Picard
-projects</li>
+<strong>Git setup:</strong> .gitignore configured for Picard projects</li>
 </ul>
-<p>For detailed information about the repository structure, see <a href="picard_repository_structure.html">The Picard Repository
-Structure</a>.</p>
+<p>For detailed information about the repository structure, see <a href="picard_repository_structure.html">The Picard Repository Structure</a>.</p>
 </div>
 <div class="section level2">
 <h2 id="whats-next">What’s Next?<a class="anchor" aria-label="anchor" href="#whats-next"></a>
 </h2>
-<p>Your repository is now initialized and ready for development. The
-next phase is to develop your analysis pipeline. This includes:</p>
+<p>Your repository is now initialized and ready for development. The next phase is to develop your analysis pipeline. This includes:</p>
 <ul>
 <li>Setting up your development branch</li>
 <li>Defining inputs (cohorts and concept sets)</li>
 <li>Creating analysis tasks and supporting code</li>
 <li>Testing your pipeline on the <code>develop</code> branch</li>
 </ul>
-<p>See <a href="developing_the_pipeline.html">Developing the
-Pipeline</a> for the complete development workflow.</p>
+<p>See <a href="developing_the_pipeline.html">Developing the Pipeline</a> for the complete development workflow.</p>
 </div>
 <div class="section level2">
 <h2 id="see-also">See Also<a class="anchor" aria-label="anchor" href="#see-also"></a>
 </h2>
 <ul>
 <li>
-<a href="picard_repository_structure.html">The Picard Repository
-Structure</a> - Complete guide to repository organization</li>
+<a href="picard_repository_structure.html">The Picard Repository Structure</a> - Complete guide to repository organization</li>
 <li>
-<a href="developing_the_pipeline.html">Developing the Pipeline</a> -
-Development workflow from code creation to testing</li>
+<a href="developing_the_pipeline.html">Developing the Pipeline</a> - Development workflow from code creation to testing</li>
 <li>
-<a href="loading_inputs.html">Loading Inputs</a> - Setting up
-cohorts and concept sets</li>
+<a href="loading_inputs.html">Loading Inputs</a> - Setting up cohorts and concept sets</li>
 <li>
-<a href="running_the_pipeline.html">Running the Pipeline</a> -
-Executing your study pipeline in production</li>
+<a href="running_the_pipeline.html">Running the Pipeline</a> - Executing your study pipeline in production</li>
 </ul>
 </div>
-  </main><aside class="col-md-3"><nav id="toc"><h2>On this page</h2>
+  </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>
 </div>
 
@@ -596,15 +434,15 @@ Executing your study pipeline in production</li>
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.0.9.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
 </div>
 
     </footer>
 </div>
 
-  
 
-  
+
+
 
   </body>
 </html>

@@ -1,5 +1,5 @@
-pandoc: '3.2'
-pkgdown: 2.0.9
+pandoc: 2.9.2.1
+pkgdown: 2.2.0
 pkgdown_sha: ~
 articles:
   developing_the_pipeline: developing_the_pipeline.html
@@ -10,8 +10,7 @@ articles:
   picard_repository_structure: picard_repository_structure.html
   post_processing: post_processing.html
   running_the_pipeline: running_the_pipeline.html
-last_built: 2026-05-04T22:27Z
+last_built: 2026-05-05T21:55Z
 urls:
   reference: https://ohdsi.github.io/Picard/reference
   article: https://ohdsi.github.io/Picard/articles
-

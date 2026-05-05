@@ -35,7 +35,7 @@ initCohortManifest <- function(path = "inputs/cohorts") {
 
   cm <- CohortManifest$new(dbPath = dbPath)
   cli::cli_alert_success("Initialized empty cohort manifest at {fs::path_rel(dbPath)}")
-  cli::cli_alert_info("Add cohorts with $addAtlasCohort(), $addCaprCohort(), $addSqlCohort(), or $importAtlasCohorts()")
+  cli::cli_alert_info("Add cohorts with $addAtlasCohort(), $addCaprCohort(), $addCirceCohort(), $addSqlCohort(), or $importAtlasCohorts()")
 
   return(cm)
 }
@@ -127,7 +127,7 @@ loadCohortManifest <- function(cohortsFolderPath = here::here("inputs/cohorts"),
     if (length(untracked) > 5) {
       cli::cli_bullets(c("!" = "... and {length(untracked) - 5} more"))
     }
-    cli::cli_alert_info("Use $addAtlasCohort(), $addSqlCohort(), or $importAtlasCohorts() to register them.")
+    cli::cli_alert_info("Use $addAtlasCohort(), $addCirceCohort(), $addSqlCohort(), or $importAtlasCohorts() to register them.")
   }
 }
 
@@ -317,7 +317,7 @@ resetCohortManifest <- function(manifest = NULL,
       cli::cli_alert_success("Deleted {.file {fs::path_rel(derived_dir)}} ({n_derived} file(s)).")
     }
     cli::cli_alert_info(
-      "Call {.code initCohortManifest()} then re-register cohorts with {.code $addAtlasCohort()}, {.code $addSqlCohort()}, etc."
+      "Call {.code initCohortManifest()} then re-register cohorts with {.code $addAtlasCohort()}, {.code $addCirceCohort()}, {.code $addSqlCohort()}, etc."
     )
 
   } else if (scope == "full") {

@@ -33,7 +33,7 @@ CohortDef <- R6::R6Class(
 
       if (file_ext == "sql") {
         # Load SQL file directly
-        private$.sql <- readChar(filePath, file.info(filePath)$size)
+        private$.sql <- readr::read_file(filePath)
       } else if (file_ext == "json") {
         # Load and validate JSON as CIRCE cohort
         json_content <- readr::read_file(filePath)
@@ -61,13 +61,13 @@ CohortDef <- R6::R6Class(
     #'
     #' @param label Character. The common name of the cohort.
     #' @param category Character. Required classification (e.g., 'target', 'exposure', 'outcome').
-    #' @param sourceType Character. Provenance: 'atlas', 'capr', 'sql', or 'derived'.
+    #' @param sourceType Character. Provenance: 'atlas', 'capr', 'circe', 'sql', or 'derived'.
     #' @param tags List. A named list of tags that give metadata about the cohort.
     #' @param filePath Character. Path to the cohort file in inputs/cohorts folder (can be .json or .sql).
     initialize = function(label, category, sourceType, tags = list(), filePath) {
       checkmate::assert_string(x = label, min.chars = 1)
       checkmate::assert_string(x = category, min.chars = 1)
-      checkmate::assert_choice(x = sourceType, choices = c("atlas", "capr", "sql", "derived"))
+      checkmate::assert_choice(x = sourceType, choices = c("atlas", "capr", "circe", "sql", "derived"))
       checkmate::assert_list(x = tags, names = "named")
       checkmate::assert_file_exists(x = filePath)
 
@@ -447,7 +447,7 @@ CohortManifest <- R6::R6Class(
 
       # Compute hash from file
       hash <- if (file.exists(file_path)) {
-        file_content <- readChar(file_path, file.info(file_path)$size)
+        file_content <- readr::read_file(file_path)
         rlang::hash(file_content)
       } else {
         rlang::hash(label)
@@ -1110,13 +1110,16 @@ CohortManifest <- R6::R6Class(
       json_path <- fs::path(json_dir, paste0(cohort_name, ".json"))
       writeLines(expression_json, json_path)
 
+      # Tag the route for provenance
+      tags$route <- "atlas"
+
       # Register in manifest
       cohort_id <- private$insert_cohort(
         label = label,
         category = category,
         tags = tags,
         file_path = fs::path_rel(json_path),
-        source_type = "atlas",
+        source_type = "circe",
         cohort_type = "circe"
       )
 
@@ -1253,13 +1256,16 @@ CohortManifest <- R6::R6Class(
 
       Capr::writeCohort(caprCohort, json_path)
 
+      # Tag the route for provenance
+      tags$route <- "capr"
+
       # Register in manifest
       cohort_id <- private$insert_cohort(
         label = label,
         category = category,
         tags = tags,
         file_path = fs::path_rel(json_path),
-        source_type = "capr",
+        source_type = "circe",
         cohort_type = "circe"
       )
 
@@ -1298,7 +1304,7 @@ CohortManifest <- R6::R6Class(
       private$validate_filepath_unique(rel_path)
 
       # Run portability validation
-      sql_content <- readChar(filePath, file.info(filePath)$size)
+      sql_content <- readr::read_file(filePath)
       .validateCustomSql(sql_content, label)
 
       # Register in manifest
@@ -1312,6 +1318,65 @@ CohortManifest <- R6::R6Class(
       )
 
       cli::cli_alert_success("Added SQL cohort {cohort_id}: {label}")
+      invisible(cohort_id)
+    },
+
+    #' @description Add a Circe JSON cohort from disk
+    #'
+    #' Registers an existing Circe-compatible JSON file in the manifest.
+    #' The file must already exist on disk (typically in `json/`).
+    #' Validates that the JSON is valid Circe format using CirceR.
+    #'
+    #' @param filePath Character. Path to the Circe JSON file.
+    #' @param label Character. Display name for the cohort.
+    #' @param category Character. Required classification.
+    #' @param tags Named list. Optional metadata tags.
+    #'
+    #' @return Invisible integer. The assigned cohort ID.
+    addCirceCohort = function(filePath, label, category, tags = list()) {
+      checkmate::assert_file_exists(filePath)
+      checkmate::assert_string(label, min.chars = 1)
+      checkmate::assert_string(category, min.chars = 1)
+      checkmate::assert_list(tags, names = "named")
+
+      # Validate file is JSON
+      ext <- tolower(tools::file_ext(filePath))
+      if (ext != "json") {
+        cli::cli_abort("filePath must be a .json file, got: .{ext}")
+      }
+
+      # Validate label uniqueness
+      private$validate_label_unique(label)
+
+      # Validate file_path uniqueness
+      rel_path <- fs::path_rel(filePath)
+      private$validate_filepath_unique(rel_path)
+
+      # Validate CIRCE compatibility
+      json_content <- readr::read_file(filePath)
+      tryCatch(
+        CirceR::cohortExpressionFromJson(json_content),
+        error = function(e) {
+          cli::cli_abort(
+            "JSON file is not valid CIRCE format: {filePath}{n}Error: {e$message}"
+          )
+        }
+      )
+
+      # Tag the route for provenance
+      tags$route <- "manual"
+
+      # Register in manifest
+      cohort_id <- private$insert_cohort(
+        label = label,
+        category = category,
+        tags = tags,
+        file_path = rel_path,
+        source_type = "circe",
+        cohort_type = "circe"
+      )
+
+      cli::cli_alert_success("Added Circe cohort {cohort_id}: {label}")
       invisible(cohort_id)
     },
 
@@ -2716,7 +2781,7 @@ CohortManifest <- R6::R6Class(
         if (length(new_files) > 5) {
           cli::cli_bullets(c("!" = "... and {length(new_files) - 5} more"))
         }
-        cli::cli_alert_info("Use $addAtlasCohort(), $addSqlCohort(), or $addCaprCohort() to register them (category is required).")
+        cli::cli_alert_info("Use $addAtlasCohort(), $addCirceCohort(), $addSqlCohort(), or $addCaprCohort() to register them (category is required).")
         for (f_rel in on_disk_rel[!(on_disk_rel %in% existing_rel)]) {
           results <- rbind(results, data.frame(id = NA_integer_, label = tools::file_path_sans_ext(basename(f_rel)),
                                                 action = "untracked", stringsAsFactors = FALSE))

@@ -1,14 +1,14 @@
 Package: picard
 Type: Package
 Title: RWE Pipelining Tool
-Version: 0.0.3
+Version: 0.0.3.1
 Authors@R: c(
     person("Martin", "Lavallee", , "martin.lavallee@boehringer-ingelheim.com", role = c("aut", "cre"))
   )
 Description: A pipeline tool for RWE analysis (typically using the OHDSI stack) that allows users to easily create and run pipelines of R code.
     This package initializes a standard directory structure, builds cohorts, and executes R scripts in a specified order.
 License: Apache License (>= 2)
-URL: https://ohdsi.github.io/picard/, https://github.com/ohdsi/Picard/
+URL: https://ohdsi.github.io/Picard/, https://github.com/ohdsi/Picard/
 Requires: R (>= 3.2)
 Imports:
     R6,
@@ -41,7 +41,7 @@ Imports:
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.3
 Suggests:
     testthat (>= 3.0.0),
     Capr

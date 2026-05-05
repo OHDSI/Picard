@@ -1,3 +1,8 @@
+# picard 0.0.3.1
+
+- minor bug fixes 
+- `$addCirceCohort` add a circe cohort from the json folder to the manifest
+
 # picard 0.0.3
 
 ## CohortManifest Reboot
