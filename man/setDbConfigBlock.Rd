@@ -24,7 +24,7 @@ setDbConfigBlock(
 \item{databaseLabel}{the labelling name of the database, typically a common name for a db. For example Optum DOD}
 }
 \value{
-A StudyMeta R6 class with the study meta
+A DbConfigBlock R6 class with the the config details
 }
 \description{
 set the config block for a database

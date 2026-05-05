@@ -33,7 +33,7 @@ CohortDef <- R6::R6Class(
 
       if (file_ext == "sql") {
         # Load SQL file directly
-        private$.sql <- readChar(filePath, file.info(filePath)$size)
+        private$.sql <- readr::read_file(filePath)
       } else if (file_ext == "json") {
         # Load and validate JSON as CIRCE cohort
         json_content <- readr::read_file(filePath)
@@ -447,7 +447,7 @@ CohortManifest <- R6::R6Class(
 
       # Compute hash from file
       hash <- if (file.exists(file_path)) {
-        file_content <- readChar(file_path, file.info(file_path)$size)
+        file_content <- readr::read_file(file_path)
         rlang::hash(file_content)
       } else {
         rlang::hash(label)
@@ -1298,7 +1298,7 @@ CohortManifest <- R6::R6Class(
       private$validate_filepath_unique(rel_path)
 
       # Run portability validation
-      sql_content <- readChar(filePath, file.info(filePath)$size)
+      sql_content <- readr::read_file(filePath)
       .validateCustomSql(sql_content, label)
 
       # Register in manifest
