@@ -144,6 +144,13 @@ cohortManifest$tabulateManifest()
 #   tags = list(category = "Exposure")
 # )
 
+## Option 4: Add Circe JSON cohorts from disk
+# cohortManifest$addCirceCohort(
+#   filePath = "inputs/cohorts/json/my_cohort.json",
+#   label = "Circe JSON Cohort",
+#   category = "Disease Populations"
+# )
+
 
 # ================================================================================
 # E. OPTIONAL: BUILD DERIVED COHORTS

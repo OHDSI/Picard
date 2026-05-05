@@ -289,7 +289,146 @@ test_that("addSqlCohort enforces label uniqueness", {
     "already in use"
   )
 })
+test_that("addCirceCohort registers Circe JSON cohort correctly", {
+  # Skip if CirceR not available
+  skip_if_not_installed("CirceR")
 
+  temp_dir <- tempfile(prefix = "picard_test_")
+  dir.create(temp_dir, recursive = TRUE)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  # Create a minimal valid CIRCE JSON file
+  json_dir <- file.path(temp_dir, "json")
+  dir.create(json_dir, recursive = TRUE)
+
+  # Minimal valid Circe cohort JSON
+  circe_json <- '{
+    "ConceptSets": [],
+    "PrimaryCriteria": {
+      "CriteriaList": [],
+      "ObservationWindow": {
+        "PriorDays": 0,
+        "PostDays": 0
+      }
+    },
+    "QualifiedLimit": { "Type": "First" },
+    "ExpressionLimit": { "Type": "First" },
+    "InclusionRules": []
+  }'
+  temp_json <- file.path(json_dir, "circe_cohort.json")
+  writeLines(circe_json, temp_json)
+
+  db_path <- file.path(temp_dir, "cohortManifest.sqlite")
+  manifest <- CohortManifest$new(dbPath = db_path)
+
+  cohort_id <- manifest$addCirceCohort(
+    filePath = temp_json,
+    label = "Test Circe Cohort",
+    category = "outcome",
+    tags = list(type = "test")
+  )
+
+  expect_type(cohort_id, "integer")
+  expect_true(cohort_id > 0)
+
+  results <- manifest$queryCohortsByIds(cohort_id)
+  expect_true(!is.null(results))
+  expect_equal(nrow(results), 1)
+  expect_equal(results$label[1], "Test Circe Cohort")
+  expect_equal(results$source_type[1], "circe")
+
+  # Verify route tag was set
+  cohort <- manifest$getCohortById(cohort_id)
+  expect_equal(cohort$tags$route, "manual")
+})
+
+test_that("addCirceCohort rejects non-JSON files", {
+  skip_if_not_installed("CirceR")
+
+  temp_dir <- tempfile(prefix = "picard_test_")
+  dir.create(temp_dir, recursive = TRUE)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  sql_dir <- file.path(temp_dir, "sql")
+  dir.create(sql_dir, recursive = TRUE)
+  temp_sql <- file.path(sql_dir, "test.sql")
+  writeLines("SELECT 1;", temp_sql)
+
+  db_path <- file.path(temp_dir, "cohortManifest.sqlite")
+  manifest <- CohortManifest$new(dbPath = db_path)
+
+  expect_error(
+    manifest$addCirceCohort(
+      filePath = temp_sql,
+      label = "Bad Cohort",
+      category = "outcome"
+    ),
+    "filePath must be a .json file"
+  )
+})
+
+test_that("addCirceCohort rejects invalid JSON", {
+  skip_if_not_installed("CirceR")
+
+  temp_dir <- tempfile(prefix = "picard_test_")
+  dir.create(temp_dir, recursive = TRUE)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  json_dir <- file.path(temp_dir, "json")
+  dir.create(json_dir, recursive = TRUE)
+  temp_json <- file.path(json_dir, "invalid.json")
+  writeLines('{"not": "circe cohort"}', temp_json)
+
+  db_path <- file.path(temp_dir, "cohortManifest.sqlite")
+  manifest <- CohortManifest$new(dbPath = db_path)
+
+  expect_error(
+    manifest$addCirceCohort(
+      filePath = temp_json,
+      label = "Bad JSON",
+      category = "outcome"
+    ),
+    "not valid CIRCE format"
+  )
+})
+
+test_that("addCirceCohort enforces label uniqueness", {
+  skip_if_not_installed("CirceR")
+
+  temp_dir <- tempfile(prefix = "picard_test_")
+  dir.create(temp_dir, recursive = TRUE)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  json_dir <- file.path(temp_dir, "json")
+  dir.create(json_dir, recursive = TRUE)
+
+  circe_json <- '{
+    "ConceptSets": [],
+    "PrimaryCriteria": {
+      "CriteriaList": [],
+      "ObservationWindow": {
+        "PriorDays": 0,
+        "PostDays": 0
+      }
+    },
+    "QualifiedLimit": { "Type": "First" },
+    "ExpressionLimit": { "Type": "First" },
+    "InclusionRules": []
+  }'
+  json1 <- file.path(json_dir, "cohort_a.json")
+  json2 <- file.path(json_dir, "cohort_b.json")
+  writeLines(circe_json, json1)
+  writeLines(circe_json, json2)
+
+  db_path <- file.path(temp_dir, "cohortManifest.sqlite")
+  manifest <- CohortManifest$new(dbPath = db_path)
+
+  manifest$addCirceCohort(filePath = json1, label = "Same Label", category = "outcome")
+  expect_error(
+    manifest$addCirceCohort(filePath = json2, label = "Same Label", category = "outcome"),
+    "already in use"
+  )
+})
 # ========== PHASE D: MANAGEMENT METHODS TESTS ==========
 
 test_that("updateCohortDef updates cohort metadata", {

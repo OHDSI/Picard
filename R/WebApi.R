@@ -20,25 +20,25 @@ WebApiConnection <- R6::R6Class(
 
     checkUser = function() {
       usr <- private$.user
-      cli::cat_line(glue::glue("- user: {crayon::green(usr)}"))
+      cli::cli_bullets(c("v" = "user: {.val {usr}}"))
       invisible(usr)
     },
 
     checkPassword = function() {
       pwd <- private$.password
-      cli::cat_line(glue::glue("- password: {crayon::hidden(pwd)}"))
+      cli::cli_bullets(c("v" = "password: ********"))
       invisible(pwd)
     },
 
     checkBaseUrl = function() {
       baseUrl <- private$.baseUrl
-      cli::cat_line(glue::glue("- baseUrl: {crayon::green(baseUrl)}"))
+      cli::cli_bullets(c("v" = "baseUrl: {.url {baseUrl}}"))
       invisible(baseUrl)
     },
 
     checkAuthMethod = function() {
       am <- private$.authMethod
-      cli::cat_line(glue::glue("- authMethod: {crayon::green(am)}"))
+      cli::cli_bullets(c("v" = "authMethod: {.val {am}}"))
       invisible(am)
     },
 
@@ -49,18 +49,18 @@ WebApiConnection <- R6::R6Class(
 
     checkAtlasCredentials = function() {
 
-      headerTxt <- glue::glue_col("Checking Atlas Credentials from {cyan .Renviron}")
-      cli::cat_rule(headerTxt)
-      cli::cat_line()
+      cli::cli_rule("Checking Atlas Credentials from {.path .Renviron}")
+      cli::cli_text("")
 
       self$checkBaseUrl()
       self$checkAuthMethod()
       self$checkUser()
       self$checkPassword()
 
-      cli::cat_line()
-      messageTxt <- glue::glue_col("To modify credentials run function {magenta 'usethis::edit_r_environ()'} and change system variables for Atlas credentials")
-      cli::cat_bullet(messageTxt, bullet = "warning", bullet_col = "yellow")
+      cli::cli_text("")
+      cli::cli_bullets(c(
+        "*" = "To modify credentials run {.fn usethis::edit_r_environ} and change system variables for Atlas credentials"
+      ))
 
     },
 
@@ -70,7 +70,7 @@ WebApiConnection <- R6::R6Class(
         private$authorizeWebApi()
       }
       baseUrl <- private$.baseUrl
-      req <- glue::glue("{baseUrl}/cohortdefinition/{cohortId}") |>
+      req <- paste0(baseUrl, "/cohortdefinition/", cohortId) |>
         httr2::request() |>
         httr2::req_auth_bearer_token(token = private$.bearerToken)
       resp <- httr2::req_perform(req = req)
@@ -81,7 +81,7 @@ WebApiConnection <- R6::R6Class(
         id = cd$id,
         name = cd$name,
         expression = formatCohortExpression(cdExp),
-        saveName = glue::glue("{id}_{name}") |> snakecase::to_snake_case()
+        saveName = paste0(cd$id, "_", cd$name) |> snakecase::to_snake_case()
       )
 
       return(tb)
@@ -93,14 +93,14 @@ WebApiConnection <- R6::R6Class(
         private$authorizeWebApi()
       }
       baseUrl <- private$.baseUrl
-      req <- glue::glue("{baseUrl}/conceptset/{conceptSetId}") |>
+      req <- paste0(baseUrl, "/conceptset/", conceptSetId) |>
         httr2::request() |>
         httr2::req_auth_bearer_token(token = private$.bearerToken)
       resp <- httr2::req_perform(req = req)
       cs <- httr2::resp_body_json(resp)
 
       # get the expression from the right spot
-      csExp <-pluckConceptSetExpression(
+      csExp <- pluckConceptSetExpression(
         conceptSetId = conceptSetId,
         baseUrl = baseUrl,
         bearerToken = private$.bearerToken
@@ -110,7 +110,7 @@ WebApiConnection <- R6::R6Class(
         id = cs$id,
         name = cs$name,
         expression = csExp,
-        saveName = glue::glue("{id}_{name}") |> snakecase::to_snake_case()
+        saveName = paste0(cs$id, "_", cs$name) |> snakecase::to_snake_case()
       )
 
       return(tb)
@@ -132,13 +132,9 @@ WebApiConnection <- R6::R6Class(
       user <- private$.user
       password <- private$.password
 
-      cli::cat_bullet(
-        glue::glue("Authorizing Web Api connection for {crayon::cyan(baseUrl)}"),
-        bullet = "pointer",
-        bullet_col = "yellow"
-      )
+      cli::cli_alert_info("Authorizing Web API connection for {.url {baseUrl}}")
 
-      authUrl <- paste0(baseUrl, glue::glue("/user/login/{authMethod}"))
+      authUrl <- paste0(baseUrl, "/user/login/", authMethod)
 
       req <- httr2::request(authUrl) |>
         httr2::req_body_form(
@@ -219,11 +215,7 @@ CirceCohortsToLoad <- R6::R6Class(
       )
       private[[".cohortsToLoadTable"]] <- value
 
-      cli::cat_bullet(
-        glue::glue("Replaced {crayon::cyan('cohortsToLoadTable')} with {crayon::green(value)}"),
-        bullet = "info",
-        bullet_col = "blue"
-      )
+      cli::cli_alert_success("Replaced {.field cohortsToLoadTable}")
     }
   )
 )
@@ -292,11 +284,7 @@ CirceConceptSetsToLoad <- R6::R6Class(
       )
       private[[".conceptSetsToLoadTable"]] <- value
 
-      cli::cat_bullet(
-        glue::glue("Replaced {crayon::cyan('conceptSetsToLoadTable')} with {crayon::green(value)}"),
-        bullet = "info",
-        bullet_col = "blue"
-      )
+      cli::cli_alert_success("Replaced {.field conceptSetsToLoadTable}")
     }
   )
 )
@@ -424,7 +412,7 @@ setAtlasConnection <- function(useKeyring = FALSE) {
 }
 
 pluckConceptSetExpression <- function(conceptSetId, baseUrl, bearerToken) {
-  req <- glue::glue("{baseUrl}/conceptset/{conceptSetId}/expression") |>
+  req <- paste0(baseUrl, "/conceptset/", conceptSetId, "/expression") |>
     httr2::request() |>
     httr2::req_auth_bearer_token(token = bearerToken)
   resp <- httr2::req_perform(req = req)
@@ -468,24 +456,24 @@ formatCohortExpression <- function(expression) {
 #' @export
 templateAtlasCredentials <- function() {
 
-  credsToSetTxt <- c("atlasBaseUrl='https://organization-atlas.com/WebAPI'",
-                     "atlasAuthMethod='ad'",
-                     "atlasUser='atlas.user@company.com'",
-                     "atlasPassword='TisASecret'") |>
-    glue::glue_collapse(sep = "\n")
+  credsToSetTxt <- paste0(
+    "atlasBaseUrl='https://organization-atlas.com/WebAPI'\n",
+    "atlasAuthMethod='ad'\n",
+    "atlasUser='atlas.user@company.com'\n",
+    "atlasPassword='TisASecret'"
+  )
 
-  headerTxt <- "Atlas Credential Template"
-  instructionsTxt1 <- "Providing a template for setting Atlas Credentials. Please alter to the correct credentials!!!"
-  instructionsTxt2 <- glue::glue_col("To set Atlas Credentials run function {magenta 'usethis::edit_r_environ()'} and paste template to {cyan .Renviron} changing the credentials accordingly.")
-  noteTxt <- "The variable name of the atlas credentials must be in this format!!!"
-
-  cli::cat_rule(headerTxt)
-  cli::cat_line()
-  cli::cat_bullet(instructionsTxt1, bullet = "info", bullet_col = "blue")
-  cli::cat_bullet(instructionsTxt2, bullet = "info", bullet_col = "blue")
-  cli::cat_bullet(noteTxt, bullet = "warning", bullet_col = "yellow")
-  cli::cat_line()
-  cli::cat_line(credsToSetTxt)
+  cli::cli_rule("Atlas Credential Template")
+  cli::cli_text("")
+  cli::cli_bullets(c(
+    "i" = "Template for setting Atlas Credentials. Please alter to the correct credentials!"
+  ))
+  cli::cli_bullets(c(
+    "*" = "To set Atlas Credentials run {.fn usethis::edit_r_environ} and paste the template to {.path .Renviron} changing the credentials accordingly."
+  ))
+  cli::cli_alert_warning("The variable names of the atlas credentials must be in this exact format!")
+  cli::cli_text("")
+  cli::cli_code(credsToSetTxt)
 
   invisible(credsToSetTxt)
 }
@@ -496,7 +484,7 @@ templateAtlasCredentials <- function() {
 
 getAtlasAuthBearerToken <- function(baseUrl, authMethod, user, password) {
 
-  authUrl <- paste0(baseUrl, glue::glue("user/login/{authMethod}"))
+  authUrl <- paste0(baseUrl, "/user/login/", authMethod)
 
   req <- httr2::request(authUrl) |>
     httr2::req_body_form(

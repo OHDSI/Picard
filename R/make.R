@@ -38,7 +38,7 @@ makeStudyMeta <- function(studyTitle,
 #' @param cohortTable a character string specifying the way you want to name your cohort table
 #' @param databaseName the name of the database, typically uses the db name and id. For example optum_dod_202501
 #' @param databaseLabel the labelling name of the database, typically a common name for a db. For example Optum DOD
-#' @returns A StudyMeta R6 class with the study meta
+#' @returns A DbConfigBlock R6 class with the the config details
 #' @export
 setDbConfigBlock <- function(configBlockName,
                              cdmDatabaseSchema,

@@ -30,7 +30,7 @@ The migration performs the following steps:
 \enumerate{
 \item Backs up the old database to \verb{cohortManifest_backup_\{timestamp\}.sqlite}
 \item Reads all rows from the old schema
-\item Infers \code{source_type} from file path (\verb{json/} -> "atlas", \verb{sql/} -> "sql", \verb{derived/} -> "derived")
+\item Infers \code{source_type} from file path (\verb{json/} -> "circe", \verb{sql/} -> "sql", \verb{derived/} -> "derived")
 \item Infers \code{cohort_type} from old \code{cohortType} column
 \item Assigns \code{category} from \code{categoryMap}, tag keywords, or defaults to "unclassified"
 \item Converts tags from pipe-delimited string to JSON named list
