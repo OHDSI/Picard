@@ -9,7 +9,7 @@
 #' The migration performs the following steps:
 #' 1. Backs up the old database to `cohortManifest_backup_{timestamp}.sqlite`
 #' 2. Reads all rows from the old schema
-#' 3. Infers `source_type` from file path (`json/` -> "atlas", `sql/` -> "sql", `derived/` -> "derived")
+#' 3. Infers `source_type` from file path (`json/` -> "circe", `sql/` -> "sql", `derived/` -> "derived")
 #' 4. Infers `cohort_type` from old `cohortType` column
 #' 5. Assigns `category` from `categoryMap`, tag keywords, or defaults to "unclassified"
 #' 6. Converts tags from pipe-delimited string to JSON named list
@@ -201,7 +201,7 @@ migrateCohortManifest <- function(dbPath = "inputs/cohorts/cohortManifest.sqlite
 #' @noRd
 .infer_source_type <- function(file_path) {
   if (grepl("/json/", file_path, fixed = TRUE)) {
-    return("atlas")
+    return("circe")
   }
 
   if (grepl("/sql/", file_path, fixed = TRUE)) {
@@ -214,7 +214,7 @@ migrateCohortManifest <- function(dbPath = "inputs/cohorts/cohortManifest.sqlite
 
   # Fallback: check file extension
   ext <- tolower(tools::file_ext(file_path))
-  if (ext == "json") return("atlas")
+  if (ext == "json") return("circe")
   if (ext == "sql") return("sql")
 
 

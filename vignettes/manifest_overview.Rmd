@@ -54,7 +54,7 @@ from SQLite at startup.
 | `label` | User-defined display name (unique among active records) |
 | `category` | User classification (e.g., "Disease Populations") |
 | `cohort_type` | `circe`, `custom`, `union`, `subset`, `complement`, `composite` |
-| `source_type` | `atlas`, `capr`, `sql`, `derived` |
+| `source_type` | `circe`, `sql`, `derived` |
 | `file_path` | Relative path to the SQL/JSON file on disk |
 | `hash` | MD5 of the file — used by `generateCohorts()` to skip unchanged cohorts |
 | `depends_on` | JSON array of parent cohort IDs (derived cohorts only) |
@@ -133,6 +133,18 @@ manifest$addSqlCohort(
 
 The SQL must use SqlRender parameters — see `?CohortManifest` for required
 parameter names (`@target_cohort_id`, `@target_database_schema`, etc.).
+
+### From a Local CIRCE JSON file
+
+If you have a Circe-compatible `.json` file on disk, register it with:
+
+```{r}
+manifest$addCirceCohort(
+  filePath = here::here("inputs/cohorts/json/my_cohort.json"),
+  label    = "My Circe Cohort",
+  category = "Disease Populations"
+)
+```
 
 ---
 

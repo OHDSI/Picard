@@ -76,6 +76,7 @@ Requires that executionSettings has been set and includes:
 \item \href{#method-CohortManifest-importAtlasCohorts}{\code{CohortManifest$importAtlasCohorts()}}
 \item \href{#method-CohortManifest-addCaprCohort}{\code{CohortManifest$addCaprCohort()}}
 \item \href{#method-CohortManifest-addSqlCohort}{\code{CohortManifest$addSqlCohort()}}
+\item \href{#method-CohortManifest-addCirceCohort}{\code{CohortManifest$addCirceCohort()}}
 \item \href{#method-CohortManifest-buildUnionCohort}{\code{CohortManifest$buildUnionCohort()}}
 \item \href{#method-CohortManifest-buildSubsetCohortTemporal}{\code{CohortManifest$buildSubsetCohortTemporal()}}
 \item \href{#method-CohortManifest-buildComplementCohort}{\code{CohortManifest$buildComplementCohort()}}
@@ -416,6 +417,36 @@ on disk (typically in \verb{sql/}).
 \if{html}{\out{<div class="arguments">}}
 \describe{
 \item{\code{filePath}}{Character. Path to the SQL file.}
+
+\item{\code{label}}{Character. Display name for the cohort.}
+
+\item{\code{category}}{Character. Required classification.}
+
+\item{\code{tags}}{Named list. Optional metadata tags.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible integer. The assigned cohort ID.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-addCirceCohort"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-addCirceCohort}{}}}
+\subsection{Method \code{addCirceCohort()}}{
+Add a Circe JSON cohort from disk
+
+Registers an existing Circe-compatible JSON file in the manifest.
+The file must already exist on disk (typically in \verb{json/}).
+Validates that the JSON is valid Circe format using CirceR.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$addCirceCohort(filePath, label, category, tags = list())}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{filePath}}{Character. Path to the Circe JSON file.}
 
 \item{\code{label}}{Character. Display name for the cohort.}
 
