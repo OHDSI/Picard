@@ -35,7 +35,7 @@ depends_on, dependency_rule, and timestamp columns."></head><body>
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Migrate Old CohortManifest SQLite to New Schema</h1>
-      <small class="dont-index">Source: <a href="https://github.com/ohdsi/Picard/blob/main/R/migrateCohortManifest.R" class="external-link"><code>R/migrateCohortManifest.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/ohdsi/Picard/blob/HEAD/R/migrateCohortManifest.R" class="external-link"><code>R/migrateCohortManifest.R</code></a></small>
       <div class="d-none name"><code>migrateCohortManifest.Rd</code></div>
     </div>
 
@@ -76,7 +76,7 @@ Cohorts not in the map will be assigned from tag keywords or "unclassified".</p>
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>The migration performs the following steps:</p><ol><li><p>Backs up the old database to <code>cohortManifest_backup_{timestamp}.sqlite</code></p></li>
 <li><p>Reads all rows from the old schema</p></li>
-<li><p>Infers <code>source_type</code> from file path (<code>json/</code> -&gt; "atlas", <code>sql/</code> -&gt; "sql", <code>derived/</code> -&gt; "derived")</p></li>
+<li><p>Infers <code>source_type</code> from file path (<code>json/</code> -&gt; "circe", <code>sql/</code> -&gt; "sql", <code>derived/</code> -&gt; "derived")</p></li>
 <li><p>Infers <code>cohort_type</code> from old <code>cohortType</code> column</p></li>
 <li><p>Assigns <code>category</code> from <code>categoryMap</code>, tag keywords, or defaults to "unclassified"</p></li>
 <li><p>Converts tags from pipe-delimited string to JSON named list</p></li>

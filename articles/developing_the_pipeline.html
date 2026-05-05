@@ -48,30 +48,25 @@
 
 
 
-
-<div class="row">
+<script src="developing_the_pipeline_files/accessible-code-block-0.0.1/empty-anchor.js"></script><div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Developing the Pipeline</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/ohdsi/Picard/blob/main/vignettes/developing_the_pipeline.Rmd" class="external-link"><code>vignettes/developing_the_pipeline.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/ohdsi/Picard/blob/HEAD/vignettes/developing_the_pipeline.Rmd" class="external-link"><code>vignettes/developing_the_pipeline.Rmd</code></a></small>
       <div class="d-none name"><code>developing_the_pipeline.Rmd</code></div>
     </div>
 
     
     
 <blockquote>
-<p><strong>Note:</strong> This vignette is currently in development and
-subject to change.</p>
+<p><strong>Note:</strong> This vignette is currently in development and subject to change.</p>
 </blockquote>
 <div class="section level2">
 <h2 id="introduction">Introduction<a class="anchor" aria-label="anchor" href="#introduction"></a>
 </h2>
-<p>Once your repository is initialized (see <a href="launching_a_study.html">Launching a Picard Study</a>), the next
-phase is to develop your analysis pipeline. This vignette walks you
-through the complete development workflow on the <code>develop</code>
-branch, from defining inputs through testing your code.</p>
+<p>Once your repository is initialized (see <a href="launching_a_study.html">Launching a Picard Study</a>), the next phase is to develop your analysis pipeline. This vignette walks you through the complete development workflow on the <code>develop</code> branch, from defining inputs through testing your code.</p>
 </div>
 <div class="section level2">
 <h2 id="development-workflow-overview">Development Workflow Overview<a class="anchor" aria-label="anchor" href="#development-workflow-overview"></a>
@@ -91,58 +86,39 @@ branch, from defining inputs through testing your code.</p>
 <div class="section level2">
 <h2 id="step-1-finalize-git-and-renv-setup">Step 1: Finalize Git and renv Setup<a class="anchor" aria-label="anchor" href="#step-1-finalize-git-and-renv-setup"></a>
 </h2>
-<p><strong>Git:</strong> You already have a local repository. If you
-provided <code>gitRemote</code> during setup, your code is already
-synced. If not, see <a href="launching_a_study.html#setting-up-git-version-control">Setting Up
-Git Version Control</a> in the launching vignette to push your code to a
-remote.</p>
-<p><strong>renv:</strong> This is your responsibility. It’s
-<strong>highly encouraged</strong> to set this up immediately:</p>
+<p><strong>Git:</strong> You already have a local repository. If you provided <code>gitRemote</code> during setup, your code is already synced. If not, see <a href="launching_a_study.html#setting-up-git-version-control">Setting Up Git Version Control</a> in the launching vignette to push your code to a remote.</p>
+<p><strong>renv:</strong> This is your responsibility. It’s <strong>highly encouraged</strong> to set this up immediately:</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">renv</span><span class="fu">::</span><span class="fu">init</span><span class="op">(</span><span class="op">)</span> <span class="co"># done in the project root directory</span></span></code></pre></div>
-<p>This captures your current R environment, ensuring reproducibility
-for your team. You should set up renv on main before switching to
-develop, so that your development branch inherits the same environment.
-After running <code>renv::init()</code>, commit the changes to Git:</p>
+<p>This captures your current R environment, ensuring reproducibility for your team. You should set up renv on main before switching to develop, so that your development branch inherits the same environment. After running <code>renv::init()</code>, commit the changes to Git:</p>
 </div>
 <div class="section level2">
 <h2 id="step-2-create-your-development-branch">Step 2: Create Your Development Branch<a class="anchor" aria-label="anchor" href="#step-2-create-your-development-branch"></a>
 </h2>
-<p>All development work happens on the <code>develop</code> branch
-(never on <code>main</code>):</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="co"># Create and switch to develop branch</span></span>
-<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a><span class="fu">git</span> checkout <span class="at">-b</span> develop</span>
-<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a><span class="fu">git</span> push <span class="at">-u</span> origin develop</span></code></pre></div>
-<p>All subsequent work will be done here and tested before any
-production execution.</p>
+<p>All development work happens on the <code>develop</code> branch (never on <code>main</code>):</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true"></a><span class="co"># Create and switch to develop branch</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true"></a><span class="fu">git</span> checkout -b develop</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true"></a><span class="fu">git</span> push -u origin develop</span></code></pre></div>
+<p>All subsequent work will be done here and tested before any production execution.</p>
 </div>
 <div class="section level2">
 <h2 id="step-3-define-your-inputs-cohorts-and-concept-sets">Step 3: Define Your Inputs (Cohorts and Concept Sets)<a class="anchor" aria-label="anchor" href="#step-3-define-your-inputs-cohorts-and-concept-sets"></a>
 </h2>
-<p>Before writing analysis code, you need to define the populations and
-phenotypes. This happens in the <code>inputs/</code> folder:</p>
-<p><strong>For Cohorts:</strong> Use the interactive editor to add your
-study populations:</p>
+<p>Before writing analysis code, you need to define the populations and phenotypes. This happens in the <code>inputs/</code> folder:</p>
+<p><strong>For Cohorts:</strong> Use the interactive editor to add your study populations:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">launchCohortsLoadEditor</span><span class="op">(</span>cohortsFolderPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<p>This opens a Shiny app where you can add cohort metadata without
-editing CSV files directly.</p>
-<p><strong>For Concept Sets:</strong> Similarly, define your
-phenotypes:</p>
+<p>This opens a Shiny app where you can add cohort metadata without editing CSV files directly.</p>
+<p><strong>For Concept Sets:</strong> Similarly, define your phenotypes:</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">launchConceptSetsLoadEditor</span><span class="op">(</span>conceptSetsFolderPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/conceptSets"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<p>See <a href="loading_inputs.html">Loading Inputs</a> for detailed
-guidance on importing from ATLAS and managing manifests.</p>
+<p>See <a href="loading_inputs.html">Loading Inputs</a> for detailed guidance on importing from ATLAS and managing manifests.</p>
 </div>
 <div class="section level2">
 <h2 id="step-4-create-analysis-tasks-and-supporting-code">Step 4: Create Analysis Tasks and Supporting Code<a class="anchor" aria-label="anchor" href="#step-4-create-analysis-tasks-and-supporting-code"></a>
 </h2>
-<p>Analysis happens in the <code>analysis/</code> folder, which has two
-key subdirectories:</p>
-<p><strong>Tasks</strong> (<code>analysis/tasks/</code>) - Main workflow
-files executed by the pipeline <strong>Source</strong>
-(<code>analysis/src/</code>) - Supporting functions and utilities used
-by tasks</p>
+<p>Analysis happens in the <code>analysis/</code> folder, which has two key subdirectories:</p>
+<p><strong>Tasks</strong> (<code>analysis/tasks/</code>) - Main workflow files executed by the pipeline <strong>Source</strong> (<code>analysis/src/</code>) - Supporting functions and utilities used by tasks</p>
 <div class="section level3">
 <h3 id="creating-a-task">Creating a Task<a class="anchor" aria-label="anchor" href="#creating-a-task"></a>
 </h3>
@@ -155,46 +131,26 @@ by tasks</p>
 <span>  projectPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  openFile <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<p>This creates a standardized R script in <code>analysis/tasks/</code>
-with a template structure. The filename is automatically generated as
-<code>01_descriptive_stats.R</code>.</p>
-<p><strong>Task Naming Convention:</strong> <code><a href="../reference/makeTaskFile.html">makeTaskFile()</a></code>
-automatically handles the numbering based on existing files in your
-<code>analysis/tasks/</code> folder. You simply provide the task name
-(e.g., <code>"DescriptiveStats"</code>), and <code><a href="../reference/makeTaskFile.html">makeTaskFile()</a></code>
-will: - Count existing task files - Generate the next sequential number
-(01, 02, 03, etc.) - Convert your task name to snake_case - Create the
-file as <code>NN_task_name.R</code></p>
-<p>Tasks execute in alphabetical order, so the automatic numbering
-controls the execution sequence.</p>
+<p>This creates a standardized R script in <code>analysis/tasks/</code> with a template structure. The filename is automatically generated as <code>01_descriptive_stats.R</code>.</p>
+<p><strong>Task Naming Convention:</strong> <code><a href="../reference/makeTaskFile.html">makeTaskFile()</a></code> automatically handles the numbering based on existing files in your <code>analysis/tasks/</code> folder. You simply provide the task name (e.g., <code>"DescriptiveStats"</code>), and <code><a href="../reference/makeTaskFile.html">makeTaskFile()</a></code> will: - Count existing task files - Generate the next sequential number (01, 02, 03, etc.) - Convert your task name to snake_case - Create the file as <code>NN_task_name.R</code></p>
+<p>Tasks execute in alphabetical order, so the automatic numbering controls the execution sequence.</p>
 </div>
 <div class="section level3">
 <h3 id="creating-supporting-source-files">Creating Supporting Source Files<a class="anchor" aria-label="anchor" href="#creating-supporting-source-files"></a>
 </h3>
-<p>For reusable utility functions, create files in
-<code>analysis/src/</code> using <code><a href="../reference/makeSrcFile.html">makeSrcFile()</a></code>:</p>
+<p>For reusable utility functions, create files in <code>analysis/src/</code> using <code><a href="../reference/makeSrcFile.html">makeSrcFile()</a></code>:</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/makeSrcFile.html">makeSrcFile</a></span><span class="op">(</span></span>
 <span>  fileName <span class="op">=</span> <span class="st">"custom_analysis_functions"</span>,</span>
 <span>  author <span class="op">=</span> <span class="st">"Jane Doe"</span>,</span>
 <span>  description <span class="op">=</span> <span class="st">"Helper functions for cohort calculations and data validation"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<p>This creates a standardized R script in
-<code>analysis/src/custom_analysis_functions.R</code> with a template
-structure for your utility functions.</p>
-<p><strong>File Naming Convention:</strong> Use <code>snake_case</code>
-for the <code>fileName</code> parameter. The function will convert your
-input to snake_case automatically, so
-<code>"customAnalysisFunctions"</code>,
-<code>"CustomAnalysisFunctions"</code>, or
-<code>"custom_analysis_functions"</code> will all become
-<code>custom_analysis_functions.R</code>.</p>
-<p><strong>Important:</strong> Treat source files like R package
-development:</p>
+<p>This creates a standardized R script in <code>analysis/src/custom_analysis_functions.R</code> with a template structure for your utility functions.</p>
+<p><strong>File Naming Convention:</strong> Use <code>snake_case</code> for the <code>fileName</code> parameter. The function will convert your input to snake_case automatically, so <code>"customAnalysisFunctions"</code>, <code>"CustomAnalysisFunctions"</code>, or <code>"custom_analysis_functions"</code> will all become <code>custom_analysis_functions.R</code>.</p>
+<p><strong>Important:</strong> Treat source files like R package development:</p>
 <ul>
 <li>
-<p><strong>Use <code>package::function()</code> notation</strong>
-instead of <code><a href="https://rdrr.io/r/base/library.html" class="external-link">library()</a></code> calls:</p>
+<p><strong>Use <code>package::function()</code> notation</strong> instead of <code><a href="https://rdrr.io/r/base/library.html" class="external-link">library()</a></code> calls:</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Good: Use explicit namespace</span></span>
 <span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/filter.html" class="external-link">filter</a></span><span class="op">(</span><span class="va">data</span>, <span class="va">age</span> <span class="op">&gt;</span> <span class="fl">18</span><span class="op">)</span></span>
@@ -202,12 +158,10 @@ instead of <code><a href="https://rdrr.io/r/base/library.html" class="external-l
 <span><span class="co"># Avoid: Loading entire library</span></span>
 <span><span class="co"># library(dplyr)</span></span>
 <span><span class="co"># result &lt;- filter(data, age &gt; 18)</span></span></code></pre></div>
-<p>This makes dependencies explicit and avoids namespace
-conflicts.</p>
+<p>This makes dependencies explicit and avoids namespace conflicts.</p>
 </li>
 <li>
-<p><strong>Document each function</strong> with a clear comment
-block describing:</p>
+<p><strong>Document each function</strong> with a clear comment block describing:</p>
 <ul>
 <li>What the function does</li>
 <li>What inputs it expects</li>
@@ -225,8 +179,7 @@ block describing:</p>
 <span><span class="op">}</span></span></code></pre></div>
 </li>
 </ul>
-<p>Then source these files from your tasks in the <strong>B.
-Dependencies</strong> section at the top of the task file:</p>
+<p>Then source these files from your tasks in the <strong>B. Dependencies</strong> section at the top of the task file:</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># B. Dependencies ---------------</span></span>
 <span></span>
@@ -240,81 +193,73 @@ Dependencies</strong> section at the top of the task file:</p>
 <div class="section level3">
 <h3 id="creating-sqlrender-sql-queries">Creating SqlRender SQL Queries<a class="anchor" aria-label="anchor" href="#creating-sqlrender-sql-queries"></a>
 </h3>
-<p>For parameterized SQL queries used with SqlRender, create files in
-<code>analysis/src/sql/</code> using <code><a href="../reference/makeSrcSqlFile.html">makeSrcSqlFile()</a></code>:</p>
+<p>For parameterized SQL queries used with SqlRender, create files in <code>analysis/src/sql/</code> using <code><a href="../reference/makeSrcSqlFile.html">makeSrcSqlFile()</a></code>:</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/makeSrcSqlFile.html">makeSrcSqlFile</a></span><span class="op">(</span></span>
 <span>  fileName <span class="op">=</span> <span class="st">"drug_exposure_summary"</span>,</span>
 <span>  author <span class="op">=</span> <span class="st">"Jane Doe"</span>,</span>
 <span>  description <span class="op">=</span> <span class="st">"Create a summary table of drug exposure by observation period"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<p>This creates a standardized SQL file in
-<code>analysis/src/sql/drug_exposure_summary.sql</code> with
-placeholders for SqlRender parameters.</p>
-<p><strong>Important:</strong> SqlRender uses <code>@paramName</code>
-notation for substitution. Here’s a realistic example that builds an
-intermediate work table with multi-step logic:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="co">/* </span></span>
-<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a><span class="co">Document your parameters at the top:</span></span>
-<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a><span class="co">  @cdmDatabaseSchema - Schema containing OMOP CDM tables</span></span>
-<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a><span class="co">  @workDatabaseSchema - Schema for output tables</span></span>
-<span id="cb11-5"><a href="#cb11-5" tabindex="-1"></a><span class="co">  @workTableName - Name of the intermediate work table to create</span></span>
-<span id="cb11-6"><a href="#cb11-6" tabindex="-1"></a><span class="co">  @studyStartDate - Start date for filtering</span></span>
-<span id="cb11-7"><a href="#cb11-7" tabindex="-1"></a><span class="co">  @studyEndDate - End date for filtering</span></span>
-<span id="cb11-8"><a href="#cb11-8" tabindex="-1"></a><span class="co">*/</span></span>
-<span id="cb11-9"><a href="#cb11-9" tabindex="-1"></a></span>
-<span id="cb11-10"><a href="#cb11-10" tabindex="-1"></a><span class="co">-- Create intermediate table of drug exposures by observation period</span></span>
-<span id="cb11-11"><a href="#cb11-11" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> @workDatabaseSchema.@workTableName <span class="kw">AS</span></span>
-<span id="cb11-12"><a href="#cb11-12" tabindex="-1"></a></span>
-<span id="cb11-13"><a href="#cb11-13" tabindex="-1"></a><span class="kw">WITH</span> obs_periods <span class="kw">AS</span> (</span>
-<span id="cb11-14"><a href="#cb11-14" tabindex="-1"></a>  <span class="co">-- Get all observation periods for study participants</span></span>
-<span id="cb11-15"><a href="#cb11-15" tabindex="-1"></a>  <span class="kw">SELECT</span> </span>
-<span id="cb11-16"><a href="#cb11-16" tabindex="-1"></a>    person_id,</span>
-<span id="cb11-17"><a href="#cb11-17" tabindex="-1"></a>    observation_period_start_date,</span>
-<span id="cb11-18"><a href="#cb11-18" tabindex="-1"></a>    observation_period_end_date</span>
-<span id="cb11-19"><a href="#cb11-19" tabindex="-1"></a>  <span class="kw">FROM</span> @cdmDatabaseSchema.observation_period</span>
-<span id="cb11-20"><a href="#cb11-20" tabindex="-1"></a>  <span class="kw">WHERE</span> observation_period_start_date <span class="op">&gt;=</span> <span class="st">'@studyStartDate'</span></span>
-<span id="cb11-21"><a href="#cb11-21" tabindex="-1"></a>    <span class="kw">AND</span> observation_period_start_date <span class="op">&lt;=</span> <span class="st">'@studyEndDate'</span></span>
-<span id="cb11-22"><a href="#cb11-22" tabindex="-1"></a>),</span>
-<span id="cb11-23"><a href="#cb11-23" tabindex="-1"></a></span>
-<span id="cb11-24"><a href="#cb11-24" tabindex="-1"></a>drug_exp <span class="kw">AS</span> (</span>
-<span id="cb11-25"><a href="#cb11-25" tabindex="-1"></a>  <span class="co">-- Get drug exposures during these observation periods</span></span>
-<span id="cb11-26"><a href="#cb11-26" tabindex="-1"></a>  <span class="kw">SELECT</span></span>
-<span id="cb11-27"><a href="#cb11-27" tabindex="-1"></a>    d.person_id,</span>
-<span id="cb11-28"><a href="#cb11-28" tabindex="-1"></a>    op.observation_period_start_date,</span>
-<span id="cb11-29"><a href="#cb11-29" tabindex="-1"></a>    op.observation_period_end_date,</span>
-<span id="cb11-30"><a href="#cb11-30" tabindex="-1"></a>    d.drug_concept_id,</span>
-<span id="cb11-31"><a href="#cb11-31" tabindex="-1"></a>    d.drug_exposure_start_date,</span>
-<span id="cb11-32"><a href="#cb11-32" tabindex="-1"></a>    <span class="fu">COALESCE</span>(d.drug_exposure_end_date, d.drug_exposure_start_date) <span class="kw">AS</span> drug_exposure_end_date,</span>
-<span id="cb11-33"><a href="#cb11-33" tabindex="-1"></a>    <span class="fu">COALESCE</span>(d.days_supply, <span class="dv">1</span>) <span class="kw">AS</span> days_supply</span>
-<span id="cb11-34"><a href="#cb11-34" tabindex="-1"></a>  <span class="kw">FROM</span> @cdmDatabaseSchema.drug_exposure d</span>
-<span id="cb11-35"><a href="#cb11-35" tabindex="-1"></a>  <span class="kw">JOIN</span> obs_periods op</span>
-<span id="cb11-36"><a href="#cb11-36" tabindex="-1"></a>    <span class="kw">ON</span> d.person_id <span class="op">=</span> op.person_id</span>
-<span id="cb11-37"><a href="#cb11-37" tabindex="-1"></a>    <span class="kw">AND</span> d.drug_exposure_start_date <span class="op">&gt;=</span> op.observation_period_start_date</span>
-<span id="cb11-38"><a href="#cb11-38" tabindex="-1"></a>    <span class="kw">AND</span> d.drug_exposure_start_date <span class="op">&lt;=</span> op.observation_period_end_date</span>
-<span id="cb11-39"><a href="#cb11-39" tabindex="-1"></a>),</span>
-<span id="cb11-40"><a href="#cb11-40" tabindex="-1"></a></span>
-<span id="cb11-41"><a href="#cb11-41" tabindex="-1"></a>person_summary <span class="kw">AS</span> (</span>
-<span id="cb11-42"><a href="#cb11-42" tabindex="-1"></a>  <span class="co">-- Aggregate to person-level summaries</span></span>
-<span id="cb11-43"><a href="#cb11-43" tabindex="-1"></a>  <span class="kw">SELECT</span></span>
-<span id="cb11-44"><a href="#cb11-44" tabindex="-1"></a>    person_id,</span>
-<span id="cb11-45"><a href="#cb11-45" tabindex="-1"></a>    observation_period_start_date,</span>
-<span id="cb11-46"><a href="#cb11-46" tabindex="-1"></a>    observation_period_end_date,</span>
-<span id="cb11-47"><a href="#cb11-47" tabindex="-1"></a>    <span class="fu">COUNT</span>(<span class="kw">DISTINCT</span> drug_concept_id) <span class="kw">AS</span> num_unique_drugs,</span>
-<span id="cb11-48"><a href="#cb11-48" tabindex="-1"></a>    <span class="fu">COUNT</span>(<span class="kw">DISTINCT</span> drug_exposure_start_date) <span class="kw">AS</span> num_drug_exposures,</span>
-<span id="cb11-49"><a href="#cb11-49" tabindex="-1"></a>    <span class="fu">SUM</span>(days_supply) <span class="kw">AS</span> total_days_supply,</span>
-<span id="cb11-50"><a href="#cb11-50" tabindex="-1"></a>    <span class="fu">AVG</span>(days_supply) <span class="kw">AS</span> avg_days_supply,</span>
-<span id="cb11-51"><a href="#cb11-51" tabindex="-1"></a>    <span class="fu">MIN</span>(drug_exposure_start_date) <span class="kw">AS</span> first_drug_date,</span>
-<span id="cb11-52"><a href="#cb11-52" tabindex="-1"></a>    <span class="fu">MAX</span>(drug_exposure_end_date) <span class="kw">AS</span> last_drug_date</span>
-<span id="cb11-53"><a href="#cb11-53" tabindex="-1"></a>  <span class="kw">FROM</span> drug_exp</span>
-<span id="cb11-54"><a href="#cb11-54" tabindex="-1"></a>  <span class="kw">GROUP</span> <span class="kw">BY</span> person_id, observation_period_start_date, observation_period_end_date</span>
-<span id="cb11-55"><a href="#cb11-55" tabindex="-1"></a>)</span>
-<span id="cb11-56"><a href="#cb11-56" tabindex="-1"></a></span>
-<span id="cb11-57"><a href="#cb11-57" tabindex="-1"></a><span class="kw">SELECT</span> <span class="op">*</span> <span class="kw">FROM</span> person_summary;</span></code></pre></div>
-<p><strong>Best Practice:</strong> Wrap your SQL queries in utility
-functions stored in <code>analysis/src/</code> files, then call those
-functions from your tasks. This keeps SQL execution logic organized and
-reusable:</p>
+<p>This creates a standardized SQL file in <code>analysis/src/sql/drug_exposure_summary.sql</code> with placeholders for SqlRender parameters.</p>
+<p><strong>Important:</strong> SqlRender uses <code>@paramName</code> notation for substitution. Here’s a realistic example that builds an intermediate work table with multi-step logic:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true"></a><span class="co">/* </span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true"></a><span class="co">Document your parameters at the top:</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true"></a><span class="co">  @cdmDatabaseSchema - Schema containing OMOP CDM tables</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true"></a><span class="co">  @workDatabaseSchema - Schema for output tables</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true"></a><span class="co">  @workTableName - Name of the intermediate work table to create</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true"></a><span class="co">  @studyStartDate - Start date for filtering</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true"></a><span class="co">  @studyEndDate - End date for filtering</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true"></a><span class="co">*/</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true"></a></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true"></a><span class="co">-- Create intermediate table of drug exposures by observation period</span></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> @workDatabaseSchema.@workTableName <span class="kw">AS</span></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true"></a></span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true"></a><span class="kw">WITH</span> obs_periods <span class="kw">AS</span> (</span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true"></a>  <span class="co">-- Get all observation periods for study participants</span></span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true"></a>  <span class="kw">SELECT</span> </span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true"></a>    person_id,</span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true"></a>    observation_period_start_date,</span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true"></a>    observation_period_end_date</span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true"></a>  <span class="kw">FROM</span> @cdmDatabaseSchema.observation_period</span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true"></a>  <span class="kw">WHERE</span> observation_period_start_date <span class="op">&gt;=</span> <span class="st">'@studyStartDate'</span></span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true"></a>    <span class="kw">AND</span> observation_period_start_date <span class="op">&lt;=</span> <span class="st">'@studyEndDate'</span></span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true"></a>),</span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true"></a></span>
+<span id="cb11-24"><a href="#cb11-24" aria-hidden="true"></a>drug_exp <span class="kw">AS</span> (</span>
+<span id="cb11-25"><a href="#cb11-25" aria-hidden="true"></a>  <span class="co">-- Get drug exposures during these observation periods</span></span>
+<span id="cb11-26"><a href="#cb11-26" aria-hidden="true"></a>  <span class="kw">SELECT</span></span>
+<span id="cb11-27"><a href="#cb11-27" aria-hidden="true"></a>    d.person_id,</span>
+<span id="cb11-28"><a href="#cb11-28" aria-hidden="true"></a>    op.observation_period_start_date,</span>
+<span id="cb11-29"><a href="#cb11-29" aria-hidden="true"></a>    op.observation_period_end_date,</span>
+<span id="cb11-30"><a href="#cb11-30" aria-hidden="true"></a>    d.drug_concept_id,</span>
+<span id="cb11-31"><a href="#cb11-31" aria-hidden="true"></a>    d.drug_exposure_start_date,</span>
+<span id="cb11-32"><a href="#cb11-32" aria-hidden="true"></a>    <span class="fu">COALESCE</span>(d.drug_exposure_end_date, d.drug_exposure_start_date) <span class="kw">AS</span> drug_exposure_end_date,</span>
+<span id="cb11-33"><a href="#cb11-33" aria-hidden="true"></a>    <span class="fu">COALESCE</span>(d.days_supply, <span class="dv">1</span>) <span class="kw">AS</span> days_supply</span>
+<span id="cb11-34"><a href="#cb11-34" aria-hidden="true"></a>  <span class="kw">FROM</span> @cdmDatabaseSchema.drug_exposure d</span>
+<span id="cb11-35"><a href="#cb11-35" aria-hidden="true"></a>  <span class="kw">JOIN</span> obs_periods op</span>
+<span id="cb11-36"><a href="#cb11-36" aria-hidden="true"></a>    <span class="kw">ON</span> d.person_id <span class="op">=</span> op.person_id</span>
+<span id="cb11-37"><a href="#cb11-37" aria-hidden="true"></a>    <span class="kw">AND</span> d.drug_exposure_start_date <span class="op">&gt;=</span> op.observation_period_start_date</span>
+<span id="cb11-38"><a href="#cb11-38" aria-hidden="true"></a>    <span class="kw">AND</span> d.drug_exposure_start_date <span class="op">&lt;=</span> op.observation_period_end_date</span>
+<span id="cb11-39"><a href="#cb11-39" aria-hidden="true"></a>),</span>
+<span id="cb11-40"><a href="#cb11-40" aria-hidden="true"></a></span>
+<span id="cb11-41"><a href="#cb11-41" aria-hidden="true"></a>person_summary <span class="kw">AS</span> (</span>
+<span id="cb11-42"><a href="#cb11-42" aria-hidden="true"></a>  <span class="co">-- Aggregate to person-level summaries</span></span>
+<span id="cb11-43"><a href="#cb11-43" aria-hidden="true"></a>  <span class="kw">SELECT</span></span>
+<span id="cb11-44"><a href="#cb11-44" aria-hidden="true"></a>    person_id,</span>
+<span id="cb11-45"><a href="#cb11-45" aria-hidden="true"></a>    observation_period_start_date,</span>
+<span id="cb11-46"><a href="#cb11-46" aria-hidden="true"></a>    observation_period_end_date,</span>
+<span id="cb11-47"><a href="#cb11-47" aria-hidden="true"></a>    <span class="fu">COUNT</span>(<span class="kw">DISTINCT</span> drug_concept_id) <span class="kw">AS</span> num_unique_drugs,</span>
+<span id="cb11-48"><a href="#cb11-48" aria-hidden="true"></a>    <span class="fu">COUNT</span>(<span class="kw">DISTINCT</span> drug_exposure_start_date) <span class="kw">AS</span> num_drug_exposures,</span>
+<span id="cb11-49"><a href="#cb11-49" aria-hidden="true"></a>    <span class="fu">SUM</span>(days_supply) <span class="kw">AS</span> total_days_supply,</span>
+<span id="cb11-50"><a href="#cb11-50" aria-hidden="true"></a>    <span class="fu">AVG</span>(days_supply) <span class="kw">AS</span> avg_days_supply,</span>
+<span id="cb11-51"><a href="#cb11-51" aria-hidden="true"></a>    <span class="fu">MIN</span>(drug_exposure_start_date) <span class="kw">AS</span> first_drug_date,</span>
+<span id="cb11-52"><a href="#cb11-52" aria-hidden="true"></a>    <span class="fu">MAX</span>(drug_exposure_end_date) <span class="kw">AS</span> last_drug_date</span>
+<span id="cb11-53"><a href="#cb11-53" aria-hidden="true"></a>  <span class="kw">FROM</span> drug_exp</span>
+<span id="cb11-54"><a href="#cb11-54" aria-hidden="true"></a>  <span class="kw">GROUP</span> <span class="kw">BY</span> person_id, observation_period_start_date, observation_period_end_date</span>
+<span id="cb11-55"><a href="#cb11-55" aria-hidden="true"></a>)</span>
+<span id="cb11-56"><a href="#cb11-56" aria-hidden="true"></a></span>
+<span id="cb11-57"><a href="#cb11-57" aria-hidden="true"></a><span class="kw">SELECT</span> <span class="op">*</span> <span class="kw">FROM</span> person_summary;</span></code></pre></div>
+<p><strong>Best Practice:</strong> Wrap your SQL queries in utility functions stored in <code>analysis/src/</code> files, then call those functions from your tasks. This keeps SQL execution logic organized and reusable:</p>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Example utility function in analysis/src/execute_sql_queries.R</span></span>
 <span></span>
@@ -395,63 +340,46 @@ reusable:</p>
 <span></span>
 <span><span class="co"># Now work with results in R</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">drug_summary</span><span class="op">)</span></span></code></pre></div>
-<p><strong>Workflow Summary:</strong> 1. SQL file creates the
-intermediate work table with computed values 2. R function orchestrates
-render → translate → execute → collect 3. Task file sources the utility
-function and gets back a dataframe 4. All database configuration comes
-from <code>ExecutionSettings</code></p>
+<p><strong>Workflow Summary:</strong> 1. SQL file creates the intermediate work table with computed values 2. R function orchestrates render → translate → execute → collect 3. Task file sources the utility function and gets back a dataframe 4. All database configuration comes from <code>ExecutionSettings</code></p>
 </div>
 </div>
 <div class="section level2">
 <h2 id="step-5-commit-changes-with-savework">Step 5: Commit Changes with <code>saveWork()</code><a class="anchor" aria-label="anchor" href="#step-5-commit-changes-with-savework"></a>
 </h2>
-<p>After creating your analysis code, commit your changes to track them
-in Git. Picard provides <code><a href="../reference/saveWork.html">saveWork()</a></code> to make Git commits easy
-for new users:</p>
+<p>After creating your analysis code, commit your changes to track them in Git. Picard provides <code><a href="../reference/saveWork.html">saveWork()</a></code> to make Git commits easy for new users:</p>
 <div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/saveWork.html">saveWork</a></span><span class="op">(</span><span class="st">"Add descriptive statistics task"</span><span class="op">)</span></span></code></pre></div>
-<p><code><a href="../reference/saveWork.html">saveWork()</a></code> is a convenience wrapper around Git
-operations that handles the common workflow for you:</p>
+<p><code><a href="../reference/saveWork.html">saveWork()</a></code> is a convenience wrapper around Git operations that handles the common workflow for you:</p>
 <ol style="list-style-type: decimal">
 <li>
-<strong>Show what changed</strong> - Displays all modified, new, and
-deleted files</li>
+<strong>Show what changed</strong> - Displays all modified, new, and deleted files</li>
 <li>
-<strong>Confirm commit</strong> - Asks you to approve the changes
-before proceeding</li>
+<strong>Confirm commit</strong> - Asks you to approve the changes before proceeding</li>
 <li>
 <strong>Stage files</strong> - Automatically stages all changes</li>
 <li>
 <strong>Commit</strong> - Creates a commit with your message</li>
 <li>
-<strong>Pull from remote</strong> - Gets the latest changes from
-your team</li>
+<strong>Pull from remote</strong> - Gets the latest changes from your team</li>
 <li>
-<strong>Push to remote</strong> - Syncs your commit to the shared
-repository</li>
+<strong>Push to remote</strong> - Syncs your commit to the shared repository</li>
 </ol>
 <p><strong>Key features:</strong></p>
 <ul>
 <li>
-<strong>Protection from mistakes:</strong> Prevents you from
-accidentally committing to the <code>main</code> branch</li>
+<strong>Protection from mistakes:</strong> Prevents you from accidentally committing to the <code>main</code> branch</li>
 <li>
-<strong>Interactive confirmation:</strong> Shows exactly which files
-changed and asks you to confirm before committing</li>
+<strong>Interactive confirmation:</strong> Shows exactly which files changed and asks you to confirm before committing</li>
 <li>
-<strong>Work-in-progress commits:</strong> Use
-<code>push = FALSE</code> to commit locally without pushing (useful for
-saving work mid-session):</li>
+<strong>Work-in-progress commits:</strong> Use <code>push = FALSE</code> to commit locally without pushing (useful for saving work mid-session):</li>
 </ul>
 <div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/saveWork.html">saveWork</a></span><span class="op">(</span><span class="st">"WIP: Testing new validation logic"</span>, push <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
 <ul>
 <li>
-<strong>Automatic branch creation:</strong> If your feature branch
-doesn’t exist, <code><a href="../reference/saveWork.html">saveWork()</a></code> creates it for you</li>
+<strong>Automatic branch creation:</strong> If your feature branch doesn’t exist, <code><a href="../reference/saveWork.html">saveWork()</a></code> creates it for you</li>
 <li>
-<strong>Syncs with team:</strong> Pulls remote changes before
-pushing your work, reducing merge conflicts</li>
+<strong>Syncs with team:</strong> Pulls remote changes before pushing your work, reducing merge conflicts</li>
 </ul>
 <p><strong>Full function signature:</strong></p>
 <div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
@@ -461,22 +389,18 @@ pushing your work, reducing merge conflicts</li>
 <span>  push <span class="op">=</span> <span class="cn">TRUE</span>,                      <span class="co"># FALSE for local-only commits</span></span>
 <span>  gitRemoteName <span class="op">=</span> <span class="st">"origin"</span>          <span class="co"># Remote repository name</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<p><strong>For new Git users:</strong> Use <code><a href="../reference/saveWork.html">saveWork()</a></code>
-regularly as you develop. It simplifies the entire commit workflow and
-protects you from common Git mistakes.</p>
-<p><strong>For advanced users:</strong> You can use Git directly if you
-prefer. Many developers commit changes as they go using:</p>
-<div class="sourceCode" id="cb17"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" tabindex="-1"></a><span class="fu">git</span> add analysis/tasks/01_DescriptiveStats.R</span>
-<span id="cb17-2"><a href="#cb17-2" tabindex="-1"></a><span class="fu">git</span> commit <span class="at">-m</span> <span class="st">"Add descriptive statistics task"</span></span>
-<span id="cb17-3"><a href="#cb17-3" tabindex="-1"></a><span class="fu">git</span> pull origin develop</span>
-<span id="cb17-4"><a href="#cb17-4" tabindex="-1"></a><span class="fu">git</span> push origin develop</span></code></pre></div>
+<p><strong>For new Git users:</strong> Use <code><a href="../reference/saveWork.html">saveWork()</a></code> regularly as you develop. It simplifies the entire commit workflow and protects you from common Git mistakes.</p>
+<p><strong>For advanced users:</strong> You can use Git directly if you prefer. Many developers commit changes as they go using:</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true"></a><span class="fu">git</span> add analysis/tasks/01_DescriptiveStats.R</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true"></a><span class="fu">git</span> commit -m <span class="st">"Add descriptive statistics task"</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true"></a><span class="fu">git</span> pull origin develop</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true"></a><span class="fu">git</span> push origin develop</span></code></pre></div>
 <p>Either approach works—use what’s comfortable for your workflow.</p>
 </div>
 <div class="section level2">
 <h2 id="step-6-test-your-development-work">Step 6: Test Your Development Work<a class="anchor" aria-label="anchor" href="#step-6-test-your-development-work"></a>
 </h2>
-<p>Picard provides two testing modalities on the <code>develop</code>
-branch:</p>
+<p>Picard provides two testing modalities on the <code>develop</code> branch:</p>
 <div class="section level3">
 <h3 id="test-single-task-with-teststudytask">Test Single Task with <code>testStudyTask()</code><a class="anchor" aria-label="anchor" href="#test-single-task-with-teststudytask"></a>
 </h3>
@@ -486,14 +410,8 @@ branch:</p>
 <span>  taskFile <span class="op">=</span> <span class="st">"01_descriptive_stats.R"</span>,</span>
 <span>  configBlock <span class="op">=</span> <span class="st">"omop_cdm"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<p><strong>Parameters:</strong> - <code>taskFile</code>: The base name
-of your task file (just the filename, no path) -
-<code>configBlock</code>: The name of your config block (e.g., the
-database config you want to use)</p>
-<p>This executes only the specified task, allowing rapid iteration on
-specific tasks without running the entire pipeline. The function
-automatically uses “dev” version for testing and prevents running on the
-<code>main</code> branch.</p>
+<p><strong>Parameters:</strong> - <code>taskFile</code>: The base name of your task file (just the filename, no path) - <code>configBlock</code>: The name of your config block (e.g., the database config you want to use)</p>
+<p>This executes only the specified task, allowing rapid iteration on specific tasks without running the entire pipeline. The function automatically uses “dev” version for testing and prevents running on the <code>main</code> branch.</p>
 </div>
 <div class="section level3">
 <h3 id="test-full-pipeline-with-teststudypipeline">Test Full Pipeline with <code>testStudyPipeline()</code><a class="anchor" aria-label="anchor" href="#test-full-pipeline-with-teststudypipeline"></a>
@@ -501,32 +419,20 @@ automatically uses “dev” version for testing and prevents running on the
 <p>Once individual tasks work, test the complete pipeline:</p>
 <div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/testStudyPipeline.html">testStudyPipeline</a></span><span class="op">(</span>configBlock <span class="op">=</span> <span class="st">"omop_cdm"</span><span class="op">)</span></span></code></pre></div>
-<p><strong>Parameters:</strong> - <code>configBlock</code>: The name of
-your config block (can be a single value or vector of multiple
-configs)</p>
-<p>This runs all tasks in sequence (in alphabetical order) with the same
-configuration as production, helping you catch integration issues.</p>
-<p><strong>Testing Workflow:</strong> 1. Edit a task file 2. Run
-<code>testStudyTask(taskFile = "01_your_task.R", configBlock = "omop_cdm")</code>
-to verify changes to that specific task 3. Once satisfied, run
-<code>testStudyPipeline(configBlock = "omop_cdm")</code> to verify the
-full workflow 4. Commit your changes with <code><a href="../reference/saveWork.html">saveWork()</a></code></p>
+<p><strong>Parameters:</strong> - <code>configBlock</code>: The name of your config block (can be a single value or vector of multiple configs)</p>
+<p>This runs all tasks in sequence (in alphabetical order) with the same configuration as production, helping you catch integration issues.</p>
+<p><strong>Testing Workflow:</strong> 1. Edit a task file 2. Run <code>testStudyTask(taskFile = "01_your_task.R", configBlock = "omop_cdm")</code> to verify changes to that specific task 3. Once satisfied, run <code>testStudyPipeline(configBlock = "omop_cdm")</code> to verify the full workflow 4. Commit your changes with <code><a href="../reference/saveWork.html">saveWork()</a></code></p>
 </div>
 <div class="section level3">
 <h3 id="commit-and-push-to-develop">Commit and Push to Develop<a class="anchor" aria-label="anchor" href="#commit-and-push-to-develop"></a>
 </h3>
-<p>After testing successfully, commit your changes using either
-<code><a href="../reference/saveWork.html">saveWork()</a></code> or Git commands directly (see <a href="#step-5-commit-changes-with-savework">Commit Changes with
-<code>saveWork()</code></a> earlier in this vignette for details).</p>
+<p>After testing successfully, commit your changes using either <code><a href="../reference/saveWork.html">saveWork()</a></code> or Git commands directly (see <a href="#step-5-commit-changes-with-savework">Commit Changes with <code>saveWork()</code></a> earlier in this vignette for details).</p>
 </div>
 </div>
 <div class="section level2">
 <h2 id="next-steps-production-execution">Next Steps: Production Execution<a class="anchor" aria-label="anchor" href="#next-steps-production-execution"></a>
 </h2>
-<p>Once your analysis is tested and validated on <code>develop</code>,
-see <a href="running_the_pipeline.html">Running the Pipeline</a> for
-instructions on production execution, which involves creating a release
-branch and running the full validated pipeline.</p>
+<p>Once your analysis is tested and validated on <code>develop</code>, see <a href="running_the_pipeline.html">Running the Pipeline</a> for instructions on production execution, which involves creating a release branch and running the full validated pipeline.</p>
 </div>
 <div class="section level2">
 <h2 id="quick-reference-key-functions-by-phase">Quick Reference: Key Functions by Phase<a class="anchor" aria-label="anchor" href="#quick-reference-key-functions-by-phase"></a>
@@ -596,14 +502,11 @@ branch and running the full validated pipeline.</p>
 </h2>
 <ul>
 <li>
-<a href="launching_a_study.html">Launching a Picard Study</a> -
-Repository initialization and setup</li>
+<a href="launching_a_study.html">Launching a Picard Study</a> - Repository initialization and setup</li>
 <li>
-<a href="loading_inputs.html">Loading Inputs</a> - Setting up
-cohorts and concept sets</li>
+<a href="loading_inputs.html">Loading Inputs</a> - Setting up cohorts and concept sets</li>
 <li>
-<a href="running_the_pipeline.html">Running the Pipeline</a> -
-Production pipeline execution</li>
+<a href="running_the_pipeline.html">Running the Pipeline</a> - Production pipeline execution</li>
 </ul>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

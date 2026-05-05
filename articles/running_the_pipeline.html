@@ -48,38 +48,31 @@
 
 
 
-
-<div class="row">
+<script src="running_the_pipeline_files/accessible-code-block-0.0.1/empty-anchor.js"></script><div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Running the Pipeline: Production Execution</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/ohdsi/Picard/blob/main/vignettes/running_the_pipeline.Rmd" class="external-link"><code>vignettes/running_the_pipeline.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/ohdsi/Picard/blob/HEAD/vignettes/running_the_pipeline.Rmd" class="external-link"><code>vignettes/running_the_pipeline.Rmd</code></a></small>
       <div class="d-none name"><code>running_the_pipeline.Rmd</code></div>
     </div>
 
     
     
 <blockquote>
-<p><strong>Note:</strong> This vignette is currently in development and
-subject to change.</p>
+<p><strong>Note:</strong> This vignette is currently in development and subject to change.</p>
 </blockquote>
 <div class="section level2">
 <h2 id="introduction">Introduction<a class="anchor" aria-label="anchor" href="#introduction"></a>
 </h2>
-<p>This vignette covers <strong>production mode execution</strong> in
-Picard—running your pipeline for official analysis results.</p>
-<p>Development and testing workflows are covered in <a href="developing_the_pipeline.html">Developing the Pipeline</a>.
-Production mode adds rigorous validation, semantic versioning, and audit
-trails to ensure results are reproducible and suitable for publications
-or regulatory submissions.</p>
+<p>This vignette covers <strong>production mode execution</strong> in Picard—running your pipeline for official analysis results.</p>
+<p>Development and testing workflows are covered in <a href="developing_the_pipeline.html">Developing the Pipeline</a>. Production mode adds rigorous validation, semantic versioning, and audit trails to ensure results are reproducible and suitable for publications or regulatory submissions.</p>
 </div>
 <div class="section level2">
 <h2 id="the-production-pipeline">The Production Pipeline<a class="anchor" aria-label="anchor" href="#the-production-pipeline"></a>
 </h2>
-<p>The official execution script is <code>main.R</code> in your project
-root. It:</p>
+<p>The official execution script is <code>main.R</code> in your project root. It:</p>
 <ul>
 <li>Validates your code state (git clean, all changes committed)</li>
 <li>Increments your study version (semantic versioning)</li>
@@ -98,21 +91,15 @@ root. It:</p>
 <p>Run <code>main.R</code> for:</p>
 <ul>
 <li>
-<strong>Formal analysis runs:</strong> Official results for
-publications or regulatory submissions</li>
+<strong>Formal analysis runs:</strong> Official results for publications or regulatory submissions</li>
 <li>
-<strong>Final results:</strong> When you’re confident in the code
-and ready for version history</li>
+<strong>Final results:</strong> When you’re confident in the code and ready for version history</li>
 <li>
-<strong>Multi-database comparisons:</strong> Ensures consistency
-across databases</li>
+<strong>Multi-database comparisons:</strong> Ensures consistency across databases</li>
 <li>
-<strong>Code review:</strong> Results go through PR review before
-acceptance</li>
+<strong>Code review:</strong> Results go through PR review before acceptance</li>
 </ul>
-<p>Production mode places versioned results in
-<code>exec/results/[database]/[version]/</code> (e.g.,
-<code>1.0.0/</code>).</p>
+<p>Production mode places versioned results in <code>exec/results/[database]/[version]/</code> (e.g., <code>1.0.0/</code>).</p>
 </div>
 <div class="section level2">
 <h2 id="running-production-mode">Running Production Mode<a class="anchor" aria-label="anchor" href="#running-production-mode"></a>
@@ -123,23 +110,18 @@ acceptance</li>
 <p>Before running production mode:</p>
 <ol style="list-style-type: decimal">
 <li>
-<strong>Commit all changes:</strong> <code>git add .</code> and
-<code>git commit -m "..."</code>
+<strong>Commit all changes:</strong> <code>git add .</code> and <code>git commit -m "..."</code>
 </li>
 <li>
-<strong>Be on develop branch (or feature branch):</strong>
-<code>git checkout develop</code>
+<strong>Be on develop branch (or feature branch):</strong> <code>git checkout develop</code>
 </li>
 <li>
 <strong>Pull latest changes:</strong> <code>git pull</code>
 </li>
 <li>
-<strong>Verify configuration:</strong> Check config.yml for
-correctness</li>
+<strong>Verify configuration:</strong> Check config.yml for correctness</li>
 </ol>
-<p>You can also do this by using the <code><a href="../reference/saveWork.html">saveWork()</a></code> function
-which we describe in <a href="developing_the_pipeline.html">Developing
-the Pipeline</a> to save your work and prepare for production.</p>
+<p>You can also do this by using the <code><a href="../reference/saveWork.html">saveWork()</a></code> function which we describe in <a href="developing_the_pipeline.html">Developing the Pipeline</a> to save your work and prepare for production.</p>
 </div>
 <div class="section level3">
 <h3 id="basic-usage">Basic Usage<a class="anchor" aria-label="anchor" href="#basic-usage"></a>
@@ -173,14 +155,11 @@ the Pipeline</a> to save your work and prepare for production.</p>
 <p>Choose the appropriate semantic version increment:</p>
 <ul>
 <li>
-<strong>PATCH (1.0.0 → 1.0.1):</strong> Bug fixes, data corrections,
-no new analyses</li>
+<strong>PATCH (1.0.0 → 1.0.1):</strong> Bug fixes, data corrections, no new analyses</li>
 <li>
-<strong>MINOR (1.0.0 → 1.1.0):</strong> New analyses or features
-added (backward compatible)</li>
+<strong>MINOR (1.0.0 → 1.1.0):</strong> New analyses or features added (backward compatible)</li>
 <li>
-<strong>MAJOR (1.0.0 → 2.0.0):</strong> Breaking changes or study
-redesign</li>
+<strong>MAJOR (1.0.0 → 2.0.0):</strong> Breaking changes or study redesign</li>
 </ul>
 </div>
 </div>
@@ -189,34 +168,24 @@ redesign</li>
 </h2>
 <p>Production execution follows four main phases:</p>
 <ol style="list-style-type: decimal">
-<li><p><strong>Setup:</strong> Validate configuration, load execution
-settings, create output directories</p></li>
-<li><p><strong>Generate Cohorts:</strong> Load cohort and concept set
-manifests, validate all definitions exist, generate cohorts in database,
-retrieve cohort counts</p></li>
-<li><p><strong>Run Analysis Tasks:</strong> For each task in
-<code>analysis/tasks/</code>, load configuration, execute task code,
-check for errors, record results</p></li>
-<li><p><strong>Post-Processing:</strong> Generate version logs, create
-PR metadata, save PENDING_PR.md</p></li>
+<li><p><strong>Setup:</strong> Validate configuration, load execution settings, create output directories</p></li>
+<li><p><strong>Generate Cohorts:</strong> Load cohort and concept set manifests, validate all definitions exist, generate cohorts in database, retrieve cohort counts</p></li>
+<li><p><strong>Run Analysis Tasks:</strong> For each task in <code>analysis/tasks/</code>, load configuration, execute task code, check for errors, record results</p></li>
+<li><p><strong>Post-Processing:</strong> Generate version logs, create PR metadata, save PENDING_PR.md</p></li>
 </ol>
 </div>
 <div class="section level2">
 <h2 id="handling-errors-and-failures">Handling Errors and Failures<a class="anchor" aria-label="anchor" href="#handling-errors-and-failures"></a>
 </h2>
 <p>Production mode validates code state strictly. Common issues:</p>
-<p><strong>“Cannot run production pipeline on main branch!”</strong> -
-Solution: Switch to develop: <code>git checkout develop</code></p>
-<p><strong>“Code state validation failed - uncommitted changes”</strong>
-- Solution: Commit all changes: <code>git add .</code> and
-<code>git commit -m "..."</code></p>
+<p><strong>“Cannot run production pipeline on main branch!”</strong> - Solution: Switch to develop: <code>git checkout develop</code></p>
+<p><strong>“Code state validation failed - uncommitted changes”</strong> - Solution: Commit all changes: <code>git add .</code> and <code>git commit -m "..."</code></p>
 <p><strong>“Cohort manifest not found”</strong> - Solution: See <a href="loading_inputs.html">Loading Inputs</a></p>
 </div>
 <div class="section level2">
 <h2 id="reviewing-results">Reviewing Results<a class="anchor" aria-label="anchor" href="#reviewing-results"></a>
 </h2>
-<p>After production mode, results are organized in versioned
-folders:</p>
+<p>After production mode, results are organized in versioned folders:</p>
 <pre><code>exec/results/[database]/1.1.0/       # Version 1.1.0
 ├── 00_buildCohorts/
 ├── 01_firstAnalysisTask/
@@ -232,24 +201,18 @@ folders:</p>
 <p>Production mode enables structured code review:</p>
 <ol style="list-style-type: decimal">
 <li>
-<strong>Run pipeline:</strong> <code>source("main.R")</code> on
-develop branch</li>
+<strong>Run pipeline:</strong> <code>source("main.R")</code> on develop branch</li>
 <li>
-<strong>Review PENDING_PR.md:</strong> Check proposed version,
-changes logged in NEWS.md</li>
+<strong>Review PENDING_PR.md:</strong> Check proposed version, changes logged in NEWS.md</li>
 <li>
-<strong>Review code:</strong> Inspect changes on release branch:
-<code>git checkout release/1.1.0</code>
+<strong>Review code:</strong> Inspect changes on release branch: <code>git checkout release/1.1.0</code>
 </li>
 <li>
-<strong>Create PR:</strong> Use details from PENDING_PR.md to create
-PR in GitHub/Bitbucket</li>
+<strong>Create PR:</strong> Use details from PENDING_PR.md to create PR in GitHub/Bitbucket</li>
 <li>
-<strong>Merge:</strong> After review and approval, merge to
-main</li>
+<strong>Merge:</strong> After review and approval, merge to main</li>
 <li>
-<strong>Cleanup:</strong> Run <code><a href="../reference/clearPendingPR.html">clearPendingPR()</a></code> to
-remove metadata file</li>
+<strong>Cleanup:</strong> Run <code><a href="../reference/clearPendingPR.html">clearPendingPR()</a></code> to remove metadata file</li>
 </ol>
 </div>
 <div class="section level2">
@@ -276,9 +239,9 @@ remove metadata file</li>
 <h3 id="version-tags">Version Tags<a class="anchor" aria-label="anchor" href="#version-tags"></a>
 </h3>
 <p>After merging to main, create a git tag for the version:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="co"># After PR is merged to main</span></span>
-<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a>git tag <span class="sc">-</span>a v1.<span class="fl">1.0</span> <span class="sc">-</span>m <span class="st">"Release version 1.1.0"</span></span>
-<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a>git push origin v1.<span class="fl">1.0</span></span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true"></a><span class="co"># After PR is merged to main</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true"></a>git tag <span class="op">-</span>a v1.<span class="fl">1.0</span> <span class="op">-</span>m <span class="st">"Release version 1.1.0"</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true"></a>git push origin v1.<span class="fl">1.0</span></span></code></pre></div>
 </div>
 </div>
 <div class="section level2">
@@ -287,16 +250,13 @@ remove metadata file</li>
 <div class="section level3">
 <h3 id="log-files">Log Files<a class="anchor" aria-label="anchor" href="#log-files"></a>
 </h3>
-<p>Picard creates detailed execution logs in
-<code>exec/logs/</code>:</p>
+<p>Picard creates detailed execution logs in <code>exec/logs/</code>:</p>
 <ul>
 <li>
-<strong>Production run:</strong>
-<code>picard_log_1.1.0_*.txt</code>
+<strong>Production run:</strong> <code>picard_log_1.1.0_*.txt</code>
 </li>
 </ul>
-<p>Review logs to understand which tasks ran, their duration, and any
-warnings:</p>
+<p>Review logs to understand which tasks ran, their duration, and any warnings:</p>
 <pre><code>[14:32:01] Starting cohort generation...
 [14:32:15] Cohort generation completed successfully!
 [14:32:16] Executing task 1/3: 01_descriptiveStats.R
@@ -306,9 +266,7 @@ warnings:</p>
 <div class="section level3">
 <h3 id="cohort-counts">Cohort Counts<a class="anchor" aria-label="anchor" href="#cohort-counts"></a>
 </h3>
-<p>After any pipeline run, check
-<code>00_buildCohorts/cohortCounts.csv</code> to verify cohorts were
-generated:</p>
+<p>After any pipeline run, check <code>00_buildCohorts/cohortCounts.csv</code> to verify cohorts were generated:</p>
 <pre><code>id,label,cohort_entries,cohort_subjects
 1,Type 2 Diabetes,245897,123456
 2,CVD Comparator,189234,98765
@@ -321,8 +279,7 @@ generated:</p>
 <div class="section level3">
 <h3 id="tasks-not-running-in-expected-order">“Tasks not running in expected order”<a class="anchor" aria-label="anchor" href="#tasks-not-running-in-expected-order"></a>
 </h3>
-<p>Picard runs tasks in alphabetical order. Ensure file names have
-numeric prefixes:</p>
+<p>Picard runs tasks in alphabetical order. Ensure file names have numeric prefixes:</p>
 <pre><code>01_buildCohorts.R          ✓ Runs first
 02_descriptiveAnalysis.R   ✓ Runs second
 03_primaryAnalysis.R       ✓ Runs third
@@ -340,9 +297,7 @@ analysis_task.R            ✗ Runs last (no prefix)</code></pre>
 <div class="section level3">
 <h3 id="previous-version-results-disappeared">“Previous version results disappeared”<a class="anchor" aria-label="anchor" href="#previous-version-results-disappeared"></a>
 </h3>
-<p>Results are organized by version in
-<code>exec/results/[database]/[version]/</code>. Check different version
-folders:</p>
+<p>Results are organized by version in <code>exec/results/[database]/[version]/</code>. Check different version folders:</p>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># List all version folders</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/list.files.html" class="external-link">list.dirs</a></span><span class="op">(</span><span class="st">"exec/results/primary_db"</span>, recursive <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
@@ -353,21 +308,16 @@ folders:</p>
 </h2>
 <ol style="list-style-type: decimal">
 <li>
-<strong>Develop and test:</strong> Use <a href="developing_the_pipeline.html">Developing the Pipeline</a>
-workflows</li>
+<strong>Develop and test:</strong> Use <a href="developing_the_pipeline.html">Developing the Pipeline</a> workflows</li>
 <li>
-<strong>Verify code quality:</strong> Ensure all tasks run
-successfully and produce expected results</li>
+<strong>Verify code quality:</strong> Ensure all tasks run successfully and produce expected results</li>
 <li>
-<strong>Run production:</strong> When ready for official results,
-use <code>main.R</code>
+<strong>Run production:</strong> When ready for official results, use <code>main.R</code>
 </li>
 <li>
-<strong>Review and merge:</strong> Follow code review workflow
-before accepting to main branch</li>
+<strong>Review and merge:</strong> Follow code review workflow before accepting to main branch</li>
 <li>
-<strong>Archive results:</strong> Use <code><a href="../reference/zipAndArchive.html">zipAndArchive()</a></code>
-to preserve important results</li>
+<strong>Archive results:</strong> Use <code><a href="../reference/zipAndArchive.html">zipAndArchive()</a></code> to preserve important results</li>
 </ol>
 </div>
 <div class="section level2">
@@ -375,20 +325,15 @@ to preserve important results</li>
 </h2>
 <ul>
 <li>
-<a href="developing_the_pipeline.html">Developing the Pipeline</a> -
-Testing and iteration during development</li>
+<a href="developing_the_pipeline.html">Developing the Pipeline</a> - Testing and iteration during development</li>
 <li>
-<a href="picard_repository_structure.html">The Picard Repository
-Structure</a> - Where results are organized</li>
+<a href="picard_repository_structure.html">The Picard Repository Structure</a> - Where results are organized</li>
 <li>
-<a href="launching_a_study.html">Launching a Study</a> - Initial
-setup</li>
+<a href="launching_a_study.html">Launching a Study</a> - Initial setup</li>
 <li>
-<a href="loading_inputs.html">Loading Inputs</a> - Cohort and
-concept set setup</li>
+<a href="loading_inputs.html">Loading Inputs</a> - Cohort and concept set setup</li>
 <li>
-<a href="post_processing.html">Post-Processing Steps</a> - Working
-with results after execution</li>
+<a href="post_processing.html">Post-Processing Steps</a> - Working with results after execution</li>
 </ul>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
