@@ -1,0 +1,433 @@
+# The Manifest: Architecture, Workflows, and Helpers
+
+This vignette covers the manifest system in depth — how it works under
+the hood, how to handle non-trivial situations mid-cycle, and the review
+helpers available for both cohort and concept set manifests.
+
+If you are setting up a study for the first time, start with the
+[Loading Inputs: Getting
+Started](https://ohdsi.github.io/Picard/dev/articles/loading_inputs.md)
+vignette instead.
+
+------------------------------------------------------------------------
+
+## 1. Architecture
+
+### SQLite as the source of truth
+
+Each manifest is a SQLite database file stored inside your study’s
+`inputs/` folder:
+
+    inputs/
+    ├── cohorts/
+    │   ├── cohortManifest.sqlite    # cohort manifest DB
+    │   ├── json/                    # CIRCE JSON definitions (ATLAS / Capr)
+    │   ├── sql/                     # custom hand-written SQL cohorts
+    │   └── derived/                 # auto-generated SQL for derived cohorts
+    └── conceptSets/
+        ├── conceptSetManifest.sqlite
+        └── json/                    # CIRCE JSON concept set definitions
+
+The SQLite database is the **single source of truth** for all metadata.
+The R6 `CohortManifest` and `ConceptSetManifest` objects are in-memory
+mirrors loaded from SQLite at startup.
+
+### Key columns in `cohort_manifest`
+
+| Column | Purpose |
+|----|----|
+| `id` | Auto-assigned integer ID |
+| `label` | User-defined display name (unique among active records) |
+| `category` | User classification (e.g., “Disease Populations”) |
+| `cohort_type` | `circe`, `custom`, `union`, `subset`, `complement`, `composite` |
+| `source_type` | `circe`, `sql`, `derived` |
+| `file_path` | Relative path to the SQL/JSON file on disk |
+| `hash` | MD5 of the file — used by [`generateCohorts()`](https://ohdsi.github.io/Picard/dev/reference/generateCohorts.md) to skip unchanged cohorts |
+| `depends_on` | JSON array of parent cohort IDs (derived cohorts only) |
+| `dependency_rule` | JSON object of build parameters (derived cohorts only) |
+| `status` | `active`, `stale`, `deleted`, or `purged` |
+| `created_at` | Timestamp of registration |
+
+### In-memory R6 object vs SQLite
+
+When you call
+[`loadCohortManifest()`](https://ohdsi.github.io/Picard/dev/reference/loadCohortManifest.md),
+the package:
+
+1.  Opens the SQLite file
+2.  Reads all `status = 'active'` rows
+3.  Constructs a `CohortDef` R6 object for each row and holds them in a
+    list
+
+Mutations (add, delete, update) write to **both** SQLite and the
+in-memory list. If you edit SQLite externally, call
+`manifest$reloadFromDb()` to sync.
+
+### Hash-based skip logic
+
+Every cohort file has an MD5 hash stored in the manifest. At execution
+time,
+[`generateCohorts()`](https://ohdsi.github.io/Picard/dev/reference/generateCohorts.md)
+compares the current file hash to the stored hash and skips cohorts
+whose files have not changed. For derived cohorts, a combined hash of
+parent hashes plus the `dependency_rule` is used.
+
+**Stale cohorts** (`status = 'stale'`) bypass the hash check and are
+always re-executed. They are reset to `'active'` automatically after
+successful execution. See [Section 4](#mid-cycle-changes) for how
+cohorts become stale.
+
+------------------------------------------------------------------------
+
+## 2. Adding Cohorts Mid-Cycle
+
+Use the `$add*()` R6 methods to register individual cohorts without a
+bulk CSV import. Each method validates uniqueness and writes to SQLite
+immediately.
+
+### From ATLAS (CIRCE JSON)
+
+``` r
+atlasConn <- getAtlasConnection()
+manifest$setAtlasConnection(atlasConn)
+
+manifest$addAtlasCohort(
+  atlasId   = 1234L,
+  label     = "Type 2 Diabetes - Incident",
+  category  = "Disease Populations"
+)
+```
+
+### From Capr
+
+``` r
+library(Capr)
+
+t2dm <- cs(descendants(201826), name = "Type 2 Diabetes")
+cohort_def <- cohort(entry = entry(conditionOccurrence(t2dm)))
+
+manifest$addCaprCohort(
+  caprCohort = cohort_def,
+  label      = "Type 2 Diabetes - Capr",
+  category   = "Disease Populations"
+)
+```
+
+### Custom SQL
+
+Place your `.sql` file in `inputs/cohorts/sql/`, then register it:
+
+``` r
+manifest$addSqlCohort(
+  filePath = here::here("inputs/cohorts/sql/my_cohort.sql"),
+  label    = "My Custom Cohort",
+  category = "Exposure"
+)
+```
+
+The SQL must use SqlRender parameters — see
+[`?CohortManifest`](https://ohdsi.github.io/Picard/dev/reference/CohortManifest.md)
+for required parameter names (`@target_cohort_id`,
+`@target_database_schema`, etc.).
+
+### From a Local CIRCE JSON file
+
+If you have a Circe-compatible `.json` file on disk, register it with:
+
+``` r
+manifest$addCirceCohort(
+  filePath = here::here("inputs/cohorts/json/my_cohort.json"),
+  label    = "My Circe Cohort",
+  category = "Disease Populations"
+)
+```
+
+------------------------------------------------------------------------
+
+## 3. Derived Cohorts
+
+Derived cohorts are built from existing manifest cohorts using one of
+four R6 builder methods. They write rendered SQL to `derived/` and
+record all dependency metadata directly in SQLite — no sidecar files
+needed.
+
+> **Dependency order is handled automatically.**
+> [`generateCohorts()`](https://ohdsi.github.io/Picard/dev/reference/generateCohorts.md)
+> runs a topological sort before execution, ensuring parents always run
+> before dependents.
+
+### Union cohort
+
+Combines the observation periods of two or more cohorts into a single
+cohort.
+
+``` r
+# Assume IDs 1 and 2 are already in the manifest
+manifest$buildUnionCohort(
+  label     = "T2DM or HF - Any",
+  cohortIds = c(1L, 2L),
+  category  = "Composite Populations",
+  gapDays   = 30L          # merge eras within 30 days
+)
+```
+
+### Subset cohort (temporal)
+
+Subsets a base cohort to members who also appear in a filter cohort
+within a specified time window.
+
+``` r
+library(picard)
+
+start_window <- createSubsetStartWindow(
+  subsetCohortWindowAnchor = "cohort_start_date",
+  startDays = -365L,
+  endDays   = 0L,
+  baseCohortWindowAnchor = "cohort_start_date"
+)
+
+manifest$buildSubsetCohortTemporal(
+  label          = "T2DM with Prior Metformin",
+  baseCohortId   = 1L,
+  filterCohortId = 3L,
+  category       = "Disease Populations",
+  startWindow    = start_window
+)
+```
+
+### Complement cohort
+
+Members of a population cohort who are **not** in a base cohort.
+
+``` r
+manifest$buildComplementCohort(
+  label              = "No T2DM - General Population",
+  excludeCohortIds       = 1L,
+  populationCohortId = 5L,
+  category           = "Comparators"
+)
+```
+
+### Composite cohort
+
+Requires membership in a minimum number of component cohorts.
+
+``` r
+manifest$buildCompositeCohort(
+  label      = "T2DM + HF + CKD",
+  cohortIds  = c(1L, 2L, 4L),
+  category   = "Complex Populations",
+  minCohorts = 2L          # must appear in at least 2 of 3
+)
+```
+
+### Reviewing derived cohorts
+
+``` r
+# Tabular summary with parent labels and rule parameters
+manifest$reviewDependentCohorts()
+
+# Mermaid dependency graph (renders in RStudio / Quarto / GitHub)
+plotCohortGraph(manifest)
+```
+
+------------------------------------------------------------------------
+
+## 4. Mid-Cycle Changes
+
+### Sync manifest against disk files
+
+If SQL or JSON files have been edited outside picard, `$syncManifest()`
+updates stored hashes, reports unregistered files on disk, and —
+crucially — **cascades a `stale` flag to all derived cohorts that depend
+on any changed file**.
+
+``` r
+manifest$syncManifest()
+```
+
+When a base cohort’s SQL/JSON file changes, `syncManifest()` will:
+
+1.  Detect the hash difference and update the stored hash
+2.  Walk the dependency graph and mark every downstream derived cohort
+    as `'stale'`
+3.  Report each staled cohort by name
+
+Stale derived cohorts still have valid SQL — their parent data has
+changed but their build logic has not. They will be **re-executed
+automatically** the next time
+[`generateCohorts()`](https://ohdsi.github.io/Picard/dev/reference/generateCohorts.md)
+runs (the hash-skip is bypassed for stale cohorts).
+
+### Review stale cohorts
+
+``` r
+# See which derived cohorts are waiting for re-execution
+manifest$reviewStaleCohorts()
+```
+
+### Rebuilding the derived pipeline
+
+If you need to change a build parameter (e.g. adjust `gapDays` on a
+union cohort, or change demographic filters), the derived cohort SQL
+needs to be re-rendered — not just re-executed. The workflow is:
+
+``` r
+# 1. Clear all derived cohorts (keeps base cohort registrations)
+resetCohortManifest(manifest = manifest, scope = "derived")
+
+# 2. Re-run your build script with corrected parameters
+manifest$buildUnionCohort(
+  label     = "T2DM or HF - Any",
+  cohortIds = c(1L, 2L),
+  category  = "Composite Populations",
+  gapDays   = 7L   # corrected value
+)
+# ... other build calls ...
+
+# 3. Generate
+generateCohorts(executionSettings = execSettings, pipelineVersion = pipelineVersion)
+```
+
+### Update label or tags
+
+``` r
+updateCohortMetadata(
+  manifest  = manifest,
+  cohortId  = 3L,
+  label     = "Metformin Initiators (revised)",
+  tags      = list(category = "Exposure", subCategory = "Antidiabetics")
+)
+```
+
+### Soft-delete a cohort
+
+Marks the cohort as `deleted` in SQLite; it is excluded from generation
+but can be recovered.
+
+``` r
+manifest$deleteCohort(cohortId = 3L)
+```
+
+### Hard-delete (permanent)
+
+Removes the row from SQLite entirely and optionally deletes the file
+from disk and/or purges rows from the DBMS cohort table.
+
+``` r
+# Remove from manifest only
+manifest$removeCohort(id = 3L, confirm = TRUE)
+
+# Remove from manifest and delete the SQL file
+manifest$removeCohort(id = 3L, deleteFile = TRUE, confirm = TRUE)
+
+# Remove from manifest, delete the file, and drop DBMS rows (requires executionSettings)
+manifest$removeCohort(id = 3L, deleteFile = TRUE, dropFromCohortTable = TRUE, confirm = TRUE)
+```
+
+------------------------------------------------------------------------
+
+## 5. Reset
+
+Use
+[`resetCohortManifest()`](https://ohdsi.github.io/Picard/dev/reference/resetCohortManifest.md)
+when you need to clear cohort data. Choose the scope based on what you
+want to preserve:
+
+| Scope | SQLite | `derived/` | `json/` + `sql/` | OMOP tables |
+|----|----|----|----|----|
+| `"derived"` | Updated (derived rows removed) | Deleted | Kept | Not touched |
+| `"manifest"` | Deleted | Deleted | Kept | Not touched |
+| `"full"` | Deleted | Deleted | Deleted | Dropped |
+
+### Which scope do I need?
+
+- **Rebuilding derived pipeline with new parameters** → `"derived"`.
+  Your base cohort registrations and ATLAS imports are preserved; just
+  re-run the `$build*()` calls.
+- **Corrupt or restructured database** → `"manifest"`. Source files are
+  kept; call
+  [`initCohortManifest()`](https://ohdsi.github.io/Picard/dev/reference/initCohortManifest.md)
+  then re-register via `$add*()` or `$importAtlasCohorts()`.
+- **Complete restart** → `"full"`. Requires `executionSettings` to drop
+  OMOP tables. Use with caution.
+
+``` r
+# Rebuild derived pipeline only (keeps base cohorts)
+resetCohortManifest(manifest = manifest, scope = "derived")
+
+# Wipe manifest DB, keep json/ and sql/ source files
+resetCohortManifest(cohortsFolderPath = here::here("inputs/cohorts"),
+                    scope = "manifest")
+
+# Full nuclear reset (also drops OMOP cohort tables)
+resetCohortManifest(manifest          = manifest,
+                    scope             = "full",
+                    executionSettings = execSettings)
+```
+
+All scopes prompt for confirmation. Pass `confirm = FALSE` to skip in
+scripts.
+
+### Concept set manifest reset
+
+``` r
+# Delete only the SQLite DB; json/ files are preserved and auto-re-registered
+# on the next loadConceptSetManifest() call
+resetConceptSetManifest(scope = "manifest")
+
+# Delete everything
+resetConceptSetManifest(scope = "full")
+```
+
+------------------------------------------------------------------------
+
+## 6. Review and Helpers
+
+### Cohort manifest
+
+``` r
+# Full tabular view (all active cohorts)
+manifest$tabulateManifest()
+
+# Filter to stale cohorts only
+manifest$tabulateManifest(filter = "stale")
+
+# Stale cohorts with dependency context
+manifest$reviewStaleCohorts()
+
+# Derived cohorts only — with parent labels and rule summaries
+manifest$reviewDependentCohorts()
+
+# Mermaid dependency graph
+plotCohortGraph(manifest)
+```
+
+### Concept set manifest
+
+``` r
+csm <- loadConceptSetManifest()
+
+# Tabular view of all concept sets
+csm$tabulateManifest()
+
+# Extract concept set member codes (standard concept IDs)
+csm$extractIncludedCodes(
+  conceptSetIds = c(1L, 2L, 3L)
+)
+
+# Extract source codes mapped from concept set members
+# Useful for inspecting ICD-10, NDC, etc. coverage
+csm$extractSourceCodes(
+  conceptSetIds  = c(1L, 2L),
+  sourceVocabs   = c("ICD10CM", "ICD9CM")
+)
+```
+
+`extractSourceCodes()` requires `executionSettings` to be attached to
+the manifest (it queries the vocabulary tables in your CDM):
+
+``` r
+csm$setExecutionSettings(execSettings)
+csm$extractSourceCodes(conceptSetIds = c(1L, 2L), sourceVocabs = "ICD10CM")
+```

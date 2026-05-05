@@ -1,0 +1,409 @@
+# picard ![logo](reference/figures/picardLogo.png)
+
+This R package is designed to be an RWE Pipelining Tool favoring OHDSI
+tools. Like its namesake, the picard package will allow RWE researchers
+to explore strange new worlds within their data, seeking out new
+patterns and analyses, and boldly going where no researcher has gone
+before!
+
+# Quick Start
+
+Install and load the picard package:
+
+``` r
+library(picard)
+```
+
+## Begin a new Ulysses Repo
+
+The `picard` package begins by initializing a Ulysses Repo. This is a
+standard repo structure to conduct an RWE pipeline using OHDSI tools.
+This is a maturation of the `Ulysses` package which was retired due to
+the technical advances and reframing of the use-case as a pipeline tool.
+
+### Create Study Metadata
+
+Define your study with contributors and basic information:
+
+``` r
+sm <- makeStudyMeta(
+  studyTitle = "OMOP Characterization Study",
+  therapeuticArea = "Inflamation",
+  studyType = "Characterization",
+  contributors = list(
+    setContributor(
+      name = "Jean-Luc Picard",
+      email = "jeanluc.picard@ussenterprise.com",
+      role = "lead"
+    ),
+    setContributor(
+      name = "Data Spiner",
+      email = "data.spiner@ussenterprise.com",
+      role = "analyst"
+    )
+  ),
+  studyTags = c("OMOP", "OHDSI", "Analysis")
+)
+```
+
+### Configure Database Connection
+
+Set up your OMOP CDM database configuration:
+
+``` r
+db <- setDbConfigBlock(
+  configBlockName = "omop_cdm",
+  cdmDatabaseSchema = "public_omop_cdm",
+  databaseName = "omop_database",
+  cohortTable = "study_cohort",
+  databaseLabel = "OMOP CDM Instance"
+)
+```
+
+### Define Execution Options
+
+Specify how and where to execute your analysis:
+
+``` r
+eo <- makeExecOptions(
+  dbms = "snowflake",
+  workDatabaseSchema = "work_schema",
+  tempEmulationSchema = "work_schema",
+  dbConnectionBlocks = list(db)
+)
+```
+
+### Initialize Project
+
+Create and initialize your study repository:
+
+``` r
+ulySt <- makeUlyssesStudySettings(
+  repoName = "my_study_project",
+  toolType = "dbms",
+  repoFolder = "~/studies/my_study_project",
+  studyMeta = sm,
+  execOptions = eo
+)
+
+# Initialize the repository structure
+ulySt$initUlyssesRepo(verbose = TRUE, openProject = FALSE)
+```
+
+This will create a standardized directory structure for your study with
+all necessary configuration files and folders.
+
+## Cohort Management and Generation
+
+Once your study environment is initialized, you can manage and generate
+cohorts using the CohortManifest.
+
+### Load Execution Settings
+
+Load your database configuration from the config file:
+
+``` r
+settings <- createExecutionSettingsFromConfig(configBlock = "omop_cdm")
+```
+
+### Import Cohorts from ATLAS
+
+Before importing cohorts, create a load list by running:
+
+``` r
+createBlankCohortsLoadFile()
+```
+
+Edit `inputs/cohorts/cohortsLoad.csv` in Excel to add your ATLAS cohort
+IDs and metadata. Then import:
+
+``` r
+cohortManifest <- CohortManifest$new(dbPath = here::here("inputs/cohorts/manifest.sqlite"))
+importAtlasCohorts(
+  manifest = cohortManifest,
+  atlasConnection = setAtlasConnection(),
+  cohortsLoadPath = here::here("inputs/cohorts/cohortsLoad.csv")
+)
+```
+
+For you to set up the atlas connection you need to provide your
+credentials for logging into webApi. Follow this template to add
+credentials to .Renviron file:
+
+``` r
+templateAtlasCredentials()
+```
+
+### Load and View Cohort Manifest
+
+Create a CohortManifest and examine available cohorts:
+
+``` r
+cm <- loadCohortManifest(executionSettings = settings)
+cm$getManifest()
+```
+
+### Create Cohort Tables
+
+Initialize the necessary database tables for cohort storage:
+
+``` r
+cm$createCohortTables()
+```
+
+### Generate Cohorts
+
+Execute the cohort generation process:
+
+``` r
+cm$generateCohorts()
+```
+
+### Retrieve Cohort Counts
+
+Get summary statistics for all generated cohorts:
+
+``` r
+counts <- cm$retrieveCohortCounts()
+```
+
+This will return a data frame with: - `cohort_id`: The cohort definition
+ID - `label`: The cohort label - `tags`: Associated cohort tags -
+`cohort_entries`: Total number of cohort records - `cohort_subjects`:
+Number of distinct subjects in each cohort
+
+# Package index
+
+## Core Classes
+
+Main R6 classes for package functionality
+
+- [`CohortDef`](https://ohdsi.github.io/Picard/dev/reference/CohortDef.md)
+  : CohortDef R6 Class
+- [`CohortManifest`](https://ohdsi.github.io/Picard/dev/reference/CohortManifest.md)
+  : CohortManifest R6 Class
+- [`ConceptSetDef`](https://ohdsi.github.io/Picard/dev/reference/ConceptSetDef.md)
+  : ConceptSetDef R6 Class
+- [`ConceptSetManifest`](https://ohdsi.github.io/Picard/dev/reference/ConceptSetManifest.md)
+  : ConceptSetManifest R6 Class
+- [`ContributorLine`](https://ohdsi.github.io/Picard/dev/reference/ContributorLine.md)
+  : ContributorLine R6 Class
+- [`DbConfigBlock`](https://ohdsi.github.io/Picard/dev/reference/DbConfigBlock.md)
+  : DbConfigBlock R6 Class
+- [`ExecOptions`](https://ohdsi.github.io/Picard/dev/reference/ExecOptions.md)
+  : ExecOptions R6 Class
+- [`ExecutionSettings`](https://ohdsi.github.io/Picard/dev/reference/ExecutionSettings.md)
+  : ExecutionSettings
+- [`StudyMeta`](https://ohdsi.github.io/Picard/dev/reference/StudyMeta.md)
+  : StudyMeta R6 Class
+- [`UlyssesStudy`](https://ohdsi.github.io/Picard/dev/reference/UlyssesStudy.md)
+  : UlyssesStudy R6 Class
+
+## Creation Functions
+
+Functions for creating objects and structures (make\*)
+
+- [`makeExecOptions()`](https://ohdsi.github.io/Picard/dev/reference/makeExecOptions.md)
+  : Make ExecOptions for Ulysses
+- [`makePrintFriendlyFile()`](https://ohdsi.github.io/Picard/dev/reference/makePrintFriendlyFile.md)
+  : Generate Print-Friendly Cohort Documentation from JSON
+- [`makeSrcFile()`](https://ohdsi.github.io/Picard/dev/reference/makeSrcFile.md)
+  : Create a Source Utility File
+- [`makeSrcSqlFile()`](https://ohdsi.github.io/Picard/dev/reference/makeSrcSqlFile.md)
+  : Create a SqlRender SQL File
+- [`makeStudyMeta()`](https://ohdsi.github.io/Picard/dev/reference/makeStudyMeta.md)
+  : Make Study Meta for Ulysses
+- [`makeTaskFile()`](https://ohdsi.github.io/Picard/dev/reference/makeTaskFile.md)
+  : Function initializing an R file for an analysis task
+- [`makeUlyssesStudySettings()`](https://ohdsi.github.io/Picard/dev/reference/makeUlyssesStudySettings.md)
+  : Make Ulysses Study Settings
+
+## Initialization Functions
+
+Functions for initializing components (init\*)
+
+- [`initAgentMode()`](https://ohdsi.github.io/Picard/dev/reference/initAgentMode.md)
+  : Initialize or Restore Agent Mode for Cloned Repository
+- [`initCohortManifest()`](https://ohdsi.github.io/Picard/dev/reference/initCohortManifest.md)
+  : Initialize a New Cohort Manifest
+- [`initConceptSetManifest()`](https://ohdsi.github.io/Picard/dev/reference/initConceptSetManifest.md)
+  : Initialize a New Concept Set Manifest
+- [`initializeRenv()`](https://ohdsi.github.io/Picard/dev/reference/initializeRenv.md)
+  : Initialize Renv for Project
+
+## Build Functions
+
+Functions for building study components (build\*)
+
+- [`buildComplementCohort()`](https://ohdsi.github.io/Picard/dev/reference/buildComplementCohort.md)
+  : Build a Complement Cohort Definition
+- [`buildCompositeCohort()`](https://ohdsi.github.io/Picard/dev/reference/buildCompositeCohort.md)
+  : Build a Composite Cohort Definition
+- [`buildStratifiedCohorts()`](https://ohdsi.github.io/Picard/dev/reference/buildStratifiedCohorts.md)
+  : Split a Base Cohort into Multiple Stratified Sub-Cohorts
+- [`buildStudyHub()`](https://ohdsi.github.io/Picard/dev/reference/buildStudyHub.md)
+  : Build Study Hub
+- [`buildSubsetCohortDemographic()`](https://ohdsi.github.io/Picard/dev/reference/buildSubsetCohortDemographic.md)
+  **\[deprecated\]** : Build a Demographic Subset Cohort
+- [`buildSubsetCohortTemporal()`](https://ohdsi.github.io/Picard/dev/reference/buildSubsetCohortTemporal.md)
+  : Build a Subset Cohort Definition (Temporal)
+- [`buildUnionCohort()`](https://ohdsi.github.io/Picard/dev/reference/buildUnionCohort.md)
+  : Build a Union Cohort Definition
+
+## Create Functions
+
+Functions for creating new objects (create\*)
+
+- [`createAgentBranch()`](https://ohdsi.github.io/Picard/dev/reference/createAgentBranch.md)
+  : Create Feature Branch for Agent Work
+- [`createBlankCohortsLoadFile()`](https://ohdsi.github.io/Picard/dev/reference/createBlankCohortsLoadFile.md)
+  : Create Blank Cohorts Load File
+- [`createBlankConceptSetsLoadFile()`](https://ohdsi.github.io/Picard/dev/reference/createBlankConceptSetsLoadFile.md)
+  : Create Blank Concept Sets Load File
+- [`createExecutionSettings()`](https://ohdsi.github.io/Picard/dev/reference/createExecutionSettings.md)
+  : Create an ExecutionSettings object and set its attributes
+- [`createExecutionSettingsFromConfig()`](https://ohdsi.github.io/Picard/dev/reference/createExecutionSettingsFromConfig.md)
+  : Create ExecutionSettings from Config Block
+- [`createPullRequest()`](https://ohdsi.github.io/Picard/dev/reference/createPullRequest.md)
+  : Create Pull Request Metadata
+- [`createSubsetEndWindow()`](https://ohdsi.github.io/Picard/dev/reference/createSubsetEndWindow.md)
+  : Create a Subset End Window Operator
+- [`createSubsetStartWindow()`](https://ohdsi.github.io/Picard/dev/reference/createSubsetStartWindow.md)
+  : Create a Subset Start Window Operator
+
+## Execution Functions
+
+Functions for executing study tasks (exec\*)
+
+- [`execStudyPipeline()`](https://ohdsi.github.io/Picard/dev/reference/execStudyPipeline.md)
+  : Production Study Pipeline Execution
+
+## Configuration Functions
+
+Functions for configuration and setup (set\*)
+
+- [`getAtlasConnection()`](https://ohdsi.github.io/Picard/dev/reference/getAtlasConnection.md)
+  : Get Atlas Connection
+- [`getTaskRunSummary()`](https://ohdsi.github.io/Picard/dev/reference/getTaskRunSummary.md)
+  : Get Task Run Summary
+- [`setAtlasConnection()`](https://ohdsi.github.io/Picard/dev/reference/setAtlasConnection.md)
+  : Set Atlas Connection (Deprecated)
+- [`setContributor()`](https://ohdsi.github.io/Picard/dev/reference/setContributor.md)
+  : Set Ulysses Contributor
+- [`setDbConfigBlock()`](https://ohdsi.github.io/Picard/dev/reference/setDbConfigBlock.md)
+  : set the config block for a database
+- [`setOutputFolder()`](https://ohdsi.github.io/Picard/dev/reference/setOutputFolder.md)
+  : Set Output Folder for Task
+
+## Loading Functions
+
+Functions for loading and importing data (load\*)
+
+- [`loadCohortManifest()`](https://ohdsi.github.io/Picard/dev/reference/loadCohortManifest.md)
+  : Load Cohort Manifest from SQLite Database
+- [`loadConceptSetManifest()`](https://ohdsi.github.io/Picard/dev/reference/loadConceptSetManifest.md)
+  : Load Concept Set Manifest
+
+## Utility Functions
+
+Other utility and helper functions
+
+- [`agentSaveWork()`](https://ohdsi.github.io/Picard/dev/reference/agentSaveWork.md)
+  : Save Work for Agents (Automated, No Prompts)
+- [`cleanColumnNames()`](https://ohdsi.github.io/Picard/dev/reference/cleanColumnNames.md)
+  : Clean Column Names to Standard Format
+- [`clearPendingPR()`](https://ohdsi.github.io/Picard/dev/reference/clearPendingPR.md)
+  : Clear Pending PR Reference
+- [`defineCustomCohort()`](https://ohdsi.github.io/Picard/dev/reference/defineCustomCohort.md)
+  : Define (Enrich) a Custom SQL Cohort (Deprecated)
+- [`displayTaskStatusReport()`](https://ohdsi.github.io/Picard/dev/reference/displayTaskStatusReport.md)
+  : Display Task Status Report
+- [`documentDependencies()`](https://ohdsi.github.io/Picard/dev/reference/documentDependencies.md)
+  : Document Dependencies
+- [`formatFloats()`](https://ohdsi.github.io/Picard/dev/reference/formatFloats.md)
+  : Format Float Columns
+- [`formatPercentages()`](https://ohdsi.github.io/Picard/dev/reference/formatPercentages.md)
+  : Format Percentage Columns
+- [`generateCohorts()`](https://ohdsi.github.io/Picard/dev/reference/generateCohorts.md)
+  : Generate Cohorts for Pipeline Execution
+- [`importAndBind()`](https://ohdsi.github.io/Picard/dev/reference/importAndBind.md)
+  : Import and Bind Results by Version and Task
+- [`importAtlasCohorts()`](https://ohdsi.github.io/Picard/dev/reference/importAtlasCohorts.md)
+  : Import CIRCE Cohort Definitions from ATLAS
+- [`importAtlasConceptSets()`](https://ohdsi.github.io/Picard/dev/reference/importAtlasConceptSets.md)
+  : Import CIRCE Concept Sets from ATLAS
+- [`migrateCohortManifest()`](https://ohdsi.github.io/Picard/dev/reference/migrateCohortManifest.md)
+  : Migrate Old CohortManifest SQLite to New Schema
+- [`orchestratePipelineExport()`](https://ohdsi.github.io/Picard/dev/reference/orchestratePipelineExport.md)
+  : Orchestrate Pipeline Export with Merging and QC
+- [`pivotForComparison()`](https://ohdsi.github.io/Picard/dev/reference/pivotForComparison.md)
+  : Pivot Data Wide for Comparison
+- [`placeHolderExecOptions()`](https://ohdsi.github.io/Picard/dev/reference/placeHolderExecOptions.md)
+  : set the execOptions as placeholder.
+- [`plotCohortGraph()`](https://ohdsi.github.io/Picard/dev/reference/plotCohortGraph.md)
+  : Plot Cohort Dependency Graph
+- [`prepareDisseminationData()`](https://ohdsi.github.io/Picard/dev/reference/prepareDisseminationData.md)
+  : Prepare Dissemination Data with Chained Transformations
+- [`recordTaskExecution()`](https://ohdsi.github.io/Picard/dev/reference/recordTaskExecution.md)
+  : Record Task Execution Status
+- [`resetCohortManifest()`](https://ohdsi.github.io/Picard/dev/reference/resetCohortManifest.md)
+  : Reset Cohort Manifest
+- [`resetConceptSetManifest()`](https://ohdsi.github.io/Picard/dev/reference/resetConceptSetManifest.md)
+  : Reset Concept Set Manifest
+- [`restoreEnvironment()`](https://ohdsi.github.io/Picard/dev/reference/restoreEnvironment.md)
+  : Restore Environment from Lockfile
+- [`reviewExportSchema()`](https://ohdsi.github.io/Picard/dev/reference/reviewExportSchema.md)
+  : Review Export File Schema
+- [`saveWork()`](https://ohdsi.github.io/Picard/dev/reference/saveWork.md)
+  : Sync Local Work to Remote Branch
+- [`shouldRerunTask()`](https://ohdsi.github.io/Picard/dev/reference/shouldRerunTask.md)
+  : Check if Task Needs to be Rerun
+- [`snapshotEnvironment()`](https://ohdsi.github.io/Picard/dev/reference/snapshotEnvironment.md)
+  : Snapshot Current Environment State
+- [`standardizeDataTypes()`](https://ohdsi.github.io/Picard/dev/reference/standardizeDataTypes.md)
+  : Standardize Data Types
+- [`templateAtlasCredentials()`](https://ohdsi.github.io/Picard/dev/reference/templateAtlasCredentials.md)
+  : Template for setting Atlas Credentials
+- [`testOrchestratePipelineExport()`](https://ohdsi.github.io/Picard/dev/reference/testOrchestratePipelineExport.md)
+  : Test Orchestrate Pipeline Export
+- [`testStudyPipeline()`](https://ohdsi.github.io/Picard/dev/reference/testStudyPipeline.md)
+  : Test Study Pipeline
+- [`testStudyTask()`](https://ohdsi.github.io/Picard/dev/reference/testStudyTask.md)
+  : Test a Single Study Task
+- [`updateCohortMetadata()`](https://ohdsi.github.io/Picard/dev/reference/updateCohortMetadata.md)
+  : Update the Label and/or Tags of an Existing Manifest Cohort
+- [`updateStudyVersion()`](https://ohdsi.github.io/Picard/dev/reference/updateStudyVersion.md)
+  : Function to update the study version
+- [`validateCohortResults()`](https://ohdsi.github.io/Picard/dev/reference/validateCohortResults.md)
+  : Validate Cohort Results Completeness
+- [`validateConfigYaml()`](https://ohdsi.github.io/Picard/dev/reference/validateConfigYaml.md)
+  : Validate config.yml File Structure
+- [`validateStudyTask()`](https://ohdsi.github.io/Picard/dev/reference/validateStudyTask.md)
+  : Validate Study Task Script
+- [`validateUlyssesStructure()`](https://ohdsi.github.io/Picard/dev/reference/validateUlyssesStructure.md)
+  : Validate Ulysses Repository Structure
+- [`visualizeCohortDependencies()`](https://ohdsi.github.io/Picard/dev/reference/visualizeCohortDependencies.md)
+  : Visualize Cohort Dependencies (Deprecated)
+- [`zipAndArchive()`](https://ohdsi.github.io/Picard/dev/reference/zipAndArchive.md)
+  : Zip and Archive results from a study execution
+
+# Articles
+
+### All vignettes
+
+- [Developing the
+  Pipeline](https://ohdsi.github.io/Picard/dev/articles/developing_the_pipeline.md):
+- [Evidence Generation
+  Plan](https://ohdsi.github.io/Picard/dev/articles/evidence_generation_plan.md):
+- [Launching a Picard
+  Study](https://ohdsi.github.io/Picard/dev/articles/launching_a_study.md):
+- [Loading Inputs: Getting
+  Started](https://ohdsi.github.io/Picard/dev/articles/loading_inputs.md):
+- [The Manifest: Architecture, Workflows, and
+  Helpers](https://ohdsi.github.io/Picard/dev/articles/manifest_overview.md):
+- [The Ulysses Standard Repository
+  Structure](https://ohdsi.github.io/Picard/dev/articles/picard_repository_structure.md):
+- [Post-Processing
+  Steps](https://ohdsi.github.io/Picard/dev/articles/post_processing.md):
+- [Running the Pipeline: Production
+  Execution](https://ohdsi.github.io/Picard/dev/articles/running_the_pipeline.md):

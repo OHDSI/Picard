@@ -8,7 +8,7 @@ Authors@R: c(
 Description: A pipeline tool for RWE analysis (typically using the OHDSI stack) that allows users to easily create and run pipelines of R code.
     This package initializes a standard directory structure, builds cohorts, and executes R scripts in a specified order.
 License: Apache License (>= 2)
-URL: https://ohdsi.github.io/picard/, https://github.com/ohdsi/Picard/
+URL: https://ohdsi.github.io/Picard/, https://github.com/ohdsi/Picard/
 Requires: R (>= 3.2)
 Imports:
     R6,
