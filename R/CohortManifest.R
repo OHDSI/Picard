@@ -1450,7 +1450,7 @@ CohortManifest <- R6::R6Class(
       sql_path <- fs::path(derived_dir, paste0(safe_label, ".sql"))
 
       # Render union SQL template
-      template_path <- system.file("sql", "createComplementCohort.sql", package = "picard")
+      template_path <- system.file("sql", "createUnionCohort.sql", package = "picard")
       rendered_sql <-  readr::read_file(template_path) |>
         SqlRender::render(
           cohort_ids = paste(cohortIds, collapse = ", "),

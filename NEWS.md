@@ -1,3 +1,8 @@
+# picard 0.0.4
+
+- Correct the Dependent Cohort builders
+- Add a query tool for category now that it is not a tag
+
 # picard 0.0.3.1
 
 - minor bug fixes 
