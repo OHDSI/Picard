@@ -104,6 +104,9 @@ Requires that executionSettings has been set and includes:
 \item \href{#method-CohortManifest-validateManifest}{\code{CohortManifest$validateManifest()}}
 \item \href{#method-CohortManifest-getManifestStatus}{\code{CohortManifest$getManifestStatus()}}
 \item \href{#method-CohortManifest-deleteCohort}{\code{CohortManifest$deleteCohort()}}
+\item \href{#method-CohortManifest-buildOPriorT}{\code{CohortManifest$buildOPriorT()}}
+\item \href{#method-CohortManifest-buildTPriorO}{\code{CohortManifest$buildTPriorO()}}
+\item \href{#method-CohortManifest-buildCensorCohort}{\code{CohortManifest$buildCensorCohort()}}
 \item \href{#method-CohortManifest-cleanupMissing}{\code{CohortManifest$cleanupMissing()}}
 \item \href{#method-CohortManifest-clone}{\code{CohortManifest$clone()}}
 }
@@ -145,8 +148,9 @@ Review dependent cohorts and their dependency metadata
 \if{latex}{\out{\hypertarget{method-CohortManifest-reviewDependentCohorts}{}}}
 \subsection{Method \code{reviewDependentCohorts()}}{
 Returns a summary tibble of all active derived cohorts (union, subset, complement,
-composite) with parsed dependency information sourced directly from SQLite. Useful
-for quickly auditing what each derived cohort depends on and how it was built.
+composite, oprior, tprior, censor) with parsed dependency information sourced
+directly from SQLite. Useful for quickly auditing what each derived cohort depends
+on and how it was built.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$reviewDependentCohorts()}\if{html}{\out{</div>}}
 }
@@ -156,7 +160,8 @@ A tibble with columns:
 \itemize{
 \item \code{id} - Cohort ID
 \item \code{label} - Cohort label
-\item \code{cohort_type} - One of 'union', 'subset', 'complement', 'composite'
+\item \code{cohort_type} - One of 'union', 'subset', 'complement', 'composite',
+'oprior', 'tprior', 'censor'
 \item \code{category} - User-defined category
 \item \code{parent_cohorts} - Human-readable parent list, e.g. "Label A (1), Label B (2)"
 \item \code{rule_summary} - Compact summary of the dependency rule parameters
@@ -1224,10 +1229,190 @@ Invisibly returns TRUE if successful, FALSE otherwise.
 }
 }
 \if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-buildOPriorT"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-buildOPriorT}{}}}
+\subsection{Method \code{buildOPriorT()}}{
+Clean up missing cohorts from manifest
+
+
+Build a cohort of outcome events with prior target exposure
+
+Creates a derived cohort based on the temporal relationship between an
+outcome cohort and a target (exposure) cohort. Filters outcome events that
+have (or lack) a prior target event, optionally within a time window.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildOPriorT(
+  label,
+  category,
+  tags = list(),
+  outcomeCohortId,
+  targetCohortId,
+  mode = "prior",
+  priorTimeWindowDays = NULL,
+  subsetLimit = "First"
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{label}}{Character. Display name (e.g., "GI Bleed - Prior NSAID").}
+
+\item{\code{category}}{Character. Required classification.}
+
+\item{\code{tags}}{Named list. Optional metadata tags.}
+
+\item{\code{outcomeCohortId}}{Integer. The cohort definition ID for the outcome
+(e.g., GI bleed).}
+
+\item{\code{targetCohortId}}{Integer. The cohort definition ID for the target
+(e.g., NSAID use).}
+
+\item{\code{mode}}{Character. One of 'prior' or 'no_prior':
+\itemize{
+\item 'prior': Retain outcome events where a prior target event exists.
+\item 'no_prior': Retain outcome events where no prior target event exists.
+Default: 'prior'.
+}}
+
+\item{\code{priorTimeWindowDays}}{Integer or NULL. If provided (e.g., 365), only
+consider target events within this many days before the outcome start.
+NULL or 0 means all time. Default: NULL.}
+
+\item{\code{subsetLimit}}{Character. One of 'First', 'Last', or 'All'. Controls
+which prior target event anchors the match when multiple exist:
+\itemize{
+\item 'First': Keep the earliest prior target event (default).
+\item 'Last': Keep the most recent prior target event.
+\item 'All': Keep all prior target events (one output row per pair).
+Default: 'First'.
+}}
+
+\item{\code{keep_trace}}{Logical. If TRUE, marks missing as deleted with timestamp (soft delete).
+If FALSE, permanently removes from database (hard delete). Defaults to TRUE.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible integer. The assigned cohort ID.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-buildTPriorO"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-buildTPriorO}{}}}
+\subsection{Method \code{buildTPriorO()}}{
+Build a cohort of target events with prior outcome occurrence
+
+Creates a derived cohort based on the temporal relationship between a
+target (exposure) cohort and an outcome cohort. Filters target events that
+have (or lack) a prior outcome event, optionally within a time window.
+
+This is the reverse direction of \code{buildOPriorT()}: instead of
+filtering outcome by prior target, filter target by prior outcome.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildTPriorO(
+  label,
+  category,
+  tags = list(),
+  targetCohortId,
+  outcomeCohortId,
+  mode = "prior",
+  priorTimeWindowDays = NULL,
+  subsetLimit = "First"
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{label}}{Character. Display name (e.g., "NSAID - Prior GI Bleed").}
+
+\item{\code{category}}{Character. Required classification.}
+
+\item{\code{tags}}{Named list. Optional metadata tags.}
+
+\item{\code{targetCohortId}}{Integer. The cohort definition ID for the target
+(e.g., NSAID use).}
+
+\item{\code{outcomeCohortId}}{Integer. The cohort definition ID for the outcome
+(e.g., GI bleed).}
+
+\item{\code{mode}}{Character. One of 'prior' or 'no_prior':
+\itemize{
+\item 'prior': Retain target events where a prior outcome exists.
+\item 'no_prior': Retain target events where no prior outcome exists.
+Default: 'prior'.
+}}
+
+\item{\code{priorTimeWindowDays}}{Integer or NULL. If provided (e.g., 365), only
+consider outcome events within this many days before the target start.
+NULL or 0 means all time. Default: NULL.}
+
+\item{\code{subsetLimit}}{Character. One of 'First', 'Last', or 'All'. Controls
+which prior outcome event anchors the match when multiple exist:
+\itemize{
+\item 'First': Keep the earliest prior outcome event (default).
+\item 'Last': Keep the most recent prior outcome event.
+\item 'All': Keep all prior outcome events (one output row per pair).
+Default: 'First'.
+}}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible integer. The assigned cohort ID.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-buildCensorCohort"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-buildCensorCohort}{}}}
+\subsection{Method \code{buildCensorCohort()}}{
+Censor a target cohort based on a censoring event
+
+Truncates the cohort_end_date of each target cohort record to the earliest
+censoring event that occurs between the cohort_start_date and cohort_end_date.
+If no censoring event occurs, the original cohort_end_date is preserved.
+
+Typical use cases:
+\itemize{
+\item Censor a drug exposure cohort at the date of death
+\item Censor a disease cohort at the date of disease exacerbation
+\item Censor a treatment cohort at the date of a procedure (e.g., surgery)
+}
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildCensorCohort(
+  label,
+  category,
+  tags = list(),
+  targetCohortId,
+  censorCohortId
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{label}}{Character. Display name (e.g., "NSAID Use - Censored at Death").}
+
+\item{\code{category}}{Character. Required classification.}
+
+\item{\code{tags}}{Named list. Optional metadata tags.}
+
+\item{\code{targetCohortId}}{Integer. The cohort definition ID for the cohort to censor.}
+
+\item{\code{censorCohortId}}{Integer. The cohort definition ID for the censoring event.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible integer. The assigned cohort ID.
+}
+}
+\if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-cleanupMissing"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-cleanupMissing}{}}}
 \subsection{Method \code{cleanupMissing()}}{
-Clean up missing cohorts from manifest
+clean up missing files from manifest
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$cleanupMissing(keep_trace = TRUE)}\if{html}{\out{</div>}}
 }
@@ -1235,8 +1420,7 @@ Clean up missing cohorts from manifest
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{keep_trace}}{Logical. If TRUE, marks missing as deleted with timestamp (soft delete).
-If FALSE, permanently removes from database (hard delete). Defaults to TRUE.}
+\item{\code{keep_trace}}{Logical. soft delete with trace}
 }
 \if{html}{\out{</div>}}
 }

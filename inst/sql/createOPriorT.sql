@@ -1,20 +1,79 @@
 /*
-Modify an Outcome cohort with prior target cohort
+Outcome-Prior-Target Cohort
 
-O: @outcome_name cohort ID @outcome_id
-T: @target_name cohort ID @target_id
+Creates a derived cohort based on the temporal relationship between an outcome
+cohort and a target (exposure) cohort. Supports two modes:
+  - 'prior':     Retain outcome events where a prior target event exists
+  - 'no_prior':  Retain outcome events where no prior target event exists
+
+Optionally restricts the lookback window with @prior_time_window_days and controls
+which prior target event anchors the match via @subset_limit.
+
+Parameters:
+  outcome_cohort_id   The cohort definition ID for the outcome (e.g., GI bleed)
+  target_cohort_id    The cohort definition ID for the target (e.g., NSAID use)
+  mode                'prior' or 'no_prior'
+  prior_time_window_days  NULL/0 = all time; integer (e.g. 365) = lookback window
+  subset_limit        'First' (earliest prior), 'Last' (most recent prior), or 'All'
+  output_cohort_id    The new cohort definition ID for the output
+  output_table        Schema.table to insert results into
+  base_cohort_table   Schema.table containing the cohort definitions
 */
+{DEFAULT @mode = 'prior'}
+{DEFAULT @subset_limit = 'First'}
+{DEFAULT @use_prior_time_window = FALSE}
 
-DELETE FROM @target_database_schema.@target_cohort_table WHERE cohort_definition_id = @output_cohort_id;
-INSERT INTO @target_database_schema.@target_cohort_table (cohort_definition_id,subject_id,cohort_start_date,cohort_end_date)
+DELETE FROM @output_table WHERE cohort_definition_id = @output_cohort_id;
 
-SELECT DISTINCT
+{@mode == 'prior'} ? {
+INSERT INTO @output_table (cohort_definition_id, subject_id, cohort_start_date, cohort_end_date)
+SELECT
+  @output_cohort_id AS cohort_definition_id,
+  sub.subject_id,
+  sub.cohort_start_date,
+  sub.cohort_end_date
+FROM (
+  SELECT
+    o.subject_id,
+    o.cohort_start_date,
+    o.cohort_end_date,
+    {@subset_limit == 'Last'} ? {
+      ROW_NUMBER() OVER (PARTITION BY o.subject_id, o.cohort_start_date ORDER BY t.cohort_start_date DESC) AS rn
+    } : {
+      ROW_NUMBER() OVER (PARTITION BY o.subject_id, o.cohort_start_date ORDER BY t.cohort_start_date) AS rn
+    }
+  FROM @base_cohort_table o
+  INNER JOIN @base_cohort_table t
+    ON t.subject_id = o.subject_id
+    AND t.cohort_definition_id = @target_cohort_id
+    AND t.cohort_start_date < o.cohort_start_date
+    {@use_prior_time_window} ? {
+      AND t.cohort_start_date >= DATEADD(DAY, -@prior_time_window_days, o.cohort_start_date)
+    } : {}
+  WHERE o.cohort_definition_id = @outcome_cohort_id
+) sub
+{@subset_limit == 'First' | @subset_limit == 'Last'} ? {
+  WHERE sub.rn = 1
+} : {}
+;
+} : {
+INSERT INTO @output_table (cohort_definition_id, subject_id, cohort_start_date, cohort_end_date)
+SELECT
   @output_cohort_id AS cohort_definition_id,
   o.subject_id,
   o.cohort_start_date,
   o.cohort_end_date
-FROM @target_database_schema.@target_cohort_table o
-  JOIN @target_database_schema.@target_cohort_table t ON t.subject_id = o.subject_id
-    AND t.cohort_definition_id = @target_id
-    AND t.cohort_start_date < o.cohort_start_date
-WHERE o.cohort_definition_id = @outcome_id;
+FROM @base_cohort_table o
+WHERE o.cohort_definition_id = @outcome_cohort_id
+  AND NOT EXISTS (
+    SELECT 1
+    FROM @base_cohort_table t
+    WHERE t.subject_id = o.subject_id
+      AND t.cohort_definition_id = @target_cohort_id
+      AND t.cohort_start_date < o.cohort_start_date
+      {@use_prior_time_window} ? {
+        AND t.cohort_start_date >= DATEADD(DAY, -@prior_time_window_days, o.cohort_start_date)
+      } : {}
+  )
+;
+}

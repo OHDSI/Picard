@@ -811,14 +811,16 @@ CohortManifest <- R6::R6Class(
     #'
     #' @description
     #' Returns a summary tibble of all active derived cohorts (union, subset, complement,
-    #' composite) with parsed dependency information sourced directly from SQLite. Useful
-    #' for quickly auditing what each derived cohort depends on and how it was built.
+    #' composite, oprior, tprior, censor) with parsed dependency information sourced
+    #' directly from SQLite. Useful for quickly auditing what each derived cohort depends
+    #' on and how it was built.
     #'
     #' @return A tibble with columns:
     #'   \itemize{
     #'     \item \code{id} - Cohort ID
     #'     \item \code{label} - Cohort label
-    #'     \item \code{cohort_type} - One of 'union', 'subset', 'complement', 'composite'
+    #'     \item \code{cohort_type} - One of 'union', 'subset', 'complement', 'composite',
+    #'       'oprior', 'tprior', 'censor'
     #'     \item \code{category} - User-defined category
     #'     \item \code{parent_cohorts} - Human-readable parent list, e.g. "Label A (1), Label B (2)"
     #'     \item \code{rule_summary} - Compact summary of the dependency rule parameters
@@ -899,6 +901,33 @@ CohortManifest <- R6::R6Class(
             n_ids <- if (!is.null(rule$cohortIds)) length(rule$cohortIds) else 0L
             paste0("minCohorts: ", rule$minCohorts %||% n_ids, " of ", n_ids)
           },
+          oprior = paste(
+            c(
+              if (!is.null(rule$outcomeCohortId)) paste0("outcome: ", label_map[[as.character(rule$outcomeCohortId)]] %||% rule$outcomeCohortId),
+              if (!is.null(rule$targetCohortId))  paste0("target: ",  label_map[[as.character(rule$targetCohortId)]]  %||% rule$targetCohortId),
+              if (!is.null(rule$mode))            paste0("mode: ",    rule$mode),
+              if (!is.null(rule$subsetLimit))     paste0("limit: ",   rule$subsetLimit),
+              if (!is.null(rule$priorTimeWindowDays)) paste0("window: ", rule$priorTimeWindowDays, "d")
+            ),
+            collapse = " | "
+          ),
+          tprior = paste(
+            c(
+              if (!is.null(rule$targetCohortId))  paste0("target: ",  label_map[[as.character(rule$targetCohortId)]]  %||% rule$targetCohortId),
+              if (!is.null(rule$outcomeCohortId)) paste0("outcome: ", label_map[[as.character(rule$outcomeCohortId)]] %||% rule$outcomeCohortId),
+              if (!is.null(rule$mode))            paste0("mode: ",    rule$mode),
+              if (!is.null(rule$subsetLimit))     paste0("limit: ",   rule$subsetLimit),
+              if (!is.null(rule$priorTimeWindowDays)) paste0("window: ", rule$priorTimeWindowDays, "d")
+            ),
+            collapse = " | "
+          ),
+          censor = paste(
+            c(
+              if (!is.null(rule$targetCohortId))  paste0("target: ",  label_map[[as.character(rule$targetCohortId)]]  %||% rule$targetCohortId),
+              if (!is.null(rule$censorCohortId))  paste0("censor: ",  label_map[[as.character(rule$censorCohortId)]]  %||% rule$censorCohortId)
+            ),
+            collapse = " | "
+          ),
           ""
         )
       }
@@ -1725,7 +1754,7 @@ CohortManifest <- R6::R6Class(
       rendered_sql <- readr::read_file(template_path) |>
         SqlRender::render(
           criteria_cohort_ids = cohort_ids_str,
-          minimum_event_count = minimumEventCount,
+          minimum_event_count = minEventCount,
           event_selection = eventSelection
         )
       writeLines(rendered_sql, sql_path)
@@ -3248,7 +3277,7 @@ CohortManifest <- R6::R6Class(
 
         # For dependent cohorts, also check dependency hash
         dependency_status <- "Not applicable"
-        if (cohort_type %in% c("subset", "union", "complement", "composite")) {
+        if (cohort_type %in% c("subset", "union", "complement", "composite", "oprior", "tprior", "censor")) {
           # Compute dependency hash using cached parent hashes
           current_dependency_hash <- private$compute_dependency_hash(cohort, cohort_hashes)
 
@@ -3346,7 +3375,7 @@ CohortManifest <- R6::R6Class(
         )
 
         # For dependent cohorts, load dependency_rule from SQLite and add to parameters
-        if (cohort_type %in% c("subset", "union", "complement", "composite")) {
+        if (cohort_type %in% c("subset", "union", "complement", "composite", "oprior", "tprior", "censor")) {
           # Add execution context parameters for dependent cohorts
           output_table_name <- paste(cohort_schema, cohort_table, sep = ".")
           sql_params$output_cohort_id <- cohort_id
@@ -3385,7 +3414,13 @@ CohortManifest <- R6::R6Class(
               firstEraOnly = "first_era_only",
               populationCohortId = "population_cohort_id",
               excludeCohortIds = "exclude_cohort_ids",
-              complementType = "complement_type"
+              complementType = "complement_type",
+              outcomeCohortId = "outcome_cohort_id",
+              targetCohortId = "target_cohort_id",
+              censorCohortId = "censor_cohort_id",
+              mode = "mode",
+              priorTimeWindowDays = "prior_time_window_days",
+              subsetLimit = "subset_limit"
             )
             sql_params <- private$expand_metadata_parameters(metadata, sql_params, field_mapping)
           }
@@ -3598,7 +3633,7 @@ CohortManifest <- R6::R6Class(
       if ("cohort_type" %in% names(results_df)) {
         circe_count <- sum(results_df$cohort_type == "circe", na.rm = TRUE)
         custom_count <- sum(results_df$cohort_type == "custom", na.rm = TRUE)
-        dependent_count <- sum(results_df$cohort_type %in% c("subset", "union", "complement", "composite"), na.rm = TRUE)
+        dependent_count <- sum(results_df$cohort_type %in% c("subset", "union", "complement", "composite", "oprior", "tprior", "censor"), na.rm = TRUE)
         cli::cli_alert_info("Cohort types: {circe_count} circe + {custom_count} custom + {dependent_count} dependent")
       }
 
@@ -3829,6 +3864,263 @@ CohortManifest <- R6::R6Class(
     #' @param keep_trace Logical. If TRUE, marks missing as deleted with timestamp (soft delete).
     #'   If FALSE, permanently removes from database (hard delete). Defaults to TRUE.
     #'
+    #' @description Build a cohort of outcome events with prior target exposure
+    #'
+    #' Creates a derived cohort based on the temporal relationship between an
+    #' outcome cohort and a target (exposure) cohort. Filters outcome events that
+    #' have (or lack) a prior target event, optionally within a time window.
+    #'
+    #' @param label Character. Display name (e.g., "GI Bleed - Prior NSAID").
+    #' @param category Character. Required classification.
+    #' @param tags Named list. Optional metadata tags.
+    #' @param outcomeCohortId Integer. The cohort definition ID for the outcome
+    #'   (e.g., GI bleed).
+    #' @param targetCohortId Integer. The cohort definition ID for the target
+    #'   (e.g., NSAID use).
+    #' @param mode Character. One of 'prior' or 'no_prior':
+    #'   - 'prior': Retain outcome events where a prior target event exists.
+    #'   - 'no_prior': Retain outcome events where no prior target event exists.
+    #'   Default: 'prior'.
+    #' @param priorTimeWindowDays Integer or NULL. If provided (e.g., 365), only
+    #'   consider target events within this many days before the outcome start.
+    #'   NULL or 0 means all time. Default: NULL.
+    #' @param subsetLimit Character. One of 'First', 'Last', or 'All'. Controls
+    #'   which prior target event anchors the match when multiple exist:
+    #'   - 'First': Keep the earliest prior target event (default).
+    #'   - 'Last': Keep the most recent prior target event.
+    #'   - 'All': Keep all prior target events (one output row per pair).
+    #'   Default: 'First'.
+    #'
+    #' @return Invisible integer. The assigned cohort ID.
+    buildOPriorT = function(
+      label,
+      category,
+      tags = list(),
+      outcomeCohortId,
+      targetCohortId,
+      mode = "prior",
+      priorTimeWindowDays = NULL,
+      subsetLimit = "First"
+    ) {
+      checkmate::assert_string(label, min.chars = 1)
+      checkmate::assert_string(category, min.chars = 1)
+      checkmate::assert_list(tags, names = "named")
+      checkmate::assert_int(outcomeCohortId)
+      checkmate::assert_int(targetCohortId)
+      checkmate::assert_choice(mode, choices = c("prior", "no_prior"))
+      checkmate::assert_integerish(priorTimeWindowDays, len = 1, null.ok = TRUE)
+      checkmate::assert_choice(subsetLimit, choices = c("First", "Last", "All"))
+
+      private$validate_label_unique(label)
+      private$validate_parent_cohorts_exist(c(outcomeCohortId, targetCohortId))
+
+      dependency_rule <- list(
+        outcomeCohortId = as.integer(outcomeCohortId),
+        targetCohortId = as.integer(targetCohortId),
+        mode = mode,
+        priorTimeWindowDays = if (!is.null(priorTimeWindowDays)) as.integer(priorTimeWindowDays) else NULL,
+        subsetLimit = subsetLimit
+      )
+
+      cohorts_dir <- dirname(private$.dbPath)
+      derived_dir <- fs::path(cohorts_dir, "derived")
+      if (!dir.exists(derived_dir)) dir.create(derived_dir, recursive = TRUE)
+
+      safe_label <- gsub("[^a-zA-Z0-9_-]", "_", label)
+      sql_path <- fs::path(derived_dir, paste0(safe_label, ".sql"))
+
+      template_path <- system.file("sql", "createOPriorT.sql", package = "picard")
+      rendered_sql <- readr::read_file(template_path) |>
+        SqlRender::render(
+          outcome_cohort_id = outcomeCohortId,
+          target_cohort_id = targetCohortId,
+          mode = mode,
+          use_prior_time_window = !is.null(priorTimeWindowDays),
+          prior_time_window_days = if (is.null(priorTimeWindowDays)) 0L else as.integer(priorTimeWindowDays),
+          subset_limit = subsetLimit
+        )
+      writeLines(rendered_sql, sql_path)
+
+      cohort_id <- private$insert_cohort(
+        label = label,
+        category = category,
+        tags = tags,
+        file_path = fs::path_rel(sql_path),
+        source_type = "derived",
+        cohort_type = "oprior",
+        depends_on = as.integer(c(outcomeCohortId, targetCohortId)),
+        dependency_rule = dependency_rule
+      )
+
+      cli::cli_alert_success("Built O-prior-T cohort {cohort_id}: {label} ({mode})")
+      invisible(cohort_id)
+    },
+
+    #' @description Build a cohort of target events with prior outcome occurrence
+    #'
+    #' Creates a derived cohort based on the temporal relationship between a
+    #' target (exposure) cohort and an outcome cohort. Filters target events that
+    #' have (or lack) a prior outcome event, optionally within a time window.
+    #'
+    #' This is the reverse direction of \code{buildOPriorT()}: instead of
+    #' filtering outcome by prior target, filter target by prior outcome.
+    #'
+    #' @param label Character. Display name (e.g., "NSAID - Prior GI Bleed").
+    #' @param category Character. Required classification.
+    #' @param tags Named list. Optional metadata tags.
+    #' @param targetCohortId Integer. The cohort definition ID for the target
+    #'   (e.g., NSAID use).
+    #' @param outcomeCohortId Integer. The cohort definition ID for the outcome
+    #'   (e.g., GI bleed).
+    #' @param mode Character. One of 'prior' or 'no_prior':
+    #'   - 'prior': Retain target events where a prior outcome exists.
+    #'   - 'no_prior': Retain target events where no prior outcome exists.
+    #'   Default: 'prior'.
+    #' @param priorTimeWindowDays Integer or NULL. If provided (e.g., 365), only
+    #'   consider outcome events within this many days before the target start.
+    #'   NULL or 0 means all time. Default: NULL.
+    #' @param subsetLimit Character. One of 'First', 'Last', or 'All'. Controls
+    #'   which prior outcome event anchors the match when multiple exist:
+    #'   - 'First': Keep the earliest prior outcome event (default).
+    #'   - 'Last': Keep the most recent prior outcome event.
+    #'   - 'All': Keep all prior outcome events (one output row per pair).
+    #'   Default: 'First'.
+    #'
+    #' @return Invisible integer. The assigned cohort ID.
+    buildTPriorO = function(
+      label,
+      category,
+      tags = list(),
+      targetCohortId,
+      outcomeCohortId,
+      mode = "prior",
+      priorTimeWindowDays = NULL,
+      subsetLimit = "First"
+    ) {
+      checkmate::assert_string(label, min.chars = 1)
+      checkmate::assert_string(category, min.chars = 1)
+      checkmate::assert_list(tags, names = "named")
+      checkmate::assert_int(targetCohortId)
+      checkmate::assert_int(outcomeCohortId)
+      checkmate::assert_choice(mode, choices = c("prior", "no_prior"))
+      checkmate::assert_integerish(priorTimeWindowDays, len = 1, null.ok = TRUE)
+      checkmate::assert_choice(subsetLimit, choices = c("First", "Last", "All"))
+
+      private$validate_label_unique(label)
+      private$validate_parent_cohorts_exist(c(targetCohortId, outcomeCohortId))
+
+      dependency_rule <- list(
+        targetCohortId = as.integer(targetCohortId),
+        outcomeCohortId = as.integer(outcomeCohortId),
+        mode = mode,
+        priorTimeWindowDays = if (!is.null(priorTimeWindowDays)) as.integer(priorTimeWindowDays) else NULL,
+        subsetLimit = subsetLimit
+      )
+
+      cohorts_dir <- dirname(private$.dbPath)
+      derived_dir <- fs::path(cohorts_dir, "derived")
+      if (!dir.exists(derived_dir)) dir.create(derived_dir, recursive = TRUE)
+
+      safe_label <- gsub("[^a-zA-Z0-9_-]", "_", label)
+      sql_path <- fs::path(derived_dir, paste0(safe_label, ".sql"))
+
+      template_path <- system.file("sql", "createTPriorO.sql", package = "picard")
+      rendered_sql <- readr::read_file(template_path) |>
+        SqlRender::render(
+          target_cohort_id = targetCohortId,
+          outcome_cohort_id = outcomeCohortId,
+          mode = mode,
+          use_prior_time_window = !is.null(priorTimeWindowDays),
+          prior_time_window_days = if (is.null(priorTimeWindowDays)) 0L else as.integer(priorTimeWindowDays),
+          subset_limit = subsetLimit
+        )
+      writeLines(rendered_sql, sql_path)
+
+      cohort_id <- private$insert_cohort(
+        label = label,
+        category = category,
+        tags = tags,
+        file_path = fs::path_rel(sql_path),
+        source_type = "derived",
+        cohort_type = "tprior",
+        depends_on = as.integer(c(targetCohortId, outcomeCohortId)),
+        dependency_rule = dependency_rule
+      )
+
+      cli::cli_alert_success("Built T-prior-O cohort {cohort_id}: {label} ({mode})")
+      invisible(cohort_id)
+    },
+
+    #' @description Censor a target cohort based on a censoring event
+    #'
+    #' Truncates the cohort_end_date of each target cohort record to the earliest
+    #' censoring event that occurs between the cohort_start_date and cohort_end_date.
+    #' If no censoring event occurs, the original cohort_end_date is preserved.
+    #'
+    #' Typical use cases:
+    #' - Censor a drug exposure cohort at the date of death
+    #' - Censor a disease cohort at the date of disease exacerbation
+    #' - Censor a treatment cohort at the date of a procedure (e.g., surgery)
+    #'
+    #' @param label Character. Display name (e.g., "NSAID Use - Censored at Death").
+    #' @param category Character. Required classification.
+    #' @param tags Named list. Optional metadata tags.
+    #' @param targetCohortId Integer. The cohort definition ID for the cohort to censor.
+    #' @param censorCohortId Integer. The cohort definition ID for the censoring event.
+    #'
+    #' @return Invisible integer. The assigned cohort ID.
+    buildCensorCohort = function(
+      label,
+      category,
+      tags = list(),
+      targetCohortId,
+      censorCohortId
+    ) {
+      checkmate::assert_string(label, min.chars = 1)
+      checkmate::assert_string(category, min.chars = 1)
+      checkmate::assert_list(tags, names = "named")
+      checkmate::assert_int(targetCohortId)
+      checkmate::assert_int(censorCohortId)
+
+      private$validate_label_unique(label)
+      private$validate_parent_cohorts_exist(c(targetCohortId, censorCohortId))
+
+      dependency_rule <- list(
+        targetCohortId = as.integer(targetCohortId),
+        censorCohortId = as.integer(censorCohortId)
+      )
+
+      cohorts_dir <- dirname(private$.dbPath)
+      derived_dir <- fs::path(cohorts_dir, "derived")
+      if (!dir.exists(derived_dir)) dir.create(derived_dir, recursive = TRUE)
+
+      safe_label <- gsub("[^a-zA-Z0-9_-]", "_", label)
+      sql_path <- fs::path(derived_dir, paste0(safe_label, ".sql"))
+
+      template_path <- system.file("sql", "createCensorCohort.sql", package = "picard")
+      rendered_sql <- readr::read_file(template_path) |>
+        SqlRender::render(
+          target_cohort_id = targetCohortId,
+          censor_cohort_id = censorCohortId
+        )
+      writeLines(rendered_sql, sql_path)
+
+      cohort_id <- private$insert_cohort(
+        label = label,
+        category = category,
+        tags = tags,
+        file_path = fs::path_rel(sql_path),
+        source_type = "derived",
+        cohort_type = "censor",
+        depends_on = as.integer(c(targetCohortId, censorCohortId)),
+        dependency_rule = dependency_rule
+      )
+
+      cli::cli_alert_success("Built censor cohort {cohort_id}: {label}")
+      invisible(cohort_id)
+    },
+    #' @description clean up missing files from manifest
+    #' @param keep_trace Logical. soft delete with trace
     #' @return Invisibly returns NULL. Displays summary of cleanup actions.
     cleanupMissing = function(keep_trace = TRUE) {
       status_df <- self$validateManifest()
