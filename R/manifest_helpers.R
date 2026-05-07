@@ -452,53 +452,6 @@ parseTagsString <- function(tags_str) {
 }
 
 
-#' Import CIRCE Cohort Definitions from ATLAS
-#'
-#' @description
-#' Imports CIRCE JSON cohort definitions from ATLAS and registers them in the manifest.
-#' This is a wrapper around [CohortManifest]`$importAtlasCohorts()`.
-#'
-#' @note Deprecated. Use [CohortManifest]`$importAtlasCohorts()` directly.
-#'
-#' @param atlasConnection An ATLAS connection object.
-#' @param manifestPath Character. Path to the cohort manifest database.
-#' @param cohortsLoadPath Character. Path to the CSV file containing cohort metadata.
-#'
-#' @return Invisibly returns a tibble with import results.
-#'
-#' @export
-importAtlasCohorts <- function(atlasConnection,
-                               manifestPath = here::here("inputs/cohorts/cohortManifest.sqlite"),
-                               cohortsLoadPath = here::here("inputs/cohorts/cohortsLoad.csv")) {
-  lifecycle::deprecate_warn(
-    "0.1.0",
-    "importAtlasCohorts()",
-    details = c(
-      "i" = "Use CohortManifest$importAtlasCohorts() method directly:",
-      "i" = "  manifest <- CohortManifest$new(dbPath = '...')",
-      "i" = "  manifest$importAtlasCohorts(atlasConnection, cohortsLoadPath)"
-    )
-  )
-
-  if (file.exists(manifestPath)) {
-    manifest <- CohortManifest$new(dbPath = manifestPath)
-  } else {
-    cohorts_folder <- dirname(manifestPath)
-    if (!dir.exists(cohorts_folder)) {
-      dir.create(cohorts_folder, recursive = TRUE, showWarnings = FALSE)
-    }
-    manifest <- CohortManifest$new(dbPath = manifestPath)
-  }
-
-  results <- manifest$importAtlasCohorts(
-    atlasConnection = atlasConnection,
-    cohortsLoadPath = cohortsLoadPath
-  )
-
-  return(invisible(results))
-}
-
-
 #' Plot Cohort Dependency Graph
 #'
 #' @description
@@ -594,141 +547,6 @@ plotCohortGraph <- function(manifest) {
 }
 
 
-#' Visualize Cohort Dependencies (Deprecated)
-#'
-#' @description
-#' **Deprecated.** Use [plotCohortGraph()] for a mermaid dependency diagram and
-#' [CohortManifest]`$reviewDependentCohorts()` for a tabular dependency summary.
-#'
-#' @param manifest A CohortManifest object.
-#' @param outputPath Character. Optional path to save the markdown report. Defaults to NULL.
-#'
-#' @return Character. The markdown report content (invisibly).
-#'
-#' @export
-visualizeCohortDependencies <- function(manifest, outputPath = NULL) {
-  lifecycle::deprecate_warn(
-    "0.0.3",
-    "visualizeCohortDependencies()",
-    details = paste(
-      "Use plotCohortGraph(manifest) for a mermaid dependency diagram.",
-      "Use manifest$reviewDependentCohorts() for a tabular dependency summary."
-    )
-  )
-
-  checkmate::assert_r6(manifest, classes = "CohortManifest")
-  checkmate::assert_character(outputPath, len = 1, null.ok = TRUE)
-
-  cohort_list <- manifest$getManifest()
-
-  if (length(cohort_list) == 0) {
-    cli::cli_alert_warning("No cohorts found in manifest")
-    return(invisible(NULL))
-  }
-
-  total_cohorts       <- length(cohort_list)
-  cohort_types        <- sapply(cohort_list, function(c) c$getCohortType())
-  type_counts         <- table(cohort_types)
-  base_cohort_count   <- ifelse("circe" %in% names(type_counts), type_counts[["circe"]], 0)
-  dependent_cohort_count <- total_cohorts - base_cohort_count
-
-  # Read dependency data from SQLite
-  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
-  on.exit(DBI::dbDisconnect(conn))
-
-  dep_rows <- DBI::dbGetQuery(
-    conn,
-    "SELECT id, depends_on FROM cohort_manifest WHERE status = 'active'"
-  )
-  deps_lookup <- stats::setNames(dep_rows$depends_on, as.character(dep_rows$id))
-
-  parse_parents <- function(cid) {
-    dep_json <- deps_lookup[[as.character(cid)]]
-    if (is.null(dep_json) || is.na(dep_json) || nchar(dep_json) == 0) {
-      return(integer(0))
-    }
-    tryCatch(as.integer(jsonlite::fromJSON(dep_json)), error = function(e) integer(0))
-  }
-
-  # Mermaid diagram
-  node_defs <- character()
-  edge_defs <- character()
-
-  for (cohort in cohort_list) {
-    cid   <- cohort$getId()
-    clbl  <- cohort$label
-    ctype <- cohort$getCohortType()
-    nid   <- paste0("c", cid)
-
-    node_shape <- switch(
-      ctype,
-      circe  = paste0('["', clbl, '"]'),
-      subset = paste0('("',  clbl, '")'),
-      union  = paste0('{{"', clbl, '"}}'),
-      paste0('{{{{"', clbl, '"}}}}')
-    )
-    node_defs <- c(node_defs, paste0(nid, node_shape))
-
-    for (pid in parse_parents(cid)) {
-      edge_defs <- c(edge_defs, paste0("c", pid, " --> ", nid))
-    }
-  }
-
-  mermaid_diagram <- paste(c("graph TD", node_defs, edge_defs), collapse = "\n")
-
-  # Summary table rows
-  cohort_rows <- character()
-  for (cohort in cohort_list) {
-    cid   <- cohort$getId()
-    pids  <- parse_parents(cid)
-    dep_str <- if (length(pids) == 0) "None" else paste(pids, collapse = ", ")
-    cohort_rows <- c(cohort_rows, paste0(
-      "| ", cid, " | ", cohort$label, " | ", cohort$getCohortType(), " | ", dep_str, " |"
-    ))
-  }
-
-  report <- paste0(
-    "# Cohort Dependency Report\n\n",
-    "**Generated**: ", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "\n\n",
-    "## Overview\n\n",
-    "| Metric | Count |\n",
-    "|--------|-------|\n",
-    "| Total Cohorts | ", total_cohorts, " |\n",
-    "| Base Cohorts (CIRCE) | ", base_cohort_count, " |\n",
-    "| Dependent Cohorts | ", dependent_cohort_count, " |\n",
-    "\n",
-    "### Cohort Type Breakdown\n\n",
-    paste(sapply(names(type_counts), function(t) paste0("- **", t, "**: ", type_counts[[t]])), collapse = "\n"),
-    "\n\n",
-    "## Dependency Diagram\n\n",
-    "```mermaid\n", mermaid_diagram, "\n```\n\n",
-    "**Legend:**\n",
-    "- \u25ad Rectangle: CIRCE (base) cohort\n",
-    "- \u25ef Circle: Subset cohort\n",
-    "- \u25c7 Diamond: Union cohort\n",
-    "- \u2b21 Hexagon: Complement cohort\n\n",
-    "## Cohort Summary Table\n\n",
-    "| ID | Label | Type | Depends On |\n",
-    "|----|----|------|----------|\n",
-    paste(cohort_rows, collapse = "\n"),
-    "\n\n",
-    "---\n",
-    "*Report generated by picard dependency visualizer*\n"
-  )
-
-  if (!is.null(outputPath)) {
-    if (!dir.exists(outputPath)) {
-      dir.create(outputPath, recursive = TRUE, showWarnings = FALSE)
-    }
-    output_file <- fs::path(outputPath, "cohort_dependencies.md")
-    readr::write_file(report, file = output_file)
-    cli::cli_alert_success("Dependency report saved to: {fs::path_rel(output_file)}")
-  }
-
-  invisible(report)
-}
-
-
 #' Validate a Custom SQL Cohort for Picard Compatibility
 #'
 #' @noRd
@@ -767,96 +585,6 @@ visualizeCohortDependencies <- function(manifest, outputPath = NULL) {
 }
 
 
-#' Define (Enrich) a Custom SQL Cohort (Deprecated)
-#'
-#' @description
-#' **Deprecated.** Use [CohortManifest]`$addSqlCohort()` instead, which registers
-#' a custom SQL cohort with the correct label, category, and tags in a single step.
-#'
-#' @param manifest A [CohortManifest] R6 object.
-#' @param label Character. The user-friendly display name.
-#' @param tags Named list. Optional metadata tags. Defaults to `list()`.
-#' @param cohortId Integer. The cohort ID in the manifest.
-#' @param sqlFilePath Character. Path to the SQL file.
-#'
-#' @return Invisibly returns `NULL`.
-#'
-#' @export
-defineCustomCohort <- function(manifest,
-                               label,
-                               tags = list(),
-                               cohortId = NULL,
-                               sqlFilePath = NULL) {
-  lifecycle::deprecate_warn(
-    "0.0.3",
-    "defineCustomCohort()",
-    details = "Use manifest$addSqlCohort(filePath, label, category, tags) instead."
-  )
-  checkmate::assert_class(x = manifest, classes = "CohortManifest")
-  checkmate::assert_string(x = label, min.chars = 1)
-  checkmate::assert_list(x = tags, names = "named")
-
-  has_id   <- !is.null(cohortId)
-  has_path <- !is.null(sqlFilePath)
-
-  if (has_id && has_path) {
-    cli::cli_abort("Provide either `cohortId` or `sqlFilePath`, not both.")
-  }
-  if (!has_id && !has_path) {
-    cli::cli_abort("One of `cohortId` or `sqlFilePath` must be provided.")
-  }
-  if (has_id) checkmate::assert_int(x = cohortId, lower = 1)
-  if (has_path) checkmate::assert_string(x = sqlFilePath, min.chars = 1)
-
-  cohort <- NULL
-
-  if (has_id) {
-    cohort <- manifest$getCohortById(as.integer(cohortId))
-    if (is.null(cohort)) {
-      cli::cli_abort("No cohort with ID {cohortId} found in the manifest.")
-    }
-  } else {
-    norm_target <- normalizePath(sqlFilePath, mustWork = FALSE)
-    for (cd in manifest$getManifest()) {
-      norm_fp <- normalizePath(cd$getFilePath(), mustWork = FALSE)
-      if (norm_fp == norm_target || fs::path_rel(cd$getFilePath()) == fs::path_rel(sqlFilePath)) {
-        cohort <- cd
-        break
-      }
-    }
-    if (is.null(cohort)) {
-      cli::cli_abort("No cohort with file path '{sqlFilePath}' found in the manifest.")
-    }
-  }
-
-  cohort_id  <- cohort$getId()
-  cohort_sql <- cohort$getSql()
-  if (!is.null(cohort_sql) && nchar(cohort_sql) > 0) {
-    .validateCustomSql(cohort_sql, label)
-  }
-
-  cohort$label <- label
-  cohort$tags  <- tags
-  cohort$setCohortType("custom")
-
-  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
-  on.exit(DBI::dbDisconnect(conn))
-
-  tags_str <- cohort$formatTagsAsString()
-
-  DBI::dbExecute(
-    conn,
-    "UPDATE cohort_manifest SET label = ?, tags = ?, cohort_type = 'custom' WHERE id = ?",
-    list(label, tags_str, cohort_id)
-  )
-
-  cli::cli_alert_success("Defined custom cohort {cohort_id}: {label}")
-  if (length(tags) > 0) {
-    cli::cli_alert_info("Tags: {tags_str}")
-  }
-
-  invisible(NULL)
-}
 
 
 #' Update the Label and/or Tags of an Existing Manifest Cohort
@@ -1253,3 +981,200 @@ importAtlasConceptSets <- function(conceptSetsFolderPath = here::here("inputs/co
 
   return(invisible(result))
 }
+
+tableExists <- function(connection, schema, tableName, dbms) {
+  tryCatch({
+    query <- paste0("SELECT COUNT(*) FROM ", schema, ".", tableName, " WHERE 1=0")
+    result <- DatabaseConnector::querySql(connection, query)
+    return(TRUE)
+  }, error = function(e) {
+    return(FALSE)
+  })
+}
+
+
+createMainCohortTableSql <- function(schema, tableName, dbms, tempEmulationSchema = NULL) {
+  sql <- "CREATE TABLE @schema.@table_name (
+    cohort_definition_id BIGINT,
+    subject_id BIGINT,
+    cohort_start_date DATE,
+    cohort_end_date DATE
+  );"
+
+  sql <- SqlRender::render(
+    sql = sql,
+    schema = schema,
+    table_name = tableName
+  )
+
+  sql <- SqlRender::translate(
+    sql = sql,
+    targetDialect = dbms,
+    tempEmulationSchema = tempEmulationSchema
+  )
+
+  return(sql)
+}
+
+
+createInclusionTableSql <- function(schema, tableName, dbms) {
+  sql <- "CREATE TABLE @schema.@table_name (
+    cohort_definition_id BIGINT NOT NULL,
+  	rule_sequence INT NOT NULL,
+  	name VARCHAR(255) NULL,
+  	description VARCHAR(1000) NULL
+  );"
+
+  sql <- SqlRender::render(
+    sql = sql,
+    schema = schema,
+    table_name = tableName
+  )
+
+  sql <- SqlRender::translate(
+    sql = sql,
+    targetDialect = dbms
+  )
+
+  return(sql)
+}
+
+
+createInclusionResultTableSql <- function(schema, tableName, dbms) {
+  sql <- "CREATE TABLE @schema.@table_name (
+    cohort_definition_id BIGINT NOT NULL,
+  	inclusion_rule_mask BIGINT NOT NULL,
+  	person_count BIGINT NOT NULL,
+  	mode_id INT
+  );"
+
+  sql <- SqlRender::render(
+    sql = sql,
+    schema = schema,
+    table_name = tableName
+  )
+
+  sql <- SqlRender::translate(
+    sql = sql,
+    targetDialect = dbms
+  )
+
+  return(sql)
+}
+
+
+createInclusionStatsTableSql <- function(schema, tableName, dbms) {
+  sql <- "CREATE TABLE @schema.@table_name (
+    cohort_definition_id BIGINT NOT NULL,
+  	rule_sequence INT NOT NULL,
+  	person_count BIGINT NOT NULL,
+  	gain_count BIGINT NOT NULL,
+  	person_total BIGINT NOT NULL,
+  	mode_id INT
+  );"
+
+  sql <- SqlRender::render(
+    sql = sql,
+    schema = schema,
+    table_name = tableName
+  )
+
+  sql <- SqlRender::translate(
+    sql = sql,
+    targetDialect = dbms
+  )
+
+  return(sql)
+}
+
+
+createSummaryStatsTableSql <- function(schema, tableName, dbms) {
+  sql <- "CREATE TABLE @schema.@table_name (
+    cohort_definition_id BIGINT NOT NULL,
+  	base_count BIGINT NOT NULL,
+  	final_count BIGINT NOT NULL,
+  	mode_id INT
+  );"
+
+  sql <- SqlRender::render(
+    sql = sql,
+    schema = schema,
+    table_name = tableName
+  )
+
+  sql <- SqlRender::translate(
+    sql = sql,
+    targetDialect = dbms
+  )
+
+  return(sql)
+}
+
+
+createCensorStatsTableSql <- function(schema, tableName, dbms) {
+  sql <- "CREATE TABLE @schema.@table_name (
+    cohort_definition_id BIGINT NOT NULL,
+    lost_count BIGINT NOT NULL
+  );"
+
+  sql <- SqlRender::render(
+    sql = sql,
+    schema = schema,
+    table_name = tableName
+  )
+
+  sql <- SqlRender::translate(
+    sql = sql,
+    targetDialect = dbms
+  )
+
+  return(sql)
+}
+
+
+createChecksumTableSql <- function(schema, tableName, dbms) {
+  sql <- "CREATE TABLE @schema.@table_name (
+    cohort_definition_id BIGINT NOT NULL,
+    checksum varchar(500) NOT NULL,
+    start_time FLOAT,
+    end_time FLOAT
+  );"
+
+  sql <- SqlRender::render(
+    sql = sql,
+    schema = schema,
+    table_name = tableName
+  )
+
+  sql <- SqlRender::translate(
+    sql = sql,
+    targetDialect = dbms
+  )
+
+  return(sql)
+}
+
+
+getCohortTableNames <- function(cohortTable = "cohort",
+                                cohortSampleTable = cohortTable,
+                                cohortInclusionTable = paste0(cohortTable, "_inclusion"),
+                                cohortInclusionResultTable = paste0(cohortTable, "_inclusion_result"),
+                                cohortInclusionStatsTable = paste0(cohortTable, "_inclusion_stats"),
+                                cohortSummaryStatsTable = paste0(cohortTable, "_summary_stats"),
+                                cohortCensorStatsTable = paste0(cohortTable, "_censor_stats"),
+                                cohortSubsetAttritionTable = paste0(cohortTable, "_subset_attrition"),
+                                cohortChecksumTable = paste0(cohortTable, "_checksum")) {
+  return(list(
+    cohortTable = cohortTable,
+    cohortSampleTable = cohortSampleTable,
+    cohortInclusionTable = cohortInclusionTable,
+    cohortInclusionResultTable = cohortInclusionResultTable,
+    cohortInclusionStatsTable = cohortInclusionStatsTable,
+    cohortSummaryStatsTable = cohortSummaryStatsTable,
+    cohortCensorStatsTable = cohortCensorStatsTable,
+    cohortSubsetAttritionTable = cohortSubsetAttritionTable,
+    cohortChecksumTable = cohortChecksumTable
+  ))
+}
+
+
