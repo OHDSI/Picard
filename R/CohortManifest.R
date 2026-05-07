@@ -1459,7 +1459,8 @@ CohortManifest <- R6::R6Class(
           min_era_days = minEraDays,
           min_cohorts = minCohorts,
           washout_days = washoutDays,
-          first_era_only = as.integer(firstEraOnly)
+          use_washout_days = ifelse(washoutDays > 0, TRUE, FALSE),
+          first_era_only = firstEraOnly
         )
       writeLines(rendered_sql, sql_path)
 
