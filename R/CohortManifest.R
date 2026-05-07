@@ -1386,37 +1386,82 @@ CohortManifest <- R6::R6Class(
     #' Delegates SQL generation to the internal builder function.
     #'
     #' @param label Character. Display name for the derived cohort.
-    #' @param cohortIds Integer vector. IDs of parent cohorts to union.
     #' @param category Character. Required classification.
     #' @param tags Named list. Optional metadata tags.
-    #' @param gapDays Integer. Maximum gap between eras to merge. Default 0.
-    #'
+    #' @param cohortIds Numeric vector (minimum 2). Cohort IDs to union.
+    #' @param gapDays Integer. Bridge eras separated by up to this many days. Default: 0 (only
+    #'   overlapping periods collapse).
+    #' @param eraPadDays Integer. Expand each source period by this many days on each end before
+    #'   collapsing. Applied to individual periods, not the collapsed result. Default: 0.
+    #' @param minEraDays Integer. Drop collapsed eras shorter than this many days. Default: 0
+    #'   (keep all eras).
+    #' @param minCohorts Integer. Only include subjects appearing in at least this many distinct
+    #'   source cohorts. Default: 1 (any subject from any cohort).
+    #' @param washoutDays Integer. Require a clean period of at least this many days before a
+    #'   new era can open. Subjects must have no source cohort membership for this period.
+    #'   Default: 0.
+    #' @param firstEraOnly Logical. Return only the first collapsed era per subject. Default: FALSE.
     #' @return Invisible integer. The assigned cohort ID.
-    buildUnionCohort = function(label, cohortIds, category, tags = list(), gapDays = 0L) {
+    buildUnionCohort = function(
+      label, 
+      category, 
+      tags = list(),
+      cohortIds,
+      gapDays = 0L,
+      eraPadDays = 0L,
+      minEraDays = 0L,
+      minCohorts = 1L,
+      washoutDays = 0L,
+      firstEraOnly = FALSE
+      ) {
       checkmate::assert_string(label, min.chars = 1)
       checkmate::assert_integerish(cohortIds, min.len = 2, unique = TRUE)
       checkmate::assert_string(category, min.chars = 1)
       checkmate::assert_list(tags, names = "named")
-      checkmate::assert_int(gapDays, lower = 0)
+      checkmate::assert_integerish(x = gapDays, len = 1, lower = 0)
+      checkmate::assert_integerish(x = eraPadDays, len = 1, lower = 0)
+      checkmate::assert_integerish(x = minEraDays, len = 1, lower = 0)
+      checkmate::assert_integerish(x = minCohorts, len = 1, lower = 1)
+      checkmate::assert_integerish(x = washoutDays, len = 1, lower = 0)
+      checkmate::assert_logical(x = firstEraOnly, len = 1)
 
       private$validate_label_unique(label)
       private$validate_parent_cohorts_exist(cohortIds)
 
       # Build dependency rule
-      dependency_rule <- list(cohortIds = as.integer(cohortIds), gapDays = gapDays)
+      dependency_rule <- list(
+        cohortIds = as.integer(cohortIds), 
+        gapDays = gapDays,
+        eraPadDays = eraPadDays,
+        minEraDays = minEraDays,
+        minCohorts = minCohorts,
+        washoutDays = washoutDays,
+        firstEraOnly = firstEraOnly
+        )
 
       # Generate SQL via internal builder
       cohorts_dir <- dirname(private$.dbPath)
       derived_dir <- fs::path(cohorts_dir, "derived")
-      if (!dir.exists(derived_dir)) dir.create(derived_dir, recursive = TRUE)
+      if (!dir.exists(derived_dir)) {
+        dir.create(derived_dir, recursive = TRUE)
+      } 
 
       safe_label <- gsub("[^a-zA-Z0-9_-]", "_", label)
       sql_path <- fs::path(derived_dir, paste0(safe_label, ".sql"))
 
       # Render union SQL template
-      sql_template <- readLines(system.file("sql", "createUnionCohort.sql", package = "picard"), warn = FALSE)
-      sql_content <- paste(sql_template, collapse = "\n")
-      writeLines(sql_content, sql_path)
+      template_path <- system.file("sql", "createComplementCohort.sql", package = "picard")
+      rendered_sql <-  readr::read_file(template_path) |>
+        SqlRender::render(
+          cohort_ids = paste(cohortIds, collapse = ", "),
+          gap_days = gapDays,
+          era_pad_days = eraPadDays,
+          min_era_days = minEraDays,
+          min_cohorts = minCohorts,
+          washout_days = washoutDays,
+          first_era_only = as.integer(firstEraOnly)
+        )
+      writeLines(rendered_sql, sql_path)
 
       # Register in manifest
       cohort_id <- private$insert_cohort(
@@ -1440,25 +1485,32 @@ CohortManifest <- R6::R6Class(
     #' relationship to a filter cohort.
     #'
     #' @param label Character. Display name.
-    #' @param baseCohortId Integer. ID of the base cohort to subset.
-    #' @param filterCohortId Integer. ID of the filter cohort.
     #' @param category Character. Required classification.
-    #' @param startWindow A SubsetWindowOperator object (from [createSubsetStartWindow()]) defining
-    #'   the temporal window for the filter cohort start date relative to the base cohort event.
-    #' @param endWindow A SubsetWindowOperator object (from [createSubsetEndWindow()]) or NULL.
-    #'   Defines the temporal window for the filter cohort end date. Default: NULL.
-    #' @param endDateType Character. Whether to use the base cohort end date ('base') or filter
-    #'   cohort end date ('filter') in the output. Default: 'base'.
-    #' @param subsetLimit Character. One of 'First', 'Last', or 'All'. Default: 'First'.
     #' @param tags Named list. Optional metadata tags.
+    #' @param baseCohortId Integer. The cohort ID to subset.
+    #' @param filterCohortId Integer. The cohort ID to use for temporal filtering.
+    #' @param startWindow SubsetWindowOperator object. Defines the temporal window for the subset cohort start date
+    #'   relative to the filter cohort event.
+    #' @param endWindow SubsetWindowOperator object (optional, NULL allowed). Defines the temporal window for the 
+    #'   subset cohort end date relative to the filter cohort event. If NULL, the filter cohort end date is not used.
+    #' @param endDateType Character. Whether to use the base cohort end date ('base') or filter cohort end date ('filter')
+    #'   as the cohort end date in the output subset cohort. Default: 'base'.
+    #' @param subsetLimit Character. One of 'First', 'Last', or 'All'. Specifies which qualifying filter cohort event(s)
+    #'   to retain per subject. 'First' keeps the earliest event, 'Last' keeps the most recent event, 'All' keeps all 
+    #'   qualifying events. Default: 'First'.
     #'
     #' @return Invisible integer. The assigned cohort ID.
-    buildSubsetCohortTemporal = function(label, baseCohortId, filterCohortId, category,
-                                         startWindow,
-                                         endWindow = NULL,
-                                         endDateType = "base",
-                                         subsetLimit = "First",
-                                         tags = list()) {
+    buildSubsetCohortTemporal = function(
+      label, 
+      category,
+      tags = list(),
+      baseCohortId, 
+      filterCohortId, 
+      startWindow,
+      endWindow = NULL,
+      endDateType = "base",
+      subsetLimit = "First"
+    ) {
       checkmate::assert_string(label, min.chars = 1)
       checkmate::assert_int(baseCohortId)
       checkmate::assert_int(filterCohortId)
@@ -1550,9 +1602,14 @@ CohortManifest <- R6::R6Class(
     #' @param tags Named list. Optional metadata tags.
     #'
     #' @return Invisible integer. The assigned cohort ID.
-    buildComplementCohort = function(label, populationCohortId, excludeCohortIds,
-                                     category, complementType = "exclude_any",
-                                     tags = list()) {
+    buildComplementCohort = function(
+      label, 
+      category, 
+      tags = list(),
+      populationCohortId, 
+      excludeCohortIds,
+      complementType = "exclude_any"
+    ) {
       checkmate::assert_string(label, min.chars = 1)
       checkmate::assert_int(populationCohortId)
       checkmate::assert_integerish(excludeCohortIds, min.len = 1, unique = TRUE)
@@ -1613,39 +1670,64 @@ CohortManifest <- R6::R6Class(
     #' (intersection logic).
     #'
     #' @param label Character. Display name.
-    #' @param cohortIds Integer vector. IDs of cohorts to intersect.
     #' @param category Character. Required classification.
-    #' @param minCohorts Integer. Minimum cohorts a subject must appear in. Default: all.
     #' @param tags Named list. Optional metadata tags.
+    #' @param criteriaCohortIds Integer vector. The cohort IDs to include in the composite
+    #'   (e.g., c(1, 2, 3) for Type 1 diabetes, Type 2 diabetes, and secondary diabetes).
+    #' @param minEventCount Integer. Minimum number of distinct cohort events required for a subject
+    #'   to qualify for the composite. Default: 1 (any subject with at least 1 event qualifies).
+    #' @param eventSelection Character. One of 'First', 'Last', or 'All'. Specifies which event(s) to
+    #'   retain as the cohort_start_date and cohort_end_date in the output:
+    #'   - 'First': Keep the earliest event (earliest index date)
+    #'   - 'Last': Keep the most recent event
+    #'   - 'All': Keep all qualifying events per subject (may result in multiple rows per subject)
+    #'   Default: 'First'.
+    #' 
     #'
     #' @return Invisible integer. The assigned cohort ID.
-    buildCompositeCohort = function(label, cohortIds, category, minCohorts = NULL, tags = list()) {
+    buildCompositeCohort = function(
+        label, 
+        category, 
+        tags = list(),
+        criteriaCohortIds, 
+        eventSelection = "First", 
+        minEventCount = 1L
+        ) {
       checkmate::assert_string(label, min.chars = 1)
-      checkmate::assert_integerish(cohortIds, min.len = 2, unique = TRUE)
+      checkmate::assert_integerish(criteriaCohortIds, min.len = 2, unique = TRUE)
       checkmate::assert_string(category, min.chars = 1)
       checkmate::assert_list(tags, names = "named")
-
-      if (is.null(minCohorts)) minCohorts <- length(cohortIds)
-      checkmate::assert_int(minCohorts, lower = 1, upper = length(cohortIds))
+      checkmate::assert_choice(x = eventSelection, choices = c("First", "Last", "All"))
+      checkmate::assert_integerish(minEventCount, lower = 1, upper = length(criteriaCohortIds))
 
       private$validate_label_unique(label)
-      private$validate_parent_cohorts_exist(cohortIds)
+      private$validate_parent_cohorts_exist(criteriaCohortIds)
 
       dependency_rule <- list(
-        cohortIds = as.integer(cohortIds),
-        minCohorts = as.integer(minCohorts)
+        criteriaCohortIds = as.integer(criteriaCohortIds),
+        eventSelection = eventSelection,
+        minEventCount = as.integer(minEventCount)
       )
 
       cohorts_dir <- dirname(private$.dbPath)
       derived_dir <- fs::path(cohorts_dir, "derived")
-      if (!dir.exists(derived_dir)) dir.create(derived_dir, recursive = TRUE)
+      if (!dir.exists(derived_dir)) {
+        dir.create(derived_dir, recursive = TRUE)
+      } 
 
       safe_label <- gsub("[^a-zA-Z0-9_-]", "_", label)
       sql_path <- fs::path(derived_dir, paste0(safe_label, ".sql"))
 
-      sql_template <- readLines(system.file("sql", "createCompositeCohort.sql", package = "picard"), warn = FALSE)
-      sql_content <- paste(sql_template, collapse = "\n")
-      writeLines(sql_content, sql_path)
+
+      template_path <- system.file("sql", "createCompositeCohort.sql", package = "picard")
+      cohort_ids_str <- paste(criteriaCohortIds, collapse = ",")
+      rendered_sql <- readr::read_file(template_path) |>
+        SqlRender::render(
+          criteria_cohort_ids = cohort_ids_str,
+          minimum_event_count = minimumEventCount,
+          event_selection = eventSelection
+        )
+      writeLines(rendered_sql, sql_path)
 
       cohort_id <- private$insert_cohort(
         label = label,
@@ -1654,7 +1736,7 @@ CohortManifest <- R6::R6Class(
         file_path = fs::path_rel(sql_path),
         source_type = "derived",
         cohort_type = "composite",
-        depends_on = as.integer(cohortIds),
+        depends_on = as.integer(criteriaCohortIds),
         dependency_rule = dependency_rule
       )
 
@@ -1989,6 +2071,62 @@ CohortManifest <- R6::R6Class(
 
       if (length(matching_cohorts) == 0) {
         match_desc <- paste(labels, collapse = " | ")
+        cli::cli_alert_warning("No cohorts found with {matchType} label match: {match_desc}")
+        return(NULL)
+      }
+
+      # Get matching cohort IDs and query database
+      matching_ids <- sapply(matching_cohorts, function(c) c$getId())
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      ids_str <- paste(matching_ids, collapse = ", ")
+      manifest_df <- DBI::dbGetQuery(
+        conn,
+        paste0("SELECT id, label, category, tags, file_path, hash, source_type, created_at 
+                FROM cohort_manifest WHERE id IN (", ids_str, ") AND status = 'active'")
+      )
+
+      if (nrow(manifest_df) == 0) {
+        return(NULL)
+      }
+
+      return(tibble::as_tibble(manifest_df))
+    },
+
+    #' Query cohorts by category
+    #'
+    #' @param category Character vector. One or more category to search for.
+    #'   A cohort is included when it matches at least one of the supplied category (OR logic).
+    #' @param matchType Character. Either "exact" for exact match or "pattern" for pattern matching.
+    #'   Defaults to "exact".
+    #'
+    #' @return Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
+    queryCohortsByCategory = function(category, matchType = c("exact", "pattern")) {
+      checkmate::assert_character(x = category, min.len = 1, min.chars = 1)
+      matchType <- match.arg(matchType)
+
+      matching_cohorts <- list()
+
+      # Search through manifest for matching category (any-match across supplied category)
+      for (cohort in private$.manifest) {
+        cohort_label <- cohort$category
+
+        label_hits <- sapply(category, function(lbl) {
+          if (matchType == "exact") {
+            cohort_label == lbl
+          } else {
+            grepl(lbl, cohort_label, ignore.case = TRUE)
+          }
+        })
+
+        if (any(label_hits)) {
+          matching_cohorts[[length(matching_cohorts) + 1]] <- cohort
+        }
+      }
+
+      if (length(matching_cohorts) == 0) {
+        match_desc <- paste(category, collapse = " | ")
         cli::cli_alert_warning("No cohorts found with {matchType} label match: {match_desc}")
         return(NULL)
       }
