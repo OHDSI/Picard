@@ -382,7 +382,8 @@ generate_single_cohort <- function(
         progressBar = FALSE, 
         reportOverallTime = FALSE
         ), 
-    silent = TRUE)
+    silent = TRUE
+  )
 
   end_time <- Sys.time()
   execution_time_min <- as.numeric(difftime(end_time, start_time, units = "mins"))
@@ -408,7 +409,7 @@ generate_single_cohort <- function(
       stringsAsFactors = FALSE
     )
 
-    try(
+    try({
         DatabaseConnector::insertTable(
             connection = db_conn,
             tableName = paste(cohort_schema, table_names$cohortChecksumTable, sep = "."),
@@ -416,8 +417,9 @@ generate_single_cohort <- function(
             dropTableIfExists = FALSE, 
             createTable = FALSE, 
             tempTable = FALSE
-            ), 
-        silent = FALSE
+            )
+        cli::cli_alert_info("Recorded checksum for cohort {cohort_id}")
+        },  silent = FALSE
     )
 
   } else {
@@ -434,6 +436,8 @@ generate_single_cohort <- function(
         silent = FALSE
     )
   }
+
+  cli::cli_alert_success("Generated cohort {cohort_id}: {cohort_label} ({cohort_type}) ({execution_time_min |> round(2)} min)")
 
   if (isTRUE(is_stale)) {
     DBI::dbExecute(sqlite_conn,
