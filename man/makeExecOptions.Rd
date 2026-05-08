@@ -11,18 +11,7 @@ makeExecOptions(
   dbConnectionBlocks
 )
 }
-\arguments{
-\item{dbms}{specify the dbms used in the exec options}
-
-\item{workDatabaseSchema}{the name of the workDatabaseSchema as a character string, location in DB where user has write access}
-
-\item{tempEmulationSchema}{he name of the tempEmulationSchema as a character strings}
-
-\item{dbConnectionBlocks}{a list of DbConfigBlock R6 classes specifying the dbs to connect}
-}
-\value{
-A ExecOptions R6 class with the execOptions
-}
 \description{
-Make ExecOptions for Ulysses
+\strong{Deprecated.} ExecOptions has been removed. Use \code{makeUlyssesStudySettings} with
+\code{dbConnectionBlocks}, \code{workDatabaseSchema}, and \code{tempEmulationSchema} instead.
 }

@@ -7,6 +7,7 @@
 createExecutionSettingsFromConfig(
   configBlock,
   configFilePath = here::here("config.yml"),
+  secretsFilePath = "~/.picard/secrets.yml",
   cdmDatabaseSchema = NULL,
   workDatabaseSchema = NULL,
   tempEmulationSchema = NULL,
@@ -18,56 +19,40 @@ createExecutionSettingsFromConfig(
 \arguments{
 \item{configBlock}{Character. The name of the config block to load (e.g., "optum_dod")}
 
-\item{configFilePath}{Character. Path to the config.yml file. If NULL, looks for config.yml in the current directory.}
+\item{configFilePath}{Character. Path to the config.yml file. Defaults to config.yml in working directory.}
 
-\item{cdmDatabaseSchema}{Character. The schema containing the OMOP CDM (overrides config value if provided)}
+\item{secretsFilePath}{Character. Path to the secrets.yml file. Default \code{"~/.picard/secrets.yml"}.}
 
-\item{workDatabaseSchema}{Character. The schema for writing results (overrides config value if provided)}
+\item{cdmDatabaseSchema}{Character. Override for CDM database schema.}
 
-\item{tempEmulationSchema}{Character. Schema for temp table emulation (overrides config value if provided)}
+\item{workDatabaseSchema}{Character. Override for work database schema.}
 
-\item{cohortTable}{Character. The name of the cohort table (overrides config value if provided)}
+\item{tempEmulationSchema}{Character. Override for temp emulation schema.}
 
-\item{databaseName}{Character. Human-readable database name (overrides config value if provided)}
+\item{cohortTable}{Character. Override for cohort table name.}
+
+\item{databaseName}{Character. Override for human-readable database name.}
+
+\item{pipelineVersion}{Character. Pipeline version ("prod" for production table, "dev" or "0.0.1" etc.).}
 }
 \value{
 An ExecutionSettings object with populated connectionDetails
 }
 \description{
-Load database connection details and execution parameters from a config.yml file
-and create both connectionDetails and ExecutionSettings objects. Supports multiple DBMS types
-including Snowflake with connectionString, PostgreSQL with server/port, and others.
+Load database connection details and execution parameters from config.yml
+and secrets.yml. Schema info (CDM schema, work schema, cohort table, etc.) comes from
+config.yml. Credentials (dbms, user, password, server, port, connectionString) come from
+secrets.yml, keyed by the \code{dbServer} field in each config block.
 }
 \details{
-The config.yml file supports multiple DBMS connection styles:
+Credentials are loaded from secrets.yml (default \code{~/.picard/secrets.yml}).
+The config block's \code{dbServer} field is used to look up the server entry
+in secrets.yml. Schema fields continue to come from config.yml, with parameter
+overrides taking precedence.
 
-For Snowflake (using connectionString):
-\preformatted{
-optum_dod:
-  dbms: snowflake
-  connectionString: !expr Sys.getenv('dbConnectionString')
-  user: !expr Sys.getenv('dbUser')
-  password: !expr Sys.getenv('dbPassword')
-  cdmDatabaseSchema: my_schema
-  workDatabaseSchema: results_schema
-  tempEmulationSchema: temp_schema
-  cohortTable: cohort
-  databaseName: Optum DOD
+secrets.yml supports two value formats:
+\itemize{
+\item Plain strings: \code{user: "myuser"}
+\item R expressions: \code{password: !expr keyring::key_get("picard", "server_pw")}
 }
-
-For PostgreSQL (using server/port):
-\preformatted{
-database1:
-  dbms: postgresql
-  server: localhost
-  port: 5432
-  user: dbuser
-  password: dbpass
-  cdmDatabaseSchema: public
-  workDatabaseSchema: results
-  cohortTable: cohort
-  databaseName: My Database
-}
-
-The config package automatically evaluates !expr blocks using Sys.getenv() for environment variables.
 }

@@ -120,9 +120,10 @@ validateStudyTask <- function(taskFilePath) {
 
 #' @importFrom yaml read_yaml
 #' @title Validate config.yml File Structure
-#' @description Validates that a config.yml file has the correct structure, required fields,
-#'   and that sensitive credentials (user, password, connectionString) use !expr instead of
-#'   plain text values. Checks each config block for consistency and DBMS-specific requirements.
+#' @description Validates that a config.yml file has the correct schema-only structure.
+#'   Credentials (dbms, user, password, connectionString, server, port) are NOT expected
+#'   in config.yml — they live in secrets.yml and are validated separately via
+#'   [validateSecretsYaml()].
 #' @param configFilePath Character. Path to the config.yml file. If NULL, looks for config.yml
 #'   in the current working directory.
 #' @return Logical. Returns TRUE if valid. Stops with informative error messages if validation fails.
@@ -130,21 +131,16 @@ validateStudyTask <- function(taskFilePath) {
 #' A valid config.yml must have:
 #' - Top-level version field (e.g., "version: 1.0.0")
 #' - Top-level projectName field (character)
-#' - One or more config blocks with required fields:
-#'   - dbms: Database management system type (snowflake, postgresql, sql server, etc.)
-#'   - user: !expr expression for credentials
-#'   - password: !expr expression for credentials
+#' - One or more config blocks with schema-only fields:
+#'   - dbServer: Server name for secrets.yml lookup
 #'   - cdmDatabaseSchema: OMOP CDM schema name
 #'   - workDatabaseSchema: Schema for writing results
 #'   - cohortTable: Name of cohort table
 #'   - databaseName: Human-readable database name
+#'   - databaseLabel (optional): Human-readable label
+#'   - tempEmulationSchema (optional): Temp table emulation schema
 #'
-#' DBMS-specific requirements:
-#' - Snowflake: Must have connectionString (!expr)
-#' - PostgreSQL/SQL Server: Must have server and port
-#'
-#' Security check:
-#' - user, password, connectionString fields MUST use !expr (not plain values)
+#' Credentials are managed in secrets.yml — see [validateSecretsYaml()] and [editSecrets()].
 #'
 #' @export
 validateConfigYaml <- function(configFilePath = NULL) {
@@ -161,17 +157,9 @@ validateConfigYaml <- function(configFilePath = NULL) {
   
   cli::cli_alert_info("Validating config file: {fs::path_rel(configFilePath)}")
   
-  # Read raw file content for text-based validation (to check for !expr)
-  tryCatch({
-    rawContent <- readr::read_file(configFilePath)
-  }, error = function(e) {
-    cli::cli_alert_danger("Failed to read config file: {e$message}")
-    stop("Error reading config.yml")
-  })
-  
   # Parse YAML
   configList <- tryCatch({
-    yaml::read_yaml(configFilePath, eval.expr =FALSE)
+    yaml::read_yaml(configFilePath, eval.expr = FALSE)
   }, error = function(e) {
     cli::cli_alert_danger("Failed to parse YAML: {e$message}")
     stop("config.yml is not valid YAML")
@@ -230,31 +218,7 @@ validateConfigYaml <- function(configFilePath = NULL) {
     stop("config.yml has no database configuration blocks")
   }
   
-  # Check for !expr usage in raw file (text-based check)
-  credentialFields <- c("user", "password", "connectionString")
-  
-  # Pattern to find credential assignments
-  credentialPattern <- paste0("(", paste(credentialFields, collapse = "|"), ")\\s*:\\s*([^\\n]+)")
-  credMatches <- gregexpr(credentialPattern, rawContent, perl = TRUE)
-  
-  if (length(unlist(credMatches)) > 0) {
-    # Extract matched lines and flatten to character vector
-    credentialLines <- regmatches(rawContent, credMatches)
-    credentialLines <- unlist(credentialLines)  # Flatten list to vector
-    
-    for (line in credentialLines) {
-      if (!grepl("!expr", line, fixed = TRUE)) {
-        cli::cli_alert_warning("Found credential field without !expr:")
-        cli::cli_bullets(c(
-          x = line,
-          i = "Credentials must use !expr (e.g., {.code user: !expr Sys.getenv('dbUser')})"
-        ))
-        stop("Credential fields must use !expr expressions")
-      }
-    }
-  }
-  
-  # Validate each config block
+  # Validate each config block (schema-only — credentials are in secrets.yml)
   blockErrors <- list()
   
   for (blockName in configBlockNames) {
@@ -266,8 +230,8 @@ validateConfigYaml <- function(configFilePath = NULL) {
       next
     }
     
-    # Check required block fields
-    blockRequired <- c("dbms", "user", "password", "cdmDatabaseSchema", 
+    # Check required block fields (schema-only, no credentials)
+    blockRequired <- c("dbServer", "cdmDatabaseSchema", 
                        "workDatabaseSchema", "cohortTable", "databaseName")
     missingFields <- setdiff(blockRequired, names(blockConfig))
     
@@ -277,40 +241,6 @@ validateConfigYaml <- function(configFilePath = NULL) {
         paste(missingFields, collapse = ", ")
       )
       next
-    }
-    
-    # Validate DBMS type
-    dbms <- tolower(as.character(blockConfig$dbms))
-    validDbms <- c("snowflake", "postgresql", "sql server", "mysql", "redshift", "oracle")
-    
-    if (!dbms %in% validDbms) {
-      blockErrors[[blockName]] <- paste(
-        "Unknown DBMS type: '", blockConfig$dbms, "'.",
-        "Valid options:", paste(validDbms, collapse = ", ")
-      )
-      next
-    }
-    
-    # DBMS-specific validation
-    if (dbms == "snowflake") {
-      if (is.null(blockConfig$connectionString)) {
-        blockErrors[[blockName]] <- "Snowflake config must include 'connectionString' field"
-        next
-      }
-    } else {
-      # PostgreSQL, SQL Server, etc. require server and port
-      if (is.null(blockConfig$server)) {
-        blockErrors[[blockName]] <- paste(
-          dbms, "config must include 'server' field"
-        )
-        next
-      }
-      if (is.null(blockConfig$port)) {
-        blockErrors[[blockName]] <- paste(
-          dbms, "config must include 'port' field"
-        )
-        next
-      }
     }
     
     # Validate that schema names are non-empty strings
@@ -347,14 +277,12 @@ validateConfigYaml <- function(configFilePath = NULL) {
   cli::cli_alert_success("Config validation successful!")
   cli::cli_bullets(c(
     "v" = "{length(configBlockNames)} config block(s) validated",
-    "v" = "All required fields present",
-    "v" = "Credentials properly use !expr",
-    "v" = "DBMS types valid and properly configured"
+    "v" = "All required schema fields present",
+    "v" = "Credentials managed in secrets.yml (not in config.yml)"
   ))
 
   invisible(TRUE)
 }
-
 
 # ============================================================================
 # Pre-flight Validators
@@ -661,6 +589,19 @@ runPreflightChecks <- function(configBlock,
   results[["Config blocks"]] <- .runCheck("Config blocks", function() {
     validateConfigBlockCompleteness(configBlock)
     paste0(paste(configBlock, collapse = ", "), " found in config.yml")
+  })
+
+  # 5b. Secrets file and credentials (always run — same as Config)
+  results[["Secrets"]] <- .runCheck("Secrets", function() {
+    # Collect unique dbServer names from config.yml
+    configList <- yaml::read_yaml("config.yml", eval.expr = FALSE)
+    reservedFields <- c("version", "projectName", "default")
+    blockNames <- setdiff(names(configList), reservedFields)
+    dbServers <- unique(unlist(lapply(blockNames, function(bn) {
+      configList[[bn]]$dbServer %||% bn
+    })))
+    validateSecretsYaml(secretsFilePath = "~/.picard/secrets.yml", dbServerNames = dbServers)
+    paste0(length(dbServers), " server(s) validated in secrets.yml")
   })
 
   # 6. Results folder fresh (skip in test mode — version is always "dev")

@@ -294,47 +294,26 @@ CirceConceptSetsToLoad <- R6::R6Class(
 #' Get Atlas Connection
 #'
 #' @description
-#' Creates a \code{WebApiConnection} object using credentials from either
-#' \code{.Renviron} or the \code{keyring} package. This is the standalone
-#' credential helper — to attach the connection to a manifest use
-#' \code{manifest$setAtlasConnection(getAtlasConnection())}.
+#' Creates a \code{WebApiConnection} object using credentials from:
+#' 1. **secrets.yml** (preferred) — uses the \code{atlas} key in your
+#'    \code{~/.picard/secrets.yml} file (see \code{editSecrets()} and
+#'    \code{setupKeyring()}).
+#' 2. \code{.Renviron} — reads \code{atlasBaseUrl}, \code{atlasAuthMethod},
+#'    \code{atlasUser}, \code{atlasPassword} environment variables.
+#' 3. \code{keyring} — retrieves from the OS keyring directly (legacy).
 #'
-#' @param useKeyring Logical. If TRUE, retrieves credentials from the keyring
-#'   package. If FALSE (default), uses environment variables from .Renviron.
+#' @param useKeyring Logical. If TRUE and no secrets.yml atlas key is found,
+#'   retrieves credentials from the keyring package directly (legacy path).
+#'   Default FALSE.
+#' @param secretsFilePath Character. Path to secrets.yml. Default
+#'   \code{"~/.picard/secrets.yml"}. Ignored if the file doesn't exist or
+#'   has no \code{atlas} key.
 #'
 #' @details
-#' Credentials are stored using a standardized structure in the system keyring.
-#' All ATLAS credentials are grouped under the service "picard" with individual
-#' identifiers for each credential type.
-#'
-#' ## Using .Renviron (Default)
-#'
-#' ```r
-#' # Credentials must be set in .Renviron:
-#' # atlasBaseUrl='https://organization-atlas.com/WebAPI'
-#' # atlasAuthMethod='ad'
-#' # atlasUser='user@organization.com'
-#' # atlasPassword='YourPassword'
-#'
-#' atlasCon <- getAtlasConnection()
-#' ```
-#'
-#' ## Using keyring (Recommended for Security)
-#'
-#' First, store credentials securely in the default keyring:
-#'
-#' ```r
-#' keyring::key_set(service = "picard", username = "atlasBaseUrl")
-#' keyring::key_set(service = "picard", username = "atlasAuthMethod")
-#' keyring::key_set(service = "picard", username = "atlasUser")
-#' keyring::key_set(service = "picard", username = "atlasPassword")
-#' ```
-#'
-#' Then retrieve and connect:
-#'
-#' ```r
-#' atlasCon <- getAtlasConnection(useKeyring = TRUE)
-#' ```
+#' The recommended workflow is to store Atlas credentials in
+#' \code{~/.picard/secrets.yml} via \code{setupKeyring()} or \code{editSecrets()}.
+#' The secrets.yml approach supports three credential formats:
+#' - Plain strings, \code{!expr keyring::key_get(...)}, or \code{!expr Sys.getenv(...)}.
 #'
 #' @returns An R6 class of WebApiConnection containing the ATLAS WebAPI connection details
 #'
@@ -342,16 +321,36 @@ CirceConceptSetsToLoad <- R6::R6Class(
 #'
 #' @examples
 #' \dontrun{
-#'   # Using .Renviron (default)
+#'   # Using secrets.yml (recommended)
 #'   atlasCon <- getAtlasConnection()
 #'
-#'   # Using keyring
+#'   # Using keyring directly (legacy)
 #'   atlasCon <- getAtlasConnection(useKeyring = TRUE)
 #' }
-getAtlasConnection <- function(useKeyring = FALSE) {
+getAtlasConnection <- function(useKeyring = FALSE,
+                                secretsFilePath = "~/.picard/secrets.yml") {
 
+  # Try secrets.yml first (preferred path)
+  atlasCreds <- tryCatch(
+    getAtlasCredentials(secretsFilePath = secretsFilePath),
+    error = function(e) NULL
+  )
+
+  if (!is.null(atlasCreds) &&
+      !is.null(atlasCreds$baseUrl) &&
+      !is.null(atlasCreds$user) &&
+      !is.null(atlasCreds$password)) {
+    atlasCon <- WebApiConnection$new(
+      baseUrl = atlasCreds$baseUrl,
+      authMethod = atlasCreds$authMethod %||% "ad",
+      user = atlasCreds$user,
+      password = atlasCreds$password
+    )
+    return(atlasCon)
+  }
+
+  # Fallback: useKeyring path (legacy)
   if (useKeyring) {
-    # Retrieve from keyring
     if (!requireNamespace("keyring", quietly = TRUE)) {
       cli::cli_abort("keyring package is required. Install with: {.run install.packages('keyring')}")
     }
@@ -380,8 +379,9 @@ getAtlasConnection <- function(useKeyring = FALSE) {
 
     if (baseUrl == "" || authMethod == "" || user == "" || password == "") {
       cli::cli_abort(c(
-        "Atlas credentials not found in .Renviron",
-        "i" = "Set credentials with: {.run usethis::edit_r_environ()}",
+        "Atlas credentials not found in .Renviron or secrets.yml",
+        "i" = "Set credentials with: {.run editSecrets()}",
+        "i" = "Or use .Renviron: {.run usethis::edit_r_environ()}",
         "i" = "View template with: {.run templateAtlasCredentials()}"
       ))
     }

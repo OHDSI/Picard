@@ -19,15 +19,15 @@
 #'
 #' @details
 #' UlyssesStudy encapsulates the configuration needed to set up a new Ulysses-based
-#' study environment. It coordinates with StudyMeta and ExecOptions to provide
-#' comprehensive repository initialization.
+#' study environment. It manages study metadata and database connection blocks.
+#' Database schema and credential details are held per-block in DbConfigBlock.
 #'
 #' ## Active Fields
 #'
 #' - `repoName`: Study repository name (read/write)
 #' - `repoFolder`: Parent directory for the repository (read/write)
-#' - `toolType`: Tool type, either "dbms" or "external" (read/write)
 #' - `studyMeta`: StudyMeta object containing metadata (read/write)
+#' - `dbConnectionBlocks`: List of DbConfigBlock objects (read/write)
 #' - `gitRemote`: Optional git remote URL (read/write)
 #' - `renvLockFile`: Optional path to renv lock file (read/write)
 #'
@@ -45,18 +45,16 @@ UlyssesStudy <- R6::R6Class(
     #'
     #' @param repoName Character string. Name of the study repository.
     #' @param repoFolder Character string. Parent directory where the repository will be created.
-    #' @param toolType Character string. Tool type, either "dbms" or "external".
     #' @param studyMeta StudyMeta object. Contains study metadata and configuration.
-    #' @param execOptions ExecOptions object. Contains execution settings and options.
+    #' @param dbConnectionBlocks List of DbConfigBlock objects. Optional database configurations.
     #' @param gitRemote Character string. Optional URL for git remote repository.
     #' @param renvLockFile Character string. Optional path to renv lock file for reproducibility.
     #'
     #' @return Invisibly returns self for method chaining.
     initialize = function(repoName,
                           repoFolder,
-                          toolType = c("dbms", "external"),
                           studyMeta,
-                          execOptions,
+                          dbConnectionBlocks = NULL,
                           gitRemote = NULL,
                           renvLockFile = NULL
     ) {
@@ -67,12 +65,12 @@ UlyssesStudy <- R6::R6Class(
       checkmate::assert_string(x = repoFolder, min.chars = 1)
       private[[".repoFolder"]] <- repoFolder
 
-      checkmate::assert_string(x = toolType, min.chars = 1)
-      private[[".toolType"]] <- toolType
-
       .setClass(private = private, key = ".studyMeta", value = studyMeta, class = "StudyMeta")
 
-      .setClass(private = private,key = ".execOptions",value = execOptions,class = "ExecOptions")
+      checkmate::assert_list(x = dbConnectionBlocks, types = "DbConfigBlock", null.ok = TRUE)
+      if (!is.null(dbConnectionBlocks)) {
+        private[[".dbConnectionBlocks"]] <- dbConnectionBlocks
+      }
 
       checkmate::assert_string(x = gitRemote, null.ok = TRUE)
       private[[".gitRemote"]] <- gitRemote
@@ -149,9 +147,8 @@ UlyssesStudy <- R6::R6Class(
   private = list(
     .repoName = NULL,
     .repoFolder = NULL,
-    .toolType = NULL,
     .studyMeta = NULL,
-    .execOptions = NULL,
+    .dbConnectionBlocks = NULL,
     .gitRemote = NULL,
     .renvLockFile = NULL,
 
@@ -208,14 +205,45 @@ UlyssesStudy <- R6::R6Class(
       invisible(NULL)
     },
 
+    .makeConfigFile = function() {
+      repoPath <- private$.getRepoPath()
+      repoName <- private$.repoName
+      dbBls <- self$dbConnectionBlocks
+
+      tryCatch({
+        if (length(dbBls) > 0) {
+          dbBlocks <- purrr::map_chr(
+            dbBls,
+            ~.x$writeBlockSection()
+          ) |> glue::glue_collapse(sep = "\n\n")
+        } else {
+          dbBlocks <- ""
+        }
+
+        header <- fs::path_package(package = "picard", "templates/configHeader.txt") |>
+          readr::read_file() |>
+          glue::glue()
+
+        configFile <- c(header, dbBlocks) |>
+          glue::glue_collapse(sep = "\n\n")
+
+        readr::write_lines(
+          x = configFile,
+          file = fs::path(repoPath, "config.yml")
+        )
+
+        actionItem(glue::glue_col("Initialize Config: {green {fs::path(repoPath, private$.repoName, 'config.yml')}}"))
+      }, error = function(e) {
+        cli::cli_alert_danger("Failed to initialize config: {e$message}")
+        stop(e)
+      })
+      invisible(NULL)
+    },
+
     .initConfigFile = function() {
       repoPath <- private$.getRepoPath()
       tryCatch({
-        private$.execOptions$makeConfigFile(
-          repoName = private$.repoName,
-          repoPath = repoPath,
-          toolType = private$.toolType
-        )
+        private$.makeConfigFile()
       }, error = function(e) {
         cli::cli_alert_danger("Failed to initialize config: {e$message}")
         stop(e)
@@ -290,16 +318,18 @@ UlyssesStudy <- R6::R6Class(
 
     .initMainExec = function() {
       tryCatch({
-        configBlocks <- if (private$.toolType == "dbms") {
-          purrr::map_chr(private$.execOptions$dbConnectionBlocks, ~.x$configBlockName)
+        hasBlocks <- length(private$.dbConnectionBlocks) > 0
+        configBlocks <- if (hasBlocks) {
+          purrr::map_chr(private$.dbConnectionBlocks, ~.x$configBlockName)
         } else {
           ""
         }
+        toolType <- if (hasBlocks) "dbms" else "external"
         
         addMainFile(
           repoName = private$.repoName,
           repoFolder = private$.repoFolder,
-          toolType = private$.toolType,
+          toolType = toolType,
           configBlocks = configBlocks,
           studyName = private$.studyMeta$studyTitle
         )
@@ -343,7 +373,8 @@ UlyssesStudy <- R6::R6Class(
           private$.repoName
         )
         databaseLabel <- "Database"
-        toolType <- private$.toolType
+        hasBlocks <- length(private$.dbConnectionBlocks) > 0
+        toolType <- if (hasBlocks) "dbms" else "external"
         repoName <- private$.repoName
         
         # Read and substitute copilot-instructions.md template
@@ -412,13 +443,15 @@ UlyssesStudy <- R6::R6Class(
       cli::cli_alert_info("Updated {.field repoFolder}")
     },
 
-    #' @field toolType Tool type, either "dbms" or "external". Can be read or set with validation.
-    toolType = function(value) {
-      if (missing(value)) return(private$.toolType)
-      checkmate::assert_choice(x = value, choices = c("dbms", "external"))
-      private[[".toolType"]] <- value
-      cli::cli_alert_info("Updated {.field toolType}")
+    #' @field dbConnectionBlocks List of DbConfigBlock objects managing multiple database connections. Can be read or set with class validation.
+    dbConnectionBlocks = function(value) {
+      if (missing(value)) return(private$.dbConnectionBlocks)
+      checkmate::assert_list(x = value, types = "DbConfigBlock", null.ok = TRUE)
+      private[[".dbConnectionBlocks"]] <- value
+      cli::cli_alert_info("Updated {.field dbConnectionBlocks}")
     },
+
+
 
     #' @field studyMeta StudyMeta object containing study metadata and configuration. Can be read or set with class validation.
     studyMeta = function(value) {
@@ -713,7 +746,7 @@ StudyMeta <- R6::R6Class(
 #' @details
 #' DbConfigBlock manages configuration for a single database connection within the Ulysses framework.
 #' This includes CDM schema specifications, cohort table references, and database labeling.
-#' Used within ExecOptions to manage multiple database connections.
+#' Used to manage multiple database connections within a study.
 #'
 #' ## Active Fields
 #'
@@ -740,13 +773,19 @@ DbConfigBlock <- R6::R6Class(
     #' @param cohortTable Character string. Table name for study cohorts.
     #' @param databaseName Character string. Optional database identifier (defaults to configBlockName).
     #' @param databaseLabel Character string. Optional human-readable database label (defaults to databaseName).
+    #' @param dbServer Character string. Optional database server name for secrets.yml lookup (defaults to configBlockName).
+    #' @param workDatabaseSchema Character string. Optional working schema for temp tables (per-block).
+    #' @param tempEmulationSchema Character string. Optional temp table emulation schema (per-block).
     #'
     #' @return Invisibly returns self.
     initialize = function(configBlockName,
                           cdmDatabaseSchema,
                           cohortTable,
                           databaseName = NULL,
-                          databaseLabel = NULL) {
+                          databaseLabel = NULL,
+                          dbServer = NULL,
+                          workDatabaseSchema = NULL,
+                          tempEmulationSchema = NULL) {
 
       .setString(private = private, key = ".configBlockName", value = configBlockName)
       .setString(private = private, key = ".cdmDatabaseSchema", value = cdmDatabaseSchema)
@@ -768,24 +807,41 @@ DbConfigBlock <- R6::R6Class(
       } else {
         private[[".databaseLabel"]] <- databaseLabel
       }
+
+      # dbServer defaults to configBlockName for single-DB-per-block simplicity
+      if (is.null(dbServer)) {
+        private[[".dbServer"]] <- configBlockName
+      } else {
+        .setString(private = private, key = ".dbServer", value = dbServer)
+      }
+
+      # Work and temp schemas are per-block (not study-level)
+      checkmate::assert_string(x = workDatabaseSchema, min.chars = 1)
+      private[[".workDatabaseSchema"]] <- workDatabaseSchema
+
+      checkmate::assert_string(x = tempEmulationSchema, null.ok = TRUE)
+      if (!is.null(tempEmulationSchema)) {
+        private[[".tempEmulationSchema"]] <- tempEmulationSchema
+      }
     },
 
     #' @description
     #' Generate a formatted configuration block section for the config file.
     #'
-    #' @param repoName Character string. Repository name.
-    #' @param dbms Character string. Database management system type.
-    #' @param workSchema Character string. Working schema for temp tables.
-    #' @param tempSchema Character string. Temporary table emulation schema.
-    #'
     #' @return Character string with formatted configuration block.
-    writeBlockSection = function(repoName, dbms, workSchema, tempSchema) {
+    #' @details Extracts all fields from the block's own private data,
+    #'   including workDatabaseSchema and tempEmulationSchema which are
+    #'   set per-block (not at the study level).
+    writeBlockSection = function() {
 
       configBlockName <- private$.configBlockName
+      dbServer <- private$.dbServer
       databaseName <- private$.databaseName
       databaseLabel <- private$.databaseLabel
       cdmSchema <- private$.cdmDatabaseSchema
       cohortTable <- private$.cohortTable
+      workSchema <- private$.workDatabaseSchema
+      tempSchema <- private$.tempEmulationSchema %||% ""
 
       configBlock <- fs::path_package(package = "picard", "templates/configBlock.txt") |>
         readr::read_file() |>
@@ -799,7 +855,10 @@ DbConfigBlock <- R6::R6Class(
     .cdmDatabaseSchema = NULL,
     .cohortTable = NULL,
     .databaseName = NULL,
-    .databaseLabel = NULL
+    .databaseLabel = NULL,
+    .dbServer = NULL,
+    .workDatabaseSchema = NULL,
+    .tempEmulationSchema = NULL
   ),
   active = list(
     #' @field configBlockName Unique identifier for this configuration block. Can be read or set with validation.
@@ -835,6 +894,29 @@ DbConfigBlock <- R6::R6Class(
       if (missing(value)) return(private$.databaseLabel)
       .setString(private = private, key = ".databaseLabel", value = value)
       cli::cli_alert_info("Updated {.field databaseLabel}")
+    },
+
+    #' @field dbServer Database server name for secrets.yml lookup. Can be read or set with validation. Defaults to configBlockName.
+    dbServer = function(value) {
+      if (missing(value)) return(private$.dbServer)
+      .setString(private = private, key = ".dbServer", value = value)
+      cli::cli_alert_info("Updated {.field dbServer}")
+    },
+
+    #' @field workDatabaseSchema Working schema for writing temporary tables. Per-block setting (not study-level).
+    workDatabaseSchema = function(value) {
+      if (missing(value)) return(private$.workDatabaseSchema)
+      checkmate::assert_string(x = value, null.ok = TRUE)
+      private[[".workDatabaseSchema"]] <- value
+      cli::cli_alert_info("Updated {.field workDatabaseSchema}")
+    },
+
+    #' @field tempEmulationSchema Schema for emulating temporary tables (Oracle/Snowflake). Per-block setting.
+    tempEmulationSchema = function(value) {
+      if (missing(value)) return(private$.tempEmulationSchema)
+      checkmate::assert_string(x = value, null.ok = TRUE)
+      private[[".tempEmulationSchema"]] <- value
+      cli::cli_alert_info("Updated {.field tempEmulationSchema}")
     }
   )
 )
@@ -842,146 +924,11 @@ DbConfigBlock <- R6::R6Class(
 #' ExecOptions R6 Class
 #'
 #' @description
-#' Manages execution options and database connection configurations for study pipeline.
-#' Coordinates multiple database connections and stores execution environment settings.
-#'
-#' @details
-#' ExecOptions serves as the configuration hub for study execution, managing database
-#' connections through DbConfigBlock objects and maintaining DBMS specifications.
-#' Used within UlyssesStudy to configure the execution environment.
-#'
-#' ## Active Fields
-#'
-#' - `dbms`: Database management system type (read/write)
-#' - `workDatabaseSchema`: Schema for working/staging tables (read/write)
-#' - `tempEmulationSchema`: Schema for temporary table emulation (read/write)
-#' - `dbConnectionBlocks`: List of DbConfigBlock objects (read/write)
-#'
-#' ## Methods
-#'
-#' - `initialize()`: Create and configure a new ExecOptions instance
-#' - `makeConfigFile()`: Generate and write configuration file for the study
+#' **Deprecated.** ExecOptions has been removed. Use `UlyssesStudy` directly with
+#' `dbConnectionBlocks`, `workDatabaseSchema`, and `tempEmulationSchema` parameters.
 #'
 #' @export
-ExecOptions <- R6::R6Class(
-  classname = "ExecOptions",
-  public = list(
-    #' @description
-    #' Initialize a new ExecOptions instance with execution configuration.
-    #'
-    #' @param dbms Character string. Optional DBMS type (e.g., "postgresql", "sql-server").
-    #' @param workDatabaseSchema Character string. Optional schema for working tables.
-    #' @param tempEmulationSchema Character string. Optional schema for temp table emulation.
-    #' @param dbConnectionBlocks List of DbConfigBlock objects. Optional database configurations.
-    #'
-    #' @return Invisibly returns self.
-    initialize = function(
-    dbms = NULL,
-    workDatabaseSchema = NULL,
-    tempEmulationSchema = NULL,
-    dbConnectionBlocks = NULL) {
-
-      checkmate::assert_string(x = dbms, min.chars = 1, null.ok = TRUE)
-      if (!is.null(dbms)) {
-        private[[".dbms"]] <- dbms
-      }
-
-      checkmate::assert_string(x = workDatabaseSchema, min.chars = 1, null.ok = TRUE)
-      if (!is.null(workDatabaseSchema)) {
-        private[[".workDatabaseSchema"]] <- workDatabaseSchema
-      }
-
-      checkmate::assert_string(x = tempEmulationSchema, min.chars = 1, null.ok = TRUE)
-      if (!is.null(tempEmulationSchema)) {
-        private[[".tempEmulationSchema"]] <- tempEmulationSchema
-      }
-
-      checkmate::assert_list(x = dbConnectionBlocks, min.len = 1, types = "DbConfigBlock", null.ok = TRUE)
-      if (!is.null(dbConnectionBlocks)) {
-        private[[".dbConnectionBlocks"]] <- dbConnectionBlocks
-      }
-
-    },
-
-    #' @description
-    #' Generate and write the configuration file for the study repository.
-    #'
-    #' @param repoName Character string. Repository name.
-    #' @param repoPath Character string. Path to repository directory.
-    #' @param toolType Character string. Tool type - determines config structure.
-    #'
-    #' @return Invisibly returns the generated configuration file content.
-    makeConfigFile = function(repoName, repoPath, toolType) {
-      if(toolType == "dbms") {
-        dbBlocks <- vector('list', length = length(private$.dbConnectionBlocks))
-        for (i in seq_along(dbBlocks)) {
-          dbBlocks[[i]] <- private$.dbConnectionBlocks[[i]]$writeBlockSection(
-            repoName = repoName,
-            dbms = private$.dbms,
-            workSchema = private$.workDatabaseSchema,
-            tempSchema = private$.tempEmulationSchema
-          )
-        }
-        dbBlocks <- do.call('c', dbBlocks) |>
-          glue::glue_collapse(sep = "\n\n")
-      } else {
-        dbBlocks <- ""
-      }
-
-      header <- fs::path_package(package = "picard", "templates/configHeader.txt") |>
-        readr::read_file() |>
-        glue::glue()
-
-      configFile <- c(header, dbBlocks) |>
-        glue::glue_collapse(sep = "\n\n")
-
-      readr::write_lines(
-        x = configFile,
-        file = fs::path(repoPath, "config.yml")
-      )
-
-      actionItem(glue::glue_col("Initialize Config: {green {fs::path(repoPath, repoName, 'config.yml')}}"))
-      invisible(configFile)
-
-    }
-  ),
-  private = list(
-    .dbms = NULL,
-    .workDatabaseSchema = NULL,
-    .tempEmulationSchema = NULL,
-    .dbConnectionBlocks = NULL
-  ),
-  active = list(
-    #' @field dbms Database management system type (e.g., "postgresql", "sql-server"). Can be read or set with validation.
-    dbms = function(value) {
-      if (missing(value)) return(private$.dbms)
-      .setString(private = private, key = ".dbms", value = value)
-      cli::cli_alert_info("Updated {.field dbms}")
-    },
-
-    #' @field workDatabaseSchema Schema for working and staging tables. Can be read or set with validation.
-    workDatabaseSchema = function(value) {
-      if (missing(value)) return(private$.workDatabaseSchema)
-      .setString(private = private, key = ".workDatabaseSchema", value = value)
-      cli::cli_alert_info("Updated {.field workDatabaseSchema}")
-    },
-
-    #' @field tempEmulationSchema Schema for temporary table emulation across different DBMS platforms. Can be read or set with validation.
-    tempEmulationSchema = function(value) {
-      if (missing(value)) return(private$.tempEmulationSchema)
-      .setString(private = private, key = ".tempEmulationSchema", value = value)
-      cli::cli_alert_info("Updated {.field tempEmulationSchema}")
-    },
-
-    #' @field dbConnectionBlocks List of DbConfigBlock objects managing multiple database connections. Can be read or set with class validation.
-    dbConnectionBlocks = function(value) {
-      if (missing(value)) return(private$.dbConnectionBlocks)
-      checkmate::assert_list(x = value, min.len = 1, types = "DbConfigBlock")
-      private[[".dbConnectionBlocks"]] <- value
-      cli::cli_alert_info("Updated {.field dbConnectionBlocks}")
-    }
-  )
-)
+ExecOptions <- NULL
 
 
 listDefaultFolders <- function(repoPath) {

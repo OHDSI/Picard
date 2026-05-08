@@ -10,7 +10,7 @@ Encapsulates database connection parameters and naming conventions used during s
 \details{
 DbConfigBlock manages configuration for a single database connection within the Ulysses framework.
 This includes CDM schema specifications, cohort table references, and database labeling.
-Used within ExecOptions to manage multiple database connections.
+Used to manage multiple database connections within a study.
 \subsection{Active Fields}{
 \itemize{
 \item \code{configBlockName}: Unique identifier for this config block (read/write)
@@ -40,6 +40,12 @@ Used within ExecOptions to manage multiple database connections.
 \item{\code{databaseName}}{Database identifier. Can be read or set with validation. Defaults to configBlockName.}
 
 \item{\code{databaseLabel}}{Human-readable database label for display. Can be read or set with validation.}
+
+\item{\code{dbServer}}{Database server name for secrets.yml lookup. Can be read or set with validation. Defaults to configBlockName.}
+
+\item{\code{workDatabaseSchema}}{Working schema for writing temporary tables. Per-block setting (not study-level).}
+
+\item{\code{tempEmulationSchema}}{Schema for emulating temporary tables (Oracle/Snowflake). Per-block setting.}
 }
 \if{html}{\out{</div>}}
 }
@@ -62,7 +68,10 @@ Initialize a new DbConfigBlock instance with database configuration.
   cdmDatabaseSchema,
   cohortTable,
   databaseName = NULL,
-  databaseLabel = NULL
+  databaseLabel = NULL,
+  dbServer = NULL,
+  workDatabaseSchema = NULL,
+  tempEmulationSchema = NULL
 )}\if{html}{\out{</div>}}
 }
 
@@ -78,6 +87,12 @@ Initialize a new DbConfigBlock instance with database configuration.
 \item{\code{databaseName}}{Character string. Optional database identifier (defaults to configBlockName).}
 
 \item{\code{databaseLabel}}{Character string. Optional human-readable database label (defaults to databaseName).}
+
+\item{\code{dbServer}}{Character string. Optional database server name for secrets.yml lookup (defaults to configBlockName).}
+
+\item{\code{workDatabaseSchema}}{Character string. Optional working schema for temp tables (per-block).}
+
+\item{\code{tempEmulationSchema}}{Character string. Optional temp table emulation schema (per-block).}
 }
 \if{html}{\out{</div>}}
 }
@@ -91,22 +106,15 @@ Invisibly returns self.
 \subsection{Method \code{writeBlockSection()}}{
 Generate a formatted configuration block section for the config file.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{DbConfigBlock$writeBlockSection(repoName, dbms, workSchema, tempSchema)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{DbConfigBlock$writeBlockSection()}\if{html}{\out{</div>}}
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{repoName}}{Character string. Repository name.}
-
-\item{\code{dbms}}{Character string. Database management system type.}
-
-\item{\code{workSchema}}{Character string. Working schema for temp tables.}
-
-\item{\code{tempSchema}}{Character string. Temporary table emulation schema.}
+\subsection{Details}{
+Extracts all fields from the block's own private data,
+including workDatabaseSchema and tempEmulationSchema which are
+set per-block (not at the study level).
 }
-\if{html}{\out{</div>}}
-}
+
 \subsection{Returns}{
 Character string with formatted configuration block.
 }

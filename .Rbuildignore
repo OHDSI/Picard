@@ -6,3 +6,5 @@
 ^\.github$
 ^pkgdown$
 PKGDOWN_SETUP.md
+^\.positai$
+^\.claude$

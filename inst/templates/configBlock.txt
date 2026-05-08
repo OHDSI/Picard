@@ -1,7 +1,7 @@
 # Config block for {configBlockName}
 
 {configBlockName}:
-  dbms: {dbms}
+  dbServer: {dbServer}
   databaseName: {databaseName}
   databaseLabel: {databaseLabel}
   cdmDatabaseSchema: {cdmSchema}

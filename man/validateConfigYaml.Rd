@@ -14,35 +14,27 @@ in the current working directory.}
 Logical. Returns TRUE if valid. Stops with informative error messages if validation fails.
 }
 \description{
-Validates that a config.yml file has the correct structure, required fields,
-and that sensitive credentials (user, password, connectionString) use !expr instead of
-plain text values. Checks each config block for consistency and DBMS-specific requirements.
+Validates that a config.yml file has the correct schema-only structure.
+Credentials (dbms, user, password, connectionString, server, port) are NOT expected
+in config.yml — they live in secrets.yml and are validated separately via
+\code{\link[=validateSecretsYaml]{validateSecretsYaml()}}.
 }
 \details{
 A valid config.yml must have:
 \itemize{
 \item Top-level version field (e.g., "version: 1.0.0")
 \item Top-level projectName field (character)
-\item One or more config blocks with required fields:
+\item One or more config blocks with schema-only fields:
 \itemize{
-\item dbms: Database management system type (snowflake, postgresql, sql server, etc.)
-\item user: !expr expression for credentials
-\item password: !expr expression for credentials
+\item dbServer: Server name for secrets.yml lookup
 \item cdmDatabaseSchema: OMOP CDM schema name
 \item workDatabaseSchema: Schema for writing results
 \item cohortTable: Name of cohort table
 \item databaseName: Human-readable database name
+\item databaseLabel (optional): Human-readable label
+\item tempEmulationSchema (optional): Temp table emulation schema
 }
 }
 
-DBMS-specific requirements:
-\itemize{
-\item Snowflake: Must have connectionString (!expr)
-\item PostgreSQL/SQL Server: Must have server and port
-}
-
-Security check:
-\itemize{
-\item user, password, connectionString fields MUST use !expr (not plain values)
-}
+Credentials are managed in secrets.yml — see \code{\link[=validateSecretsYaml]{validateSecretsYaml()}} and \code{\link[=editSecrets]{editSecrets()}}.
 }

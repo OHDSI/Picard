@@ -10,14 +10,14 @@ including directory structure, configuration files, and version control initiali
 }
 \details{
 UlyssesStudy encapsulates the configuration needed to set up a new Ulysses-based
-study environment. It coordinates with StudyMeta and ExecOptions to provide
-comprehensive repository initialization.
+study environment. It manages study metadata and database connection blocks.
+Database schema and credential details are held per-block in DbConfigBlock.
 \subsection{Active Fields}{
 \itemize{
 \item \code{repoName}: Study repository name (read/write)
 \item \code{repoFolder}: Parent directory for the repository (read/write)
-\item \code{toolType}: Tool type, either "dbms" or "external" (read/write)
 \item \code{studyMeta}: StudyMeta object containing metadata (read/write)
+\item \code{dbConnectionBlocks}: List of DbConfigBlock objects (read/write)
 \item \code{gitRemote}: Optional git remote URL (read/write)
 \item \code{renvLockFile}: Optional path to renv lock file (read/write)
 }
@@ -37,7 +37,7 @@ comprehensive repository initialization.
 
 \item{\code{repoFolder}}{Parent directory for the repository. Can be read or set with validation.}
 
-\item{\code{toolType}}{Tool type, either "dbms" or "external". Can be read or set with validation.}
+\item{\code{dbConnectionBlocks}}{List of DbConfigBlock objects managing multiple database connections. Can be read or set with class validation.}
 
 \item{\code{studyMeta}}{StudyMeta object containing study metadata and configuration. Can be read or set with class validation.}
 
@@ -64,9 +64,8 @@ Initialize a new UlyssesStudy instance with configuration parameters.
 \if{html}{\out{<div class="r">}}\preformatted{UlyssesStudy$new(
   repoName,
   repoFolder,
-  toolType = c("dbms", "external"),
   studyMeta,
-  execOptions,
+  dbConnectionBlocks = NULL,
   gitRemote = NULL,
   renvLockFile = NULL
 )}\if{html}{\out{</div>}}
@@ -79,11 +78,9 @@ Initialize a new UlyssesStudy instance with configuration parameters.
 
 \item{\code{repoFolder}}{Character string. Parent directory where the repository will be created.}
 
-\item{\code{toolType}}{Character string. Tool type, either "dbms" or "external".}
-
 \item{\code{studyMeta}}{StudyMeta object. Contains study metadata and configuration.}
 
-\item{\code{execOptions}}{ExecOptions object. Contains execution settings and options.}
+\item{\code{dbConnectionBlocks}}{List of DbConfigBlock objects. Optional database configurations.}
 
 \item{\code{gitRemote}}{Character string. Optional URL for git remote repository.}
 

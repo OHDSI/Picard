@@ -6,9 +6,7 @@
 \usage{
 placeHolderExecOptions()
 }
-\value{
-A ExecOptions R6 class with the execOptions
-}
 \description{
-use this function if there is not a dbms connection for the study such as using a proprietary tool for the analysis
+\strong{Deprecated.} ExecOptions has been removed. Use \code{makeUlyssesStudySettings} with
+\code{dbConnectionBlocks}, \code{workDatabaseSchema}, and \code{tempEmulationSchema} instead.
 }
