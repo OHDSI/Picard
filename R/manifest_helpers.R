@@ -1203,3 +1203,183 @@ getCohortTableNames <- function(cohortTable = "cohort",
 }
 
 
+# ============================================================
+# ATLAS IMPORT HELPERS
+# ============================================================
+
+#' Cascade stale status to downstream dependents
+#'
+#' Given a set of cohort IDs whose definitions changed, marks all transitive
+#' dependent cohorts as 'stale' in the manifest database. Uses BFS through
+#' the reverse dependency graph stored in cohort_manifest.depends_on.
+#'
+#' @param dbPath Character. Path to the manifest SQLite database.
+#' @param cohort_ids Integer vector. The seed cohort IDs that changed.
+#' @return Invisibly returns the integer vector of IDs marked stale.
+#' @keywords internal
+cascadeStaleDownstream <- function(dbPath, cohort_ids) {
+  cohort_ids <- as.integer(cohort_ids)
+
+  conn <- DBI::dbConnect(RSQLite::SQLite(), dbPath)
+  on.exit(DBI::dbDisconnect(conn))
+
+  rows <- DBI::dbGetQuery(
+    conn,
+    "SELECT id, depends_on FROM cohort_manifest
+     WHERE status IN ('active', 'stale')"
+  )
+
+  if (nrow(rows) == 0) {
+    return(invisible(integer(0)))
+  }
+
+  # Build reverse graph: parent_id -> vector of child_ids
+  reverse_graph <- list()
+  for (i in seq_len(nrow(rows))) {
+    child_id <- rows$id[i]
+    dep_raw  <- rows$depends_on[i]
+
+    if (!is.na(dep_raw) && nchar(dep_raw) > 0) {
+      parent_ids <- tryCatch(
+        as.integer(jsonlite::fromJSON(dep_raw)),
+        error = function(e) integer(0)
+      )
+
+      for (pid in parent_ids) {
+        pid_str <- as.character(pid)
+        reverse_graph[[pid_str]] <- c(reverse_graph[[pid_str]], child_id)
+      }
+    }
+  }
+
+  # BFS from seed cohort_ids through the reverse graph
+  visited  <- integer(0)
+  queue    <- cohort_ids
+
+  while (length(queue) > 0) {
+    current  <- queue[1]
+    queue    <- queue[-1]
+    curr_str <- as.character(current)
+
+    children <- reverse_graph[[curr_str]]
+    if (!is.null(children)) {
+      new_children <- setdiff(children, visited)
+      visited <- c(visited, new_children)
+      queue   <- c(queue, new_children)
+    }
+  }
+
+  if (length(visited) == 0) {
+    return(invisible(integer(0)))
+  }
+
+  # Bulk update to stale
+  ids_str <- paste(visited, collapse = ", ")
+  DBI::dbExecute(
+    conn,
+    paste0(
+      "UPDATE cohort_manifest SET status = 'stale', updated_at = CURRENT_TIMESTAMP",
+      " WHERE id IN (", ids_str, ")"
+    )
+  )
+
+  # Report
+  labels <- DBI::dbGetQuery(
+    conn,
+    paste0("SELECT id, label FROM cohort_manifest WHERE id IN (", ids_str, ")")
+  )
+  for (i in seq_len(nrow(labels))) {
+    cli::cli_alert_warning(
+      "Marked stale: [{labels$id[i]}] {labels$label[i]}"
+    )
+  }
+
+  invisible(visited)
+}
+
+
+#' Import one Atlas cohort intelligently (skip/update/add)
+#'
+#' Checks if a cohort with the same label already exists in the manifest.
+#' If it does and the Atlas JSON hasn't changed, skip it. If JSON changed,
+#' overwrite the file and update the manifest hash. If new, add normally.
+#'
+#' @param row A one-row data frame from cohortsLoad.csv.
+#' @param tag_cols Character vector. Extra column names to treat as tags.
+#' @param dbPath Character. Path to the manifest SQLite database.
+#' @param atlasConnection An ATLAS connection object with getCohortDefinition().
+#' @param sqlite_conn An open DBI connection to the manifest database.
+#' @return A list with \code{id}, \code{label}, \code{status}.
+#' @keywords internal
+importOneAtlasCohort <- function(row, tag_cols, dbPath, atlasConnection, sqlite_conn) {
+  # Build tags from extra columns
+  tags <- list()
+  for (col in tag_cols) {
+    val <- row[[col]]
+    if (!is.na(val) && nchar(as.character(val)) > 0) {
+      tags[[col]] <- as.character(val)
+    }
+  }
+
+  row_label <- as.character(row$label)
+  row_atlas_id <- as.integer(row$atlasId)
+  row_category <- as.character(row$category)
+
+  # Check if a cohort with this label already exists
+  existing <- DBI::dbGetQuery(
+    sqlite_conn,
+    "SELECT id, label, file_path, hash FROM cohort_manifest WHERE label = ? AND status = 'active'",
+    list(row_label)
+  )
+
+  if (nrow(existing) > 0) {
+    # Fetch JSON from ATLAS and compare hashes
+    cohort_def <- atlasConnection$getCohortDefinition(cohortId = row_atlas_id)
+    expression_json <- cohort_def$expression[1]
+    new_hash <- rlang::hash(expression_json)
+
+    existing_id <- existing$id[1]
+    existing_path <- existing$file_path[1]
+
+    if (identical(new_hash, existing$hash[1])) {
+      cli::cli_alert_info("Skipping {row_label} (ID {existing_id}) — unchanged")
+      return(list(id = existing_id, label = row_label, status = "skipped"))
+    }
+
+    # JSON changed — overwrite file and update manifest
+    cohorts_dir <- dirname(dbPath)
+    full_path <- fs::path(cohorts_dir, existing_path)
+    if (file.exists(full_path)) {
+      writeLines(expression_json, full_path)
+    } else {
+      output_name <- if (!is.null(cohort_def$saveName[1]) && nzchar(cohort_def$saveName[1])) {
+        cohort_def$saveName[1]
+      } else {
+        row_label
+      }
+      json_dir <- fs::path(cohorts_dir, "json")
+      if (!dir.exists(json_dir)) dir.create(json_dir, recursive = TRUE)
+      full_path <- fs::path(json_dir, paste0(output_name, ".json"))
+      writeLines(expression_json, full_path)
+      existing_path <- fs::path_rel(full_path)
+    }
+
+    DBI::dbExecute(
+      sqlite_conn,
+      "UPDATE cohort_manifest SET hash = ?, file_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      list(new_hash, existing_path, existing_id)
+    )
+    cascadeStaleDownstream(dbPath, existing_id)
+    cli::cli_alert_success("Updated {row_label} (ID {existing_id}) — JSON changed, file overwritten")
+    return(list(id = existing_id, label = row_label, status = "updated"))
+  }
+
+  # New cohort — note: addAtlasCohort is called by the caller (the R6 method)
+  # who has access to the manifest object and its private methods.
+  # We return a marker that the caller will handle.
+  return(list(id = NULL, label = row_label, status = "new", 
+              row = row, tags = tags, atlasConnection = atlasConnection,
+              row_atlas_id = row_atlas_id, row_category = row_category))
+}
+
+

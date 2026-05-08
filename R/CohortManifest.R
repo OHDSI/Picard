@@ -278,88 +278,9 @@ CohortManifest <- R6::R6Class(
 
 
     # Cascade 'stale' status to all transitive downstream dependents of the
-    # given cohort IDs. Only affects cohorts with status 'active' or 'stale'.
-    # Returns invisibly the integer vector of IDs that were updated.
+    # given cohort IDs. Delegates to the standalone cascadeStaleDownstream().
     cascade_stale_downstream = function(cohort_ids) {
-      cohort_ids <- as.integer(cohort_ids)
-
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
-      on.exit(DBI::dbDisconnect(conn))
-
-      # Fetch all potentially relevant rows once
-      rows <- DBI::dbGetQuery(
-        conn,
-        "SELECT id, depends_on FROM cohort_manifest
-         WHERE status IN ('active', 'stale')"
-      )
-
-      if (nrow(rows) == 0) {
-        return(invisible(integer(0)))
-      }
-
-      # Build reverse graph: parent_id -> vector of child_ids
-      reverse_graph <- list()
-      for (i in seq_len(nrow(rows))) {
-        child_id <- rows$id[i]
-        dep_raw  <- rows$depends_on[i]
-
-        if (!is.na(dep_raw) && nchar(dep_raw) > 0) {
-          parent_ids <- tryCatch(
-            as.integer(jsonlite::fromJSON(dep_raw)),
-            error = function(e) integer(0)
-          )
-
-          for (pid in parent_ids) {
-            pid_str <- as.character(pid)
-            reverse_graph[[pid_str]] <- c(reverse_graph[[pid_str]], child_id)
-          }
-        }
-      }
-
-      # BFS from seed cohort_ids through the reverse graph
-      visited  <- integer(0)
-      queue    <- cohort_ids
-
-      while (length(queue) > 0) {
-        current  <- queue[1]
-        queue    <- queue[-1]
-        curr_str <- as.character(current)
-
-        children <- reverse_graph[[curr_str]]
-        if (!is.null(children)) {
-          new_children <- setdiff(children, visited)
-          visited <- c(visited, new_children)
-          queue   <- c(queue, new_children)
-        }
-      }
-
-      if (length(visited) == 0) {
-        return(invisible(integer(0)))
-      }
-
-      # Bulk update to stale
-      ids_str <- paste(visited, collapse = ", ")
-      DBI::dbExecute(
-        conn,
-        paste0(
-          "UPDATE cohort_manifest SET status = 'stale', updated_at = CURRENT_TIMESTAMP",
-          " WHERE id IN (", ids_str, ")"
-        )
-      )
-
-      # Report
-      labels <- DBI::dbGetQuery(
-        conn,
-        paste0("SELECT id, label FROM cohort_manifest WHERE id IN (", ids_str, ")")
-      )
-      for (i in seq_len(nrow(labels))) {
-        cli::cli_alert_warning(
-          "Marked stale: [{labels$id[i]}] {labels$label[i]}"
-        )
-      }
-
-      private$load_manifest_from_db()
-      invisible(visited)
+      cascadeStaleDownstream(private$.dbPath, cohort_ids)
     }
   ),
 
@@ -778,30 +699,40 @@ CohortManifest <- R6::R6Class(
 
       cli::cli_alert_info("Importing {nrow(cohorts_load)} cohort(s) from {fs::path_rel(cohortsLoadPath)}")
 
+      # Open SQLite connection once for the entire import
+      sqlite_conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(sqlite_conn))
+
       results <- list()
       for (i in seq_len(nrow(cohorts_load))) {
         row <- cohorts_load[i, ]
 
-        # Build tags from extra columns
-        tags <- list()
-        for (col in tag_cols) {
-          val <- row[[col]]
-          if (!is.na(val) && nchar(as.character(val)) > 0) {
-            tags[[col]] <- as.character(val)
-          }
-        }
-
         tryCatch({
-          cohort_id <- self$addAtlasCohort(
-            atlasId = as.integer(row$atlasId),
-            label = as.character(row$label),
-            category = as.character(row$category),
-            tags = tags,
-            atlasConnection = atlasConnection
+          result <- importOneAtlasCohort(
+            row = row,
+            tag_cols = tag_cols,
+            dbPath = private$.dbPath,
+            atlasConnection = atlasConnection,
+            sqlite_conn = sqlite_conn
           )
-          results[[length(results) + 1]] <- list(
-            id = cohort_id, label = row$label, status = "success"
-          )
+
+          if (identical(result$status, "new")) {
+            # Delegate to addAtlasCohort for actual manifest insertion
+            cohort_id <- self$addAtlasCohort(
+              atlasId = result$row_atlas_id,
+              label = result$label,
+              category = result$row_category,
+              tags = result$tags,
+              atlasConnection = result$atlasConnection
+            )
+            results[[length(results) + 1]] <- list(
+              id = cohort_id, label = result$label, status = "success"
+            )
+          } else {
+            results[[length(results) + 1]] <- list(
+              id = result$id, label = result$label, status = result$status
+            )
+          }
         }, error = function(e) {
           cli::cli_alert_danger("Failed to import {row$label}: {e$message}")
           results[[length(results) + 1]] <<- list(
@@ -813,8 +744,7 @@ CohortManifest <- R6::R6Class(
       result_df <- tibble::tibble(
         id = vapply(results, function(x) x$id %||% NA_integer_, integer(1)),
         label = vapply(results, function(x) x$label, character(1)),
-        status = vapply(results, function(x) x$status, character(1)
-      )
+        status = vapply(results, function(x) x$status, character(1))
       )
 
       successful <- sum(result_df$status == "success")
