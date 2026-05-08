@@ -2,6 +2,7 @@
 
 - Correct the Dependent Cohort builders
 - Add a query tool for category now that it is not a tag
+- reorganize cohort generation to make it easier to debug
 
 # picard 0.0.3.1
 
