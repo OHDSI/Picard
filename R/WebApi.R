@@ -144,7 +144,8 @@ WebApiConnection <- R6::R6Class(
 
       bearerToken <- httr2::req_perform(req)$headers$Bearer
 
-      .setString(private = private, key = ".bearerToken", value = bearerToken)
+      checkmate::assert_string(x = bearerToken, min.chars = 1, null.ok = TRUE)
+      private[[".bearerToken"]] <- bearerToken
 
       invisible(bearerToken)
     }

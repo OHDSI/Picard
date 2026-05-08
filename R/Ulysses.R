@@ -1,15 +1,3 @@
-.setClass <- function(private, key, value, class, nullable = FALSE) {
-  checkmate::assert_class(x = value, classes = class, null.ok = nullable)
-  private[[key]] <- value
-  invisible(private)
-}
-
-.setString <- function(private, key, value, naOk = FALSE) {
-  checkmate::assert_string(x = value, na.ok = naOk, min.chars = 1, null.ok = FALSE)
-  private[[key]] <- value
-  invisible(private)
-}
-
 #' UlyssesStudy R6 Class
 #'
 #' @description
@@ -65,7 +53,8 @@ UlyssesStudy <- R6::R6Class(
       checkmate::assert_string(x = repoFolder, min.chars = 1)
       private[[".repoFolder"]] <- repoFolder
 
-      .setClass(private = private, key = ".studyMeta", value = studyMeta, class = "StudyMeta")
+      checkmate::assert_class(x = studyMeta, classes = "StudyMeta")
+      private[[".studyMeta"]] <- studyMeta
 
       checkmate::assert_list(x = dbConnectionBlocks, types = "DbConfigBlock", null.ok = TRUE)
       if (!is.null(dbConnectionBlocks)) {
@@ -456,7 +445,8 @@ UlyssesStudy <- R6::R6Class(
     #' @field studyMeta StudyMeta object containing study metadata and configuration. Can be read or set with class validation.
     studyMeta = function(value) {
       if(missing(value)) return(private$.studyMeta)
-      .setClass(private = private, key = ".studyMeta", value = value, class = "StudyMeta")
+      checkmate::assert_class(x = value, classes = "StudyMeta")
+      private[[".studyMeta"]] <- value
       cli::cli_alert_info("Updated {.field studyMeta}")
     },
 
@@ -514,9 +504,12 @@ ContributorLine <- R6::R6Class(
     #'
     #' @return Invisibly returns self.
     initialize = function(name, email, role) {
-      .setString(private = private, key = ".name", value = name)
-      .setString(private = private, key = ".email", value = email)
-      .setString(private = private, key = ".role", value = role)
+      checkmate::assert_string(x = name, min.chars = 1)
+      checkmate::assert_string(x = email, min.chars = 1)
+      checkmate::assert_string(x = role, min.chars = 1)
+      private[[".name"]] <- name
+      private[[".email"]] <- email
+      private[[".role"]] <- role
     },
     #' @description
     #' Generate a formatted string representation of the contributor.
@@ -536,21 +529,24 @@ ContributorLine <- R6::R6Class(
     #' @field name Contributor's full name. Can be read or set with validation.
     name = function(value) {
       if (missing(value)) return(private$.name)
-      .setString(private = private, key = ".name", value = value)
+      checkmate::assert_string(x = value, min.chars = 1)
+      private[[".name"]] <- value
       cli::cli_alert_info("Updated contributor {.field name}")
     },
 
     #' @field email Contributor's email address. Can be read or set with validation.
     email = function(value) {
       if (missing(value)) return(private$.email)
-      .setString(private = private, key = ".email", value = value)
+      checkmate::assert_string(x = value, min.chars = 1)
+      private[[".email"]] <- value
       cli::cli_alert_info("Updated contributor {.field email}")
     },
 
     #' @field role Contributor's role in the study. Can be read or set with validation.
     role = function(value) {
       if (missing(value)) return(private$.role)
-      .setString(private = private, key = ".role", value = value)
+      checkmate::assert_string(x = value, min.chars = 1)
+      private[[".role"]] <- value
       cli::cli_alert_info("Updated contributor {.field role}")
     }
   )
@@ -604,9 +600,12 @@ StudyMeta <- R6::R6Class(
                           contributors,
                           studyLinks = NULL,
                           studyTags = NULL) {
-      .setString(private = private, key = ".studyTitle", value = studyTitle)
-      .setString(private = private, key = ".therapeuticArea", value = therapeuticArea)
-      .setString(private = private, key = ".studyType", value = studyType)
+      checkmate::assert_string(x = studyTitle, min.chars = 1)
+      checkmate::assert_string(x = therapeuticArea, min.chars = 1)
+      checkmate::assert_string(x = studyType, min.chars = 1)
+      private[[".studyTitle"]] <- studyTitle
+      private[[".therapeuticArea"]] <- therapeuticArea
+      private[[".studyType"]] <- studyType
 
       checkmate::assert_character(x = studyLinks, null.ok = TRUE)
       if (!is.null(studyLinks)) {
@@ -693,21 +692,24 @@ StudyMeta <- R6::R6Class(
     #' @field studyTitle Title of the study. Can be read or set with validation.
     studyTitle = function(value) {
       if (missing(value)) return(private$.studyTitle)
-      .setString(private = private, key = ".studyTitle", value = value)
+      checkmate::assert_string(x = value, min.chars = 1)
+      private[[".studyTitle"]] <- value
       cli::cli_alert_info("Updated {.field studyTitle}")
     },
 
     #' @field therapeuticArea Therapeutic area focus of the study. Can be read or set with validation.
     therapeuticArea = function(value) {
       if (missing(value)) return(private$.therapeuticArea)
-      .setString(private = private, key = ".therapeuticArea", value = value)
+      checkmate::assert_string(x = value, min.chars = 1)
+      private[[".therapeuticArea"]] <- value
       cli::cli_alert_info("Updated {.field therapeuticArea}")
     },
 
     #' @field studyType Type of study conducted. Can be read or set with validation.
     studyType = function(value) {
       if (missing(value)) return(private$.studyType)
-      .setString(private = private, key = ".studyType", value = value)
+      checkmate::assert_string(x = value, min.chars = 1)
+      private[[".studyType"]] <- value
       cli::cli_alert_info("Updated {.field studyType}")
     },
 
@@ -787,9 +789,12 @@ DbConfigBlock <- R6::R6Class(
                           workDatabaseSchema = NULL,
                           tempEmulationSchema = NULL) {
 
-      .setString(private = private, key = ".configBlockName", value = configBlockName)
-      .setString(private = private, key = ".cdmDatabaseSchema", value = cdmDatabaseSchema)
-      .setString(private = private, key = ".cohortTable", value = cohortTable)
+      checkmate::assert_string(x = configBlockName, min.chars = 1)
+      checkmate::assert_string(x = cdmDatabaseSchema, min.chars = 1)
+      checkmate::assert_string(x = cohortTable, min.chars = 1)
+      private[[".configBlockName"]] <- configBlockName
+      private[[".cdmDatabaseSchema"]] <- cdmDatabaseSchema
+      private[[".cohortTable"]] <- cohortTable
 
       checkmate::assert_string(x = databaseName, min.chars = 1, null.ok = TRUE)
       if (is.null(databaseName)) {
@@ -812,7 +817,8 @@ DbConfigBlock <- R6::R6Class(
       if (is.null(dbServer)) {
         private[[".dbServer"]] <- configBlockName
       } else {
-        .setString(private = private, key = ".dbServer", value = dbServer)
+        checkmate::assert_string(x = dbServer, min.chars = 1)
+        private[[".dbServer"]] <- dbServer
       }
 
       # Work and temp schemas are per-block (not study-level)
@@ -864,42 +870,48 @@ DbConfigBlock <- R6::R6Class(
     #' @field configBlockName Unique identifier for this configuration block. Can be read or set with validation.
     configBlockName = function(value) {
       if (missing(value)) return(private$.configBlockName)
-      .setString(private = private, key = ".configBlockName", value = value)
+      checkmate::assert_string(x = value, min.chars = 1)
+      private[[".configBlockName"]] <- value
       cli::cli_alert_info("Updated {.field configBlockName}")
     },
 
     #' @field cdmDatabaseSchema Schema name containing the CDM data. Can be read or set with validation.
     cdmDatabaseSchema = function(value) {
       if (missing(value)) return(private$.cdmDatabaseSchema)
-      .setString(private = private, key = ".cdmDatabaseSchema", value = value)
+      checkmate::assert_string(x = value, min.chars = 1)
+      private[[".cdmDatabaseSchema"]] <- value
       cli::cli_alert_info("Updated {.field cdmDatabaseSchema}")
     },
 
     #' @field cohortTable Table name for study cohorts. Can be read or set with validation.
     cohortTable = function(value) {
       if (missing(value)) return(private$.cohortTable)
-      .setString(private = private, key = ".cohortTable", value = value)
+      checkmate::assert_string(x = value, min.chars = 1)
+      private[[".cohortTable"]] <- value
       cli::cli_alert_info("Updated {.field cohortTable}")
     },
 
     #' @field databaseName Database identifier. Can be read or set with validation. Defaults to configBlockName.
     databaseName = function(value) {
       if (missing(value)) return(private$.databaseName)
-      .setString(private = private, key = ".databaseName", value = value)
+      checkmate::assert_string(x = value, min.chars = 1)
+      private[[".databaseName"]] <- value
       cli::cli_alert_info("Updated {.field databaseName}")
     },
 
     #' @field databaseLabel Human-readable database label for display. Can be read or set with validation.
     databaseLabel = function(value) {
       if (missing(value)) return(private$.databaseLabel)
-      .setString(private = private, key = ".databaseLabel", value = value)
+      checkmate::assert_string(x = value, min.chars = 1)
+      private[[".databaseLabel"]] <- value
       cli::cli_alert_info("Updated {.field databaseLabel}")
     },
 
     #' @field dbServer Database server name for secrets.yml lookup. Can be read or set with validation. Defaults to configBlockName.
     dbServer = function(value) {
       if (missing(value)) return(private$.dbServer)
-      .setString(private = private, key = ".dbServer", value = value)
+      checkmate::assert_string(x = value, min.chars = 1)
+      private[[".dbServer"]] <- value
       cli::cli_alert_info("Updated {.field dbServer}")
     },
 
