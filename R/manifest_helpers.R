@@ -919,6 +919,19 @@ createBlankConceptSetsLoadFile <- function(conceptSetsFolderPath = here::here("i
 
   fs::dir_create(conceptSetsFolderPath)
 
+  file_path <- fs::path(conceptSetsFolderPath, "conceptSetsLoad.csv")
+
+  # Check if file already exists
+  if (fs::file_exists(file_path)) {
+    cli::cli_alert_warning("File already exists: {.file {fs::path_rel(file_path)}}")
+    answer <- readline("Overwrite with blank template? (yes/no): ")
+    if (!identical(trimws(tolower(answer)), "yes")) {
+      cli::cli_alert_info("Operation cancelled. Existing file was not modified.")
+      return(NULL)
+    }
+    cli::cli_alert_info("Overwriting existing file with blank template...")
+  }
+
   template <- data.frame(
     atlasId = integer(1),
     label = character(1),
