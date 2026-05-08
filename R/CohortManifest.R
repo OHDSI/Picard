@@ -2383,7 +2383,7 @@ CohortManifest <- R6::R6Class(
                 tmp_def$setId(as.integer(rec_id))
                 tmp_def$setCohortType(rec$cohort_type)
                 if (!is.na(rec$tags) && rec$tags != "") {
-                  tmp_def$tags <- picard::parseTagsString(rec$tags)
+                  tmp_def$tags <- jsonlite::fromJSON(rec$tags, simplifyVector = FALSE)
                 }
                 private$.manifest[[which(sapply(private$.manifest, function(c) c$getId() == rec_id))]] <- tmp_def
                 break

@@ -436,32 +436,6 @@ createBlankCohortsLoadFile <- function(cohortsFolderPath = here::here("inputs/co
 }
 
 
-#' Function to parse tags string from database into a named list
-#'
-#' @param tags_str Character. Tags string in format "name: value | name: value"
-#'
-#' @return List. Named list of tags
-#'
-#' @keywords internal
-parseTagsString <- function(tags_str) {
-  if (is.na(tags_str) || tags_str == "") {
-    return(list())
-  }
-
-  tag_pairs <- strsplit(tags_str, " \\| ")[[1]]
-
-  tags_list <- list()
-  for (pair in tag_pairs) {
-    parts <- strsplit(pair, ":\\s*")[[1]]
-    if (length(parts) == 2) {
-      tag_name  <- trimws(parts[1])
-      tag_value <- trimws(parts[2])
-      tags_list[[tag_name]] <- tag_value
-    }
-  }
-
-  return(tags_list)
-}
 
 
 #' Plot Cohort Dependency Graph

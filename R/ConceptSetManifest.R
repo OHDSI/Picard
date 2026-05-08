@@ -77,7 +77,7 @@ ConceptSetManifest <- R6::R6Class(
           cs_def$setId(as.integer(rec$id))
 
           if (!is.na(rec$tags) && nchar(rec$tags) > 0) {
-            cs_def$tags <- parseTagsString(rec$tags)
+            cs_def$tags <- jsonlite::fromJSON(rec$tags, simplifyVector = FALSE)
           }
 
           private$.manifest[[length(private$.manifest) + 1]] <- cs_def
@@ -1183,7 +1183,7 @@ ConceptSetManifest <- R6::R6Class(
               tmp_def$setId(as.integer(rec_id))
 
               if (!is.na(rec$tags) && rec$tags != "") {
-                tmp_def$tags <- picard::parseTagsString(rec$tags)
+                tmp_def$tags <- jsonlite::fromJSON(rec$tags, simplifyVector = FALSE)
               }
 
               private$.manifest[[idx]] <- tmp_def
