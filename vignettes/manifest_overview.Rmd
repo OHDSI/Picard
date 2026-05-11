@@ -209,6 +209,21 @@ manifest$buildComplementCohort(
 )
 ```
 
+### Custom dependent cohort
+
+Registers a user-supplied `.sql` file as a derived cohort with explicit
+dependencies on existing manifest cohorts. The SQL is copied to `derived/`
+and the skip-logic handles dependency-aware hashing automatically.
+
+```{r}
+manifest$buildCustomDependentCohort(
+  filePath  = here::here("extras/my_custom_logic.sql"),
+  label     = "Custom Outcome Definition",
+  category  = "Outcomes",
+  cohortIds = c(1L, 3L)
+)
+```
+
 ### Composite cohort
 
 Requires membership in a minimum number of component cohorts.

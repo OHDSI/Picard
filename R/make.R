@@ -961,7 +961,6 @@ initAgentMode <- function(projectPath = here::here(), verbose = TRUE) {
       already_existed = FALSE
     ))
   }, error = function(e) {
-    cli::cli_alert_danger("Failed to initialize agent mode: {e$message}")
-    stop(e)
+    cli::cli_abort("Failed to initialize agent mode: {e$message}")
   })
 }

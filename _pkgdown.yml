@@ -66,9 +66,10 @@ reference:
     contents:
       - buildComplementCohort
       - buildCompositeCohort
+      - buildCustomDependentCohort
       - buildStratifiedCohorts
       - buildStudyHub
-      - buildSubsetCohortDemographic
+      - buildDemographicCohort
       - buildSubsetCohortTemporal
       - buildUnionCohort
 

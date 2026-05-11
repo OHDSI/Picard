@@ -1247,20 +1247,24 @@ cascadeStaleDownstream <- function(dbPath, cohort_ids) {
     return(invisible(integer(0)))
   }
 
+  # Build parameterized IN clause with placeholders
+  placeholders <- paste(rep("?", length(visited)), collapse = ", ")
+
   # Bulk update to stale
-  ids_str <- paste(visited, collapse = ", ")
   DBI::dbExecute(
     conn,
     paste0(
       "UPDATE cohort_manifest SET status = 'stale', updated_at = CURRENT_TIMESTAMP",
-      " WHERE id IN (", ids_str, ")"
-    )
+      " WHERE id IN (", placeholders, ")"
+    ),
+    as.list(visited)
   )
 
   # Report
   labels <- DBI::dbGetQuery(
     conn,
-    paste0("SELECT id, label FROM cohort_manifest WHERE id IN (", ids_str, ")")
+    paste0("SELECT id, label FROM cohort_manifest WHERE id IN (", placeholders, ")"),
+    as.list(visited)
   )
   for (i in seq_len(nrow(labels))) {
     cli::cli_alert_warning(

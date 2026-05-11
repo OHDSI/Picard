@@ -7,37 +7,38 @@
 An R6 class to define an ExecutionSettings object
 }
 \section{Active bindings}{
-\if{html}{\out{<div class="r6-active-bindings">}}
-\describe{
-\item{\code{cdmDatabaseSchema}}{the schema containing the OMOP CDM}
+  \if{html}{\out{<div class="r6-active-bindings">}}
+  \describe{
+    \item{\code{cdmDatabaseSchema}}{the schema containing the OMOP CDM}
 
-\item{\code{workDatabaseSchema}}{the schema containing the cohort table}
+    \item{\code{workDatabaseSchema}}{the schema containing the cohort table}
 
-\item{\code{tempEmulationSchema}}{the schema needed for temp tables}
+    \item{\code{tempEmulationSchema}}{the schema needed for temp tables}
 
-\item{\code{cohortTable}}{the table containing the cohorts}
+    \item{\code{cohortTable}}{the table containing the cohorts}
 
-\item{\code{databaseName}}{the name of the source data of the cdm}
-}
-\if{html}{\out{</div>}}
+    \item{\code{databaseName}}{the name of the source data of the cdm}
+  }
+  \if{html}{\out{</div>}}
 }
 \section{Methods}{
 \subsection{Public methods}{
-\itemize{
-\item \href{#method-ExecutionSettings-new}{\code{ExecutionSettings$new()}}
-\item \href{#method-ExecutionSettings-getDbms}{\code{ExecutionSettings$getDbms()}}
-\item \href{#method-ExecutionSettings-connect}{\code{ExecutionSettings$connect()}}
-\item \href{#method-ExecutionSettings-disconnect}{\code{ExecutionSettings$disconnect()}}
-\item \href{#method-ExecutionSettings-getConnection}{\code{ExecutionSettings$getConnection()}}
-\item \href{#method-ExecutionSettings-clone}{\code{ExecutionSettings$clone()}}
-}
+  \itemize{
+    \item \href{#method-ExecutionSettings-initialize}{\code{ExecutionSettings$new()}}
+    \item \href{#method-ExecutionSettings-getDbms}{\code{ExecutionSettings$getDbms()}}
+    \item \href{#method-ExecutionSettings-connect}{\code{ExecutionSettings$connect()}}
+    \item \href{#method-ExecutionSettings-disconnect}{\code{ExecutionSettings$disconnect()}}
+    \item \href{#method-ExecutionSettings-getConnection}{\code{ExecutionSettings$getConnection()}}
+    \item \href{#method-ExecutionSettings-clone}{\code{ExecutionSettings$clone()}}
+  }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-ExecutionSettings-new"></a>}}
-\if{latex}{\out{\hypertarget{method-ExecutionSettings-new}{}}}
-\subsection{Method \code{new()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ExecutionSettings$new(
+\if{html}{\out{<a id="method-ExecutionSettings-initialize"></a>}}
+\if{latex}{\out{\hypertarget{method-ExecutionSettings-initialize}{}}}
+\subsection{\code{ExecutionSettings$new()}}{
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ExecutionSettings$new(
   connectionDetails = NULL,
   connection = NULL,
   cdmDatabaseSchema = NULL,
@@ -45,115 +46,116 @@ An R6 class to define an ExecutionSettings object
   tempEmulationSchema = NULL,
   cohortTable = NULL,
   databaseName = NULL
-)}\if{html}{\out{</div>}}
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{connectionDetails}}{a connectionDetails object}
+      \item{\code{connection}}{a connection to a dbms}
+      \item{\code{cdmDatabaseSchema}}{The schema of the OMOP CDM database}
+      \item{\code{workDatabaseSchema}}{The schema to which results will be written}
+      \item{\code{tempEmulationSchema}}{Some database platforms like Oracle and Snowflake do not truly support temp tables. To emulate temp tables, provide a schema with write privileges where temp tables can be created.}
+      \item{\code{cohortTable}}{The name of the table where the cohort(s) are stored}
+      \item{\code{databaseName}}{A human-readable name for the OMOP CDM database}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{connectionDetails}}{a connectionDetails object}
-
-\item{\code{connection}}{a connection to a dbms}
-
-\item{\code{cdmDatabaseSchema}}{The schema of the OMOP CDM database}
-
-\item{\code{workDatabaseSchema}}{The schema to which results will be written}
-
-\item{\code{tempEmulationSchema}}{Some database platforms like Oracle and Snowflake do not truly support temp tables. To emulate temp tables, provide a schema with write privileges where temp tables can be created.}
-
-\item{\code{cohortTable}}{The name of the table where the cohort(s) are stored}
-
-\item{\code{databaseName}}{A human-readable name for the OMOP CDM database}
-}
-\if{html}{\out{</div>}}
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ExecutionSettings-getDbms"></a>}}
 \if{latex}{\out{\hypertarget{method-ExecutionSettings-getDbms}{}}}
-\subsection{Method \code{getDbms()}}{
-Extract the DBMS dialect
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ExecutionSettings$getDbms()}\if{html}{\out{</div>}}
+\subsection{\code{ExecutionSettings$getDbms()}}{
+  Extract the DBMS dialect
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ExecutionSettings$getDbms()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Details}{
+    Prioritizes active connection DBMS over connectionDetails DBMS
+  }
+  \subsection{Returns}{
+    Character. The DBMS type (e.g., "postgresql", "snowflake")
+  }
 }
 
-\subsection{Details}{
-Prioritizes active connection DBMS over connectionDetails DBMS
-}
-
-\subsection{Returns}{
-Character. The DBMS type (e.g., "postgresql", "snowflake")
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ExecutionSettings-connect"></a>}}
 \if{latex}{\out{\hypertarget{method-ExecutionSettings-connect}{}}}
-\subsection{Method \code{connect()}}{
-Connect to DBMS using connectionDetails
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ExecutionSettings$connect()}\if{html}{\out{</div>}}
-}
-
-\subsection{Details}{
-Creates a new connection if one doesn't exist. If a connection already exists,
+\subsection{\code{ExecutionSettings$connect()}}{
+  Connect to DBMS using connectionDetails
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ExecutionSettings$connect()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Details}{
+    Creates a new connection if one doesn't exist. If a connection already exists,
 validates it and returns a message. If validation fails, attempts to reconnect.
+  }
+  \subsection{Returns}{
+    Invisible NULL
+  }
 }
 
-\subsection{Returns}{
-Invisible NULL
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ExecutionSettings-disconnect"></a>}}
 \if{latex}{\out{\hypertarget{method-ExecutionSettings-disconnect}{}}}
-\subsection{Method \code{disconnect()}}{
-Disconnect from DBMS
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ExecutionSettings$disconnect()}\if{html}{\out{</div>}}
-}
-
-\subsection{Details}{
-Closes the active connection and clears the connection object.
+\subsection{\code{ExecutionSettings$disconnect()}}{
+  Disconnect from DBMS
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ExecutionSettings$disconnect()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Details}{
+    Closes the active connection and clears the connection object.
 Safe to call even if no connection exists.
+  }
+  \subsection{Returns}{
+    Invisible NULL
+  }
 }
 
-\subsection{Returns}{
-Invisible NULL
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ExecutionSettings-getConnection"></a>}}
 \if{latex}{\out{\hypertarget{method-ExecutionSettings-getConnection}{}}}
-\subsection{Method \code{getConnection()}}{
-Retrieve the active connection object
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ExecutionSettings$getConnection()}\if{html}{\out{</div>}}
-}
-
-\subsection{Details}{
-Returns the connection if it exists and is valid. Otherwise returns NULL
+\subsection{\code{ExecutionSettings$getConnection()}}{
+  Retrieve the active connection object
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ExecutionSettings$getConnection()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Details}{
+    Returns the connection if it exists and is valid. Otherwise returns NULL
 with an informative message. Use this to check connection status before database operations.
+  }
+  \subsection{Returns}{
+    DatabaseConnectorJdbcConnection or NULL
+  }
 }
 
-\subsection{Returns}{
-DatabaseConnectorJdbcConnection or NULL
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ExecutionSettings-clone"></a>}}
 \if{latex}{\out{\hypertarget{method-ExecutionSettings-clone}{}}}
-\subsection{Method \code{clone()}}{
-The objects of this class are cloneable with this method.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ExecutionSettings$clone(deep = FALSE)}\if{html}{\out{</div>}}
+\subsection{\code{ExecutionSettings$clone()}}{
+  The objects of this class are cloneable with this method.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ExecutionSettings$clone(deep = FALSE)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{deep}}{Whether to make a deep clone.}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{deep}}{Whether to make a deep clone.}
-}
-\if{html}{\out{</div>}}
-}
-}
 }

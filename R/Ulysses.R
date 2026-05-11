@@ -126,8 +126,7 @@ UlyssesStudy <- R6::R6Class(
           rstudioapi::openProject(repoPath, newSession = TRUE)
         }
       }, error = function(e) {
-        cli::cli_alert_danger("Failed to initialize repository: {e$message}")
-        stop(e)
+        cli::cli_abort("Failed to initialize repository: {e$message}")
       })
       
       invisible(repoPath)
@@ -165,8 +164,7 @@ UlyssesStudy <- R6::R6Class(
             ".Renviron", "errorReportSql.txt", ".agent/", "copilot-instructions.md", "exec/logs/")
         )
       }, error = function(e) {
-        cli::cli_alert_danger("Failed to initialize R project: {e$message}")
-        stop(e)
+        cli::cli_abort("Failed to initialize R project: {e$message}")
       })
       
       invisible(NULL)
@@ -177,8 +175,7 @@ UlyssesStudy <- R6::R6Class(
       tryCatch({
         initReadMeFn(sm = private$.studyMeta, repoName = private$.repoName, repoPath = repoPath)
       }, error = function(e) {
-        cli::cli_alert_danger("Failed to initialize README: {e$message}")
-        stop(e)
+        cli::cli_abort("Failed to initialize README: {e$message}")
       })
       invisible(NULL)
     },
@@ -188,8 +185,7 @@ UlyssesStudy <- R6::R6Class(
       tryCatch({
         initNewsFn(repoName = private$.repoName, repoPath = repoPath)
       }, error = function(e) {
-        cli::cli_alert_danger("Failed to initialize NEWS: {e$message}")
-        stop(e)
+        cli::cli_abort("Failed to initialize NEWS: {e$message}")
       })
       invisible(NULL)
     },
@@ -223,8 +219,7 @@ UlyssesStudy <- R6::R6Class(
 
         actionItem(glue::glue_col("Initialize Config: {green {fs::path(repoPath, private$.repoName, 'config.yml')}}"))
       }, error = function(e) {
-        cli::cli_alert_danger("Failed to initialize config: {e$message}")
-        stop(e)
+        cli::cli_abort("Failed to initialize config: {e$message}")
       })
       invisible(NULL)
     },
@@ -234,8 +229,7 @@ UlyssesStudy <- R6::R6Class(
       tryCatch({
         private$.makeConfigFile()
       }, error = function(e) {
-        cli::cli_alert_danger("Failed to initialize config: {e$message}")
-        stop(e)
+        cli::cli_abort("Failed to initialize config: {e$message}")
       })
       invisible(NULL)
     },
@@ -256,8 +250,7 @@ UlyssesStudy <- R6::R6Class(
         }
         cli::cli_alert_success("Git repository initialized")
       }, error = function(e) {
-        cli::cli_alert_danger("Failed to initialize git: {e$message}")
-        stop(e)
+        cli::cli_abort("Failed to initialize git: {e$message}")
       })
       invisible(NULL)
     },
@@ -281,8 +274,7 @@ UlyssesStudy <- R6::R6Class(
           
           cli::cli_alert_success("renv.lock file copied to {fs::path_rel(repoPath)}")
         }, error = function(e) {
-          cli::cli_alert_danger("Failed to copy renv.lock file: {e$message}")
-          stop(e)
+          cli::cli_abort("Failed to copy renv.lock file: {e$message}")
         })
       } else {
         cli::cli_alert_info("No renvLockFile supplied. Consider running {.code renv::init()} in your project to set up a reproducible environment.")
@@ -299,8 +291,7 @@ UlyssesStudy <- R6::R6Class(
           studyTitle = private$.studyMeta$studyTitle
         )
       }, error = function(e) {
-        cli::cli_alert_danger("Failed to initialize Quarto files: {e$message}")
-        stop(e)
+        cli::cli_abort("Failed to initialize Quarto files: {e$message}")
       })
       invisible(NULL)
     },
@@ -323,8 +314,7 @@ UlyssesStudy <- R6::R6Class(
           studyName = private$.studyMeta$studyTitle
         )
       }, error = function(e) {
-        cli::cli_alert_danger("Failed to initialize main execution file: {e$message}")
-        stop(e)
+        cli::cli_abort("Failed to initialize main execution file: {e$message}")
       })
       invisible(NULL)
     },
@@ -341,8 +331,7 @@ UlyssesStudy <- R6::R6Class(
         readr::write_file(x = loadingInputsR, file = dest)
         cli::cli_alert_success("Created loading inputs script: {.file {fs::path_rel(dest)}}")
       }, error = function(e) {
-        cli::cli_alert_danger("Failed to initialize loading inputs file: {e$message}")
-        stop(e)
+        cli::cli_abort("Failed to initialize loading inputs file: {e$message}")
       })
       invisible(NULL)
     },
@@ -409,8 +398,7 @@ UlyssesStudy <- R6::R6Class(
         )
         
       }, error = function(e) {
-        cli::cli_alert_danger("Failed to initialize agent configuration: {e$message}")
-        stop(e)
+        cli::cli_abort("Failed to initialize agent configuration: {e$message}")
       })
       invisible(NULL)
     }
@@ -1042,7 +1030,6 @@ initNewsFn <- function(repoName, repoPath) {
 
   newsLines <- c(header, items) |>
     glue::glue_collapse(sep = "\n")
-  #cat(newsLines)
 
   readr::write_lines(
     x = newsLines,

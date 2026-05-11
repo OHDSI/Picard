@@ -121,11 +121,9 @@ snapshotEnvironment <- function(versionLabel = NULL, savePath = NULL) {
 #' Validate Environment Against Lockfile
 #' @description Checks that installed packages match renv.lock.
 #'   Prevents running pipelines with environment drift.
+#'   Call before execStudyPipeline() or orchestratePipelineExport().
 #' @return Invisible TRUE if valid, aborts if drift detected
 #' @keywords internal
-#'
-#' Call before execStudyPipeline() or orchestratePipelineExport().
-#'
 validateEnvironment <- function() {
   if (!requireNamespace("renv", quietly = TRUE)) {
     cli::cli_abort("renv package required")

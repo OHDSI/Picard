@@ -219,7 +219,11 @@ is_the_checksum_empty <- function(
     cohort_schema,
     checksum_table
 ) {
-  checksum_query <- paste0("SELECT COUNT(*) as count FROM ", cohort_schema, ".", checksum_table)
+  checksum_query <- SqlRender::render(
+    "SELECT COUNT(*) as count FROM @cohort_schema.@checksum_table",
+    cohort_schema = cohort_schema,
+    checksum_table = checksum_table
+  )
   checksum_count_result <- try(DatabaseConnector::querySql(db_conn, checksum_query), silent = TRUE)
 
   if (inherits(checksum_count_result, "try-error") || nrow(checksum_count_result) == 0) {
@@ -264,15 +268,20 @@ evaluate_cohort_skip_status <- function(
   dependency_status <- "Not applicable"
 
   if (!is_checksum_empty) {
-    hash_query <- paste0("SELECT checksum FROM ", cohort_schema, ".", checksum_table,
-      " WHERE cohort_definition_id = ", cohort_id)
+    hash_query <- SqlRender::render(
+      "SELECT checksum FROM @cohort_schema.@checksum_table
+       WHERE cohort_definition_id = @cohort_id",
+      cohort_schema = cohort_schema,
+      checksum_table = checksum_table,
+      cohort_id = cohort_id
+    )
     hash_result <- try(DatabaseConnector::querySql(conn, hash_query), silent = TRUE)
     if (!inherits(hash_result, "try-error") && nrow(hash_result) > 0) {
       stored_hash <- hash_result$CHECKSUM[1]
     }
   }
 
-  if (cohort_type %in% c("subset", "union", "complement", "composite", "oprior", "tprior", "censor")) {
+  if (length(parent_ids) > 0) {
     current_dependency_hash <- compute_dependency_hash(dbPath, cohort, cohort_hashes)
 
     if (is_stale) {

@@ -227,6 +227,24 @@ CohortManifest <- R6::R6Class(
     # Returns the assigned cohort ID
     insert_cohort = function(label, category, tags, file_path, source_type, cohort_type,
                              depends_on = NULL, dependency_rule = NULL) {
+      # Validate cohort_type vs depends_on consistency
+      derived_types <- c("subset", "union", "complement", "composite", "oprior", "tprior", "censor")
+      has_depends <- !is.null(depends_on) && length(depends_on) > 0
+
+      if (cohort_type %in% c("circe", "custom") && has_depends) {
+        cli::cli_abort(c(
+          "{.val {cohort_type}} cohorts must not have dependencies.",
+          i = "{.field depends_on} should be {.val NULL} for {.val {cohort_type}} cohorts."
+        ))
+      }
+
+      if (cohort_type %in% derived_types && !has_depends) {
+        cli::cli_abort(c(
+          "{.val {cohort_type}} cohorts require at least one parent cohort.",
+          i = "Provide parent cohort IDs via the {.field depends_on} parameter."
+        ))
+      }
+
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
       on.exit(DBI::dbDisconnect(conn))
 
@@ -1170,6 +1188,72 @@ CohortManifest <- R6::R6Class(
       )
 
       cli::cli_alert_success("Built complement cohort {cohort_id}: {label}")
+      invisible(cohort_id)
+    },
+
+    #' @description Build a custom dependent cohort from a user-supplied SQL file
+    #'
+    #' Registers an existing `.sql` file as a derived cohort with explicit
+    #' dependencies on manifest cohorts. Unlike `addSqlCohort()` (which treats
+    #' the file as a base cohort), this method copies the SQL into the
+    #' `derived/` directory and sets `depends_on`, so the skip-logic
+    #' uses dependency-aware hashing (see Phase 1.1).
+    #'
+    #' @param filePath Character. Path to the user's `.sql` file.
+    #'   The file is **copied** into the `derived/` directory — the original
+    #'   is not referenced after registration.
+    #' @param label Character. Display name (must be unique in manifest).
+    #' @param category Character. Required classification.
+    #' @param cohortIds Integer vector (min. 1). Parent cohort IDs this SQL
+    #'   depends on. All must exist in the manifest.
+    #' @param tags Named list. Optional metadata tags.
+    #'
+    #' @return Invisible integer. The assigned cohort ID.
+    buildCustomDependentCohort = function(filePath, label, category, cohortIds, tags = list()) {
+      checkmate::assert_file_exists(filePath)
+      checkmate::assert_string(label, min.chars = 1)
+      checkmate::assert_string(category, min.chars = 1)
+      checkmate::assert_integerish(cohortIds, min.len = 1, unique = TRUE)
+      checkmate::assert_list(tags, names = "named")
+
+      # Validate file is SQL
+      ext <- tolower(tools::file_ext(filePath))
+      if (ext != "sql") {
+        cli::cli_abort("filePath must be a .sql file, got: .{ext}")
+      }
+
+      # Validate label uniqueness
+      private$validate_label_unique(label)
+
+      # Validate parent cohorts exist
+      private$validate_parent_cohorts_exist(cohortIds)
+
+      # Run portability validation
+      sql_content <- readr::read_file(filePath)
+      .validateCustomSql(sql_content, label)
+
+      # Copy SQL to derived/ directory
+      derived_dir <- make_derived_folder(dirname(private$.dbPath))
+      safe_label <- gsub("[^a-zA-Z0-9_-]", "_", label)
+      dest_path <- fs::path(derived_dir, paste0(safe_label, ".sql"))
+      fs::file_copy(filePath, dest_path, overwrite = TRUE)
+
+      # Register in manifest
+      # Uses cohort_type = "custom" with depends_on — Phase 1.1 skip-logic
+      # handles this via length(parent_ids) > 0
+      cohort_id <- private$insert_cohort(
+        label = label,
+        category = category,
+        tags = tags,
+        file_path = fs::path_rel(dest_path),
+        source_type = "custom",
+        cohort_type = "custom",
+        depends_on = as.integer(cohortIds)
+      )
+
+      cli::cli_alert_success(
+        "Built custom dependent cohort {cohort_id}: {label} (depends on: {paste(cohortIds, collapse = ', ')})"
+      )
       invisible(cohort_id)
     },
 
