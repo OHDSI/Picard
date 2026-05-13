@@ -20,7 +20,7 @@ updateStudyVersion <- function(versionNumber, projectPath = here::here()) {
         i = "Example: 1.2.3",
         i = "Got: {length(versionParts)} part(s) instead of 3"
       ))
-      stop("Version must follow semantic versioning (MAJOR.MINOR.PATCH)")
+      cli::cli_abort("Version must follow semantic versioning (MAJOR.MINOR.PATCH)")
     }
     
     # Verify each part is a non-negative integer
@@ -32,7 +32,7 @@ updateStudyVersion <- function(versionNumber, projectPath = here::here()) {
         x = "Each version part must be a non-negative integer",
         i = "Example: 1.2.3 (not 1.2.x or 1.2a.3)"
       ))
-      stop("Version parts must be valid integers")
+      cli::cli_abort("Version parts must be valid integers")
     }
     
     if (any(versionIntegers < 0)) {
@@ -41,17 +41,16 @@ updateStudyVersion <- function(versionNumber, projectPath = here::here()) {
         x = "Version parts must be non-negative",
         i = "Example: 1.2.3 (not 1.-2.3)"
       ))
-      stop("Version parts must be non-negative")
+      cli::cli_abort("Version parts must be non-negative")
     }
     
     cli::cli_alert_success("Version format valid: {versionNumber}")
     
   }, error = function(e) {
     if (grepl("Version", e$message)) {
-      stop(e$message)
+      cli::cli_abort("Version validation: {e$message}")
     } else {
-      cli::cli_alert_danger("Failed to validate version: {e$message}")
-      stop("Invalid version format")
+      cli::cli_abort("Invalid version format: {e$message}")
     }
   })
   
@@ -64,8 +63,7 @@ updateStudyVersion <- function(versionNumber, projectPath = here::here()) {
     versionLine <- which(grepl("  version: ", configYml))
     
     if (length(versionLine) == 0) {
-      cli::cli_alert_danger("Version line not found in config.yml")
-      stop("Cannot find version configuration in config.yml")
+      cli::cli_abort("Cannot find version configuration in config.yml")
     }
     
     configYml[versionLine] <- glue::glue("  version: {versionNumber}")
@@ -73,8 +71,7 @@ updateStudyVersion <- function(versionNumber, projectPath = here::here()) {
     cli::cli_alert_success("Updated config.yml")
     
   }, error = function(e) {
-    cli::cli_alert_danger("Failed to update config.yml: {e$message}")
-    stop("Error updating config.yml")
+    cli::cli_abort("Failed to update config.yml: {e$message}")
   })
   
   # Update README.md
@@ -165,8 +162,7 @@ updateStudyVersion <- function(versionNumber, projectPath = here::here()) {
     cli::cli_alert_success("Updated NEWS.md")
     
   }, error = function(e) {
-    cli::cli_alert_danger("Failed to update NEWS.md: {e$message}")
-    stop("Error updating NEWS file")
+    cli::cli_abort("Failed to update NEWS.md: {e$message}")
   })
   
   # Confirmation summary
@@ -182,57 +178,6 @@ updateStudyVersion <- function(versionNumber, projectPath = here::here()) {
   cli::cli_rule()
   
   invisible(versionNumber)
-}
-
-
-#' @title Zip and Archive results from a study execution
-#' @param input the type of files to zip and archive. There are three options exportMerge, exportPretty and site. exportMerge is the merged results in long format. The exportPretty are xlsx files with formatted output from the study. The site is the html files of the studyHub
-#' @returns invisible return. Stores the input as a zip file in the exec/archive folder
-#' @export
-zipAndArchive <- function(input) {
-  #ensure input is one of three options
-  checkmate::assert_choice(x = input, choices = c("exportMerge", "exportPretty", "site"))
-
-  # make the archive folder in exec
-  if (!dir.exists("exec/archive")) {
-    archivePathRoot <- fs::dir_create("exec/archive")
-    usethis::use_git_ignore(archivePathRoot)
-  }
-
-  # get time stamp of archive
-  timeStamp <- lubridate::now() |> as.character() |> snakecase::to_snake_case()
-
-  # pull version number from config
-  repoVersion <- config::get(value = "version")
-
-  # if input is exportMerge grab results and prep for archive
-  if (input == "exportMerge") {
-    files2zip <- fs::dir_ls("dissemination/export/merge", type = "file")
-    zipFileName <- glue::glue("exec/archive/export_merge_{repoVersion}_{timeStamp}")
-  }
-
-  # if input is exportPretty grab results and prep for archive
-  if (input == "exportPretty") {
-    files2zip <- fs::dir_ls("dissemination/export/pretty", type = "file")
-    zipFileName <- glue::glue("exec/archive/export_pretty_{repoVersion}_{timeStamp}")
-  }
-
-  # if input is site grab files and prep for archive
-  if (input == "exportMerge") {
-    files2zip <- fs::dir_ls("dissemination/quarto/_site", type = "any")
-    zipFileName <- glue::glue("exec/archive/quarto_site_{repoVersion}_{timeStamp}")
-  }
-
-  # zip results and place in archive
-  utils::zip(zipfile = zipFileName, files = files2zip)
-  cli::cat_bullet(
-    glue::glue("Archived {input} to {zipFileName}."),
-    bullet = "tick",
-    bullet_col = "green"
-  )
-
-  invisible(zipFileName)
-
 }
 
 
@@ -415,9 +360,12 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
 
   # Check task status if requested
   if (checkStatus) {
-    # Build execution settings from configBlock
+    # Build execution settings from configBlock with pipelineVersion for dev/prod routing
     tryCatch({
-      executionSettings <- createExecutionSettingsFromConfig(configBlock = configBlock)
+      executionSettings <- createExecutionSettingsFromConfig(
+        configBlock = configBlock,
+        pipelineVersion = pipelineVersion
+      )
     }, error = function(e) {
       cli::cli_alert_warning("Could not create execution settings for task status check: {e$message}")
       executionSettings <- NULL
