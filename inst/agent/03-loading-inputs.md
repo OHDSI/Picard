@@ -237,6 +237,51 @@ no_ckd <- buildComplementCohort(
 )
 ```
 
+### Outcome-Prior-Target and Target-Prior-Outcome Cohorts
+
+Filter a cohort based on the existence (or absence) of a prior event in another cohort.
+
+**O prior T:** Outcome events where a prior target event exists (e.g., GI bleeds with prior NSAID use):
+
+```r
+gi_bleed_prior_nsaid <- cm$buildOPriorT(
+  label = "GI Bleed - Prior NSAID",
+  outcomeCohortId = 1,        # GI bleed
+  targetCohortId = 2,         # NSAID use
+  mode = "prior",              # "prior" or "no_prior"
+  priorTimeWindowDays = 365,   # only NSAID within 365d before GI bleed
+  subsetLimit = "Last",        # use most recent NSAID event
+  category = "Outcomes"
+)
+```
+
+**T prior O:** Target events where a prior outcome exists (e.g., NSAID initiations after prior GI bleed):
+
+```r
+nsaid_after_gi_bleed <- cm$buildTPriorO(
+  label = "NSAID - Prior GI Bleed",
+  targetCohortId = 2,         # NSAID use
+  outcomeCohortId = 1,        # GI bleed
+  mode = "prior",
+  priorTimeWindowDays = NULL,  # all time
+  subsetLimit = "First",       # earliest prior GI bleed
+  category = "Exposures"
+)
+```
+
+### Censor Cohort
+
+Truncate cohort end dates based on a censoring event. Example: censor an NSAID exposure cohort at the date of death:
+
+```r
+nsaid_censored_death <- cm$buildCensorCohort(
+  label = "NSAID - Censored at Death",
+  targetCohortId = 2,        # NSAID use
+  censorCohortId = 3,         # Death cohort
+  category = "Exposures"
+)
+```
+
 > **Note:** All `build*` functions require a `manifest` argument and automatically register the new cohort via `addDependentCohort()` — no separate call is needed.
 
 ### Visualizing Dependencies

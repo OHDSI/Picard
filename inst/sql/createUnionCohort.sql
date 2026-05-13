@@ -91,7 +91,7 @@ flags AS (
       WHEN LAG(running_max_end) OVER (PARTITION BY subject_id ORDER BY rn) IS NULL
         THEN 1
       WHEN cohort_start_date > DATEADD(day, @gap_days, LAG(running_max_end) OVER (PARTITION BY subject_id ORDER BY rn))
-        {@washout_days > 0} ? {
+        {@use_washout_days} ? {
         AND DATEDIFF(day, LAG(running_max_end) OVER (PARTITION BY subject_id ORDER BY rn), cohort_start_date) >= @washout_days
         }
         THEN 1

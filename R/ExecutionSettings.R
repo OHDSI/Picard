@@ -34,15 +34,23 @@ ExecutionSettings <- R6::R6Class(
         stop("Cannot provide both 'connectionDetails' and 'connection'. Choose one.", call. = FALSE)
       }
       
-      .setClass(private = private, key = "connectionDetails", value = connectionDetails,
-                class = "ConnectionDetails", nullable = TRUE)
-      .setClass(private = private, key = ".connection", value = connection,
-                class = "DatabaseConnectorJdbcConnection", nullable = TRUE)
-      .setString(private = private, key = ".cdmDatabaseSchema", value = cdmDatabaseSchema)
-      .setString(private = private, key = ".workDatabaseSchema", value = workDatabaseSchema)
-      .setString(private = private, key = ".tempEmulationSchema", value = tempEmulationSchema)
-      .setString(private = private, key = ".cohortTable", value = cohortTable)
-      .setString(private = private, key = ".databaseName", value = databaseName)
+      checkmate::assert_class(x = connectionDetails, classes = "ConnectionDetails", null.ok = TRUE)
+      private[["connectionDetails"]] <- connectionDetails
+      checkmate::assert_class(x = connection, classes = "DatabaseConnectorJdbcConnection", null.ok = TRUE)
+      private[[".connection"]] <- connection
+
+      checkmate::assert_string(x = cdmDatabaseSchema, min.chars = 1)
+      checkmate::assert_string(x = workDatabaseSchema, min.chars = 1)
+      checkmate::assert_string(x = cohortTable, min.chars = 1)
+      checkmate::assert_string(x = databaseName, min.chars = 1)
+      private[[".cdmDatabaseSchema"]] <- cdmDatabaseSchema
+      private[[".workDatabaseSchema"]] <- workDatabaseSchema
+      private[[".cohortTable"]] <- cohortTable
+      private[[".databaseName"]] <- databaseName
+      # tempEmulationSchema is optional
+      if (!is.null(tempEmulationSchema)) {
+        private[[".tempEmulationSchema"]] <- tempEmulationSchema
+      }
     },
     
     #' @description Extract the DBMS dialect
@@ -203,61 +211,51 @@ ExecutionSettings <- R6::R6Class(
   active = list(
     #' @field cdmDatabaseSchema the schema containing the OMOP CDM
     cdmDatabaseSchema = function(value) {
-      # return the value if nothing added
       if(missing(value)) {
-        cds <- private$.cdmDatabaseSchema
-        return(cds)
+        return(private$.cdmDatabaseSchema)
       }
-      # replace the cdmDatabaseSchema
-      .setString(private = private, key = ".cdmDatabaseSchema", value = value)
+      checkmate::assert_string(x = value, min.chars = 1)
+      private[[".cdmDatabaseSchema"]] <- value
       cli::cli_alert_info("Updated {crayon::cyan('cdmDatabaseSchema')} to {crayon::green(value)}")
     },
 
     #' @field workDatabaseSchema the schema containing the cohort table
     workDatabaseSchema = function(value) {
-      # return the value if nothing added
       if(missing(value)) {
-        cds <- private$.workDatabaseSchema
-        return(cds)
+        return(private$.workDatabaseSchema)
       }
-      # replace the workDatabaseSchema
-      .setString(private = private, key = ".workDatabaseSchema", value = value)
+      checkmate::assert_string(x = value, min.chars = 1)
+      private[[".workDatabaseSchema"]] <- value
       cli::cli_alert_info("Updated {crayon::cyan('workDatabaseSchema')} to {crayon::green(value)}")
     },
 
     #' @field tempEmulationSchema the schema needed for temp tables
     tempEmulationSchema = function(value) {
-      # return the value if nothing added
       if(missing(value)) {
-        tes <- private$.tempEmulationSchema
-        return(tes)
+        return(private$.tempEmulationSchema)
       }
-      # replace the tempEmulationSchema
-      .setString(private = private, key = ".tempEmulationSchema", value = value)
+      checkmate::assert_string(x = value, min.chars = 1)
+      private[[".tempEmulationSchema"]] <- value
       cli::cli_alert_info("Updated {crayon::cyan('tempEmulationSchema')} to {crayon::green(value)}")
     },
     
     #' @field cohortTable the table containing the cohorts
     cohortTable = function(value) {
-      # return the value if nothing added
       if(missing(value)) {
-        tct <- private$.cohortTable
-        return(tct)
+        return(private$.cohortTable)
       }
-      # replace the cohortTable
-      .setString(private = private, key = ".cohortTable", value = value)
+      checkmate::assert_string(x = value, min.chars = 1)
+      private[[".cohortTable"]] <- value
       cli::cli_alert_info("Updated {crayon::cyan('cohortTable')} to {crayon::green(value)}")
     },
     
     #' @field databaseName the name of the source data of the cdm
     databaseName = function(value) {
-      # return the value if nothing added
       if(missing(value)) {
-        csn <- private$.databaseName
-        return(csn)
+        return(private$.databaseName)
       }
-      # replace the databaseName
-      .setString(private = private, key = ".databaseName", value = value)
+      checkmate::assert_string(x = value, min.chars = 1)
+      private[[".databaseName"]] <- value
       cli::cli_alert_info("Updated {crayon::cyan('databaseName')} to {crayon::green(value)}")
     }
 

@@ -39,7 +39,7 @@ mirrors loaded from SQLite at startup.
 | `id` | Auto-assigned integer ID |
 | `label` | User-defined display name (unique among active records) |
 | `category` | User classification (e.g., “Disease Populations”) |
-| `cohort_type` | `circe`, `custom`, `union`, `subset`, `complement`, `composite` |
+| `cohort_type` | `circe`, `custom`, `union`, `subset`, `complement`, `composite`, `oprior`, `tprior`, `censor` |
 | `source_type` | `circe`, `sql`, `derived` |
 | `file_path` | Relative path to the SQL/JSON file on disk |
 | `hash` | MD5 of the file — used by [`generateCohorts()`](https://ohdsi.github.io/Picard/dev/reference/generateCohorts.md) to skip unchanged cohorts |

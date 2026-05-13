@@ -7,9 +7,8 @@
 makeUlyssesStudySettings(
   repoName,
   repoFolder,
-  toolType = c("dbms", "external"),
   studyMeta,
-  execOptions = NULL,
+  dbConnectionBlocks = NULL,
   gitRemote = NULL,
   renvLockFile = NULL
 )
@@ -21,7 +20,7 @@ makeUlyssesStudySettings(
 
 \item{studyMeta}{a StudyMeta R6 class with the details describing the study}
 
-\item{execOptions}{a ExecOptions R6 class with the execution details needed for the study}
+\item{dbConnectionBlocks}{a list of DbConfigBlock R6 classes specifying the databases to connect (optional)}
 
 \item{gitRemote}{a remote url used to clone and set remote git}
 

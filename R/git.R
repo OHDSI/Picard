@@ -56,8 +56,7 @@ git_remote_ulysses <- function(gitRemoteUrl, gitRemoteName = "origin") {
     
     cli::cli_alert_success("Repository connected to remote: {gitRemoteUrl}")
   }, error = function(e) {
-    cli::cli_alert_danger("Failed to connect to remote: {e$message}")
-    stop(e)
+    cli::cli_abort("Failed to connect to remote: {e$message}")
   })
   
   invisible(gitRemoteUrl)

@@ -4,59 +4,48 @@
 \alias{getAtlasConnection}
 \title{Get Atlas Connection}
 \usage{
-getAtlasConnection(useKeyring = FALSE)
+getAtlasConnection(
+  useKeyring = FALSE,
+  secretsFilePath = "~/.picard/secrets.yml"
+)
 }
 \arguments{
-\item{useKeyring}{Logical. If TRUE, retrieves credentials from the keyring
-package. If FALSE (default), uses environment variables from .Renviron.}
+\item{useKeyring}{Logical. If TRUE and no secrets.yml atlas key is found,
+retrieves credentials from the keyring package directly (legacy path).
+Default FALSE.}
+
+\item{secretsFilePath}{Character. Path to secrets.yml. Default
+\code{"~/.picard/secrets.yml"}. Ignored if the file doesn't exist or
+has no \code{atlas} key.}
 }
 \value{
 An R6 class of WebApiConnection containing the ATLAS WebAPI connection details
 }
 \description{
-Creates a \code{WebApiConnection} object using credentials from either
-\code{.Renviron} or the \code{keyring} package. This is the standalone
-credential helper — to attach the connection to a manifest use
-\code{manifest$setAtlasConnection(getAtlasConnection())}.
+Creates a \code{WebApiConnection} object using credentials from:
+\enumerate{
+\item \strong{secrets.yml} (preferred) — uses the \code{atlas} key in your
+\code{~/.picard/secrets.yml} file (see \code{editSecrets()} and
+\code{setupKeyring()}).
+\item \code{.Renviron} — reads \code{atlasBaseUrl}, \code{atlasAuthMethod},
+\code{atlasUser}, \code{atlasPassword} environment variables.
+\item \code{keyring} — retrieves from the OS keyring directly (legacy).
+}
 }
 \details{
-Credentials are stored using a standardized structure in the system keyring.
-All ATLAS credentials are grouped under the service "picard" with individual
-identifiers for each credential type.
-\subsection{Using .Renviron (Default)}{
-
-\if{html}{\out{<div class="sourceCode r">}}\preformatted{# Credentials must be set in .Renviron:
-# atlasBaseUrl='https://organization-atlas.com/WebAPI'
-# atlasAuthMethod='ad'
-# atlasUser='user@organization.com'
-# atlasPassword='YourPassword'
-
-atlasCon <- getAtlasConnection()
-}\if{html}{\out{</div>}}
-}
-
-\subsection{Using keyring (Recommended for Security)}{
-
-First, store credentials securely in the default keyring:
-
-\if{html}{\out{<div class="sourceCode r">}}\preformatted{keyring::key_set(service = "picard", username = "atlasBaseUrl")
-keyring::key_set(service = "picard", username = "atlasAuthMethod")
-keyring::key_set(service = "picard", username = "atlasUser")
-keyring::key_set(service = "picard", username = "atlasPassword")
-}\if{html}{\out{</div>}}
-
-Then retrieve and connect:
-
-\if{html}{\out{<div class="sourceCode r">}}\preformatted{atlasCon <- getAtlasConnection(useKeyring = TRUE)
-}\if{html}{\out{</div>}}
+The recommended workflow is to store Atlas credentials in
+\code{~/.picard/secrets.yml} via \code{setupKeyring()} or \code{editSecrets()}.
+The secrets.yml approach supports three credential formats:
+\itemize{
+\item Plain strings, \code{!expr keyring::key_get(...)}, or \code{!expr Sys.getenv(...)}.
 }
 }
 \examples{
 \dontrun{
-  # Using .Renviron (default)
+  # Using secrets.yml (recommended)
   atlasCon <- getAtlasConnection()
 
-  # Using keyring
+  # Using keyring directly (legacy)
   atlasCon <- getAtlasConnection(useKeyring = TRUE)
 }
 }

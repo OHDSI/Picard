@@ -10,14 +10,14 @@ including directory structure, configuration files, and version control initiali
 }
 \details{
 UlyssesStudy encapsulates the configuration needed to set up a new Ulysses-based
-study environment. It coordinates with StudyMeta and ExecOptions to provide
-comprehensive repository initialization.
+study environment. It manages study metadata and database connection blocks.
+Database schema and credential details are held per-block in DbConfigBlock.
 \subsection{Active Fields}{
 \itemize{
 \item \code{repoName}: Study repository name (read/write)
 \item \code{repoFolder}: Parent directory for the repository (read/write)
-\item \code{toolType}: Tool type, either "dbms" or "external" (read/write)
 \item \code{studyMeta}: StudyMeta object containing metadata (read/write)
+\item \code{dbConnectionBlocks}: List of DbConfigBlock objects (read/write)
 \item \code{gitRemote}: Optional git remote URL (read/write)
 \item \code{renvLockFile}: Optional path to renv lock file (read/write)
 }
@@ -31,75 +31,69 @@ comprehensive repository initialization.
 }
 }
 \section{Active bindings}{
-\if{html}{\out{<div class="r6-active-bindings">}}
-\describe{
-\item{\code{repoName}}{Study repository name. Can be read or set with validation.}
+  \if{html}{\out{<div class="r6-active-bindings">}}
+  \describe{
+    \item{\code{repoName}}{Study repository name. Can be read or set with validation.}
 
-\item{\code{repoFolder}}{Parent directory for the repository. Can be read or set with validation.}
+    \item{\code{repoFolder}}{Parent directory for the repository. Can be read or set with validation.}
 
-\item{\code{toolType}}{Tool type, either "dbms" or "external". Can be read or set with validation.}
+    \item{\code{dbConnectionBlocks}}{List of DbConfigBlock objects managing multiple database connections. Can be read or set with class validation.}
 
-\item{\code{studyMeta}}{StudyMeta object containing study metadata and configuration. Can be read or set with class validation.}
+    \item{\code{studyMeta}}{StudyMeta object containing study metadata and configuration. Can be read or set with class validation.}
 
-\item{\code{gitRemote}}{Optional URL for git remote repository. Can be read or set with validation.}
+    \item{\code{gitRemote}}{Optional URL for git remote repository. Can be read or set with validation.}
 
-\item{\code{renvLockFile}}{Optional path to renv lock file for reproducibility. Can be read or set with validation.}
-}
-\if{html}{\out{</div>}}
+    \item{\code{renvLockFile}}{Optional path to renv lock file for reproducibility. Can be read or set with validation.}
+  }
+  \if{html}{\out{</div>}}
 }
 \section{Methods}{
 \subsection{Public methods}{
-\itemize{
-\item \href{#method-UlyssesStudy-new}{\code{UlyssesStudy$new()}}
-\item \href{#method-UlyssesStudy-initUlyssesRepo}{\code{UlyssesStudy$initUlyssesRepo()}}
-\item \href{#method-UlyssesStudy-clone}{\code{UlyssesStudy$clone()}}
-}
+  \itemize{
+    \item \href{#method-UlyssesStudy-initialize}{\code{UlyssesStudy$new()}}
+    \item \href{#method-UlyssesStudy-initUlyssesRepo}{\code{UlyssesStudy$initUlyssesRepo()}}
+    \item \href{#method-UlyssesStudy-clone}{\code{UlyssesStudy$clone()}}
+  }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-UlyssesStudy-new"></a>}}
-\if{latex}{\out{\hypertarget{method-UlyssesStudy-new}{}}}
-\subsection{Method \code{new()}}{
-Initialize a new UlyssesStudy instance with configuration parameters.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{UlyssesStudy$new(
+\if{html}{\out{<a id="method-UlyssesStudy-initialize"></a>}}
+\if{latex}{\out{\hypertarget{method-UlyssesStudy-initialize}{}}}
+\subsection{\code{UlyssesStudy$new()}}{
+  Initialize a new UlyssesStudy instance with configuration parameters.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{UlyssesStudy$new(
   repoName,
   repoFolder,
-  toolType = c("dbms", "external"),
   studyMeta,
-  execOptions,
+  dbConnectionBlocks = NULL,
   gitRemote = NULL,
   renvLockFile = NULL
-)}\if{html}{\out{</div>}}
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{repoName}}{Character string. Name of the study repository.}
+      \item{\code{repoFolder}}{Character string. Parent directory where the repository will be created.}
+      \item{\code{studyMeta}}{StudyMeta object. Contains study metadata and configuration.}
+      \item{\code{dbConnectionBlocks}}{List of DbConfigBlock objects. Optional database configurations.}
+      \item{\code{gitRemote}}{Character string. Optional URL for git remote repository.}
+      \item{\code{renvLockFile}}{Character string. Optional path to renv lock file for reproducibility.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisibly returns self for method chaining.
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{repoName}}{Character string. Name of the study repository.}
-
-\item{\code{repoFolder}}{Character string. Parent directory where the repository will be created.}
-
-\item{\code{toolType}}{Character string. Tool type, either "dbms" or "external".}
-
-\item{\code{studyMeta}}{StudyMeta object. Contains study metadata and configuration.}
-
-\item{\code{execOptions}}{ExecOptions object. Contains execution settings and options.}
-
-\item{\code{gitRemote}}{Character string. Optional URL for git remote repository.}
-
-\item{\code{renvLockFile}}{Character string. Optional path to renv lock file for reproducibility.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisibly returns self for method chaining.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-UlyssesStudy-initUlyssesRepo"></a>}}
 \if{latex}{\out{\hypertarget{method-UlyssesStudy-initUlyssesRepo}{}}}
-\subsection{Method \code{initUlyssesRepo()}}{
-Initialize the complete Ulysses repository structure and configuration.
+\subsection{\code{UlyssesStudy$initUlyssesRepo()}}{
+  Initialize the complete Ulysses repository structure and configuration.
 
 This method performs the following initialization steps:
 \enumerate{
@@ -111,38 +105,41 @@ This method performs the following initialization steps:
 \item Initializes agent skills configuration
 \item Initializes git repository
 }
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{UlyssesStudy$initUlyssesRepo(verbose = TRUE, openProject = FALSE)}\if{html}{\out{</div>}}
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{UlyssesStudy$initUlyssesRepo(verbose = TRUE, openProject = FALSE)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{verbose}}{Logical. If TRUE (default), displays informative messages during initialization.}
+      \item{\code{openProject}}{Logical. If TRUE, opens the project in a new RStudio session after initialization.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisibly returns the path to the initialized repository.
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{verbose}}{Logical. If TRUE (default), displays informative messages during initialization.}
-
-\item{\code{openProject}}{Logical. If TRUE, opens the project in a new RStudio session after initialization.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisibly returns the path to the initialized repository.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-UlyssesStudy-clone"></a>}}
 \if{latex}{\out{\hypertarget{method-UlyssesStudy-clone}{}}}
-\subsection{Method \code{clone()}}{
-The objects of this class are cloneable with this method.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{UlyssesStudy$clone(deep = FALSE)}\if{html}{\out{</div>}}
+\subsection{\code{UlyssesStudy$clone()}}{
+  The objects of this class are cloneable with this method.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{UlyssesStudy$clone(deep = FALSE)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{deep}}{Whether to make a deep clone.}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{deep}}{Whether to make a deep clone.}
-}
-\if{html}{\out{</div>}}
-}
-}
 }
