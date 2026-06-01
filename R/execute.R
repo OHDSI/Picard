@@ -244,6 +244,11 @@ generateCohorts <- function(executionSettings, pipelineVersion, override = FALSE
     stop("No cohorts found in manifest. Please add cohorts before generating.")
   }
   
+  # Show cohort table info
+  cli::cli_alert_info(
+    "Cohort table: {.field {executionSettings$cohortDatabaseSchema}}.{.field {executionSettings$cohortTable}}"
+  )
+  
   # Display the cohorts that will be generated
   cli::cli_rule("Cohorts to Generate")
   cli::cli_alert_info("Found {nrow(cmSummary)} cohort(s) in manifest")
@@ -311,6 +316,13 @@ generateCohorts <- function(executionSettings, pipelineVersion, override = FALSE
       cli::cli_alert_success("Created output folder: {fs::path_rel(outputFolder)}")
     }
     
+    # Show cohort transparency info
+    cli::cli_inform(c(
+      "i" = "Cohort table: {.field {executionSettings$cohortDatabaseSchema}}.{.field {executionSettings$cohortTable}}",
+      "i" = "Output folder: {.path {fs::path_rel(outputFolder)}}",
+      "i" = "Pipeline version: {.val {pipelineVersion}}"
+    ))
+    
     # Save cohort counts to CSV
     outputFile <- fs::path(outputFolder, "cohortCounts.csv")
     readr::write_csv(counts, file = outputFile)
@@ -337,6 +349,7 @@ generateCohorts <- function(executionSettings, pipelineVersion, override = FALSE
 #' @keywords internal
 execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
                          checkStatus = FALSE,
+                         executionSettings = NULL,
                          env = rlang::caller_env()) {
 
   cli::cat_rule(glue::glue_col("Run Task: {yellow {taskFile}}"))
@@ -346,6 +359,12 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
     bullet_col = "blue"
   )
 
+  # Show cohort table for transparency
+  if (!is.null(executionSettings)) {
+    cli::cli_alert_info(
+      "Cohort table: {.field {executionSettings$cohortDatabaseSchema}}.{.field {executionSettings$cohortTable}}"
+    )
+  }
 
   fullTaskFilePath <- fs::path("analysis/tasks", taskFile) |>
     fs::path_expand()
@@ -360,16 +379,18 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
 
   # Check task status if requested
   if (checkStatus) {
-    # Build execution settings from configBlock with pipelineVersion for dev/prod routing
-    tryCatch({
-      executionSettings <- createExecutionSettingsFromConfig(
-        configBlock = configBlock,
-        pipelineVersion = pipelineVersion
-      )
-    }, error = function(e) {
-      cli::cli_alert_warning("Could not create execution settings for task status check: {e$message}")
-      executionSettings <- NULL
-    })
+    # Build execution settings if not provided by caller
+    if (is.null(executionSettings)) {
+      tryCatch({
+        executionSettings <- createExecutionSettingsFromConfig(
+          configBlock = configBlock,
+          pipelineVersion = pipelineVersion
+        )
+      }, error = function(e) {
+        cli::cli_alert_warning("Could not create execution settings for task status check: {e$message}")
+        executionSettings <- NULL
+      })
+    }
     
     if (!is.null(executionSettings)) {
       statusCheck <- shouldRerunTask(
@@ -490,13 +511,77 @@ testStudyTask <- function(taskFile, configBlock, env = rlang::caller_env()) {
   )
 }
 
+#' @title Compute Pipeline Version
+#' @description Internal helper to compute the prospective pipeline version from config.yml
+#'   and the requested update type. Provides a single source of truth for version computation,
+#'   eliminating the duplicated logic that previously existed in both execute_pipeline() and
+#'   execStudyPipeline().
+#' @param updateType Character. One of "major", "minor", or "patch".
+#' @param configPath Character. Path to config.yml. Defaults to config.yml in working directory.
+#' @return A list with elements:
+#'   \describe{
+#'     \item{pipelineVersion}{Character. The computed new version string (e.g. "1.2.3").}
+#'     \item{currentVersion}{Character. The version read from config.yml.}
+#'     \item{incrementLabel}{Character. Uppercase label ("MAJOR", "MINOR", "PATCH").}
+#'     \item{updateType}{Character. Normalized update type.}
+#'   }
+#' @keywords internal
+.computePipelineVersion <- function(updateType, configPath = here::here("config.yml")) {
+  # Validate updateType
+  updateType <- tolower(trimws(updateType))
+  if (!(updateType %in% c("major", "minor", "patch"))) {
+    cli::cli_abort(c(
+      "Invalid updateType: {.val {updateType}}",
+      "i" = "Must be one of: major, minor, patch",
+      "i" = "MAJOR - Breaking changes, MINOR - New features, PATCH - Bug fixes"
+    ))
+  }
+
+  # Read current version from config.yml
+  configYml <- tryCatch(
+    readr::read_lines(configPath),
+    error = function(e) cli::cli_abort("Cannot read config.yml: {e$message}")
+  )
+  versionLine <- which(grepl("  version: ", configYml))
+  if (length(versionLine) == 0) cli::cli_abort("Version not found in config.yml")
+  currentVersion <- trimws(gsub(".*version:\\s*", "", configYml[versionLine[1]]))
+
+  # Compute prospective new version
+  versionParts <- as.integer(strsplit(currentVersion, "\\.")[[1]])
+
+  if (updateType == "major") {
+    versionParts[1] <- versionParts[1] + 1
+    versionParts[2] <- 0
+    versionParts[3] <- 0
+    incrementLabel <- "MAJOR"
+  } else if (updateType == "minor") {
+    versionParts[2] <- versionParts[2] + 1
+    versionParts[3] <- 0
+    incrementLabel <- "MINOR"
+  } else if (updateType == "patch") {
+    versionParts[3] <- versionParts[3] + 1
+    incrementLabel <- "PATCH"
+  }
+
+  pipelineVersion <- paste0(versionParts, collapse = ".")
+
+  list(
+    pipelineVersion = pipelineVersion,
+    currentVersion = currentVersion,
+    incrementLabel = incrementLabel,
+    updateType = updateType
+  )
+}
+
+
 #' @title Core Pipeline Execution Logic
 #' @description Internal function containing all pipeline execution logic.
 #'   Called by both testStudyPipeline and execStudyPipeline with different parameters.
 #' @param configBlock name of one or multiple configBlock to use in the execution
-#' @param updateType the type of version increment: 'major', 'minor', or 'patch'. 
-#'   Only used when testMode = FALSE.
-#' @param testMode Logical. If TRUE, skips all validations and uses "dev" version.
+#' @param pipelineVersion Character. Pre-computed pipeline version string.
+#'   Pass "dev" for test mode. In production, this is computed by
+#'   \code{.computePipelineVersion()} and passed down from \code{execStudyPipeline()}.
+#' @param testMode Logical. If TRUE, uses "dev" version and skips version increment.
 #'   If FALSE, enforces code validation and version management. Default: FALSE
 #' @param skipRenv Logical. If TRUE, skips renv validation. Default: FALSE
 #' @param skipConnectivityCheck Logical. If TRUE (default), skips the optional
@@ -505,55 +590,9 @@ testStudyTask <- function(taskFile, configBlock, env = rlang::caller_env()) {
 #' @param env the execution environment
 #' @return Invisibly returns task results list
 #' @keywords internal
-execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
+execute_pipeline <- function(configBlock, pipelineVersion = "dev", testMode = FALSE,
                              skipRenv = FALSE, skipConnectivityCheck = TRUE,
                              env = rlang::caller_env()) {
-  
-  # Compute prospective pipeline version (needed for pre-flight checks)
-  if (testMode) {
-    pipelineVersion <- "dev"
-    currentVersion <- NULL
-    incrementLabel <- NULL
-  } else {
-    # Validate updateType
-    updateType <- tolower(trimws(updateType))
-    if (!(updateType %in% c("major", "minor", "patch"))) {
-      cli::cli_abort(c(
-        "Invalid updateType: {.val {updateType}}",
-        "i" = "Must be one of: major, minor, patch",
-        "i" = "MAJOR - Breaking changes, MINOR - New features, PATCH - Bug fixes"
-      ))
-    }
-
-    # Read current version from config.yml
-    configPath <- fs::path(here::here(), "config.yml")
-    configYml <- tryCatch(
-      readr::read_lines(configPath),
-      error = function(e) cli::cli_abort("Cannot read config.yml: {e$message}")
-    )
-    versionLine <- which(grepl("  version: ", configYml))
-    if (length(versionLine) == 0) cli::cli_abort("Version not found in config.yml")
-    currentVersion <- trimws(gsub(".*version:\\s*", "", configYml[versionLine[1]]))
-
-    # Compute prospective new version
-    versionParts <- as.integer(strsplit(currentVersion, "\\.")[[1]])
-
-    if (updateType == "major") {
-      versionParts[1] <- versionParts[1] + 1
-      versionParts[2] <- 0
-      versionParts[3] <- 0
-      incrementLabel <- "MAJOR"
-    } else if (updateType == "minor") {
-      versionParts[2] <- versionParts[2] + 1
-      versionParts[3] <- 0
-      incrementLabel <- "MINOR"
-    } else if (updateType == "patch") {
-      versionParts[3] <- versionParts[3] + 1
-      incrementLabel <- "PATCH"
-    }
-
-    pipelineVersion <- paste0(versionParts, collapse = ".")
-  }
 
   # Run all pre-flight checks — consolidated banner before any execution
   preFlightResult <- runPreflightChecks(
@@ -598,6 +637,9 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
       pipelineVersion = pipelineVersion
     )
     cli::cli_alert_success("Execution settings created for config: {configBlock[1]}")
+    cli::cli_alert_info(
+      "Cohort table: {.field {executionSettings$cohortDatabaseSchema}}.{.field {executionSettings$cohortTable}}"
+    )
   }, error = function(e) {
     cli::cli_alert_danger("Failed to create execution settings: {e$message}")
     stop("Cannot initialize execution settings")
@@ -688,6 +730,7 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
           configBlock = configBlock[db],
           pipelineVersion = pipelineVersion,
           checkStatus = TRUE,
+          executionSettings = executionSettings,
           env = env
         )
         
