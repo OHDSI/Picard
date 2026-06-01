@@ -1023,7 +1023,7 @@ addMainFile <- function(repoName, repoFolder, toolType, configBlocks, studyName)
 #' @param repoName Character. Name of the repository.
 #' @param repoFolder Character. Parent directory of the repository.
 #' @param toolType Character. Tool type, either "dbms" or "external".
-#' @param configBlocks List or Character vector. Database config blocks (from ExecOptions) or block names.
+#' @param configBlocks List or Character vector. Database config blocks or block names.
 #' @param studyName Character. Name of the study.
 #' @keywords internal
 addTestMainFile <- function(repoName, repoFolder, toolType, configBlocks, studyName) {

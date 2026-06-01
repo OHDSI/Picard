@@ -13,13 +13,12 @@ There are two ways to start a Picard study:
 
 ## Option 1: Create a New Study from Scratch
 
-The launch process has five key steps:
+The launch process has four key steps:
 
 1. Create study metadata (title, therapeutic area, study type, contributors)
-2. Define database configuration blocks
-3. Create execution options (DBMS settings, schemas, connection blocks)
-4. Bundle everything into study settings
-5. Initialize the repository
+2. Define database configuration blocks (these carry all DBMS and schema info)
+3. Bundle everything into study settings
+4. Initialize the repository
 
 ## Option 2: Clone an Existing Study Repository
 
@@ -149,55 +148,33 @@ db <- setDbConfigBlock(
 
 **For multiple databases**, create multiple blocks and pass them as a list.
 
-## Step 3: Create Execution Options
+## Step 3: Create Study Settings
 
-Execution options define how your pipeline will execute. Use `makeExecOptions()`:
-
-```r
-eo <- makeExecOptions(
-  dbms = "snowflake",
-  workDatabaseSchema = "work_schema",
-  tempEmulationSchema = "work_schema",
-  dbConnectionBlocks = list(db)
-)
-```
-
-**Parameters:**
-- `dbms`: Database management system type (e.g., "snowflake", "postgresql", "sql server")
-- `workDatabaseSchema`: Schema for creating temporary/working tables
-- `tempEmulationSchema`: Schema for emulating temporary tables
-- `dbConnectionBlocks`: List of database configuration blocks created in Step 2
-
-## Step 4: Create Study Settings
-
-Bundle study metadata and execution options into `UlyssesStudySettings` using `makeUlyssesStudySettings()`:
+Bundle study metadata and database configuration blocks into `UlyssesStudySettings` using `makeUlyssesStudySettings()`:
 
 ```r
 ulySt <- makeUlyssesStudySettings(
   repoName = "diabetes_study",
-  toolType = "dbms",
   repoFolder = "~/studies",
   studyMeta = sm,
-  execOptions = eo
+  dbConnectionBlocks = list(db)
 )
 ```
 
 **Required Parameters:**
 - `repoName`: Name of the repository directory
-- `toolType`: Type of tool ("dbms" for database-connected, "external" for standalone)
 - `repoFolder`: Parent folder where the repository will be created
 - `studyMeta`: StudyMeta object from Step 1
-- `execOptions`: ExecOptions object from Step 3
+- `dbConnectionBlocks`: List of `DbConfigBlock` objects from Step 2 (all DBMS/schema info is contained in these blocks)
 
 **Optional Parameters:**
 
 ```r
 ulySt <- makeUlyssesStudySettings(
   repoName = "diabetes_study",
-  toolType = "dbms",
   repoFolder = "~/studies",
   studyMeta = sm,
-  execOptions = eo,
+  dbConnectionBlocks = list(db),
   gitRemote = "https://github.com/myorg/diabetes_study.git",
   renvLockFile = "~/my_dependencies/renv.lock"
 )
@@ -207,7 +184,7 @@ ulySt <- makeUlyssesStudySettings(
 - `gitRemote`: URL to a Git remote repository (for version control integration)
 - `renvLockFile`: Path to an existing `renv.lock` file to copy into the project (for reproducible environments)
 
-## Step 5: Initialize the Repository
+## Step 4: Initialize the Repository
 
 Finally, initialize the repository with `initUlyssesRepo()`:
 

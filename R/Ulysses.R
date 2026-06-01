@@ -921,16 +921,6 @@ DbConfigBlock <- R6::R6Class(
   )
 )
 
-#' ExecOptions R6 Class
-#'
-#' @description
-#' **Deprecated.** ExecOptions has been removed. Use `UlyssesStudy` directly with
-#' `dbConnectionBlocks`, `workDatabaseSchema`, and `tempEmulationSchema` parameters.
-#'
-#' @export
-ExecOptions <- NULL
-
-
 listDefaultFolders <- function(repoPath) {
   analysisFolders <- c("src", "tasks")
   execFolders <- c('logs', 'results')
