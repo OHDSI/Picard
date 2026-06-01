@@ -161,7 +161,7 @@ UlyssesStudy <- R6::R6Class(
         
         usethis::use_git_ignore(
           c(".Rproj.user", ".Ruserdata", ".Rhistory", ".RData",
-            ".Renviron", "errorReportSql.txt", ".agent/", "copilot-instructions.md", "exec/logs/")
+            ".Renviron", "errorReportSql.txt", ".agent/", "copilot-instructions.md", "exec/")
         )
       }, error = function(e) {
         cli::cli_abort("Failed to initialize R project: {e$message}")
@@ -920,16 +920,6 @@ DbConfigBlock <- R6::R6Class(
     }
   )
 )
-
-#' ExecOptions R6 Class
-#'
-#' @description
-#' **Deprecated.** ExecOptions has been removed. Use `UlyssesStudy` directly with
-#' `dbConnectionBlocks`, `workDatabaseSchema`, and `tempEmulationSchema` parameters.
-#'
-#' @export
-ExecOptions <- NULL
-
 
 listDefaultFolders <- function(repoPath) {
   analysisFolders <- c("src", "tasks")

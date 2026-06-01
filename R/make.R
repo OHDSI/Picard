@@ -164,31 +164,6 @@ setDbConfigBlock <- function(configBlockName,
   )
 }
 
-#' @title set the execOptions as placeholder.
-#' @description
-#' **Deprecated.** ExecOptions has been removed. Use `makeUlyssesStudySettings` with
-#' `dbConnectionBlocks`, `workDatabaseSchema`, and `tempEmulationSchema` instead.
-#' @export
-placeHolderExecOptions <- function() {
-  lifecycle::deprecate_warn("0.0.4", "placeHolderExecOptions()")
-  cli::cli_abort("ExecOptions has been removed. Pass settings directly to makeUlyssesStudySettings().")
-}
-
-
-#' @title Make ExecOptions for Ulysses
-#' @description
-#' **Deprecated.** ExecOptions has been removed. Use `makeUlyssesStudySettings` with
-#' `dbConnectionBlocks`, `workDatabaseSchema`, and `tempEmulationSchema` instead.
-#' @export
-makeExecOptions <- function(dbms,
-                            workDatabaseSchema,
-                            tempEmulationSchema = NULL,
-                            dbConnectionBlocks) {
-  lifecycle::deprecate_warn("0.0.4", "makeExecOptions()")
-  cli::cli_abort("ExecOptions has been removed. Use makeUlyssesStudySettings(dbConnectionBlocks = ..., workDatabaseSchema = ..., tempEmulationSchema = ...) instead.")
-}
-
-
 #' @title Make Ulysses Study Settings
 #' @param repoName the name of repo as a character string
 #' @param repoFolder the folder path where the repo is stored in local as a character string
