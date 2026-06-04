@@ -32,128 +32,123 @@ methods for generating formatted output of study components.
 }
 }
 \section{Active bindings}{
-  \if{html}{\out{<div class="r6-active-bindings">}}
-  \describe{
-    \item{\code{studyTitle}}{Title of the study. Can be read or set with validation.}
+\if{html}{\out{<div class="r6-active-bindings">}}
+\describe{
+\item{\code{studyTitle}}{Title of the study. Can be read or set with validation.}
 
-    \item{\code{therapeuticArea}}{Therapeutic area focus of the study. Can be read or set with validation.}
+\item{\code{therapeuticArea}}{Therapeutic area focus of the study. Can be read or set with validation.}
 
-    \item{\code{studyType}}{Type of study conducted. Can be read or set with validation.}
+\item{\code{studyType}}{Type of study conducted. Can be read or set with validation.}
 
-    \item{\code{studyTags}}{Character vector of tags describing study topics and characteristics. Can be read or set with validation.}
+\item{\code{studyTags}}{Character vector of tags describing study topics and characteristics. Can be read or set with validation.}
 
-    \item{\code{studyLinks}}{Character vector of relevant study resource links and URLs. Can be read or set with validation.}
+\item{\code{studyLinks}}{Character vector of relevant study resource links and URLs. Can be read or set with validation.}
 
-    \item{\code{contributors}}{List of ContributorLine objects representing study team members. Can be read or set with class validation.}
-  }
-  \if{html}{\out{</div>}}
+\item{\code{contributors}}{List of ContributorLine objects representing study team members. Can be read or set with class validation.}
+}
+\if{html}{\out{</div>}}
 }
 \section{Methods}{
 \subsection{Public methods}{
-  \itemize{
-    \item \href{#method-StudyMeta-initialize}{\code{StudyMeta$new()}}
-    \item \href{#method-StudyMeta-listContributors}{\code{StudyMeta$listContributors()}}
-    \item \href{#method-StudyMeta-listStudyTags}{\code{StudyMeta$listStudyTags()}}
-    \item \href{#method-StudyMeta-listStudyLinks}{\code{StudyMeta$listStudyLinks()}}
-    \item \href{#method-StudyMeta-clone}{\code{StudyMeta$clone()}}
-  }
+\itemize{
+\item \href{#method-StudyMeta-new}{\code{StudyMeta$new()}}
+\item \href{#method-StudyMeta-listContributors}{\code{StudyMeta$listContributors()}}
+\item \href{#method-StudyMeta-listStudyTags}{\code{StudyMeta$listStudyTags()}}
+\item \href{#method-StudyMeta-listStudyLinks}{\code{StudyMeta$listStudyLinks()}}
+\item \href{#method-StudyMeta-clone}{\code{StudyMeta$clone()}}
+}
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-StudyMeta-initialize"></a>}}
-\if{latex}{\out{\hypertarget{method-StudyMeta-initialize}{}}}
-\subsection{\code{StudyMeta$new()}}{
-  Initialize a new StudyMeta instance with study metadata.
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{StudyMeta$new(
+\if{html}{\out{<a id="method-StudyMeta-new"></a>}}
+\if{latex}{\out{\hypertarget{method-StudyMeta-new}{}}}
+\subsection{Method \code{new()}}{
+Initialize a new StudyMeta instance with study metadata.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{StudyMeta$new(
   studyTitle,
   therapeuticArea,
   studyType,
   contributors,
   studyLinks = NULL,
   studyTags = NULL
-)}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Arguments}{
-    \if{html}{\out{<div class="arguments">}}
-    \describe{
-      \item{\code{studyTitle}}{Character string. Title of the study.}
-      \item{\code{therapeuticArea}}{Character string. Therapeutic area focus of the study.}
-      \item{\code{studyType}}{Character string. Type of study (e.g., observational, interventional).}
-      \item{\code{contributors}}{List of ContributorLine objects. Study team members.}
-      \item{\code{studyLinks}}{Character vector. Optional URLs and references for the study.}
-      \item{\code{studyTags}}{Character vector. Optional tags describing the study topics/characteristics.}
-    }
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    Invisibly returns self.
-  }
+)}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{studyTitle}}{Character string. Title of the study.}
+
+\item{\code{therapeuticArea}}{Character string. Therapeutic area focus of the study.}
+
+\item{\code{studyType}}{Character string. Type of study (e.g., observational, interventional).}
+
+\item{\code{contributors}}{List of ContributorLine objects. Study team members.}
+
+\item{\code{studyLinks}}{Character vector. Optional URLs and references for the study.}
+
+\item{\code{studyTags}}{Character vector. Optional tags describing the study topics/characteristics.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisibly returns self.
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-StudyMeta-listContributors"></a>}}
 \if{latex}{\out{\hypertarget{method-StudyMeta-listContributors}{}}}
-\subsection{\code{StudyMeta$listContributors()}}{
-  Generate a formatted markdown list of all contributors.
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{StudyMeta$listContributors()}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    Character string with markdown-formatted contributor list.
-  }
+\subsection{Method \code{listContributors()}}{
+Generate a formatted markdown list of all contributors.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{StudyMeta$listContributors()}\if{html}{\out{</div>}}
 }
 
+\subsection{Returns}{
+Character string with markdown-formatted contributor list.
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-StudyMeta-listStudyTags"></a>}}
 \if{latex}{\out{\hypertarget{method-StudyMeta-listStudyTags}{}}}
-\subsection{\code{StudyMeta$listStudyTags()}}{
-  Generate a formatted markdown list of study tags.
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{StudyMeta$listStudyTags()}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    Character string with markdown-formatted tag list.
-  }
+\subsection{Method \code{listStudyTags()}}{
+Generate a formatted markdown list of study tags.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{StudyMeta$listStudyTags()}\if{html}{\out{</div>}}
 }
 
+\subsection{Returns}{
+Character string with markdown-formatted tag list.
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-StudyMeta-listStudyLinks"></a>}}
 \if{latex}{\out{\hypertarget{method-StudyMeta-listStudyLinks}{}}}
-\subsection{\code{StudyMeta$listStudyLinks()}}{
-  Generate a formatted markdown section of study resources and links.
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{StudyMeta$listStudyLinks()}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    Character string with markdown-formatted section of study resources.
-  }
+\subsection{Method \code{listStudyLinks()}}{
+Generate a formatted markdown section of study resources and links.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{StudyMeta$listStudyLinks()}\if{html}{\out{</div>}}
 }
 
+\subsection{Returns}{
+Character string with markdown-formatted section of study resources.
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-StudyMeta-clone"></a>}}
 \if{latex}{\out{\hypertarget{method-StudyMeta-clone}{}}}
-\subsection{\code{StudyMeta$clone()}}{
-  The objects of this class are cloneable with this method.
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{StudyMeta$clone(deep = FALSE)}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Arguments}{
-    \if{html}{\out{<div class="arguments">}}
-    \describe{
-      \item{\code{deep}}{Whether to make a deep clone.}
-    }
-    \if{html}{\out{</div>}}
-  }
+\subsection{Method \code{clone()}}{
+The objects of this class are cloneable with this method.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{StudyMeta$clone(deep = FALSE)}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{deep}}{Whether to make a deep clone.}
+}
+\if{html}{\out{</div>}}
+}
+}
 }

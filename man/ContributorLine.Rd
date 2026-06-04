@@ -26,80 +26,76 @@ Used within StudyMeta to maintain a structured list of study contributors.
 }
 }
 \section{Active bindings}{
-  \if{html}{\out{<div class="r6-active-bindings">}}
-  \describe{
-    \item{\code{name}}{Contributor's full name. Can be read or set with validation.}
+\if{html}{\out{<div class="r6-active-bindings">}}
+\describe{
+\item{\code{name}}{Contributor's full name. Can be read or set with validation.}
 
-    \item{\code{email}}{Contributor's email address. Can be read or set with validation.}
+\item{\code{email}}{Contributor's email address. Can be read or set with validation.}
 
-    \item{\code{role}}{Contributor's role in the study. Can be read or set with validation.}
-  }
-  \if{html}{\out{</div>}}
+\item{\code{role}}{Contributor's role in the study. Can be read or set with validation.}
+}
+\if{html}{\out{</div>}}
 }
 \section{Methods}{
 \subsection{Public methods}{
-  \itemize{
-    \item \href{#method-ContributorLine-initialize}{\code{ContributorLine$new()}}
-    \item \href{#method-ContributorLine-printContributorLine}{\code{ContributorLine$printContributorLine()}}
-    \item \href{#method-ContributorLine-clone}{\code{ContributorLine$clone()}}
-  }
+\itemize{
+\item \href{#method-ContributorLine-new}{\code{ContributorLine$new()}}
+\item \href{#method-ContributorLine-printContributorLine}{\code{ContributorLine$printContributorLine()}}
+\item \href{#method-ContributorLine-clone}{\code{ContributorLine$clone()}}
+}
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-ContributorLine-initialize"></a>}}
-\if{latex}{\out{\hypertarget{method-ContributorLine-initialize}{}}}
-\subsection{\code{ContributorLine$new()}}{
-  Initialize a new ContributorLine instance.
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ContributorLine$new(name, email, role)}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Arguments}{
-    \if{html}{\out{<div class="arguments">}}
-    \describe{
-      \item{\code{name}}{Character string. Contributor's full name.}
-      \item{\code{email}}{Character string. Contributor's email address.}
-      \item{\code{role}}{Character string. Contributor's role in the study.}
-    }
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    Invisibly returns self.
-  }
+\if{html}{\out{<a id="method-ContributorLine-new"></a>}}
+\if{latex}{\out{\hypertarget{method-ContributorLine-new}{}}}
+\subsection{Method \code{new()}}{
+Initialize a new ContributorLine instance.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ContributorLine$new(name, email, role)}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{name}}{Character string. Contributor's full name.}
+
+\item{\code{email}}{Character string. Contributor's email address.}
+
+\item{\code{role}}{Character string. Contributor's role in the study.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisibly returns self.
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ContributorLine-printContributorLine"></a>}}
 \if{latex}{\out{\hypertarget{method-ContributorLine-printContributorLine}{}}}
-\subsection{\code{ContributorLine$printContributorLine()}}{
-  Generate a formatted string representation of the contributor.
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ContributorLine$printContributorLine()}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    Character string with formatted contributor information.
-  }
+\subsection{Method \code{printContributorLine()}}{
+Generate a formatted string representation of the contributor.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ContributorLine$printContributorLine()}\if{html}{\out{</div>}}
 }
 
+\subsection{Returns}{
+Character string with formatted contributor information.
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ContributorLine-clone"></a>}}
 \if{latex}{\out{\hypertarget{method-ContributorLine-clone}{}}}
-\subsection{\code{ContributorLine$clone()}}{
-  The objects of this class are cloneable with this method.
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ContributorLine$clone(deep = FALSE)}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Arguments}{
-    \if{html}{\out{<div class="arguments">}}
-    \describe{
-      \item{\code{deep}}{Whether to make a deep clone.}
-    }
-    \if{html}{\out{</div>}}
-  }
+\subsection{Method \code{clone()}}{
+The objects of this class are cloneable with this method.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ContributorLine$clone(deep = FALSE)}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{deep}}{Whether to make a deep clone.}
+}
+\if{html}{\out{</div>}}
+}
+}
 }

@@ -4,12 +4,10 @@
 \alias{readSecrets}
 \title{Read a secrets YAML file}
 \usage{
-readSecrets(secretsFilePath = "secrets.yml")
+readSecrets(secretsFilePath)
 }
 \arguments{
-\item{secretsFilePath}{Character. Path to the secrets.yml file. Default
-\code{"secrets.yml"} (searched in working directory; for the canonical user-level
-location use \code{"~/.picard/secrets.yml"}).}
+\item{secretsFilePath}{Character. Path to the secrets.yml file.}
 }
 \value{
 A named list of server credential blocks.

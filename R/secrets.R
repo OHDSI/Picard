@@ -48,12 +48,11 @@ resolveSecretValue <- function(value) {
 #' evaluate later. Returns a named list keyed by dbServer names (plus optional
 #' `atlas` key).
 #'
-#' @param secretsFilePath Character. Path to the secrets.yml file. Default
-#'   `"secrets.yml"` (searched in working directory; for the canonical user-level
-#'   location use `"~/.picard/secrets.yml"`).
+#' @param secretsFilePath Character. Path to the secrets.yml file.
 #' @return A named list of server credential blocks.
 #' @keywords internal
-readSecrets <- function(secretsFilePath = "secrets.yml") {
+readSecrets <- function(secretsFilePath) {
+  
   if (!file.exists(secretsFilePath)) {
     cli::cli_abort("Secrets file not found: {.path {secretsFilePath}}")
   }
@@ -72,12 +71,14 @@ readSecrets <- function(secretsFilePath = "secrets.yml") {
 #' fields via [resolveSecretValue()].
 #'
 #' @param dbServer Character. The database server name to look up.
-#' @param secretsFilePath Character. Path to the secrets.yml file.
+#' @param secretsFilePath Character. Path to the secrets.yml file. Default to ~/.picard/secrets.yml
 #' @return A named list with resolved credential values (`dbms`, `user`,
 #'   `password`, `server`, `port`, `connectionString`, `extraSettings`).
 #'   Missing optional fields are silently omitted.
 #' @keywords internal
-getServerCredentials <- function(dbServer, secretsFilePath = "secrets.yml") {
+getServerCredentials <- function(dbServer, secretsFilePath = "~/.picard/secrets.yml") {
+  
+  secretsFilePath <- fs::path_expand(secretsFilePath)
   secrets <- readSecrets(secretsFilePath)
 
   if (is.null(secrets[[dbServer]])) {
@@ -97,7 +98,7 @@ getServerCredentials <- function(dbServer, secretsFilePath = "secrets.yml") {
     }
   }
 
-  result
+  return(result)
 }
 
 #' Get Atlas/WebAPI credentials from secrets.yml
@@ -177,6 +178,7 @@ getBlockCredentials <- function(configBlock,
 #' @return Invisibly returns TRUE if valid. Stops with errors otherwise.
 #' @keywords internal
 validateSecretsYaml <- function(secretsFilePath, dbServerNames) {
+  secretsFilePath <- fs::path_expand(secretsFilePath)
   if (!file.exists(secretsFilePath)) {
     cli::cli_abort("Secrets file not found: {.path {secretsFilePath}}")
   }

@@ -4,12 +4,12 @@
 \alias{getServerCredentials}
 \title{Get credentials for a database server}
 \usage{
-getServerCredentials(dbServer, secretsFilePath = "secrets.yml")
+getServerCredentials(dbServer, secretsFilePath = "~/.picard/secrets.yml")
 }
 \arguments{
 \item{dbServer}{Character. The database server name to look up.}
 
-\item{secretsFilePath}{Character. Path to the secrets.yml file.}
+\item{secretsFilePath}{Character. Path to the secrets.yml file. Default to ~/.picard/secrets.yml}
 }
 \value{
 A named list with resolved credential values (\code{dbms}, \code{user},

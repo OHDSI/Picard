@@ -4,6 +4,11 @@
 \alias{ConceptSetManifest}
 \title{ConceptSetManifest R6 Class}
 \description{
+ConceptSetManifest R6 Class
+
+ConceptSetManifest R6 Class
+}
+\details{
 An R6 class that manages a collection of ConceptSetDef objects and maintains
 metadata in a SQLite database.
 
@@ -95,637 +100,605 @@ by finding the reverse mapping relationship. For each concept set:
 }
 \section{Methods}{
 \subsection{Public methods}{
-  \itemize{
-    \item \href{#method-ConceptSetManifest-initialize}{\code{ConceptSetManifest$new()}}
-    \item \href{#method-ConceptSetManifest-getManifest}{\code{ConceptSetManifest$getManifest()}}
-    \item \href{#method-ConceptSetManifest-tabulateManifest}{\code{ConceptSetManifest$tabulateManifest()}}
-    \item \href{#method-ConceptSetManifest-getDbPath}{\code{ConceptSetManifest$getDbPath()}}
-    \item \href{#method-ConceptSetManifest-getExecutionSettings}{\code{ConceptSetManifest$getExecutionSettings()}}
-    \item \href{#method-ConceptSetManifest-setExecutionSettings}{\code{ConceptSetManifest$setExecutionSettings()}}
-    \item \href{#method-ConceptSetManifest-getAtlasConnection}{\code{ConceptSetManifest$getAtlasConnection()}}
-    \item \href{#method-ConceptSetManifest-setAtlasConnection}{\code{ConceptSetManifest$setAtlasConnection()}}
-    \item \href{#method-ConceptSetManifest-addConceptSetFile}{\code{ConceptSetManifest$addConceptSetFile()}}
-    \item \href{#method-ConceptSetManifest-addAtlasConceptSet}{\code{ConceptSetManifest$addAtlasConceptSet()}}
-    \item \href{#method-ConceptSetManifest-addCaprConceptSet}{\code{ConceptSetManifest$addCaprConceptSet()}}
-    \item \href{#method-ConceptSetManifest-importAtlasConceptSets}{\code{ConceptSetManifest$importAtlasConceptSets()}}
-    \item \href{#method-ConceptSetManifest-queryConceptSetsByIds}{\code{ConceptSetManifest$queryConceptSetsByIds()}}
-    \item \href{#method-ConceptSetManifest-queryConceptSetsByTag}{\code{ConceptSetManifest$queryConceptSetsByTag()}}
-    \item \href{#method-ConceptSetManifest-queryConceptSetsByLabel}{\code{ConceptSetManifest$queryConceptSetsByLabel()}}
-    \item \href{#method-ConceptSetManifest-nConceptSets}{\code{ConceptSetManifest$nConceptSets()}}
-    \item \href{#method-ConceptSetManifest-getConceptSetById}{\code{ConceptSetManifest$getConceptSetById()}}
-    \item \href{#method-ConceptSetManifest-getConceptSetsByTag}{\code{ConceptSetManifest$getConceptSetsByTag()}}
-    \item \href{#method-ConceptSetManifest-getConceptSetsByLabel}{\code{ConceptSetManifest$getConceptSetsByLabel()}}
-    \item \href{#method-ConceptSetManifest-validateManifest}{\code{ConceptSetManifest$validateManifest()}}
-    \item \href{#method-ConceptSetManifest-getManifestStatus}{\code{ConceptSetManifest$getManifestStatus()}}
-    \item \href{#method-ConceptSetManifest-deleteConceptSet}{\code{ConceptSetManifest$deleteConceptSet()}}
-    \item \href{#method-ConceptSetManifest-permanentlyDeleteConceptSet}{\code{ConceptSetManifest$permanentlyDeleteConceptSet()}}
-    \item \href{#method-ConceptSetManifest-cleanupMissing}{\code{ConceptSetManifest$cleanupMissing()}}
-    \item \href{#method-ConceptSetManifest-syncManifest}{\code{ConceptSetManifest$syncManifest()}}
-    \item \href{#method-ConceptSetManifest-extractSourceCodes}{\code{ConceptSetManifest$extractSourceCodes()}}
-    \item \href{#method-ConceptSetManifest-extractIncludedCodes}{\code{ConceptSetManifest$extractIncludedCodes()}}
-    \item \href{#method-ConceptSetManifest-clone}{\code{ConceptSetManifest$clone()}}
-  }
+\itemize{
+\item \href{#method-ConceptSetManifest-new}{\code{ConceptSetManifest$new()}}
+\item \href{#method-ConceptSetManifest-getManifest}{\code{ConceptSetManifest$getManifest()}}
+\item \href{#method-ConceptSetManifest-tabulateManifest}{\code{ConceptSetManifest$tabulateManifest()}}
+\item \href{#method-ConceptSetManifest-getDbPath}{\code{ConceptSetManifest$getDbPath()}}
+\item \href{#method-ConceptSetManifest-getExecutionSettings}{\code{ConceptSetManifest$getExecutionSettings()}}
+\item \href{#method-ConceptSetManifest-setExecutionSettings}{\code{ConceptSetManifest$setExecutionSettings()}}
+\item \href{#method-ConceptSetManifest-getAtlasConnection}{\code{ConceptSetManifest$getAtlasConnection()}}
+\item \href{#method-ConceptSetManifest-setAtlasConnection}{\code{ConceptSetManifest$setAtlasConnection()}}
+\item \href{#method-ConceptSetManifest-addConceptSetFile}{\code{ConceptSetManifest$addConceptSetFile()}}
+\item \href{#method-ConceptSetManifest-addAtlasConceptSet}{\code{ConceptSetManifest$addAtlasConceptSet()}}
+\item \href{#method-ConceptSetManifest-addCaprConceptSet}{\code{ConceptSetManifest$addCaprConceptSet()}}
+\item \href{#method-ConceptSetManifest-importAtlasConceptSets}{\code{ConceptSetManifest$importAtlasConceptSets()}}
+\item \href{#method-ConceptSetManifest-queryConceptSetsByIds}{\code{ConceptSetManifest$queryConceptSetsByIds()}}
+\item \href{#method-ConceptSetManifest-queryConceptSetsByTag}{\code{ConceptSetManifest$queryConceptSetsByTag()}}
+\item \href{#method-ConceptSetManifest-queryConceptSetsByLabel}{\code{ConceptSetManifest$queryConceptSetsByLabel()}}
+\item \href{#method-ConceptSetManifest-nConceptSets}{\code{ConceptSetManifest$nConceptSets()}}
+\item \href{#method-ConceptSetManifest-getConceptSetById}{\code{ConceptSetManifest$getConceptSetById()}}
+\item \href{#method-ConceptSetManifest-getConceptSetsByTag}{\code{ConceptSetManifest$getConceptSetsByTag()}}
+\item \href{#method-ConceptSetManifest-getConceptSetsByLabel}{\code{ConceptSetManifest$getConceptSetsByLabel()}}
+\item \href{#method-ConceptSetManifest-validateManifest}{\code{ConceptSetManifest$validateManifest()}}
+\item \href{#method-ConceptSetManifest-getManifestStatus}{\code{ConceptSetManifest$getManifestStatus()}}
+\item \href{#method-ConceptSetManifest-deleteConceptSet}{\code{ConceptSetManifest$deleteConceptSet()}}
+\item \href{#method-ConceptSetManifest-permanentlyDeleteConceptSet}{\code{ConceptSetManifest$permanentlyDeleteConceptSet()}}
+\item \href{#method-ConceptSetManifest-cleanupMissing}{\code{ConceptSetManifest$cleanupMissing()}}
+\item \href{#method-ConceptSetManifest-syncManifest}{\code{ConceptSetManifest$syncManifest()}}
+\item \href{#method-ConceptSetManifest-extractSourceCodes}{\code{ConceptSetManifest$extractSourceCodes()}}
+\item \href{#method-ConceptSetManifest-extractIncludedCodes}{\code{ConceptSetManifest$extractIncludedCodes()}}
+\item \href{#method-ConceptSetManifest-clone}{\code{ConceptSetManifest$clone()}}
+}
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-ConceptSetManifest-initialize"></a>}}
-\if{latex}{\out{\hypertarget{method-ConceptSetManifest-initialize}{}}}
-\subsection{\code{ConceptSetManifest$new()}}{
-  Initialize a new ConceptSetManifest
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ConceptSetManifest$new(
+\if{html}{\out{<a id="method-ConceptSetManifest-new"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-new}{}}}
+\subsection{Method \code{new()}}{
+Initialize a new ConceptSetManifest
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$new(
   dbPath = "inputs/conceptSets/conceptSetManifest.sqlite",
   executionSettings = NULL
-)}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Arguments}{
-    \if{html}{\out{<div class="arguments">}}
-    \describe{
-      \item{\code{dbPath}}{Character. Path to the SQLite database. Defaults to
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{dbPath}}{Character. Path to the SQLite database. Defaults to
 "inputs/conceptSets/conceptSetManifest.sqlite". The directory is created
 automatically if it does not exist.}
-      \item{\code{executionSettings}}{ExecutionSettings object. (Optional) Execution settings
+
+\item{\code{executionSettings}}{ExecutionSettings object. (Optional) Execution settings
 for accessing the vocabulary database. Defaults to NULL. Only required for
 operations like extractSourceCodes().
 Get the manifest as a list of ConceptSetDef objects}
-    }
-    \if{html}{\out{</div>}}
-  }
 }
-
+\if{html}{\out{</div>}}
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ConceptSetManifest-getManifest"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-getManifest}{}}}
-\subsection{\code{ConceptSetManifest$getManifest()}}{
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ConceptSetManifest$getManifest()}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    List. A list of ConceptSetDef objects in the manifest.
-Tabulate the manifest as a data frame
-  }
+\subsection{Method \code{getManifest()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$getManifest()}\if{html}{\out{</div>}}
 }
 
+\subsection{Returns}{
+List. A list of ConceptSetDef objects in the manifest.
+Tabulate the manifest as a data frame
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ConceptSetManifest-tabulateManifest"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-tabulateManifest}{}}}
-\subsection{\code{ConceptSetManifest$tabulateManifest()}}{
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ConceptSetManifest$tabulateManifest()}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    Data frame. Manifest data with columns: id, label, tags, filePath, hash, timestamp
-Get the manifest path
-  }
+\subsection{Method \code{tabulateManifest()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$tabulateManifest()}\if{html}{\out{</div>}}
 }
 
+\subsection{Returns}{
+Data frame. Manifest data with columns: id, label, tags, filePath, hash, timestamp
+Get the manifest path
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ConceptSetManifest-getDbPath"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-getDbPath}{}}}
-\subsection{\code{ConceptSetManifest$getDbPath()}}{
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ConceptSetManifest$getDbPath()}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    Character. The path to the SQLite database.
-Get the execution settings
-  }
+\subsection{Method \code{getDbPath()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$getDbPath()}\if{html}{\out{</div>}}
 }
 
+\subsection{Returns}{
+Character. The path to the SQLite database.
+Get the execution settings
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ConceptSetManifest-getExecutionSettings"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-getExecutionSettings}{}}}
-\subsection{\code{ConceptSetManifest$getExecutionSettings()}}{
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ConceptSetManifest$getExecutionSettings()}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    Object. The execution settings object for vocabulary access, or NULL if not set.
-Set or update execution settings
-  }
+\subsection{Method \code{getExecutionSettings()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$getExecutionSettings()}\if{html}{\out{</div>}}
 }
 
+\subsection{Returns}{
+Object. The execution settings object for vocabulary access, or NULL if not set.
+Set or update execution settings
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ConceptSetManifest-setExecutionSettings"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-setExecutionSettings}{}}}
-\subsection{\code{ConceptSetManifest$setExecutionSettings()}}{
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ConceptSetManifest$setExecutionSettings(executionSettings)}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Arguments}{
-    \if{html}{\out{<div class="arguments">}}
-    \describe{
-      \item{\code{executionSettings}}{ExecutionSettings object for database access.}
-    }
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    Invisibly returns self for method chaining.
-Get the stored ATLAS connection
-  }
+\subsection{Method \code{setExecutionSettings()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$setExecutionSettings(executionSettings)}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{executionSettings}}{ExecutionSettings object for database access.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisibly returns self for method chaining.
+Get the stored ATLAS connection
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ConceptSetManifest-getAtlasConnection"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-getAtlasConnection}{}}}
-\subsection{\code{ConceptSetManifest$getAtlasConnection()}}{
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ConceptSetManifest$getAtlasConnection()}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    The ATLAS connection object, or NULL if not set.
+\subsection{Method \code{getAtlasConnection()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$getAtlasConnection()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+The ATLAS connection object, or NULL if not set.
 Set an ATLAS connection for use by add/import methods
 
 Stores a connection so it does not need to be passed to
 \code{addAtlasConceptSet()} or \code{importAtlasConceptSets()} on every call.
-  }
 }
-
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ConceptSetManifest-setAtlasConnection"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-setAtlasConnection}{}}}
-\subsection{\code{ConceptSetManifest$setAtlasConnection()}}{
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ConceptSetManifest$setAtlasConnection(atlasConnection)}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Arguments}{
-    \if{html}{\out{<div class="arguments">}}
-    \describe{
-      \item{\code{atlasConnection}}{An ATLAS connection object (from \code{getAtlasConnection()}).}
-    }
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    Invisible self for method chaining.
-  }
+\subsection{Method \code{setAtlasConnection()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$setAtlasConnection(atlasConnection)}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{atlasConnection}}{An ATLAS connection object (from \code{getAtlasConnection()}).}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible self for method chaining.
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ConceptSetManifest-addConceptSetFile"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-addConceptSetFile}{}}}
-\subsection{\code{ConceptSetManifest$addConceptSetFile()}}{
-  Register a local CIRCE JSON file in the manifest
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ConceptSetManifest$addConceptSetFile(
+\subsection{Method \code{addConceptSetFile()}}{
+Register a local CIRCE JSON file in the manifest
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$addConceptSetFile(
   filePath,
   label,
   domain = "init",
   tags = list()
-)}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Arguments}{
-    \if{html}{\out{<div class="arguments">}}
-    \describe{
-      \item{\code{filePath}}{Character. Absolute or relative path to a valid CIRCE JSON file.}
-      \item{\code{label}}{Character. Display name for the concept set.}
-      \item{\code{domain}}{Character. OMOP CDM domain. One of \code{"drug_exposure"},
-\code{"condition_occurrence"}, \code{"measurement"}, \code{"procedure"}, \code{"observation"},
-\code{"device_exposure"}, \code{"visit_occurrence"}, \code{"init"}. Defaults to \code{"init"}.}
-      \item{\code{tags}}{Named list. Optional extra metadata tags. Defaults to \code{list()}.}
-    }
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    Invisible integer. The assigned concept set ID.
-  }
+)}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{filePath}}{Character. Absolute or relative path to a valid CIRCE JSON file.}
+
+\item{\code{label}}{Character. Display name for the concept set.}
+
+\item{\code{domain}}{Character. OMOP CDM domain. One of \code{"drug_exposure"},
+\code{"condition_occurrence"}, \code{"measurement"}, \code{"procedure"}, \code{"observation"},
+\code{"device_exposure"}, \code{"visit_occurrence"}, \code{"init"}. Defaults to \code{"init"}.}
+
+\item{\code{tags}}{Named list. Optional extra metadata tags. Defaults to \code{list()}.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible integer. The assigned concept set ID.
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ConceptSetManifest-addAtlasConceptSet"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-addAtlasConceptSet}{}}}
-\subsection{\code{ConceptSetManifest$addAtlasConceptSet()}}{
-  Fetch a single concept set from ATLAS and register it in the manifest
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ConceptSetManifest$addAtlasConceptSet(
+\subsection{Method \code{addAtlasConceptSet()}}{
+Fetch a single concept set from ATLAS and register it in the manifest
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$addAtlasConceptSet(
   atlasId,
   label,
   domain = "init",
   tags = list(),
   atlasConnection = NULL
-)}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Arguments}{
-    \if{html}{\out{<div class="arguments">}}
-    \describe{
-      \item{\code{atlasId}}{Integer. The ATLAS concept set definition ID.}
-      \item{\code{label}}{Character. Display name for the concept set.}
-      \item{\code{domain}}{Character. OMOP CDM domain. Defaults to \code{"init"}.}
-      \item{\code{tags}}{Named list. Optional extra metadata tags. Defaults to \code{list()}.}
-      \item{\code{atlasConnection}}{An ATLAS connection object with a
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{atlasId}}{Integer. The ATLAS concept set definition ID.}
+
+\item{\code{label}}{Character. Display name for the concept set.}
+
+\item{\code{domain}}{Character. OMOP CDM domain. Defaults to \code{"init"}.}
+
+\item{\code{tags}}{Named list. Optional extra metadata tags. Defaults to \code{list()}.}
+
+\item{\code{atlasConnection}}{An ATLAS connection object with a
 \code{getConceptSetDefinition(conceptSetId)} method that returns a list with
 \code{expression} (CIRCE JSON string) and \code{saveName} elements.
 If \code{NULL}, falls back to the connection stored via \verb{$setAtlasConnection()}.}
-    }
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    Invisible integer. The assigned concept set ID.
-  }
 }
-
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible integer. The assigned concept set ID.
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ConceptSetManifest-addCaprConceptSet"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-addCaprConceptSet}{}}}
-\subsection{\code{ConceptSetManifest$addCaprConceptSet()}}{
-  Export a Capr ConceptSet to JSON and register it in the manifest
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ConceptSetManifest$addCaprConceptSet(
+\subsection{Method \code{addCaprConceptSet()}}{
+Export a Capr ConceptSet to JSON and register it in the manifest
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$addCaprConceptSet(
   caprConceptSet,
   label,
   domain = "init",
   tags = list()
-)}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Arguments}{
-    \if{html}{\out{<div class="arguments">}}
-    \describe{
-      \item{\code{caprConceptSet}}{A Capr \code{ConceptSet} object.}
-      \item{\code{label}}{Character. Display name for the concept set.}
-      \item{\code{domain}}{Character. OMOP CDM domain. Defaults to \code{"init"}.}
-      \item{\code{tags}}{Named list. Optional extra metadata tags. Defaults to \code{list()}.}
-    }
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    Invisible integer. The assigned concept set ID.
-  }
+)}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{caprConceptSet}}{A Capr \code{ConceptSet} object.}
+
+\item{\code{label}}{Character. Display name for the concept set.}
+
+\item{\code{domain}}{Character. OMOP CDM domain. Defaults to \code{"init"}.}
+
+\item{\code{tags}}{Named list. Optional extra metadata tags. Defaults to \code{list()}.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible integer. The assigned concept set ID.
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ConceptSetManifest-importAtlasConceptSets"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-importAtlasConceptSets}{}}}
-\subsection{\code{ConceptSetManifest$importAtlasConceptSets()}}{
-  Batch-import concept sets from ATLAS via a conceptSetsLoad CSV
+\subsection{Method \code{importAtlasConceptSets()}}{
+Batch-import concept sets from ATLAS via a conceptSetsLoad CSV
 
 Reads a CSV with columns \code{atlasId}, \code{label}, \code{domain} (required) plus any
 additional columns treated as tag key-value pairs. Calls
 \code{addAtlasConceptSet()} for each row inside a \code{tryCatch} so a single failure
 does not abort the entire batch.
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ConceptSetManifest$importAtlasConceptSets(
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$importAtlasConceptSets(
   atlasConnection = NULL,
   conceptSetsLoadPath = here::here("inputs/conceptSets/conceptSetsLoad.csv")
-)}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Arguments}{
-    \if{html}{\out{<div class="arguments">}}
-    \describe{
-      \item{\code{atlasConnection}}{An ATLAS connection object with a
-\code{getConceptSetDefinition(conceptSetId)} method.
-If \code{NULL}, falls back to the connection stored via \verb{$setAtlasConnection()}.}
-      \item{\code{conceptSetsLoadPath}}{Character. Path to the CSV file. Defaults to
-\code{here::here("inputs/conceptSets/conceptSetsLoad.csv")}.}
-    }
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    Invisible tibble with columns \code{id}, \code{label}, \code{status}.
-Query concept sets by IDs
-  }
+)}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{atlasConnection}}{An ATLAS connection object with a
+\code{getConceptSetDefinition(conceptSetId)} method.
+If \code{NULL}, falls back to the connection stored via \verb{$setAtlasConnection()}.}
+
+\item{\code{conceptSetsLoadPath}}{Character. Path to the CSV file. Defaults to
+\code{here::here("inputs/conceptSets/conceptSetsLoad.csv")}.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible tibble with columns \code{id}, \code{label}, \code{status}.
+Query concept sets by IDs
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ConceptSetManifest-queryConceptSetsByIds"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-queryConceptSetsByIds}{}}}
-\subsection{\code{ConceptSetManifest$queryConceptSetsByIds()}}{
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ConceptSetManifest$queryConceptSetsByIds(ids)}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Arguments}{
-    \if{html}{\out{<div class="arguments">}}
-    \describe{
-      \item{\code{ids}}{Integer vector. One or more concept set IDs.}
-    }
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    Data frame. A subset of the manifest with columns id, label, tags, filePath, hash, timestamp for matching concept sets, or NULL if none found.
-Query concept sets by tag
-  }
+\subsection{Method \code{queryConceptSetsByIds()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsByIds(ids)}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{ids}}{Integer vector. One or more concept set IDs.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Data frame. A subset of the manifest with columns id, label, tags, filePath, hash, timestamp for matching concept sets, or NULL if none found.
+Query concept sets by tag
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ConceptSetManifest-queryConceptSetsByTag"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-queryConceptSetsByTag}{}}}
-\subsection{\code{ConceptSetManifest$queryConceptSetsByTag()}}{
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ConceptSetManifest$queryConceptSetsByTag(tagStrings, match = c("any", "all"))}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Arguments}{
-    \if{html}{\out{<div class="arguments">}}
-    \describe{
-      \item{\code{tagStrings}}{Character vector. One or more tags in the format "name: value"
-(e.g., "category: primary"). When multiple tags are supplied, the \code{match}
-argument controls whether a concept set must satisfy any or all of them.}
-      \item{\code{match}}{Character. "any" (default) returns concept sets matching at least one tag;
-"all" returns only concept sets matching every tag.}
-    }
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    Data frame. A subset of the manifest with columns id, label, tags, filePath, hash, timestamp for matching concept sets, or NULL if none found.
-Query concept sets by label
-  }
+\subsection{Method \code{queryConceptSetsByTag()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsByTag(tagStrings, match = c("any", "all"))}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{tagStrings}}{Character vector. One or more tags in the format "name: value"
+(e.g., "category: primary"). When multiple tags are supplied, the \code{match}
+argument controls whether a concept set must satisfy any or all of them.}
+
+\item{\code{match}}{Character. "any" (default) returns concept sets matching at least one tag;
+"all" returns only concept sets matching every tag.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Data frame. A subset of the manifest with columns id, label, tags, filePath, hash, timestamp for matching concept sets, or NULL if none found.
+Query concept sets by label
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ConceptSetManifest-queryConceptSetsByLabel"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-queryConceptSetsByLabel}{}}}
-\subsection{\code{ConceptSetManifest$queryConceptSetsByLabel()}}{
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ConceptSetManifest$queryConceptSetsByLabel(
+\subsection{Method \code{queryConceptSetsByLabel()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsByLabel(
   labels,
   matchType = c("exact", "pattern")
-)}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Arguments}{
-    \if{html}{\out{<div class="arguments">}}
-    \describe{
-      \item{\code{labels}}{Character vector. One or more labels to search for.
-A concept set is included when it matches at least one of the supplied labels (OR logic).}
-      \item{\code{matchType}}{Character. Either "exact" for exact match or "pattern" for pattern matching.
-Defaults to "exact".}
-    }
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    Data frame. A subset of the manifest with columns id, label, tags, filePath, hash, timestamp for matching concept sets, or NULL if none found.
-  }
+)}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{labels}}{Character vector. One or more labels to search for.
+A concept set is included when it matches at least one of the supplied labels (OR logic).}
+
+\item{\code{matchType}}{Character. Either "exact" for exact match or "pattern" for pattern matching.
+Defaults to "exact".}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Data frame. A subset of the manifest with columns id, label, tags, filePath, hash, timestamp for matching concept sets, or NULL if none found.
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ConceptSetManifest-nConceptSets"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-nConceptSets}{}}}
-\subsection{\code{ConceptSetManifest$nConceptSets()}}{
-  Get number of concept sets in manifest
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ConceptSetManifest$nConceptSets()}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    Integer. The number of concept sets.
-Get a specific concept set by ID
-  }
+\subsection{Method \code{nConceptSets()}}{
+Get number of concept sets in manifest
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$nConceptSets()}\if{html}{\out{</div>}}
 }
 
+\subsection{Returns}{
+Integer. The number of concept sets.
+Get a specific concept set by ID
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ConceptSetManifest-getConceptSetById"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-getConceptSetById}{}}}
-\subsection{\code{ConceptSetManifest$getConceptSetById()}}{
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ConceptSetManifest$getConceptSetById(id)}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Arguments}{
-    \if{html}{\out{<div class="arguments">}}
-    \describe{
-      \item{\code{id}}{Integer. The concept set ID.}
-    }
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    ConceptSetDef. The ConceptSetDef object with matching ID, or NULL if not found.
-Get concept sets by tag
-  }
+\subsection{Method \code{getConceptSetById()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$getConceptSetById(id)}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{id}}{Integer. The concept set ID.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+ConceptSetDef. The ConceptSetDef object with matching ID, or NULL if not found.
+Get concept sets by tag
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ConceptSetManifest-getConceptSetsByTag"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-getConceptSetsByTag}{}}}
-\subsection{\code{ConceptSetManifest$getConceptSetsByTag()}}{
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ConceptSetManifest$getConceptSetsByTag(tagStrings, match = c("any", "all"))}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Arguments}{
-    \if{html}{\out{<div class="arguments">}}
-    \describe{
-      \item{\code{tagStrings}}{Character vector. One or more tags in the format "name: value"
-(e.g., "category: primary"). When multiple tags are supplied, the \code{match}
-argument controls whether a concept set must satisfy any or all of them.}
-      \item{\code{match}}{Character. "any" (default) returns concept sets matching at least one tag;
-"all" returns only concept sets matching every tag.}
-    }
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    List. A list of ConceptSetDef objects with matching tags, or NULL if none found.
-Get concept sets by label
-  }
+\subsection{Method \code{getConceptSetsByTag()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$getConceptSetsByTag(tagStrings, match = c("any", "all"))}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{tagStrings}}{Character vector. One or more tags in the format "name: value"
+(e.g., "category: primary"). When multiple tags are supplied, the \code{match}
+argument controls whether a concept set must satisfy any or all of them.}
+
+\item{\code{match}}{Character. "any" (default) returns concept sets matching at least one tag;
+"all" returns only concept sets matching every tag.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+List. A list of ConceptSetDef objects with matching tags, or NULL if none found.
+Get concept sets by label
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ConceptSetManifest-getConceptSetsByLabel"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-getConceptSetsByLabel}{}}}
-\subsection{\code{ConceptSetManifest$getConceptSetsByLabel()}}{
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ConceptSetManifest$getConceptSetsByLabel(
+\subsection{Method \code{getConceptSetsByLabel()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$getConceptSetsByLabel(
   labels,
   matchType = c("exact", "pattern")
-)}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Arguments}{
-    \if{html}{\out{<div class="arguments">}}
-    \describe{
-      \item{\code{labels}}{Character vector. One or more labels to search for.
-A concept set is included when it matches at least one of the supplied labels (OR logic).}
-      \item{\code{matchType}}{Character. Either "exact" for exact match or "pattern" for pattern matching.
-Defaults to "exact".}
-    }
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    List. A list of ConceptSetDef objects with matching labels, or NULL if none found.
-  }
+)}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{labels}}{Character vector. One or more labels to search for.
+A concept set is included when it matches at least one of the supplied labels (OR logic).}
+
+\item{\code{matchType}}{Character. Either "exact" for exact match or "pattern" for pattern matching.
+Defaults to "exact".}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+List. A list of ConceptSetDef objects with matching labels, or NULL if none found.
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ConceptSetManifest-validateManifest"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-validateManifest}{}}}
-\subsection{\code{ConceptSetManifest$validateManifest()}}{
-  Validate manifest and return status of all concept sets
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ConceptSetManifest$validateManifest()}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    A tibble with columns: id, label, status (active/missing/deleted), deleted_at, file_exists
-  }
+\subsection{Method \code{validateManifest()}}{
+Validate manifest and return status of all concept sets
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$validateManifest()}\if{html}{\out{</div>}}
 }
 
+\subsection{Returns}{
+A tibble with columns: id, label, status (active/missing/deleted), deleted_at, file_exists
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ConceptSetManifest-getManifestStatus"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-getManifestStatus}{}}}
-\subsection{\code{ConceptSetManifest$getManifestStatus()}}{
-  Get summary status of manifest
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ConceptSetManifest$getManifestStatus()}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    List with elements: active_count, missing_count, deleted_count, next_available_id
-  }
+\subsection{Method \code{getManifestStatus()}}{
+Get summary status of manifest
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$getManifestStatus()}\if{html}{\out{</div>}}
 }
 
+\subsection{Returns}{
+List with elements: active_count, missing_count, deleted_count, next_available_id
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ConceptSetManifest-deleteConceptSet"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-deleteConceptSet}{}}}
-\subsection{\code{ConceptSetManifest$deleteConceptSet()}}{
-  Soft delete a concept set (mark as deleted, preserve record)
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ConceptSetManifest$deleteConceptSet(id, reason = NULL)}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Arguments}{
-    \if{html}{\out{<div class="arguments">}}
-    \describe{
-      \item{\code{id}}{Integer. The concept set ID to delete.}
-      \item{\code{reason}}{Character. Optional reason for deletion.}
-    }
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    Invisibly returns TRUE if successful, FALSE otherwise.
-  }
+\subsection{Method \code{deleteConceptSet()}}{
+Soft delete a concept set (mark as deleted, preserve record)
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$deleteConceptSet(id, reason = NULL)}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{id}}{Integer. The concept set ID to delete.}
+
+\item{\code{reason}}{Character. Optional reason for deletion.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisibly returns TRUE if successful, FALSE otherwise.
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ConceptSetManifest-permanentlyDeleteConceptSet"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-permanentlyDeleteConceptSet}{}}}
-\subsection{\code{ConceptSetManifest$permanentlyDeleteConceptSet()}}{
-  Permanently delete a concept set (removes the record from database, irreversible)
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ConceptSetManifest$permanentlyDeleteConceptSet(id, confirm = FALSE)}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Arguments}{
-    \if{html}{\out{<div class="arguments">}}
-    \describe{
-      \item{\code{id}}{Integer. The concept set ID to permanently remove.}
-      \item{\code{confirm}}{Logical. Must be TRUE to proceed; prevents accidental deletion. Defaults to FALSE.}
-    }
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    Invisibly returns TRUE if successful, FALSE otherwise.
-  }
+\subsection{Method \code{permanentlyDeleteConceptSet()}}{
+Permanently delete a concept set (removes the record from database, irreversible)
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$permanentlyDeleteConceptSet(id, confirm = FALSE)}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{id}}{Integer. The concept set ID to permanently remove.}
+
+\item{\code{confirm}}{Logical. Must be TRUE to proceed; prevents accidental deletion. Defaults to FALSE.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisibly returns TRUE if successful, FALSE otherwise.
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ConceptSetManifest-cleanupMissing"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-cleanupMissing}{}}}
-\subsection{\code{ConceptSetManifest$cleanupMissing()}}{
-  Clean up missing concept sets from manifest
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ConceptSetManifest$cleanupMissing(keep_trace = TRUE)}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Arguments}{
-    \if{html}{\out{<div class="arguments">}}
-    \describe{
-      \item{\code{keep_trace}}{Logical. If TRUE, marks missing as deleted with timestamp (soft delete).
-If FALSE, permanently removes from database (hard delete). Defaults to TRUE.}
-    }
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    Invisibly returns NULL. Displays summary of cleanup actions.
-Sync the manifest against concept set files on disk
-  }
+\subsection{Method \code{cleanupMissing()}}{
+Clean up missing concept sets from manifest
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$cleanupMissing(keep_trace = TRUE)}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{keep_trace}}{Logical. If TRUE, marks missing as deleted with timestamp (soft delete).
+If FALSE, permanently removes from database (hard delete). Defaults to TRUE.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisibly returns NULL. Displays summary of cleanup actions.
+Sync the manifest against concept set files on disk
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ConceptSetManifest-syncManifest"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-syncManifest}{}}}
-\subsection{\code{ConceptSetManifest$syncManifest()}}{
-  Scans the \code{json/} subdirectory of the concept sets folder, reconciles it against
+\subsection{Method \code{syncManifest()}}{
+Scans the \code{json/} subdirectory of the concept sets folder, reconciles it against
 the SQLite manifest, and updates both the database and the in-memory list:
 \itemize{
 \item New files found on disk are added (new ConceptSetDef + manifest entry).
 \item Active manifest records whose file no longer exists are soft-deleted.
 \item Existing files whose JSON hash has changed are updated in the manifest.
 }
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ConceptSetManifest$syncManifest()}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    Data frame with columns: id, label, action
-(\code{"added"}, \code{"hash_updated"}, \code{"missing_flagged"}, or \code{"unchanged"}).
-Extract Source Codes for Concept Sets
-  }
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$syncManifest()}\if{html}{\out{</div>}}
 }
 
+\subsection{Returns}{
+Data frame with columns: id, label, action
+(\code{"added"}, \code{"hash_updated"}, \code{"missing_flagged"}, or \code{"unchanged"}).
+Extract Source Codes for Concept Sets
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ConceptSetManifest-extractSourceCodes"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-extractSourceCodes}{}}}
-\subsection{\code{ConceptSetManifest$extractSourceCodes()}}{
-  Finds source codes from specified vocabularies that map to each concept set's
+\subsection{Method \code{extractSourceCodes()}}{
+Finds source codes from specified vocabularies that map to each concept set's
 standard concepts. Results are exported to a single xlsx file with one sheet
 per concept set, saved in the inputs/conceptSets folder. The function provides
 interactive vocabulary suggestions based on detected concept set domains.
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ConceptSetManifest$extractSourceCodes(
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$extractSourceCodes(
   sourceVocabs = c("ICD10CM"),
   outputFolder = here::here("inputs/conceptSets")
-)}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Arguments}{
-    \if{html}{\out{<div class="arguments">}}
-    \describe{
-      \item{\code{sourceVocabs}}{Character vector. Source vocabulary IDs to search for.
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{sourceVocabs}}{Character vector. Source vocabulary IDs to search for.
 Valid options: "ICD9CM", "ICD10CM", "HCPCS", "CPT4", "LOINC", "NDC".
 Defaults to c("ICD10CM"). The function will suggest appropriate vocabularies
 based on the domains of your concept sets and prompt you to use them.}
-      \item{\code{outputFolder}}{Character. Path where the xlsx file will be saved.
+
+\item{\code{outputFolder}}{Character. Path where the xlsx file will be saved.
 Defaults to "inputs/conceptSets".}
-    }
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    Invisibly returns NULL. Saves xlsx file to outputFolder and prints
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisibly returns NULL. Saves xlsx file to outputFolder and prints
 status messages via cli package. Output file is ready to open in Excel or
 other spreadsheet software.
 
@@ -734,50 +707,45 @@ Extract Included Standard Concepts for Concept Sets
 Finds standard concepts that are included in (map TO) each concept set's included concepts.
 Results are exported to a single xlsx file with one sheet per concept set,
 saved in the inputs/conceptSets folder.
-  }
 }
-
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ConceptSetManifest-extractIncludedCodes"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-extractIncludedCodes}{}}}
-\subsection{\code{ConceptSetManifest$extractIncludedCodes()}}{
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ConceptSetManifest$extractIncludedCodes(
+\subsection{Method \code{extractIncludedCodes()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$extractIncludedCodes(
   outputFolder = here::here("inputs/conceptSets")
-)}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Arguments}{
-    \if{html}{\out{<div class="arguments">}}
-    \describe{
-      \item{\code{outputFolder}}{Character. Path where the xlsx file will be saved.
-Defaults to "inputs/conceptSets".}
-    }
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Returns}{
-    Invisibly returns NULL. Saves xlsx file to outputFolder and prints status messages.
-  }
+)}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{outputFolder}}{Character. Path where the xlsx file will be saved.
+Defaults to "inputs/conceptSets".}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisibly returns NULL. Saves xlsx file to outputFolder and prints status messages.
+}
+}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ConceptSetManifest-clone"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-clone}{}}}
-\subsection{\code{ConceptSetManifest$clone()}}{
-  The objects of this class are cloneable with this method.
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{ConceptSetManifest$clone(deep = FALSE)}
-    \if{html}{\out{</div>}}
-  }
-  \subsection{Arguments}{
-    \if{html}{\out{<div class="arguments">}}
-    \describe{
-      \item{\code{deep}}{Whether to make a deep clone.}
-    }
-    \if{html}{\out{</div>}}
-  }
+\subsection{Method \code{clone()}}{
+The objects of this class are cloneable with this method.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$clone(deep = FALSE)}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{deep}}{Whether to make a deep clone.}
+}
+\if{html}{\out{</div>}}
+}
+}
 }
