@@ -34,6 +34,7 @@ ConceptSetManifest <- R6::R6Class(
         "CREATE TABLE IF NOT EXISTS concept_set_manifest (
           id INTEGER PRIMARY KEY,
           label TEXT NOT NULL,
+          category TEXT NOT NULL,
           tags TEXT,
           filePath TEXT NOT NULL,
           hash TEXT NOT NULL,
@@ -54,7 +55,7 @@ ConceptSetManifest <- R6::R6Class(
 
       db_records <- DBI::dbGetQuery(
         conn,
-        "SELECT id, label, tags, filePath FROM concept_set_manifest WHERE status = 'active' ORDER BY id"
+        "SELECT id, label, category, tags, filePath FROM concept_set_manifest WHERE status = 'active' ORDER BY id"
       )
 
       private$.manifest <- list()
@@ -73,7 +74,7 @@ ConceptSetManifest <- R6::R6Class(
         }
 
         tryCatch({
-          cs_def <- ConceptSetDef$new(label = rec$label, filePath = file_path)
+          cs_def <- ConceptSetDef$new(label = rec$label, filePath = file_path, category = rec$category)
           cs_def$setId(as.integer(rec$id))
 
           if (!is.na(rec$tags) && nchar(rec$tags) > 0) {
@@ -90,7 +91,7 @@ ConceptSetManifest <- R6::R6Class(
     },
 
     # Insert a new concept set record into SQLite and refresh the in-memory manifest
-    insert_concept_set = function(label, tags, file_path) {
+    insert_concept_set = function(label, category, tags, file_path) {
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
       on.exit(DBI::dbDisconnect(conn))
 
@@ -105,21 +106,20 @@ ConceptSetManifest <- R6::R6Class(
         rlang::hash(label)
       }
 
-      # Serialize tags to "name: value | ..." string
-      tags_str <- if (length(tags) > 0) {
-        parts <- mapply(function(n, v) paste0(n, ": ", v), names(tags), tags, SIMPLIFY = TRUE)
-        paste(parts, collapse = " | ")
+      # Serialize tags to JSON
+      tags_json <- if (length(tags) > 0) {
+        jsonlite::toJSON(tags, auto_unbox = TRUE)
       } else {
-        ""
+        NA_character_
       }
 
       rel_path <- fs::path_rel(file_path)
 
       DBI::dbExecute(
         conn,
-        "INSERT INTO concept_set_manifest (id, label, tags, filePath, hash, timestamp, status)
-         VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'active')",
-        list(next_id, label, tags_str, rel_path, hash)
+        "INSERT INTO concept_set_manifest (id, label, category, tags, filePath, hash, timestamp, status)
+         VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'active')",
+        list(next_id, label, category, tags_json, rel_path, hash)
       )
 
       private$load_manifest_from_db()
@@ -167,6 +167,15 @@ ConceptSetManifest <- R6::R6Class(
           cli::cli_alert_success("Schema migration: Added 'deleted_at' column")
         }, error = function(e) {
           cli::cli_alert_warning("Schema migration for deleted_at column failed: {e$message}")
+        })
+      }
+      
+      if (!("category" %in% col_names)) {
+        tryCatch({
+          DBI::dbExecute(conn, "ALTER TABLE concept_set_manifest ADD COLUMN category TEXT NOT NULL DEFAULT 'init'")
+          cli::cli_alert_success("Schema migration: Added 'category' column")
+        }, error = function(e) {
+          cli::cli_alert_warning("Schema migration for category column failed: {e$message}")
         })
       }
     },
@@ -252,12 +261,12 @@ ConceptSetManifest <- R6::R6Class(
 
     #' Tabulate the manifest as a data frame
     #'
-    #' @return Data frame. Manifest data with columns: id, label, tags, filePath, hash, timestamp
+    #' @return Data frame. Manifest data with columns: id, label, category, tags, filePath, hash, timestamp
     tabulateManifest = function() {
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
       on.exit(DBI::dbDisconnect(conn))
       man <- DBI::dbGetQuery(
-          conn, "SELECT id, label, tags, filePath, hash, timestamp FROM concept_set_manifest ORDER BY id"
+          conn, "SELECT id, label, category, tags, filePath, hash, timestamp FROM concept_set_manifest ORDER BY id"
       )
       return(man)
     },
@@ -312,18 +321,18 @@ ConceptSetManifest <- R6::R6Class(
     #'
     #' @param filePath Character. Absolute or relative path to a valid CIRCE JSON file.
     #' @param label Character. Display name for the concept set.
-    #' @param domain Character. OMOP CDM domain. One of `"drug_exposure"`,
+    #' @param category Character. Category for the concept set. One of `"drug_exposure"`,
     #'   `"condition_occurrence"`, `"measurement"`, `"procedure"`, `"observation"`,
     #'   `"device_exposure"`, `"visit_occurrence"`, `"init"`. Defaults to `"init"`.
     #' @param tags Named list. Optional extra metadata tags. Defaults to `list()`.
     #'
     #' @return Invisible integer. The assigned concept set ID.
-    addConceptSetFile = function(filePath, label, domain = "init", tags = list()) {
+    addConceptSetFile = function(filePath, label, category = "init", tags = list()) {
       checkmate::assert_file_exists(filePath)
       checkmate::assert_string(label, min.chars = 1)
-      valid_domains <- c("drug_exposure", "condition_occurrence", "measurement", "procedure",
+      valid_categories <- c("drug_exposure", "condition_occurrence", "measurement", "procedure",
                          "observation", "device_exposure", "visit_occurrence", "init")
-      checkmate::assert_choice(domain, valid_domains)
+      checkmate::assert_choice(category, valid_categories)
       checkmate::assert_list(tags, names = "named")
 
       ext <- tolower(tools::file_ext(filePath))
@@ -332,12 +341,10 @@ ConceptSetManifest <- R6::R6Class(
         cli::cli_abort("filePath must be a .json file, got: .{ext}")
       }
 
-      # Merge domain into tags
-      all_tags <- c(tags, list(domain = domain))
-
       cs_id <- private$insert_concept_set(
         label = label,
-        tags = all_tags,
+        category = category,
+        tags = tags,
         file_path = filePath
       )
 
@@ -349,7 +356,7 @@ ConceptSetManifest <- R6::R6Class(
     #'
     #' @param atlasId Integer. The ATLAS concept set definition ID.
     #' @param label Character. Display name for the concept set.
-    #' @param domain Character. OMOP CDM domain. Defaults to `"init"`.
+    #' @param category Character. Category for the concept set. Defaults to `"init"`.
     #' @param tags Named list. Optional extra metadata tags. Defaults to `list()`.
     #' @param atlasConnection An ATLAS connection object with a
     #'   `getConceptSetDefinition(conceptSetId)` method that returns a list with
@@ -357,7 +364,7 @@ ConceptSetManifest <- R6::R6Class(
     #'   If `NULL`, falls back to the connection stored via `$setAtlasConnection()`.
     #'
     #' @return Invisible integer. The assigned concept set ID.
-    addAtlasConceptSet = function(atlasId, label, domain = "init", tags = list(), atlasConnection = NULL) {
+    addAtlasConceptSet = function(atlasId, label, category = "init", tags = list(), atlasConnection = NULL) {
       if (is.null(atlasConnection)) {
         atlasConnection <- private$.atlasConnection
       }
@@ -371,13 +378,10 @@ ConceptSetManifest <- R6::R6Class(
 
       checkmate::assert_int(atlasId)
       checkmate::assert_string(label, min.chars = 1)
-      valid_domains <- c("drug_exposure", "condition_occurrence", "measurement", "procedure",
+      valid_categories <- c("drug_exposure", "condition_occurrence", "measurement", "procedure",
                          "observation", "device_exposure", "visit_occurrence", "init")
-      checkmate::assert_choice(domain, valid_domains)
+      checkmate::assert_choice(category, valid_categories)
       checkmate::assert_list(tags, names = "named")
-
-      # Merge domain into tags
-      all_tags <- c(tags, list(domain = domain))
 
       # Fetch concept set JSON from ATLAS
       cs_def <- tryCatch(
@@ -400,7 +404,8 @@ ConceptSetManifest <- R6::R6Class(
 
       cs_id <- private$insert_concept_set(
         label = label,
-        tags = all_tags,
+        category = category,
+        tags = tags,
         file_path = json_path
       )
 
@@ -412,11 +417,11 @@ ConceptSetManifest <- R6::R6Class(
     #'
     #' @param caprConceptSet A Capr `ConceptSet` object.
     #' @param label Character. Display name for the concept set.
-    #' @param domain Character. OMOP CDM domain. Defaults to `"init"`.
+    #' @param category Character. Category for the concept set. Defaults to `"init"`.
     #' @param tags Named list. Optional extra metadata tags. Defaults to `list()`.
     #'
     #' @return Invisible integer. The assigned concept set ID.
-    addCaprConceptSet = function(caprConceptSet, label, domain = "init", tags = list()) {
+    addCaprConceptSet = function(caprConceptSet, label, category = "init", tags = list()) {
       if (!requireNamespace("Capr", quietly = TRUE)) {
         cli::cli_abort(c(
           "Package {.pkg Capr} is required for addCaprConceptSet().",
@@ -429,13 +434,10 @@ ConceptSetManifest <- R6::R6Class(
       }
 
       checkmate::assert_string(label, min.chars = 1)
-      valid_domains <- c("drug_exposure", "condition_occurrence", "measurement", "procedure",
+      valid_categories <- c("drug_exposure", "condition_occurrence", "measurement", "procedure",
                          "observation", "device_exposure", "visit_occurrence", "init")
-      checkmate::assert_choice(domain, valid_domains)
+      checkmate::assert_choice(category, valid_categories)
       checkmate::assert_list(tags, names = "named")
-
-      # Merge domain into tags
-      all_tags <- c(tags, list(domain = domain))
 
       concept_sets_dir <- dirname(private$.dbPath)
       json_dir <- fs::path(concept_sets_dir, "json")
@@ -450,7 +452,8 @@ ConceptSetManifest <- R6::R6Class(
 
       cs_id <- private$insert_concept_set(
         label = label,
-        tags = all_tags,
+        category = category,
+        tags = tags,
         file_path = json_path
       )
 
@@ -460,7 +463,7 @@ ConceptSetManifest <- R6::R6Class(
 
     #' @description Batch-import concept sets from ATLAS via a conceptSetsLoad CSV
     #'
-    #' Reads a CSV with columns `atlasId`, `label`, `domain` (required) plus any
+    #' Reads a CSV with columns `atlasId`, `label`, `category` (required) plus any
     #' additional columns treated as tag key-value pairs. Calls
     #' `addAtlasConceptSet()` for each row inside a `tryCatch` so a single failure
     #' does not abort the entire batch.
@@ -488,14 +491,14 @@ ConceptSetManifest <- R6::R6Class(
       checkmate::assert_file_exists(conceptSetsLoadPath)
       concept_sets_load <- readr::read_csv(conceptSetsLoadPath, show_col_types = FALSE, comment = "#")
 
-      required_cols <- c("atlasId", "label", "domain")
+      required_cols <- c("atlasId", "label", "category")
       missing_cols <- setdiff(required_cols, names(concept_sets_load))
 
       if (length(missing_cols) > 0) {
         cli::cli_abort("conceptSetsLoad.csv missing required columns: {paste(missing_cols, collapse = ', ')}")
       }
 
-      reserved_cols <- c("atlasId", "label", "domain")
+      reserved_cols <- c("atlasId", "label", "category")
       tag_cols <- setdiff(names(concept_sets_load), reserved_cols)
 
       cli::cli_alert_info(
@@ -520,7 +523,7 @@ ConceptSetManifest <- R6::R6Class(
           cs_id <- self$addAtlasConceptSet(
             atlasId = as.integer(row$atlasId),
             label = as.character(row$label),
-            domain = as.character(row$domain),
+            category = as.character(row$category),
             tags = tags,
             atlasConnection = atlasConnection
           )
@@ -1125,7 +1128,7 @@ ConceptSetManifest <- R6::R6Class(
 
       db_records <- DBI::dbGetQuery(
         conn,
-        "SELECT id, label, tags, filePath, hash, status
+        "SELECT id, label, category, tags, filePath, hash, status
          FROM concept_set_manifest"
       )
 
@@ -1167,7 +1170,7 @@ ConceptSetManifest <- R6::R6Class(
 
         # Recompute hash and compare
         tryCatch({
-          tmp_def <- ConceptSetDef$new(label = rec_label, tags = list(), filePath = file_path)
+          tmp_def <- ConceptSetDef$new(label = rec_label, category = rec$category, tags = list(), filePath = file_path)
           new_hash <- tmp_def$getHash()
 
           if (new_hash != rec$hash) {
@@ -1222,9 +1225,9 @@ ConceptSetManifest <- R6::R6Class(
 
           DBI::dbExecute(
             conn,
-            "INSERT INTO concept_set_manifest (id, label, tags, filePath, hash, timestamp, status)
-             VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'active')",
-            list(next_id, label, "", new_def$getFilePath(), new_def$getHash())
+            "INSERT INTO concept_set_manifest (id, label, category, tags, filePath, hash, timestamp, status)
+             VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'active')",
+            list(next_id, label, "init", NA_character_, new_def$getFilePath(), new_def$getHash())
           )
 
           private$.manifest[[length(private$.manifest) + 1]] <- new_def

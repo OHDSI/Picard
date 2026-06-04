@@ -13,6 +13,7 @@ ConceptSetDef <- R6::R6Class(
   classname = "ConceptSetDef",
   private = list(
     .label = NULL,
+    .category = NULL,
     .tags = NULL,
     .filePath = NULL,
     .json = NULL,
@@ -54,24 +55,25 @@ ConceptSetDef <- R6::R6Class(
     #' @description Initialize a new ConceptSetDef
     #'
     #' @param label Character. The common name of the concept set.
+    #' @param category Character. The category for this concept set.
+    #'   Valid values: "drug_exposure", "condition_occurrence", "measurement", "procedure", "observation", "device_exposure", "visit_occurrence", "init".
     #' @param tags List. A named list of tags that give metadata about the concept set.
     #' @param filePath Character. Path to the concept set JSON file in inputs/conceptSet folder.
-    #' @param sourceCode Logical. Whether the concept set uses source concepts (TRUE) or standard concepts (FALSE).
-    #' @param domain Character. The OMOP CDM clinical domain for this concept set. 
-    #'   Valid values: "drug_exposure", "condition_occurrence", "measurement", "procedure", "observation", "device_exposure", "visit_occurrence", "init".
-    initialize = function(label, tags = list(), filePath, domain = "init") {
+    initialize = function(label, category = "init", tags = list(), filePath) {
       checkmate::assert_string(x = label, min.chars = 1)
+      checkmate::assert_string(x = category, min.chars = 1)
       checkmate::assert_list(x = tags, names = "named")
       checkmate::assert_file_exists(x = filePath)
 
-      # Validate domain
-      valid_domains <- c("drug_exposure", "condition_occurrence", "measurement", "procedure", 
+      # Validate category
+      valid_categories <- c("drug_exposure", "condition_occurrence", "measurement", "procedure", 
         "observation", "device_exposure", "visit_occurrence", "init")
-      if (!(domain %in% valid_domains)) {
-        stop("Invalid domain '", domain, "'. Valid domains: ", paste(valid_domains, collapse = ", "))
+      if (!(category %in% valid_categories)) {
+        stop("Invalid category '", category, "'. Valid categories: ", paste(valid_categories, collapse = ", "))
       }
-      tags <- c(tags, list(domain = domain))
+      
       private$.label <- label
+      private$.category <- category
       private$.tags <- tags
       private$.filePath <- filePath
 
@@ -145,6 +147,19 @@ ConceptSetDef <- R6::R6Class(
       } else {
         checkmate::assert_string(x = label, min.chars = 1)
         private[[".label"]] <- label
+      }
+    },
+
+    #' @field category character to set the category to. If missing, returns the current category.
+    category = function(category) {
+      if (missing(category)) {
+        private[[".category"]]
+      } else {
+        checkmate::assert_string(x = category, min.chars = 1)
+        valid_categories <- c("drug_exposure", "condition_occurrence", "measurement", "procedure", 
+          "observation", "device_exposure", "visit_occurrence", "init")
+        checkmate::assert_choice(x = category, choices = valid_categories)
+        private[[".category"]] <- category
       }
     },
 

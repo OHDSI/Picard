@@ -355,7 +355,7 @@ generateCohorts(executionSettings = execSettings, pipelineVersion = pipelineVers
 ### Update label or tags
 
 ```{r}
-updateCohortMetadata(
+updateCohortManifest(
   manifest  = manifest,
   cohortId  = 3L,
   label     = "Metformin Initiators (revised)",

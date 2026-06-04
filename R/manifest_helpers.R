@@ -573,7 +573,7 @@ plotCohortGraph <- function(manifest) {
 
 
 
-#' Update the Label and/or Tags of an Existing Manifest Cohort
+#' Update the Label and/or Tags of an Existing Cohort Manifest 
 #'
 #' @description
 #' Updates `label`, `tags`, or both on any cohort present in the manifest.
@@ -587,7 +587,7 @@ plotCohortGraph <- function(manifest) {
 #' @return Invisibly returns `NULL`.
 #'
 #' @export
-updateCohortMetadata <- function(manifest,
+updateCohortManifest <- function(manifest,
                                  cohortId,
                                  label = NULL,
                                  tags = NULL) {
@@ -640,6 +640,100 @@ updateCohortMetadata <- function(manifest,
   if (!is.null(tags))  changed <- c(changed, paste0("tags \u2192 ", cohort$formatTagsAsString()))
 
   cli::cli_alert_success("Updated cohort {cohortId}: {paste(changed, collapse = ', ')}")
+
+  invisible(NULL)
+}
+
+
+#' Update a Concept Set in the Manifest
+#'
+#' Updates metadata (label, category, and/or tags) for a concept set in the ConceptSetManifest.
+#'
+#' @param manifest A ConceptSetManifest object.
+#' @param conceptSetId Integer. The ID of the concept set to update.
+#' @param label Character. New label for the concept set. If NULL (default), label is not updated.
+#' @param category Character. New category for the concept set. If NULL (default), category is not updated.
+#'   Valid values: "drug_exposure", "condition_occurrence", "measurement", "procedure", "observation", "device_exposure", "visit_occurrence", "init".
+#' @param tags List. New tags (named list) for the concept set. If NULL (default), tags are not updated.
+#'
+#' @return Invisibly returns NULL. Prints a success message if the update succeeds.
+#'
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#'   manifest <- loadConceptSetManifest()
+#'   updateConceptSetManifest(manifest, 1, label = "Updated Label")
+#'   updateConceptSetManifest(manifest, 2, category = "measurement")
+#'   updateConceptSetManifest(manifest, 3, tags = list(source = "ATLAS", version = "2"))
+#' }
+updateConceptSetManifest <- function(manifest,
+                                     conceptSetId,
+                                     label = NULL,
+                                     category = NULL,
+                                     tags = NULL) {
+  checkmate::assert_class(x = manifest, classes = "ConceptSetManifest")
+  checkmate::assert_int(x = conceptSetId, lower = 1)
+
+  if (is.null(label) && is.null(category) && is.null(tags)) {
+    cli::cli_abort("At least one of `label`, `category`, or `tags` must be provided.")
+  }
+  if (!is.null(label)) checkmate::assert_string(x = label, min.chars = 1)
+  if (!is.null(category)) {
+    checkmate::assert_string(x = category, min.chars = 1)
+    valid_categories <- c("drug_exposure", "condition_occurrence", "measurement", "procedure",
+                          "observation", "device_exposure", "visit_occurrence", "init")
+    checkmate::assert_choice(x = category, choices = valid_categories)
+  }
+  if (!is.null(tags)) checkmate::assert_list(x = tags, names = "named")
+
+  conceptSet <- manifest$getConceptSetById(as.integer(conceptSetId))
+  if (is.null(conceptSet)) {
+    cli::cli_abort("No concept set with ID {conceptSetId} found in the manifest.")
+  }
+
+  if (!is.null(label)) conceptSet$label <- label
+  if (!is.null(category)) conceptSet$category <- category
+  if (!is.null(tags)) conceptSet$tags <- tags
+
+  set_parts <- character(0)
+  params    <- list()
+
+  if (!is.null(label)) {
+    set_parts <- c(set_parts, "label = ?")
+    params    <- c(params, list(label))
+  }
+
+  if (!is.null(category)) {
+    set_parts <- c(set_parts, "category = ?")
+    params    <- c(params, list(category))
+  }
+
+  if (!is.null(tags)) {
+    tags_str  <- conceptSet$formatTagsAsString()
+    set_parts <- c(set_parts, "tags = ?")
+    params    <- c(params, list(tags_str))
+  }
+
+  params <- c(params, list(as.integer(conceptSetId)))
+
+  sql <- paste(
+    "UPDATE concept_set_manifest SET",
+    paste(set_parts, collapse = ", "),
+    "WHERE id = ?"
+  )
+
+  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
+  on.exit(DBI::dbDisconnect(conn))
+
+  DBI::dbExecute(conn, sql, params)
+
+  changed <- character(0)
+  if (!is.null(label)) changed <- c(changed, paste0("label \u2192 ", label))
+  if (!is.null(category)) changed <- c(changed, paste0("category \u2192 ", category))
+  if (!is.null(tags)) changed <- c(changed, paste0("tags \u2192 ", conceptSet$formatTagsAsString()))
+
+  cli::cli_alert_success("Updated concept set {conceptSetId}: {paste(changed, collapse = ', ')}")
 
   invisible(NULL)
 }

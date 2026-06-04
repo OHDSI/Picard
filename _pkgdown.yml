@@ -122,6 +122,7 @@ reference:
       - importAtlasCohorts
       - importAtlasConceptSets
       - migrateCohortManifest
+      - migrateConceptSetManifest
       - orchestratePipelineExport
       - pivotForComparison
       - placeHolderExecOptions
@@ -140,7 +141,8 @@ reference:
       - testOrchestratePipelineExport
       - testStudyPipeline
       - testStudyTask
-      - updateCohortMetadata
+      - updateCohortManifest
+      - updateConceptSetManifest
       - updateStudyVersion
       - validateCohortResults
       - validateConfigYaml

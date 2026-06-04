@@ -244,7 +244,7 @@ cohortManifest$tabulateManifest()
 # Rename or re-tag any cohort/concept set already in the manifest.
 # Only the fields you supply are changed — omitted arguments are left untouched.
 
-# updateCohortMetadata(
+# updateCohortManifest(
 #   manifest = cohortManifest,
 #   cohortId = 1L,
 #   label = "Revised cohort name",
