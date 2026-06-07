@@ -53,7 +53,7 @@ from SQLite at startup.
 | `id` | Auto-assigned integer ID |
 | `label` | User-defined display name (unique among active records) |
 | `category` | User classification (e.g., "Disease Populations") |
-| `cohort_type` | `circe`, `custom`, `union`, `subset`, `complement`, `composite` |
+| `cohort_type` | `circe`, `custom`, `union`, `subset`, `complement`, `composite`, `oprior`, `tprior`, `censor` |
 | `source_type` | `circe`, `sql`, `derived` |
 | `file_path` | Relative path to the SQL/JSON file on disk |
 | `hash` | MD5 of the file — used by `generateCohorts()` to skip unchanged cohorts |
@@ -209,6 +209,21 @@ manifest$buildComplementCohort(
 )
 ```
 
+### Custom dependent cohort
+
+Registers a user-supplied `.sql` file as a derived cohort with explicit
+dependencies on existing manifest cohorts. The SQL is copied to `derived/`
+and the skip-logic handles dependency-aware hashing automatically.
+
+```{r}
+manifest$buildCustomDependentCohort(
+  filePath  = here::here("extras/my_custom_logic.sql"),
+  label     = "Custom Outcome Definition",
+  category  = "Outcomes",
+  cohortIds = c(1L, 3L)
+)
+```
+
 ### Composite cohort
 
 Requires membership in a minimum number of component cohorts.
@@ -219,6 +234,57 @@ manifest$buildCompositeCohort(
   cohortIds  = c(1L, 2L, 4L),
   category   = "Complex Populations",
   minCohorts = 2L          # must appear in at least 2 of 3
+)
+```
+
+### Outcome-Prior-Target cohort
+
+Filters an outcome cohort based on whether a prior target (exposure) event exists.
+Optionally restricts the lookback to a time window.
+
+```{r}
+# GI bleed events where the patient had prior NSAID use within 365 days
+manifest$buildOPriorT(
+  label              = "GI Bleed - Prior NSAID",
+  outcomeCohortId    = 1L,
+  targetCohortId     = 2L,
+  category           = "Outcomes",
+  mode               = "prior",           # "prior" or "no_prior"
+  priorTimeWindowDays = 365L,             # NULL = all time
+  subsetLimit        = "Last"             # "First", "Last", or "All"
+)
+```
+
+### Target-Prior-Outcome cohort
+
+Reverse direction — filters a target cohort based on whether a prior outcome
+event exists.
+
+```{r}
+# NSAID initiations where the patient had a prior GI bleed
+manifest$buildTPriorO(
+  label              = "NSAID - Prior GI Bleed",
+  targetCohortId     = 2L,
+  outcomeCohortId    = 1L,
+  category           = "Exposures",
+  mode               = "prior",
+  priorTimeWindowDays = NULL,
+  subsetLimit        = "First"
+)
+```
+
+### Censor cohort
+
+Truncates cohort end dates to the earliest censoring event (e.g., death,
+exacerbation, procedure).
+
+```{r}
+# Censor NSAID exposure at date of death
+manifest$buildCensorCohort(
+  label          = "NSAID - Censored at Death",
+  targetCohortId = 2L,
+  censorCohortId = 3L,
+  category       = "Exposures"
 )
 ```
 
@@ -289,7 +355,7 @@ generateCohorts(executionSettings = execSettings, pipelineVersion = pipelineVers
 ### Update label or tags
 
 ```{r}
-updateCohortMetadata(
+updateCohortManifest(
   manifest  = manifest,
   cohortId  = 3L,
   label     = "Metformin Initiators (revised)",

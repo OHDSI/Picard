@@ -1,5 +1,34 @@
 # Exec Config File for Ulysses Repo: {repoName}
 
+
+# To add database config blocks, use:
+#
+#   library(picard)
+#   block1 <- makeBlock(
+#     configBlockName = "my_database",
+#     dbServer = "my_server",
+#     cdmDatabaseSchema = "omop_cdm",
+#     workDatabaseSchema = "my_work",
+#     tempEmulationSchema = "my_work",
+#     cohortTable = "study_cohorts",
+#     databaseName = "my_db_v1",
+#     databaseLabel = "My Database"
+#   )
+#   addBlock(block1)
+#
+# Or add blocks manually following the template below:
+#
+# my_database:
+#   dbServer: my_server
+#   databaseName: my_db_v1
+#   databaseLabel: My Database
+#   cdmDatabaseSchema: omop_cdm
+#   vocabDatabaseSchema: omop_cdm
+#   workDatabaseSchema: my_work
+#   tempEmulationSchema: my_work
+#   cohortTable: study_cohorts
+
+
 default:
   projectName: {repoName}
   version: 0.0.1

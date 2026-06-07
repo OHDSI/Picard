@@ -20,13 +20,12 @@ There are two ways to start a Picard study:
 
 ### Option 1: Create a New Study from Scratch
 
-The launch process has five key steps:
+The launch process has four key steps:
 
 1. Create study metadata (title, therapeutic area, study type, contributors)
-2. Define database configuration blocks
-3. Create execution options (DBMS settings, schemas, connection blocks)
-4. Bundle everything into study settings
-5. Initialize the repository
+2. Define database configuration blocks (these carry all DBMS and schema info)
+3. Bundle everything into study settings
+4. Initialize the repository
 
 This vignette walks you through the complete workflow using the actual Picard functions.
 
@@ -195,45 +194,24 @@ db2 <- setDbConfigBlock(
 )
 ```
 
-## Step 3: Create Execution Options
+## Step 3: Create Study Settings
 
-Execution options define how your pipeline will execute (DBMS type, schemas, database connections). Use `makeExecOptions()`:
-
-```{r eval = FALSE}
-eo <- makeExecOptions(
-  dbms = "snowflake",
-  workDatabaseSchema = "work_schema",
-  tempEmulationSchema = "work_schema",
-  dbConnectionBlocks = list(db)
-)
-```
-
-**Parameters:**
-- `dbms`: Database management system type (e.g., "snowflake", "postgresql", "sql server", "bigquery")
-- `workDatabaseSchema`: Schema for creating temporary/working tables
-- `tempEmulationSchema`: Schema for emulating temporary tables
-- `dbConnectionBlocks`: List of database configuration blocks created in Step 2
-
-## Step 4: Create Study Settings
-
-Bundle study metadata and execution options into `UlyssesStudySettings` using `makeUlyssesStudySettings()`:
+Bundle study metadata and database configuration blocks into `UlyssesStudySettings` using `makeUlyssesStudySettings()`:
 
 ```{r eval = FALSE}
 ulySt <- makeUlyssesStudySettings(
   repoName = "diabetes_study",
-  toolType = "dbms",
   repoFolder = "~/studies",
   studyMeta = sm,
-  execOptions = eo
+  dbConnectionBlocks = list(db)
 )
 ```
 
 **Required Parameters:**
 - `repoName`: Name of the repository directory
-- `toolType`: Type of tool ("dbms" for database-connected, "external" for standalone)
 - `repoFolder`: Parent folder where the repository will be created
 - `studyMeta`: StudyMeta object from Step 1
-- `execOptions`: ExecOptions object from Step 3
+- `dbConnectionBlocks`: List of `DbConfigBlock` objects from Step 2 (all DBMS/schema info is contained in these blocks)
 
 **Optional Parameters:**
 
@@ -242,10 +220,9 @@ You can also specify Git and renv configuration at setup time:
 ```{r eval = FALSE}
 ulySt <- makeUlyssesStudySettings(
   repoName = "diabetes_study",
-  toolType = "dbms",
   repoFolder = "~/studies",
   studyMeta = sm,
-  execOptions = eo,
+  dbConnectionBlocks = list(db),
   gitRemote = "https://github.com/myorg/diabetes_study.git",
   renvLockFile = "~/my_dependencies/renv.lock"
 )
@@ -255,7 +232,7 @@ ulySt <- makeUlyssesStudySettings(
 - `gitRemote`: URL to a Git remote repository (for version control integration)
 - `renvLockFile`: Path to an existing `renv.lock` file to copy into the project (for reproducible environments)
 
-## Step 5: Initialize the Repository
+## Step 4: Initialize the Repository
 
 Finally, initialize the repository with `initUlyssesRepo()`:
 
@@ -346,6 +323,52 @@ Initialize renv in your project:
 renv::init(project = "~/studies/diabetes_study")
 ```
 
+## Setting Up Database Credentials
+
+Before you can execute any pipelines, you need to configure database credentials. These are stored securely in `~/.picard/secrets.yml` using the keyring package.
+
+**Interactive Setup (Recommended):**
+
+Set up database server credentials interactively using `setupDbSecretsKeyring()`:
+
+```{r eval = FALSE}
+picard::setupDbSecretsKeyring(dbServerName = "my_cdm")
+```
+
+This prompts you to:
+
+1. Select your DBMS type (e.g., PostgreSQL, SQL Server, Snowflake)
+2. Enter connection details (server, port, username, password)
+3. Store credentials securely in your OS keyring
+4. Save the configuration to `~/.picard/secrets.yml`
+
+The function automatically opens `editSecrets()` after setup so you can review the saved configuration.
+
+**Manual Setup:**
+
+If you prefer to manually edit your secrets file:
+
+```{r eval = FALSE}
+picard::editSecrets()
+```
+
+This opens `~/.picard/secrets.yml` in your editor. You can add database server blocks with either:
+- Plain text credentials (not recommended)
+- `!expr keyring::key_get(...)` references (recommended - stores passwords securely)
+- `!expr Sys.getenv(...)` references (for environment variables)
+
+**Example secrets.yml format:**
+
+```yaml
+# Database Servers
+my_cdm:
+  dbms: !expr keyring::key_get("picard", "my_cdm_dbms")
+  server: !expr keyring::key_get("picard", "my_cdm_server")
+  port: !expr keyring::key_get("picard", "my_cdm_port")
+  user: !expr keyring::key_get("picard", "my_cdm_user")
+  password: !expr keyring::key_get("picard", "my_cdm_password")
+```
+
 ## Complete Example
 
 Here's the full workflow combining all steps:
@@ -374,7 +397,7 @@ sm <- makeStudyMeta(
 )
 
 # 2. Configure database connection
-db <- setDbConfigBlock(
+db <- makeBlock(
   configBlockName = "my_cdm",
   cdmDatabaseSchema = "omop_cdm_schema",
   databaseName = "my_database_v1",
@@ -382,26 +405,17 @@ db <- setDbConfigBlock(
   databaseLabel = "Primary CDM"
 )
 
-# 3. Create execution options
-eo <- makeExecOptions(
-  dbms = "snowflake",
-  workDatabaseSchema = "work_schema",
-  tempEmulationSchema = "work_schema",
-  dbConnectionBlocks = list(db)
-)
-
-# 4. Create study settings (with optional Git and renv configuration)
+# 3. Create study settings (with optional Git and renv configuration)
 ulySt <- makeUlyssesStudySettings(
   repoName = "diabetes_study",
-  toolType = "dbms",
   repoFolder = "~/studies",
   studyMeta = sm,
-  execOptions = eo,
+  dbConnectionBlocks = list(db),
   gitRemote = "https://github.com/myorg/diabetes_study.git",
   renvLockFile = "~/my_dependencies/renv.lock"
 )
 
-# 5. Initialize the repository
+# 4. Initialize the repository
 ulySt$initUlyssesRepo(verbose = TRUE, openProject = FALSE)
 ```
 

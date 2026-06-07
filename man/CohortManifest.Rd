@@ -80,12 +80,14 @@ Requires that executionSettings has been set and includes:
 \item \href{#method-CohortManifest-buildUnionCohort}{\code{CohortManifest$buildUnionCohort()}}
 \item \href{#method-CohortManifest-buildSubsetCohortTemporal}{\code{CohortManifest$buildSubsetCohortTemporal()}}
 \item \href{#method-CohortManifest-buildComplementCohort}{\code{CohortManifest$buildComplementCohort()}}
+\item \href{#method-CohortManifest-buildCustomDependentCohort}{\code{CohortManifest$buildCustomDependentCohort()}}
 \item \href{#method-CohortManifest-buildCompositeCohort}{\code{CohortManifest$buildCompositeCohort()}}
 \item \href{#method-CohortManifest-buildDemographicCohort}{\code{CohortManifest$buildDemographicCohort()}}
 \item \href{#method-CohortManifest-buildStratifiedCohorts}{\code{CohortManifest$buildStratifiedCohorts()}}
 \item \href{#method-CohortManifest-queryCohortsByIds}{\code{CohortManifest$queryCohortsByIds()}}
 \item \href{#method-CohortManifest-queryCohortsByTag}{\code{CohortManifest$queryCohortsByTag()}}
 \item \href{#method-CohortManifest-queryCohortsByLabel}{\code{CohortManifest$queryCohortsByLabel()}}
+\item \href{#method-CohortManifest-queryCohortsByCategory}{\code{CohortManifest$queryCohortsByCategory()}}
 \item \href{#method-CohortManifest-nCohorts}{\code{CohortManifest$nCohorts()}}
 \item \href{#method-CohortManifest-getCohortById}{\code{CohortManifest$getCohortById()}}
 \item \href{#method-CohortManifest-getCohortsByTag}{\code{CohortManifest$getCohortsByTag()}}
@@ -103,6 +105,9 @@ Requires that executionSettings has been set and includes:
 \item \href{#method-CohortManifest-validateManifest}{\code{CohortManifest$validateManifest()}}
 \item \href{#method-CohortManifest-getManifestStatus}{\code{CohortManifest$getManifestStatus()}}
 \item \href{#method-CohortManifest-deleteCohort}{\code{CohortManifest$deleteCohort()}}
+\item \href{#method-CohortManifest-buildOPriorT}{\code{CohortManifest$buildOPriorT()}}
+\item \href{#method-CohortManifest-buildTPriorO}{\code{CohortManifest$buildTPriorO()}}
+\item \href{#method-CohortManifest-buildCensorCohort}{\code{CohortManifest$buildCensorCohort()}}
 \item \href{#method-CohortManifest-cleanupMissing}{\code{CohortManifest$cleanupMissing()}}
 \item \href{#method-CohortManifest-clone}{\code{CohortManifest$clone()}}
 }
@@ -144,8 +149,9 @@ Review dependent cohorts and their dependency metadata
 \if{latex}{\out{\hypertarget{method-CohortManifest-reviewDependentCohorts}{}}}
 \subsection{Method \code{reviewDependentCohorts()}}{
 Returns a summary tibble of all active derived cohorts (union, subset, complement,
-composite) with parsed dependency information sourced directly from SQLite. Useful
-for quickly auditing what each derived cohort depends on and how it was built.
+composite, oprior, tprior, censor) with parsed dependency information sourced
+directly from SQLite. Useful for quickly auditing what each derived cohort depends
+on and how it was built.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$reviewDependentCohorts()}\if{html}{\out{</div>}}
 }
@@ -155,7 +161,8 @@ A tibble with columns:
 \itemize{
 \item \code{id} - Cohort ID
 \item \code{label} - Cohort label
-\item \code{cohort_type} - One of 'union', 'subset', 'complement', 'composite'
+\item \code{cohort_type} - One of 'union', 'subset', 'complement', 'composite',
+'oprior', 'tprior', 'censor'
 \item \code{category} - User-defined category
 \item \code{parent_cohorts} - Human-readable parent list, e.g. "Label A (1), Label B (2)"
 \item \code{rule_summary} - Compact summary of the dependency rule parameters
@@ -410,7 +417,13 @@ Add a custom SQL cohort
 Registers an existing SQL file in the manifest. The file must already exist
 on disk (typically in \verb{sql/}).
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$addSqlCohort(filePath, label, category, tags = list())}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$addSqlCohort(
+  filePath,
+  label,
+  category,
+  tags = list(),
+  stopIfExists = TRUE
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -423,6 +436,10 @@ on disk (typically in \verb{sql/}).
 \item{\code{category}}{Character. Required classification.}
 
 \item{\code{tags}}{Named list. Optional metadata tags.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error if the file
+already exists on disk or is already registered in the manifest. If FALSE,
+overwrites silently with a warning. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -471,10 +488,15 @@ Delegates SQL generation to the internal builder function.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildUnionCohort(
   label,
-  cohortIds,
   category,
   tags = list(),
-  gapDays = 0L
+  cohortIds,
+  gapDays = 0L,
+  eraPadDays = 0L,
+  minEraDays = 0L,
+  minCohorts = 1L,
+  washoutDays = 0L,
+  firstEraOnly = FALSE
 )}\if{html}{\out{</div>}}
 }
 
@@ -483,13 +505,29 @@ Delegates SQL generation to the internal builder function.
 \describe{
 \item{\code{label}}{Character. Display name for the derived cohort.}
 
-\item{\code{cohortIds}}{Integer vector. IDs of parent cohorts to union.}
-
 \item{\code{category}}{Character. Required classification.}
 
 \item{\code{tags}}{Named list. Optional metadata tags.}
 
-\item{\code{gapDays}}{Integer. Maximum gap between eras to merge. Default 0.}
+\item{\code{cohortIds}}{Numeric vector (minimum 2). Cohort IDs to union.}
+
+\item{\code{gapDays}}{Integer. Bridge eras separated by up to this many days. Default: 0 (only
+overlapping periods collapse).}
+
+\item{\code{eraPadDays}}{Integer. Expand each source period by this many days on each end before
+collapsing. Applied to individual periods, not the collapsed result. Default: 0.}
+
+\item{\code{minEraDays}}{Integer. Drop collapsed eras shorter than this many days. Default: 0
+(keep all eras).}
+
+\item{\code{minCohorts}}{Integer. Only include subjects appearing in at least this many distinct
+source cohorts. Default: 1 (any subject from any cohort).}
+
+\item{\code{washoutDays}}{Integer. Require a clean period of at least this many days before a
+new era can open. Subjects must have no source cohort membership for this period.
+Default: 0.}
+
+\item{\code{firstEraOnly}}{Logical. Return only the first collapsed era per subject. Default: FALSE.}
 }
 \if{html}{\out{</div>}}
 }
@@ -508,14 +546,14 @@ relationship to a filter cohort.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildSubsetCohortTemporal(
   label,
+  category,
+  tags = list(),
   baseCohortId,
   filterCohortId,
-  category,
   startWindow,
   endWindow = NULL,
   endDateType = "base",
-  subsetLimit = "First",
-  tags = list()
+  subsetLimit = "First"
 )}\if{html}{\out{</div>}}
 }
 
@@ -524,24 +562,26 @@ relationship to a filter cohort.
 \describe{
 \item{\code{label}}{Character. Display name.}
 
-\item{\code{baseCohortId}}{Integer. ID of the base cohort to subset.}
-
-\item{\code{filterCohortId}}{Integer. ID of the filter cohort.}
-
 \item{\code{category}}{Character. Required classification.}
 
-\item{\code{startWindow}}{A SubsetWindowOperator object (from \code{\link[=createSubsetStartWindow]{createSubsetStartWindow()}}) defining
-the temporal window for the filter cohort start date relative to the base cohort event.}
-
-\item{\code{endWindow}}{A SubsetWindowOperator object (from \code{\link[=createSubsetEndWindow]{createSubsetEndWindow()}}) or NULL.
-Defines the temporal window for the filter cohort end date. Default: NULL.}
-
-\item{\code{endDateType}}{Character. Whether to use the base cohort end date ('base') or filter
-cohort end date ('filter') in the output. Default: 'base'.}
-
-\item{\code{subsetLimit}}{Character. One of 'First', 'Last', or 'All'. Default: 'First'.}
-
 \item{\code{tags}}{Named list. Optional metadata tags.}
+
+\item{\code{baseCohortId}}{Integer. The cohort ID to subset.}
+
+\item{\code{filterCohortId}}{Integer. The cohort ID to use for temporal filtering.}
+
+\item{\code{startWindow}}{SubsetWindowOperator object. Defines the temporal window for the subset cohort start date
+relative to the filter cohort event.}
+
+\item{\code{endWindow}}{SubsetWindowOperator object (optional, NULL allowed). Defines the temporal window for the
+subset cohort end date relative to the filter cohort event. If NULL, the filter cohort end date is not used.}
+
+\item{\code{endDateType}}{Character. Whether to use the base cohort end date ('base') or filter cohort end date ('filter')
+as the cohort end date in the output subset cohort. Default: 'base'.}
+
+\item{\code{subsetLimit}}{Character. One of 'First', 'Last', or 'All'. Specifies which qualifying filter cohort event(s)
+to retain per subject. 'First' keeps the earliest event, 'Last' keeps the most recent event, 'All' keeps all
+qualifying events. Default: 'First'.}
 }
 \if{html}{\out{</div>}}
 }
@@ -560,11 +600,11 @@ do NOT appear in any (or all) of the exclude cohorts.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildComplementCohort(
   label,
+  category,
+  tags = list(),
   populationCohortId,
   excludeCohortIds,
-  category,
-  complementType = "exclude_any",
-  tags = list()
+  complementType = "exclude_any"
 )}\if{html}{\out{</div>}}
 }
 
@@ -573,17 +613,60 @@ do NOT appear in any (or all) of the exclude cohorts.
 \describe{
 \item{\code{label}}{Character. Display name.}
 
+\item{\code{category}}{Character. Required classification.}
+
+\item{\code{tags}}{Named list. Optional metadata tags.}
+
 \item{\code{populationCohortId}}{Integer. ID of the population (base) cohort.}
 
 \item{\code{excludeCohortIds}}{Integer vector (min length 1). IDs of cohorts whose
 subjects should be excluded from the population.}
 
-\item{\code{category}}{Character. Required classification.}
-
 \item{\code{complementType}}{Character. One of \code{"exclude_any"} (default) or
 \code{"exclude_all"}. \code{"exclude_any"} removes subjects present in ANY
 exclude cohort; \code{"exclude_all"} removes subjects only if they appear
 in ALL exclude cohorts.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible integer. The assigned cohort ID.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-buildCustomDependentCohort"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-buildCustomDependentCohort}{}}}
+\subsection{Method \code{buildCustomDependentCohort()}}{
+Build a custom dependent cohort from a user-supplied SQL file
+
+Registers an existing \code{.sql} file as a derived cohort with explicit
+dependencies on manifest cohorts. Unlike \code{addSqlCohort()} (which treats
+the file as a base cohort), this method copies the SQL into the
+\verb{derived/} directory and sets \code{depends_on}, so the skip-logic
+uses dependency-aware hashing (see Phase 1.1).
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildCustomDependentCohort(
+  filePath,
+  label,
+  category,
+  cohortIds,
+  tags = list()
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{filePath}}{Character. Path to the user's \code{.sql} file.
+The file is \strong{copied} into the \verb{derived/} directory — the original
+is not referenced after registration.}
+
+\item{\code{label}}{Character. Display name (must be unique in manifest).}
+
+\item{\code{category}}{Character. Required classification.}
+
+\item{\code{cohortIds}}{Integer vector (min. 1). Parent cohort IDs this SQL
+depends on. All must exist in the manifest.}
 
 \item{\code{tags}}{Named list. Optional metadata tags.}
 }
@@ -604,10 +687,11 @@ Creates a derived cohort that requires membership in multiple cohorts
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildCompositeCohort(
   label,
-  cohortIds,
   category,
-  minCohorts = NULL,
-  tags = list()
+  tags = list(),
+  criteriaCohortIds,
+  eventSelection = "First",
+  minEventCount = 1L
 )}\if{html}{\out{</div>}}
 }
 
@@ -616,13 +700,24 @@ Creates a derived cohort that requires membership in multiple cohorts
 \describe{
 \item{\code{label}}{Character. Display name.}
 
-\item{\code{cohortIds}}{Integer vector. IDs of cohorts to intersect.}
-
 \item{\code{category}}{Character. Required classification.}
 
-\item{\code{minCohorts}}{Integer. Minimum cohorts a subject must appear in. Default: all.}
-
 \item{\code{tags}}{Named list. Optional metadata tags.}
+
+\item{\code{criteriaCohortIds}}{Integer vector. The cohort IDs to include in the composite
+(e.g., c(1, 2, 3) for Type 1 diabetes, Type 2 diabetes, and secondary diabetes).}
+
+\item{\code{eventSelection}}{Character. One of 'First', 'Last', or 'All'. Specifies which event(s) to
+retain as the cohort_start_date and cohort_end_date in the output:
+\itemize{
+\item 'First': Keep the earliest event (earliest index date)
+\item 'Last': Keep the most recent event
+\item 'All': Keep all qualifying events per subject (may result in multiple rows per subject)
+Default: 'First'.
+}}
+
+\item{\code{minEventCount}}{Integer. Minimum number of distinct cohort events required for a subject
+to qualify for the composite. Default: 1 (any subject with at least 1 event qualifies).}
 }
 \if{html}{\out{</div>}}
 }
@@ -783,6 +878,33 @@ Query cohorts by label
 \describe{
 \item{\code{labels}}{Character vector. One or more labels to search for.
 A cohort is included when it matches at least one of the supplied labels (OR logic).}
+
+\item{\code{matchType}}{Character. Either "exact" for exact match or "pattern" for pattern matching.
+Defaults to "exact".}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
+Query cohorts by category
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-queryCohortsByCategory"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-queryCohortsByCategory}{}}}
+\subsection{Method \code{queryCohortsByCategory()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsByCategory(
+  category,
+  matchType = c("exact", "pattern")
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{category}}{Character vector. One or more category to search for.
+A cohort is included when it matches at least one of the supplied category (OR logic).}
 
 \item{\code{matchType}}{Character. Either "exact" for exact match or "pattern" for pattern matching.
 Defaults to "exact".}
@@ -1161,10 +1283,190 @@ Invisibly returns TRUE if successful, FALSE otherwise.
 }
 }
 \if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-buildOPriorT"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-buildOPriorT}{}}}
+\subsection{Method \code{buildOPriorT()}}{
+Clean up missing cohorts from manifest
+
+
+Build a cohort of outcome events with prior target exposure
+
+Creates a derived cohort based on the temporal relationship between an
+outcome cohort and a target (exposure) cohort. Filters outcome events that
+have (or lack) a prior target event, optionally within a time window.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildOPriorT(
+  label,
+  category,
+  tags = list(),
+  outcomeCohortId,
+  targetCohortId,
+  mode = "prior",
+  priorTimeWindowDays = NULL,
+  subsetLimit = "First"
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{label}}{Character. Display name (e.g., "GI Bleed - Prior NSAID").}
+
+\item{\code{category}}{Character. Required classification.}
+
+\item{\code{tags}}{Named list. Optional metadata tags.}
+
+\item{\code{outcomeCohortId}}{Integer. The cohort definition ID for the outcome
+(e.g., GI bleed).}
+
+\item{\code{targetCohortId}}{Integer. The cohort definition ID for the target
+(e.g., NSAID use).}
+
+\item{\code{mode}}{Character. One of 'prior' or 'no_prior':
+\itemize{
+\item 'prior': Retain outcome events where a prior target event exists.
+\item 'no_prior': Retain outcome events where no prior target event exists.
+Default: 'prior'.
+}}
+
+\item{\code{priorTimeWindowDays}}{Integer or NULL. If provided (e.g., 365), only
+consider target events within this many days before the outcome start.
+NULL or 0 means all time. Default: NULL.}
+
+\item{\code{subsetLimit}}{Character. One of 'First', 'Last', or 'All'. Controls
+which prior target event anchors the match when multiple exist:
+\itemize{
+\item 'First': Keep the earliest prior target event (default).
+\item 'Last': Keep the most recent prior target event.
+\item 'All': Keep all prior target events (one output row per pair).
+Default: 'First'.
+}}
+
+\item{\code{keep_trace}}{Logical. If TRUE, marks missing as deleted with timestamp (soft delete).
+If FALSE, permanently removes from database (hard delete). Defaults to TRUE.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible integer. The assigned cohort ID.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-buildTPriorO"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-buildTPriorO}{}}}
+\subsection{Method \code{buildTPriorO()}}{
+Build a cohort of target events with prior outcome occurrence
+
+Creates a derived cohort based on the temporal relationship between a
+target (exposure) cohort and an outcome cohort. Filters target events that
+have (or lack) a prior outcome event, optionally within a time window.
+
+This is the reverse direction of \code{buildOPriorT()}: instead of
+filtering outcome by prior target, filter target by prior outcome.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildTPriorO(
+  label,
+  category,
+  tags = list(),
+  targetCohortId,
+  outcomeCohortId,
+  mode = "prior",
+  priorTimeWindowDays = NULL,
+  subsetLimit = "First"
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{label}}{Character. Display name (e.g., "NSAID - Prior GI Bleed").}
+
+\item{\code{category}}{Character. Required classification.}
+
+\item{\code{tags}}{Named list. Optional metadata tags.}
+
+\item{\code{targetCohortId}}{Integer. The cohort definition ID for the target
+(e.g., NSAID use).}
+
+\item{\code{outcomeCohortId}}{Integer. The cohort definition ID for the outcome
+(e.g., GI bleed).}
+
+\item{\code{mode}}{Character. One of 'prior' or 'no_prior':
+\itemize{
+\item 'prior': Retain target events where a prior outcome exists.
+\item 'no_prior': Retain target events where no prior outcome exists.
+Default: 'prior'.
+}}
+
+\item{\code{priorTimeWindowDays}}{Integer or NULL. If provided (e.g., 365), only
+consider outcome events within this many days before the target start.
+NULL or 0 means all time. Default: NULL.}
+
+\item{\code{subsetLimit}}{Character. One of 'First', 'Last', or 'All'. Controls
+which prior outcome event anchors the match when multiple exist:
+\itemize{
+\item 'First': Keep the earliest prior outcome event (default).
+\item 'Last': Keep the most recent prior outcome event.
+\item 'All': Keep all prior outcome events (one output row per pair).
+Default: 'First'.
+}}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible integer. The assigned cohort ID.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-buildCensorCohort"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-buildCensorCohort}{}}}
+\subsection{Method \code{buildCensorCohort()}}{
+Censor a target cohort based on a censoring event
+
+Truncates the cohort_end_date of each target cohort record to the earliest
+censoring event that occurs between the cohort_start_date and cohort_end_date.
+If no censoring event occurs, the original cohort_end_date is preserved.
+
+Typical use cases:
+\itemize{
+\item Censor a drug exposure cohort at the date of death
+\item Censor a disease cohort at the date of disease exacerbation
+\item Censor a treatment cohort at the date of a procedure (e.g., surgery)
+}
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildCensorCohort(
+  label,
+  category,
+  tags = list(),
+  targetCohortId,
+  censorCohortId
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{label}}{Character. Display name (e.g., "NSAID Use - Censored at Death").}
+
+\item{\code{category}}{Character. Required classification.}
+
+\item{\code{tags}}{Named list. Optional metadata tags.}
+
+\item{\code{targetCohortId}}{Integer. The cohort definition ID for the cohort to censor.}
+
+\item{\code{censorCohortId}}{Integer. The cohort definition ID for the censoring event.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible integer. The assigned cohort ID.
+}
+}
+\if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-cleanupMissing"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-cleanupMissing}{}}}
 \subsection{Method \code{cleanupMissing()}}{
-Clean up missing cohorts from manifest
+clean up missing files from manifest
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$cleanupMissing(keep_trace = TRUE)}\if{html}{\out{</div>}}
 }
@@ -1172,8 +1474,7 @@ Clean up missing cohorts from manifest
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{keep_trace}}{Logical. If TRUE, marks missing as deleted with timestamp (soft delete).
-If FALSE, permanently removes from database (hard delete). Defaults to TRUE.}
+\item{\code{keep_trace}}{Logical. soft delete with trace}
 }
 \if{html}{\out{</div>}}
 }

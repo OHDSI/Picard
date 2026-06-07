@@ -1,7 +1,7 @@
 Package: picard
 Type: Package
 Title: RWE Pipelining Tool
-Version: 0.0.3.1
+Version: 0.0.4
 Authors@R: c(
     person("Martin", "Lavallee", , "martin.lavallee@boehringer-ingelheim.com", role = c("aut", "cre"))
   )
@@ -41,9 +41,10 @@ Imports:
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.3
 Suggests:
     testthat (>= 3.0.0),
     Capr
 Remotes:
     ohdsi/Capr
+Config/roxygen2/version: 8.0.0
+RoxygenNote: 7.3.2

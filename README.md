@@ -53,30 +53,16 @@ db <- setDbConfigBlock(
 )
 ```
 
-### Define Execution Options
-
-Specify how and where to execute your analysis:
-
-```r
-eo <- makeExecOptions(
-  dbms = "snowflake",
-  workDatabaseSchema = "work_schema",
-  tempEmulationSchema = "work_schema",
-  dbConnectionBlocks = list(db)
-)
-```
-
 ### Initialize Project
 
-Create and initialize your study repository:
+Create and initialize your study repository (the `dbConnectionBlocks` carry all DBMS/schema info from your config blocks):
 
 ```r
 ulySt <- makeUlyssesStudySettings(
   repoName = "my_study_project",
-  toolType = "dbms",
   repoFolder = "~/studies/my_study_project",
   studyMeta = sm,
-  execOptions = eo
+  dbConnectionBlocks = list(db)
 )
 
 # Initialize the repository structure

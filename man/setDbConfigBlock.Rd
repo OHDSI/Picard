@@ -27,5 +27,5 @@ setDbConfigBlock(
 A DbConfigBlock R6 class with the the config details
 }
 \description{
-set the config block for a database
+\strong{Deprecated.} Use \code{makeBlock()} instead.
 }

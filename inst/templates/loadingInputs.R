@@ -156,12 +156,16 @@ cohortManifest$tabulateManifest()
 # E. OPTIONAL: BUILD DERIVED COHORTS
 # ================================================================================
 
-## Build dependent cohorts (Temporal, Demographic, Union, Complement, Composite)
+## Build dependent cohorts (Temporal, Demographic, Union, Complement, Composite,
+## O-Prior-T, T-Prior-O, Censor)
 # Some cohorts are defined by their relationship to other cohorts:
 #   - Temporal: "CKD in patients with prior Diabetes"
 #   - Demographic: "CKD in males aged 65+"
 #   - Union: "Diabetes OR Hypertension"
 #   - Complement: "All patients NOT with CKD"
+#   - O-Prior-T: "GI Bleed in patients with prior NSAID use"
+#   - T-Prior-O: "NSAID use in patients with prior GI Bleed"
+#   - Censor: "NSAID use censored at death"
 #
 # See the loading_inputs vignette for detailed examples.
 
@@ -172,6 +176,36 @@ cohortManifest$tabulateManifest()
 #   temporalOperator = "before",
 #   temporalStartOffset = 365,
 #   manifest = cohortManifest
+# )
+
+# # Outcome events with prior target exposure
+# cohortManifest$buildOPriorT(
+#   label = "GI Bleed - Prior NSAID",
+#   outcomeCohortId = 1,
+#   targetCohortId = 2,
+#   category = "Outcomes",
+#   mode = "prior",
+#   priorTimeWindowDays = 365,
+#   subsetLimit = "Last"
+# )
+
+# # Target events with prior outcome occurrence
+# cohortManifest$buildTPriorO(
+#   label = "NSAID - Prior GI Bleed",
+#   targetCohortId = 2,
+#   outcomeCohortId = 1,
+#   category = "Exposures",
+#   mode = "prior",
+#   priorTimeWindowDays = NULL,
+#   subsetLimit = "First"
+# )
+
+# # Censor target cohort at censoring event
+# cohortManifest$buildCensorCohort(
+#   label = "NSAID - Censored at Death",
+#   targetCohortId = 2,
+#   censorCohortId = 3,
+#   category = "Exposures"
 # )
 
 
@@ -210,7 +244,7 @@ cohortManifest$tabulateManifest()
 # Rename or re-tag any cohort/concept set already in the manifest.
 # Only the fields you supply are changed — omitted arguments are left untouched.
 
-# updateCohortMetadata(
+# updateCohortManifest(
 #   manifest = cohortManifest,
 #   cohortId = 1L,
 #   label = "Revised cohort name",

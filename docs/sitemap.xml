@@ -1,128 +1,435 @@
-<urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
-<url><loc>https://ohdsi.github.io/Picard/404.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/LICENSE.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/articles/cohorts.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/articles/developing_the_pipeline.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/articles/evidence_generation_plan.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/articles/getting-started.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/articles/index.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/articles/launching_a_study.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/articles/loading_inputs.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/articles/manifest_overview.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/articles/picard_repository_structure.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/articles/post_processing.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/articles/running_the_pipeline.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/authors.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/index.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/news/index.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/CohortDef.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/CohortManifest.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/ConceptSetDef.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/ConceptSetManifest.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/ContributorLine.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/DbConfigBlock.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/ExecOptions.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/ExecutionSettings.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/StudyMeta.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/UlyssesStudy.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/addTestMainFile.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/agentSaveWork.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/buildComplementCohort.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/buildCompositeCohort.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/buildStratifiedCohorts.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/buildStudyHub.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/buildSubsetCohortDemographic.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/buildSubsetCohortTemporal.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/buildUnionCohort.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/cleanColumnNames.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/clearPendingPR.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/createAgentBranch.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/createBlankCohortsLoadFile.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/createBlankConceptSetsLoadFile.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/createExecutionSettings.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/createExecutionSettingsFromConfig.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/createPullRequest.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/createSubsetEndWindow.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/createSubsetStartWindow.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/defineCustomCohort.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/displayTaskStatusReport.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/documentDependencies.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/dot-checkCohortHashChanges.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/dot-checkDependencyChanges.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/dot-createEmptyHistory.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/dot-getCohortManifestHash.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/dot-initializeTaskHistory.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/execStudyPipeline.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/execStudyTask.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/execute_pipeline.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/execute_task.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/formatFloats.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/formatPercentages.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/generateCohorts.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/getAtlasConnection.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/getEnvironmentHash.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/getTaskRunSummary.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/importAndBind.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/importAtlasCohorts.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/importAtlasConceptSets.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/index.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/initAgentMode.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/initCohortManifest.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/initConceptSetManifest.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/initializeRenv.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/launchCohortsLoadEditor.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/launchConceptSetsLoadEditor.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/loadCohortManifest.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/loadConceptSetManifest.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/makeExecOptions.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/makePrintFriendlyFile.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/makeSrcFile.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/makeSrcSqlFile.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/makeStudyMeta.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/makeTaskFile.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/makeUlyssesStudySettings.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/migrateCohortManifest.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/orchestratePipelineExport.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/parseTagsString.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/pivotForComparison.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/placeHolderExecOptions.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/plotCohortGraph.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/prepareDisseminationData.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/recordTaskExecution.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/resetCohortManifest.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/resetConceptSetManifest.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/restoreEnvironment.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/reviewExportSchema.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/runPreflightChecks.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/saveWork.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/save_pr_reference.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/setAtlasConnection.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/setContributor.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/setDbConfigBlock.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/setOutputFolder.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/shouldRerunTask.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/snapshotEnvironment.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/standardizeDataTypes.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/templateAtlasCredentials.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/testOrchestratePipelineExport.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/testStudyPipeline.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/testStudyTask.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/updateCohortMetadata.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/updateStudyVersion.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/validateCodeState.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/validateCohortResults.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/validateConceptSetManifest.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/validateConfigBlockCompleteness.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/validateConfigYaml.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/validateDatabaseConnectivity.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/validateEnvironment.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/validateReleaseBranchFreshness.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/validateResultsColumns.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/validateResultsFolderFresh.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/validateStudyTask.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/validateTaskDependencies.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/validateUlyssesStructure.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/visualizeCohortDependencies.html</loc></url>
-<url><loc>https://ohdsi.github.io/Picard/reference/zipAndArchive.html</loc></url>
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://ohdsi.github.io/Picard/404.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/articles/cohorts.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/articles/developing_the_pipeline.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/articles/evidence_generation_plan.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/articles/getting-started.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/articles/index.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/articles/launching_a_study.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/articles/loading_inputs.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/articles/manifest_overview.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/articles/picard_repository_structure.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/articles/post_processing.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/articles/running_the_pipeline.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/authors.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/index.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/LICENSE.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/news/index.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/addBlock.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/addTestMainFile.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/agentSaveWork.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/buildComplementCohort.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/buildCompositeCohort.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/buildStratifiedCohorts.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/buildStudyHub.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/buildSubsetCohortDemographic.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/buildSubsetCohortTemporal.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/buildUnionCohort.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/cascadeStaleDownstream.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/cleanColumnNames.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/clearPendingPR.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/CohortDef.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/CohortManifest.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/ConceptSetDef.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/ConceptSetManifest.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/ContributorLine.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/createAgentBranch.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/createBlankCohortsLoadFile.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/createBlankConceptSetsLoadFile.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/createExecutionSettings.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/createExecutionSettingsFromConfig.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/createPullRequest.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/createSubsetEndWindow.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/createSubsetStartWindow.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/DbConfigBlock.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/defineCustomCohort.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/displayTaskStatusReport.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/documentDependencies.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/dot-checkCohortHashChanges.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/dot-checkDependencyChanges.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/dot-createEmptyHistory.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/dot-getCohortManifestHash.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/dot-initializeTaskHistory.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/editSecrets.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/ExecOptions.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/execStudyPipeline.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/execStudyTask.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/execute_pipeline.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/execute_task.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/ExecutionSettings.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/formatFloats.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/formatPercentages.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/generateCohorts.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/getAtlasConnection.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/getAtlasCredentials.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/getBlockCredentials.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/getEnvironmentHash.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/getServerCredentials.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/getTaskRunSummary.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/importAndBind.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/importAtlasCohorts.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/importAtlasConceptSets.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/importOneAtlasCohort.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/index.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/initAgentMode.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/initCohortManifest.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/initConceptSetManifest.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/initializeRenv.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/launchCohortsLoadEditor.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/launchConceptSetsLoadEditor.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/loadCohortManifest.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/loadConceptSetManifest.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/makeBlock.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/makeExecOptions.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/makePrintFriendlyFile.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/makeSrcFile.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/makeSrcSqlFile.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/makeStudyMeta.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/makeTaskFile.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/makeUlyssesStudySettings.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/migrateCohortManifest.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/migrateConceptSetManifest.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/orchestratePipelineExport.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/parseTagsString.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/pivotForComparison.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/placeHolderExecOptions.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/plotCohortGraph.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/prepareDisseminationData.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/readSecrets.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/recordTaskExecution.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/resetCohortManifest.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/resetConceptSetManifest.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/resolveSecretValue.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/restoreEnvironment.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/reviewExportSchema.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/reviewKeyringCredentials.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/runPostProcessing.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/runPreflightChecks.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/runTestPostProcessing.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/saveWork.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/save_pr_reference.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/setAtlasConnection.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/setContributor.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/setDbConfigBlock.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/setOutputFolder.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/setupAtlasSecretsKeyring.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/setupDbSecretsKeyring.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/shouldRerunTask.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/snapshotEnvironment.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/standardizeDataTypes.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/StudyMeta.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/templateAtlasCredentials.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/testOrchestratePipelineExport.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/testStudyPipeline.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/testStudyTask.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/UlyssesStudy.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/updateCohortManifest.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/updateCohortMetadata.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/updateConceptSetManifest.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/updateStudyVersion.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/validateCodeState.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/validateCohortResults.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/validateConceptSetManifest.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/validateConfigBlockCompleteness.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/validateConfigYaml.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/validateDatabaseConnectivity.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/validateEnvironment.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/validateReleaseBranchFreshness.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/validateResultsColumns.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/validateResultsFolderFresh.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/validateSecretsYaml.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/validateStudyTask.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/validateTaskDependencies.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/validateUlyssesStructure.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/visualizeCohortDependencies.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/zipAndArchive.html</loc>
+  </url>
 </urlset>
-

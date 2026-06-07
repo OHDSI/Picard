@@ -106,7 +106,7 @@ cli::cli_blockquote(paste(
 # print(concept_manifest$getManifest())
 
 ## Export results for external analysis (if applicable)
-# results <- orchestratePipelineExport(
+# results <- runPostProcessing(
 #   executionSettings = eo,
 #   reviewSchema = TRUE
 # )

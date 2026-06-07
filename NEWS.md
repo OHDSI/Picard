@@ -1,3 +1,37 @@
+# picard 0.0.4
+
+- move login credentials to secrets file
+- Correct the Dependent Cohort builders
+- Add a query tool for category now that it is not a tag
+- reorganize cohort generation to make it easier to debug
+- Add `stopIfExists` to `$addSqlCohort` method allowing user to overwrite a file they worked on
+- **API CHANGE**: rename `orchestratePipelineExport` to `runPostProcessing`, for test mode it is `testOrchestratePipelineExport` to `runTestPostProcessing`.
+
+## New Features
+
+- `$buildCustomDependentCohort(filePath, label, category, cohortIds, tags)` — new
+  `CohortManifest` method for registering a user-supplied `.sql` file as a derived
+  cohort with explicit dependencies. The SQL is copied to `derived/` and the cohort
+  is registered with `cohort_type = "custom"` and `depends_on` set. The Phase 1.1
+  skip-logic (`length(parent_ids) > 0`) handles dependency-aware hashing automatically.
+- Move credentials to secrets file using `editSecrets()` and helpers for keyring `setupDbSecretsKeyring` and `setupAtlasSecretsKeyring`
+
+## Bug Fixes
+
+- **Custom cohort skip-logic** (`R/cohort_builders.R`): `evaluate_cohort_skip_status()`
+  now checks `length(parent_ids) > 0` instead of a hardcoded list of cohort types.
+  Custom cohorts with `depends_on` set now use dependency-aware hash comparison.
+  (#p2.1)
+- **`insert_cohort()` validation** (`R/CohortManifest.R`): Added validation enforcing
+  that `circe`/`custom` cohorts cannot have dependencies, and derived cohort types
+  must specify `depends_on`. (#p2.2)
+- **Bare `stop(e)` re-throws** (14 occurrences): Replaced with `cli::cli_abort()`
+  across `R/Ulysses.R` (12×), `R/git.R` (1×), and `R/make.R` (1×) to preserve
+  error call context. (#p3)
+- **SQL injection vectors** (`R/cohort_builders.R`, `R/manifest_helpers.R`): Checksum
+  queries now use `SqlRender::render()` for parameterized SQL on OMOP CDM connections;
+  `cascadeStaleDownstream()` uses parameterized `?` placeholders for SQLite. (#p4)
+
 # picard 0.0.3.1
 
 - minor bug fixes 

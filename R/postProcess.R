@@ -509,8 +509,8 @@ validateCohortResults <- function(exportPath = here::here("dissemination/export/
   return(validation)
 }
 
-#' Orchestrate Pipeline Export with Merging and QC
-#' @description Orchestrates complete pipeline export process: merges results across all tasks
+#' Run Post-Processing Pipeline with Merging and QC
+#' @description Runs complete post-processing workflow: merges results across all tasks
 #'   for a specified pipeline version, generates reference files (cohortManifestSnapshot,
 #'   databaseInfo, schema_review), runs QC validation on cohort completeness, and generates
 #'   execution metadata.
@@ -532,7 +532,7 @@ validateCohortResults <- function(exportPath = here::here("dissemination/export/
 #'   - totalRows: Total rows across all result files
 #'   - filesExported: Comma-separated list of exported file names
 #' @details
-#' The function orchestrates the complete pipeline export:
+#' The function runs the complete post-processing workflow:
 #' 1. Captures git commit SHA for reproducibility tracking
 #' 2. Snapshots environment (renv.lock) for non-dev versions
 #' 3. Discovers tasks for the specified pipeline version
@@ -568,12 +568,12 @@ validateCohortResults <- function(exportPath = here::here("dissemination/export/
 #'         results.csv
 #' ```
 #' @export
-orchestratePipelineExport <- function(pipelineVersion, dbIds, resultsPath = here::here("exec/results"),
+runPostProcessing <- function(pipelineVersion, dbIds, resultsPath = here::here("exec/results"),
                                     exportPath = here::here("dissemination/export/merge"),
                                     cohortsFolderPath = here::here("inputs/cohorts"),
                                     testMode = NULL) {
   
-  cli::cli_rule("Orchestrate Pipeline Export for Version {pipelineVersion}")
+  cli::cli_rule("Run Post-Processing Pipeline for Version {pipelineVersion}")
   
   # Default testMode: non-semver versions (e.g. "dev", "test") automatically run in test mode
   if (is.null(testMode)) {
@@ -847,10 +847,10 @@ orchestratePipelineExport <- function(pipelineVersion, dbIds, resultsPath = here
   invisible(mergeSummary)
 }
 
-#' @title Test Orchestrate Pipeline Export
-#' @description Executes the pipeline export in test mode. QC checks are non-fatal
+#' @title Run Post-Processing Pipeline for test mode
+#' @description Executes post-processing in test mode. QC checks are non-fatal
 #'   (errors become warnings) and qcStatus is set to "DevMode". Enforces that the
-#'   call is made from a non-main branch to prevent accidental test exports on main.
+#'   call is made from a non-main branch to prevent accidental exports on main.
 #' @param dbIds Character vector of database configuration IDs from config.yml.
 #' @param pipelineVersion Character. Pipeline version label (e.g. "dev").
 #' @param resultsPath Character. Path to results root folder. Defaults to "exec/results".
@@ -858,9 +858,9 @@ orchestratePipelineExport <- function(pipelineVersion, dbIds, resultsPath = here
 #'   Defaults to "dissemination/export/merge".
 #' @param cohortsFolderPath Character. Path to cohorts folder for the CohortManifest.
 #'   Defaults to "inputs/cohorts".
-#' @return Invisibly returns the merge summary data frame from orchestratePipelineExport().
+#' @return Invisibly returns the merge summary data frame from runPostProcessing().
 #' @export
-testOrchestratePipelineExport <- function(dbIds, pipelineVersion = "dev", 
+runTestPostProcessing <- function(dbIds, pipelineVersion = "dev", 
                                           resultsPath = here::here("exec/results"),
                                           exportPath = here::here("dissemination/export/merge"),
                                           cohortsFolderPath = here::here("inputs/cohorts")) {
@@ -875,10 +875,10 @@ testOrchestratePipelineExport <- function(dbIds, pipelineVersion = "dev",
     ))
   }
 
-  cli::cli_rule("TEST Mode: Pipeline Export")
+  cli::cli_rule("TEST Mode: Post-Processing")
   cli::cli_alert_warning("Testing on branch: {branch}")
 
-  orchestratePipelineExport(
+  runPostProcessing(
     pipelineVersion = pipelineVersion,
     dbIds = dbIds,
     resultsPath = resultsPath,

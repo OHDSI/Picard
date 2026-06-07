@@ -65,7 +65,7 @@ cli::cli_blockquote("Next steps: Review PENDING_PR.md and create PR in Git Clien
 
 ## Export results for further analysis
 # cli::cli_alert_info("Initiating data export sequence...")
-# results <- orchestratePipelineExport(
+# results <- runPostProcessing(
 #   executionSettings = eo,
 #   reviewSchema = TRUE
 # )

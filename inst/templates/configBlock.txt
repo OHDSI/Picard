@@ -1,10 +1,7 @@
 # Config block for {configBlockName}
 
 {configBlockName}:
-  dbms: {dbms}
-  user: !expr Sys.getenv('dbUser')
-  password: !expr Sys.getenv('dbPassword')
-  connectionString: !expr Sys.getenv('dbConnectionString')
+  dbServer: {dbServer}
   databaseName: {databaseName}
   databaseLabel: {databaseLabel}
   cdmDatabaseSchema: {cdmSchema}

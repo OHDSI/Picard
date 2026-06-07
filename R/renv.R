@@ -64,7 +64,7 @@ initializeRenv <- function() {
 #' 2. Optionally saves versioned copy
 #' 3. Returns lockfile hash for audit/reproducibility tracking
 #'
-#' Call before execStudyPipeline() or orchestratePipelineExport().
+#' Call before execStudyPipeline() or runPostProcessing().
 #'
 snapshotEnvironment <- function(versionLabel = NULL, savePath = NULL) {
   if (!requireNamespace("renv", quietly = TRUE)) {
@@ -121,11 +121,9 @@ snapshotEnvironment <- function(versionLabel = NULL, savePath = NULL) {
 #' Validate Environment Against Lockfile
 #' @description Checks that installed packages match renv.lock.
 #'   Prevents running pipelines with environment drift.
+#'   Call before execStudyPipeline() or runPostProcessing().
 #' @return Invisible TRUE if valid, aborts if drift detected
 #' @keywords internal
-#'
-#' Call before execStudyPipeline() or orchestratePipelineExport().
-#'
 validateEnvironment <- function() {
   if (!requireNamespace("renv", quietly = TRUE)) {
     cli::cli_abort("renv package required")

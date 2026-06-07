@@ -42,78 +42,41 @@ Edit this file in Excel to add your cohort entries.
 
 #### Setting up Atlas Credentials
 
-Before connecting to ATLAS, you must configure your credentials in your `.Renviron` file. These credentials authenticate your connection to the ATLAS WebAPI.
+Before connecting to ATLAS, store your credentials securely using the secrets management system. This authenticates your connection to the ATLAS WebAPI.
 
-**A: View the credential template**
+**Step 1: Set up credentials in secrets.yml**
 
-First, see the required credentials format:
-
-```r
-templateAtlasCredentials()
-```
-
-This displays a template with the following credentials you'll need to set:
-
-- **`atlasBaseUrl`**: The base URL to your ATLAS WebAPI (e.g., `https://organization-atlas.com/WebAPI`)
-- **`atlasAuthMethod`**: The authentication method (e.g., `ad` for Active Directory, `oauth`, etc.)
-- **`atlasUser`**: Your ATLAS username or email
-- **`atlasPassword`**: Your ATLAS password
-
-**B: Set Credenitals** 
-
-Route A: .Renviron
+Use the `setupAtlasSecretsKeyring()` or `editSecrets()` function to configure ATLAS credentials:
 
 ```r
-usethis::edit_r_environ()
+# Interactive setup for Atlas credentials - guides you through keyring storage
+setupAtlasSecretsKeyring()
+
+# Or edit the secrets file directly
+editSecrets()
 ```
 
-This opens your `.Renviron` file. Add these lines (substitute your actual credentials):
+This creates/updates `~/.picard/secrets.yml` with your credentials stored securely. The file should contain an `atlas` section like this:
 
+```yaml
+atlas:
+  baseUrl: "https://organization-atlas.com/WebAPI"
+  authMethod: "ad"
+  user: "atlas.user@company.com"
+  password: !expr keyring::key_get(service = "picard", username = "atlasPassword")
 ```
-atlasBaseUrl='https://organization-atlas.com/WebAPI'
-atlasAuthMethod='ad'
-atlasUser='atlas.user@company.com'
-atlasPassword='YourPassword'
-```
 
-⚠️ **Important Security Note:** Never commit `.Renviron` to version control. It should already be done but place it in `.gitignore` to prevent accidentally exposing credentials.
+You can store credentials three ways:
+- **Plaintext** (not recommended): `password: "YourPassword"`
+- **Keyring** (recommended): `password: !expr keyring::key_get(service = "picard", username = "atlasPassword")`
+- **Environment variable**: `password: !expr Sys.getenv("ATLAS_PASSWORD")`
 
-Route B: keyring
+**Step 2: Connect and import**
 
-For **enhanced security**, store credentials in the keyring package which keeps them encrypted:
+Once credentials are configured in secrets.yml, connect to ATLAS and download cohort definitions:
 
 ```r
-# First, install keyring if needed
-install.packages("keyring")
-
-# Store each credential securely in keyring under service "picard"
-# a prompt will show where you will be asked to place the credential you wish to stor
-keyring::key_set(service = "picard", username = "atlasBaseUrl")
-keyring::key_set(service = "picard", username = "atlasAuthMethod")
-keyring::key_set(service = "picard", username = "atlasUser")
-keyring::key_set(service = "picard", username = "atlasPassword")
-
-# Verify credentials are stored
-keyring::key_list(service = "picard")
-```
-
-Once stored in keyring, simply connect:
-
-```r
-# All credentials are retrieved automatically from keyring service "picard"
-atlasConn <- getAtlasConnection(useKeyring = TRUE)
-```
-
-**Alternative: Add credentials directly to .Renviron (Less secure)**
-
-If you prefer not to use keyring, you can add credentials directly:
-
-
-**C: Connect and import**
-
-Once credentials are configured, connect to ATLAS and download cohort definitions:
-
-```r
+# Credentials are automatically read from ~/.picard/secrets.yml
 atlasConn <- getAtlasConnection()
 
 importAtlasCohorts(
@@ -234,6 +197,51 @@ no_ckd <- buildComplementCohort(
   label = "No Chronic Kidney Disease",
   cohortId = 1,
   manifest = cm
+)
+```
+
+### Outcome-Prior-Target and Target-Prior-Outcome Cohorts
+
+Filter a cohort based on the existence (or absence) of a prior event in another cohort.
+
+**O prior T:** Outcome events where a prior target event exists (e.g., GI bleeds with prior NSAID use):
+
+```r
+gi_bleed_prior_nsaid <- cm$buildOPriorT(
+  label = "GI Bleed - Prior NSAID",
+  outcomeCohortId = 1,        # GI bleed
+  targetCohortId = 2,         # NSAID use
+  mode = "prior",              # "prior" or "no_prior"
+  priorTimeWindowDays = 365,   # only NSAID within 365d before GI bleed
+  subsetLimit = "Last",        # use most recent NSAID event
+  category = "Outcomes"
+)
+```
+
+**T prior O:** Target events where a prior outcome exists (e.g., NSAID initiations after prior GI bleed):
+
+```r
+nsaid_after_gi_bleed <- cm$buildTPriorO(
+  label = "NSAID - Prior GI Bleed",
+  targetCohortId = 2,         # NSAID use
+  outcomeCohortId = 1,        # GI bleed
+  mode = "prior",
+  priorTimeWindowDays = NULL,  # all time
+  subsetLimit = "First",       # earliest prior GI bleed
+  category = "Exposures"
+)
+```
+
+### Censor Cohort
+
+Truncate cohort end dates based on a censoring event. Example: censor an NSAID exposure cohort at the date of death:
+
+```r
+nsaid_censored_death <- cm$buildCensorCohort(
+  label = "NSAID - Censored at Death",
+  targetCohortId = 2,        # NSAID use
+  censorCohortId = 3,         # Death cohort
+  category = "Exposures"
 )
 ```
 

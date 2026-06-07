@@ -180,7 +180,7 @@ Tabulate the manifest as a data frame
 }
 
 \subsection{Returns}{
-Data frame. Manifest data with columns: id, label, tags, filePath, hash, timestamp
+Data frame. Manifest data with columns: id, label, category, tags, filePath, hash, timestamp
 Get the manifest path
 }
 }
@@ -274,7 +274,7 @@ Register a local CIRCE JSON file in the manifest
 \if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$addConceptSetFile(
   filePath,
   label,
-  domain = "init",
+  category = "init",
   tags = list()
 )}\if{html}{\out{</div>}}
 }
@@ -286,7 +286,7 @@ Register a local CIRCE JSON file in the manifest
 
 \item{\code{label}}{Character. Display name for the concept set.}
 
-\item{\code{domain}}{Character. OMOP CDM domain. One of \code{"drug_exposure"},
+\item{\code{category}}{Character. Category for the concept set. One of \code{"drug_exposure"},
 \code{"condition_occurrence"}, \code{"measurement"}, \code{"procedure"}, \code{"observation"},
 \code{"device_exposure"}, \code{"visit_occurrence"}, \code{"init"}. Defaults to \code{"init"}.}
 
@@ -307,7 +307,7 @@ Fetch a single concept set from ATLAS and register it in the manifest
 \if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$addAtlasConceptSet(
   atlasId,
   label,
-  domain = "init",
+  category = "init",
   tags = list(),
   atlasConnection = NULL
 )}\if{html}{\out{</div>}}
@@ -320,7 +320,7 @@ Fetch a single concept set from ATLAS and register it in the manifest
 
 \item{\code{label}}{Character. Display name for the concept set.}
 
-\item{\code{domain}}{Character. OMOP CDM domain. Defaults to \code{"init"}.}
+\item{\code{category}}{Character. Category for the concept set. Defaults to \code{"init"}.}
 
 \item{\code{tags}}{Named list. Optional extra metadata tags. Defaults to \code{list()}.}
 
@@ -344,7 +344,7 @@ Export a Capr ConceptSet to JSON and register it in the manifest
 \if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$addCaprConceptSet(
   caprConceptSet,
   label,
-  domain = "init",
+  category = "init",
   tags = list()
 )}\if{html}{\out{</div>}}
 }
@@ -356,7 +356,7 @@ Export a Capr ConceptSet to JSON and register it in the manifest
 
 \item{\code{label}}{Character. Display name for the concept set.}
 
-\item{\code{domain}}{Character. OMOP CDM domain. Defaults to \code{"init"}.}
+\item{\code{category}}{Character. Category for the concept set. Defaults to \code{"init"}.}
 
 \item{\code{tags}}{Named list. Optional extra metadata tags. Defaults to \code{list()}.}
 }
@@ -372,7 +372,7 @@ Invisible integer. The assigned concept set ID.
 \subsection{Method \code{importAtlasConceptSets()}}{
 Batch-import concept sets from ATLAS via a conceptSetsLoad CSV
 
-Reads a CSV with columns \code{atlasId}, \code{label}, \code{domain} (required) plus any
+Reads a CSV with columns \code{atlasId}, \code{label}, \code{category} (required) plus any
 additional columns treated as tag key-value pairs. Calls
 \code{addAtlasConceptSet()} for each row inside a \code{tryCatch} so a single failure
 does not abort the entire batch.

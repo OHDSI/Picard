@@ -37,7 +37,6 @@ reference:
       - ConceptSetManifest
       - ContributorLine
       - DbConfigBlock
-      - ExecOptions
       - ExecutionSettings
       - StudyMeta
       - UlyssesStudy
@@ -45,7 +44,7 @@ reference:
   - title: "Creation Functions"
     desc: "Functions for creating objects and structures (make*)"
     contents:
-      - makeExecOptions
+      - makeBlock
       - makePrintFriendlyFile
       - makeSrcFile
       - makeSrcSqlFile
@@ -64,13 +63,7 @@ reference:
   - title: "Build Functions"
     desc: "Functions for building study components (build*)"
     contents:
-      - buildComplementCohort
-      - buildCompositeCohort
-      - buildStratifiedCohorts
       - buildStudyHub
-      - buildSubsetCohortDemographic
-      - buildSubsetCohortTemporal
-      - buildUnionCohort
 
   - title: "Create Functions"
     desc: "Functions for creating new objects (create*)"
@@ -98,6 +91,8 @@ reference:
       - setContributor
       - setDbConfigBlock
       - setOutputFolder
+      - setupAtlasSecretsKeyring
+      - setupDbSecretsKeyring
 
   - title: "Loading Functions"
     desc: "Functions for loading and importing data (load*)"
@@ -108,22 +103,21 @@ reference:
   - title: "Utility Functions"
     desc: "Other utility and helper functions"
     contents:
+      - addBlock
       - agentSaveWork
       - cleanColumnNames
       - clearPendingPR
-      - defineCustomCohort
       - displayTaskStatusReport
       - documentDependencies
+      - editSecrets
       - formatFloats
       - formatPercentages
       - generateCohorts
       - importAndBind
-      - importAtlasCohorts
       - importAtlasConceptSets
       - migrateCohortManifest
-      - orchestratePipelineExport
+      - migrateConceptSetManifest
       - pivotForComparison
-      - placeHolderExecOptions
       - plotCohortGraph
       - prepareDisseminationData
       - recordTaskExecution
@@ -131,21 +125,23 @@ reference:
       - resetConceptSetManifest
       - restoreEnvironment
       - reviewExportSchema
+      - reviewKeyringCredentials
+      - runPostProcessing
+      - runTestPostProcessing
       - saveWork
       - shouldRerunTask
       - snapshotEnvironment
       - standardizeDataTypes
       - templateAtlasCredentials
-      - testOrchestratePipelineExport
       - testStudyPipeline
       - testStudyTask
-      - updateCohortMetadata
+      - updateCohortManifest
+      - updateConceptSetManifest
       - updateStudyVersion
       - validateCohortResults
       - validateConfigYaml
       - validateStudyTask
       - validateUlyssesStructure
-      - visualizeCohortDependencies
       - zipAndArchive
 
 development:

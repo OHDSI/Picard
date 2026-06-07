@@ -276,7 +276,7 @@ resetCohortManifest <- function(manifest = NULL,
     answer <- readline("Type 'yes' to confirm reset, anything else to cancel: ")
     if (!identical(trimws(tolower(answer)), "yes")) {
       cli::cli_alert_info("Reset cancelled.")
-      return(invisible(NULL))
+      return(NULL)
     }
   }
 
@@ -387,6 +387,19 @@ createBlankCohortsLoadFile <- function(cohortsFolderPath = here::here("inputs/co
 
   fs::dir_create(cohortsFolderPath)
 
+  file_path <- fs::path(cohortsFolderPath, "cohortsLoad.csv")
+
+  # Check if file already exists
+  if (fs::file_exists(file_path)) {
+    cli::cli_alert_warning("File already exists: {.file {fs::path_rel(file_path)}}")
+    answer <- readline("Overwrite with blank template? (yes/no): ")
+    if (!identical(trimws(tolower(answer)), "yes")) {
+      cli::cli_alert_info("Operation cancelled. Existing file was not modified.")
+      return(NULL)
+    }
+    cli::cli_alert_info("Overwriting existing file with blank template...")
+  }
+
   template <- data.frame(
     atlasId = integer(1),
     label = character(1),
@@ -396,7 +409,6 @@ createBlankCohortsLoadFile <- function(cohortsFolderPath = here::here("inputs/co
     stringsAsFactors = FALSE
   )
 
-  file_path <- fs::path(cohortsFolderPath, "cohortsLoad.csv")
   readr::write_csv(template, file = file_path)
 
   cli::cli_rule("Blank Cohorts Load File Created")
@@ -424,79 +436,6 @@ createBlankCohortsLoadFile <- function(cohortsFolderPath = here::here("inputs/co
 }
 
 
-#' Function to parse tags string from database into a named list
-#'
-#' @param tags_str Character. Tags string in format "name: value | name: value"
-#'
-#' @return List. Named list of tags
-#'
-#' @keywords internal
-parseTagsString <- function(tags_str) {
-  if (is.na(tags_str) || tags_str == "") {
-    return(list())
-  }
-
-  tag_pairs <- strsplit(tags_str, " \\| ")[[1]]
-
-  tags_list <- list()
-  for (pair in tag_pairs) {
-    parts <- strsplit(pair, ":\\s*")[[1]]
-    if (length(parts) == 2) {
-      tag_name  <- trimws(parts[1])
-      tag_value <- trimws(parts[2])
-      tags_list[[tag_name]] <- tag_value
-    }
-  }
-
-  return(tags_list)
-}
-
-
-#' Import CIRCE Cohort Definitions from ATLAS
-#'
-#' @description
-#' Imports CIRCE JSON cohort definitions from ATLAS and registers them in the manifest.
-#' This is a wrapper around [CohortManifest]`$importAtlasCohorts()`.
-#'
-#' @note Deprecated. Use [CohortManifest]`$importAtlasCohorts()` directly.
-#'
-#' @param atlasConnection An ATLAS connection object.
-#' @param manifestPath Character. Path to the cohort manifest database.
-#' @param cohortsLoadPath Character. Path to the CSV file containing cohort metadata.
-#'
-#' @return Invisibly returns a tibble with import results.
-#'
-#' @export
-importAtlasCohorts <- function(atlasConnection,
-                               manifestPath = here::here("inputs/cohorts/cohortManifest.sqlite"),
-                               cohortsLoadPath = here::here("inputs/cohorts/cohortsLoad.csv")) {
-  lifecycle::deprecate_warn(
-    "0.1.0",
-    "importAtlasCohorts()",
-    details = c(
-      "i" = "Use CohortManifest$importAtlasCohorts() method directly:",
-      "i" = "  manifest <- CohortManifest$new(dbPath = '...')",
-      "i" = "  manifest$importAtlasCohorts(atlasConnection, cohortsLoadPath)"
-    )
-  )
-
-  if (file.exists(manifestPath)) {
-    manifest <- CohortManifest$new(dbPath = manifestPath)
-  } else {
-    cohorts_folder <- dirname(manifestPath)
-    if (!dir.exists(cohorts_folder)) {
-      dir.create(cohorts_folder, recursive = TRUE, showWarnings = FALSE)
-    }
-    manifest <- CohortManifest$new(dbPath = manifestPath)
-  }
-
-  results <- manifest$importAtlasCohorts(
-    atlasConnection = atlasConnection,
-    cohortsLoadPath = cohortsLoadPath
-  )
-
-  return(invisible(results))
-}
 
 
 #' Plot Cohort Dependency Graph
@@ -594,141 +533,6 @@ plotCohortGraph <- function(manifest) {
 }
 
 
-#' Visualize Cohort Dependencies (Deprecated)
-#'
-#' @description
-#' **Deprecated.** Use [plotCohortGraph()] for a mermaid dependency diagram and
-#' [CohortManifest]`$reviewDependentCohorts()` for a tabular dependency summary.
-#'
-#' @param manifest A CohortManifest object.
-#' @param outputPath Character. Optional path to save the markdown report. Defaults to NULL.
-#'
-#' @return Character. The markdown report content (invisibly).
-#'
-#' @export
-visualizeCohortDependencies <- function(manifest, outputPath = NULL) {
-  lifecycle::deprecate_warn(
-    "0.0.3",
-    "visualizeCohortDependencies()",
-    details = paste(
-      "Use plotCohortGraph(manifest) for a mermaid dependency diagram.",
-      "Use manifest$reviewDependentCohorts() for a tabular dependency summary."
-    )
-  )
-
-  checkmate::assert_r6(manifest, classes = "CohortManifest")
-  checkmate::assert_character(outputPath, len = 1, null.ok = TRUE)
-
-  cohort_list <- manifest$getManifest()
-
-  if (length(cohort_list) == 0) {
-    cli::cli_alert_warning("No cohorts found in manifest")
-    return(invisible(NULL))
-  }
-
-  total_cohorts       <- length(cohort_list)
-  cohort_types        <- sapply(cohort_list, function(c) c$getCohortType())
-  type_counts         <- table(cohort_types)
-  base_cohort_count   <- ifelse("circe" %in% names(type_counts), type_counts[["circe"]], 0)
-  dependent_cohort_count <- total_cohorts - base_cohort_count
-
-  # Read dependency data from SQLite
-  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
-  on.exit(DBI::dbDisconnect(conn))
-
-  dep_rows <- DBI::dbGetQuery(
-    conn,
-    "SELECT id, depends_on FROM cohort_manifest WHERE status = 'active'"
-  )
-  deps_lookup <- stats::setNames(dep_rows$depends_on, as.character(dep_rows$id))
-
-  parse_parents <- function(cid) {
-    dep_json <- deps_lookup[[as.character(cid)]]
-    if (is.null(dep_json) || is.na(dep_json) || nchar(dep_json) == 0) {
-      return(integer(0))
-    }
-    tryCatch(as.integer(jsonlite::fromJSON(dep_json)), error = function(e) integer(0))
-  }
-
-  # Mermaid diagram
-  node_defs <- character()
-  edge_defs <- character()
-
-  for (cohort in cohort_list) {
-    cid   <- cohort$getId()
-    clbl  <- cohort$label
-    ctype <- cohort$getCohortType()
-    nid   <- paste0("c", cid)
-
-    node_shape <- switch(
-      ctype,
-      circe  = paste0('["', clbl, '"]'),
-      subset = paste0('("',  clbl, '")'),
-      union  = paste0('{{"', clbl, '"}}'),
-      paste0('{{{{"', clbl, '"}}}}')
-    )
-    node_defs <- c(node_defs, paste0(nid, node_shape))
-
-    for (pid in parse_parents(cid)) {
-      edge_defs <- c(edge_defs, paste0("c", pid, " --> ", nid))
-    }
-  }
-
-  mermaid_diagram <- paste(c("graph TD", node_defs, edge_defs), collapse = "\n")
-
-  # Summary table rows
-  cohort_rows <- character()
-  for (cohort in cohort_list) {
-    cid   <- cohort$getId()
-    pids  <- parse_parents(cid)
-    dep_str <- if (length(pids) == 0) "None" else paste(pids, collapse = ", ")
-    cohort_rows <- c(cohort_rows, paste0(
-      "| ", cid, " | ", cohort$label, " | ", cohort$getCohortType(), " | ", dep_str, " |"
-    ))
-  }
-
-  report <- paste0(
-    "# Cohort Dependency Report\n\n",
-    "**Generated**: ", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "\n\n",
-    "## Overview\n\n",
-    "| Metric | Count |\n",
-    "|--------|-------|\n",
-    "| Total Cohorts | ", total_cohorts, " |\n",
-    "| Base Cohorts (CIRCE) | ", base_cohort_count, " |\n",
-    "| Dependent Cohorts | ", dependent_cohort_count, " |\n",
-    "\n",
-    "### Cohort Type Breakdown\n\n",
-    paste(sapply(names(type_counts), function(t) paste0("- **", t, "**: ", type_counts[[t]])), collapse = "\n"),
-    "\n\n",
-    "## Dependency Diagram\n\n",
-    "```mermaid\n", mermaid_diagram, "\n```\n\n",
-    "**Legend:**\n",
-    "- \u25ad Rectangle: CIRCE (base) cohort\n",
-    "- \u25ef Circle: Subset cohort\n",
-    "- \u25c7 Diamond: Union cohort\n",
-    "- \u2b21 Hexagon: Complement cohort\n\n",
-    "## Cohort Summary Table\n\n",
-    "| ID | Label | Type | Depends On |\n",
-    "|----|----|------|----------|\n",
-    paste(cohort_rows, collapse = "\n"),
-    "\n\n",
-    "---\n",
-    "*Report generated by picard dependency visualizer*\n"
-  )
-
-  if (!is.null(outputPath)) {
-    if (!dir.exists(outputPath)) {
-      dir.create(outputPath, recursive = TRUE, showWarnings = FALSE)
-    }
-    output_file <- fs::path(outputPath, "cohort_dependencies.md")
-    readr::write_file(report, file = output_file)
-    cli::cli_alert_success("Dependency report saved to: {fs::path_rel(output_file)}")
-  }
-
-  invisible(report)
-}
-
-
 #' Validate a Custom SQL Cohort for Picard Compatibility
 #'
 #' @noRd
@@ -767,123 +571,37 @@ visualizeCohortDependencies <- function(manifest, outputPath = NULL) {
 }
 
 
-#' Define (Enrich) a Custom SQL Cohort (Deprecated)
+
+
+#' Update the Label, Category, and/or Tags of an Existing Cohort Manifest
 #'
 #' @description
-#' **Deprecated.** Use [CohortManifest]`$addSqlCohort()` instead, which registers
-#' a custom SQL cohort with the correct label, category, and tags in a single step.
-#'
-#' @param manifest A [CohortManifest] R6 object.
-#' @param label Character. The user-friendly display name.
-#' @param tags Named list. Optional metadata tags. Defaults to `list()`.
-#' @param cohortId Integer. The cohort ID in the manifest.
-#' @param sqlFilePath Character. Path to the SQL file.
-#'
-#' @return Invisibly returns `NULL`.
-#'
-#' @export
-defineCustomCohort <- function(manifest,
-                               label,
-                               tags = list(),
-                               cohortId = NULL,
-                               sqlFilePath = NULL) {
-  lifecycle::deprecate_warn(
-    "0.0.3",
-    "defineCustomCohort()",
-    details = "Use manifest$addSqlCohort(filePath, label, category, tags) instead."
-  )
-  checkmate::assert_class(x = manifest, classes = "CohortManifest")
-  checkmate::assert_string(x = label, min.chars = 1)
-  checkmate::assert_list(x = tags, names = "named")
-
-  has_id   <- !is.null(cohortId)
-  has_path <- !is.null(sqlFilePath)
-
-  if (has_id && has_path) {
-    cli::cli_abort("Provide either `cohortId` or `sqlFilePath`, not both.")
-  }
-  if (!has_id && !has_path) {
-    cli::cli_abort("One of `cohortId` or `sqlFilePath` must be provided.")
-  }
-  if (has_id) checkmate::assert_int(x = cohortId, lower = 1)
-  if (has_path) checkmate::assert_string(x = sqlFilePath, min.chars = 1)
-
-  cohort <- NULL
-
-  if (has_id) {
-    cohort <- manifest$getCohortById(as.integer(cohortId))
-    if (is.null(cohort)) {
-      cli::cli_abort("No cohort with ID {cohortId} found in the manifest.")
-    }
-  } else {
-    norm_target <- normalizePath(sqlFilePath, mustWork = FALSE)
-    for (cd in manifest$getManifest()) {
-      norm_fp <- normalizePath(cd$getFilePath(), mustWork = FALSE)
-      if (norm_fp == norm_target || fs::path_rel(cd$getFilePath()) == fs::path_rel(sqlFilePath)) {
-        cohort <- cd
-        break
-      }
-    }
-    if (is.null(cohort)) {
-      cli::cli_abort("No cohort with file path '{sqlFilePath}' found in the manifest.")
-    }
-  }
-
-  cohort_id  <- cohort$getId()
-  cohort_sql <- cohort$getSql()
-  if (!is.null(cohort_sql) && nchar(cohort_sql) > 0) {
-    .validateCustomSql(cohort_sql, label)
-  }
-
-  cohort$label <- label
-  cohort$tags  <- tags
-  cohort$setCohortType("custom")
-
-  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
-  on.exit(DBI::dbDisconnect(conn))
-
-  tags_str <- cohort$formatTagsAsString()
-
-  DBI::dbExecute(
-    conn,
-    "UPDATE cohort_manifest SET label = ?, tags = ?, cohort_type = 'custom' WHERE id = ?",
-    list(label, tags_str, cohort_id)
-  )
-
-  cli::cli_alert_success("Defined custom cohort {cohort_id}: {label}")
-  if (length(tags) > 0) {
-    cli::cli_alert_info("Tags: {tags_str}")
-  }
-
-  invisible(NULL)
-}
-
-
-#' Update the Label and/or Tags of an Existing Manifest Cohort
-#'
-#' @description
-#' Updates `label`, `tags`, or both on any cohort present in the manifest.
+#' Updates `label`, `category`, `tags`, or any combination on any cohort present in the manifest.
 #' Changes are applied to both the in-memory object and the SQLite database.
 #'
 #' @param manifest A `CohortManifest` object.
 #' @param cohortId Integer. The ID of the cohort to update.
 #' @param label Character or `NULL`. New label. If `NULL`, the existing label is kept.
+#' @param category Character or `NULL`. New category (e.g., 'target', 'outcome', 'exposure'). 
+#'   If `NULL`, the existing category is kept.
 #' @param tags Named list or `NULL`. New tags. If `NULL`, the existing tags are kept.
 #'
 #' @return Invisibly returns `NULL`.
 #'
 #' @export
-updateCohortMetadata <- function(manifest,
+updateCohortManifest <- function(manifest,
                                  cohortId,
                                  label = NULL,
+                                 category = NULL,
                                  tags = NULL) {
   checkmate::assert_class(x = manifest, classes = "CohortManifest")
   checkmate::assert_int(x = cohortId, lower = 1)
 
-  if (is.null(label) && is.null(tags)) {
-    cli::cli_abort("At least one of `label` or `tags` must be provided.")
+  if (is.null(label) && is.null(category) && is.null(tags)) {
+    cli::cli_abort("At least one of `label`, `category`, or `tags` must be provided.")
   }
   if (!is.null(label)) checkmate::assert_string(x = label, min.chars = 1)
+  if (!is.null(category)) checkmate::assert_string(x = category, min.chars = 1)
   if (!is.null(tags))  checkmate::assert_list(x = tags, names = "named")
 
   cohort <- manifest$getCohortById(as.integer(cohortId))
@@ -892,6 +610,7 @@ updateCohortMetadata <- function(manifest,
   }
 
   if (!is.null(label)) cohort$label <- label
+  if (!is.null(category)) cohort$category <- category
   if (!is.null(tags))  cohort$tags  <- tags
 
   set_parts <- character(0)
@@ -902,10 +621,15 @@ updateCohortMetadata <- function(manifest,
     params    <- c(params, list(label))
   }
 
+  if (!is.null(category)) {
+    set_parts <- c(set_parts, "category = ?")
+    params    <- c(params, list(category))
+  }
+
   if (!is.null(tags)) {
-    tags_str  <- cohort$formatTagsAsString()
+    tags_json <- jsonlite::toJSON(tags, auto_unbox = TRUE)
     set_parts <- c(set_parts, "tags = ?")
-    params    <- c(params, list(tags_str))
+    params    <- c(params, list(tags_json))
   }
 
   params <- c(params, list(as.integer(cohortId)))
@@ -923,9 +647,104 @@ updateCohortMetadata <- function(manifest,
 
   changed <- character(0)
   if (!is.null(label)) changed <- c(changed, paste0("label \u2192 ", label))
+  if (!is.null(category)) changed <- c(changed, paste0("category \u2192 ", category))
   if (!is.null(tags))  changed <- c(changed, paste0("tags \u2192 ", cohort$formatTagsAsString()))
 
   cli::cli_alert_success("Updated cohort {cohortId}: {paste(changed, collapse = ', ')}")
+
+  invisible(NULL)
+}
+
+
+#' Update a Concept Set in the Manifest
+#'
+#' Updates metadata (label, category, and/or tags) for a concept set in the ConceptSetManifest.
+#'
+#' @param manifest A ConceptSetManifest object.
+#' @param conceptSetId Integer. The ID of the concept set to update.
+#' @param label Character. New label for the concept set. If NULL (default), label is not updated.
+#' @param category Character. New category for the concept set. If NULL (default), category is not updated.
+#'   Valid values: "drug_exposure", "condition_occurrence", "measurement", "procedure", "observation", "device_exposure", "visit_occurrence", "init".
+#' @param tags List. New tags (named list) for the concept set. If NULL (default), tags are not updated.
+#'
+#' @return Invisibly returns NULL. Prints a success message if the update succeeds.
+#'
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#'   manifest <- loadConceptSetManifest()
+#'   updateConceptSetManifest(manifest, 1, label = "Updated Label")
+#'   updateConceptSetManifest(manifest, 2, category = "measurement")
+#'   updateConceptSetManifest(manifest, 3, tags = list(source = "ATLAS", version = "2"))
+#' }
+updateConceptSetManifest <- function(manifest,
+                                     conceptSetId,
+                                     label = NULL,
+                                     category = NULL,
+                                     tags = NULL) {
+  checkmate::assert_class(x = manifest, classes = "ConceptSetManifest")
+  checkmate::assert_int(x = conceptSetId, lower = 1)
+
+  if (is.null(label) && is.null(category) && is.null(tags)) {
+    cli::cli_abort("At least one of `label`, `category`, or `tags` must be provided.")
+  }
+  if (!is.null(label)) checkmate::assert_string(x = label, min.chars = 1)
+  if (!is.null(category)) {
+    checkmate::assert_string(x = category, min.chars = 1)
+    valid_categories <- c("drug_exposure", "condition_occurrence", "measurement", "procedure",
+                          "observation", "device_exposure", "visit_occurrence", "init")
+    checkmate::assert_choice(x = category, choices = valid_categories)
+  }
+  if (!is.null(tags)) checkmate::assert_list(x = tags, names = "named")
+
+  conceptSet <- manifest$getConceptSetById(as.integer(conceptSetId))
+  if (is.null(conceptSet)) {
+    cli::cli_abort("No concept set with ID {conceptSetId} found in the manifest.")
+  }
+
+  if (!is.null(label)) conceptSet$label <- label
+  if (!is.null(category)) conceptSet$category <- category
+  if (!is.null(tags)) conceptSet$tags <- tags
+
+  set_parts <- character(0)
+  params    <- list()
+
+  if (!is.null(label)) {
+    set_parts <- c(set_parts, "label = ?")
+    params    <- c(params, list(label))
+  }
+
+  if (!is.null(category)) {
+    set_parts <- c(set_parts, "category = ?")
+    params    <- c(params, list(category))
+  }
+
+  if (!is.null(tags)) {
+    tags_json <- jsonlite::toJSON(tags, auto_unbox = TRUE)
+    set_parts <- c(set_parts, "tags = ?")
+    params    <- c(params, list(tags_json))
+  }
+
+  params <- c(params, list(as.integer(conceptSetId)))
+
+  sql <- paste(
+    "UPDATE concept_set_manifest SET",
+    paste(set_parts, collapse = ", "),
+    "WHERE id = ?"
+  )
+
+  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
+  on.exit(DBI::dbDisconnect(conn))
+
+  DBI::dbExecute(conn, sql, params)
+
+  changed <- character(0)
+  if (!is.null(label)) changed <- c(changed, paste0("label \u2192 ", label))
+  if (!is.null(category)) changed <- c(changed, paste0("category \u2192 ", category))
+  if (!is.null(tags)) changed <- c(changed, paste0("tags \u2192 ", conceptSet$formatTagsAsString()))
+
+  cli::cli_alert_success("Updated concept set {conceptSetId}: {paste(changed, collapse = ', ')}")
 
   invisible(NULL)
 }
@@ -1179,6 +998,19 @@ createBlankConceptSetsLoadFile <- function(conceptSetsFolderPath = here::here("i
 
   fs::dir_create(conceptSetsFolderPath)
 
+  file_path <- fs::path(conceptSetsFolderPath, "conceptSetsLoad.csv")
+
+  # Check if file already exists
+  if (fs::file_exists(file_path)) {
+    cli::cli_alert_warning("File already exists: {.file {fs::path_rel(file_path)}}")
+    answer <- readline("Overwrite with blank template? (yes/no): ")
+    if (!identical(trimws(tolower(answer)), "yes")) {
+      cli::cli_alert_info("Operation cancelled. Existing file was not modified.")
+      return(NULL)
+    }
+    cli::cli_alert_info("Overwriting existing file with blank template...")
+  }
+
   template <- data.frame(
     atlasId = integer(1),
     label = character(1),
@@ -1253,3 +1085,384 @@ importAtlasConceptSets <- function(conceptSetsFolderPath = here::here("inputs/co
 
   return(invisible(result))
 }
+
+tableExists <- function(connection, schema, tableName, dbms) {
+  tryCatch({
+    query <- paste0("SELECT COUNT(*) FROM ", schema, ".", tableName, " WHERE 1=0")
+    result <- DatabaseConnector::querySql(connection, query)
+    return(TRUE)
+  }, error = function(e) {
+    return(FALSE)
+  })
+}
+
+
+createMainCohortTableSql <- function(schema, tableName, dbms, tempEmulationSchema = NULL) {
+  sql <- "CREATE TABLE @schema.@table_name (
+    cohort_definition_id BIGINT,
+    subject_id BIGINT,
+    cohort_start_date DATE,
+    cohort_end_date DATE
+  );"
+
+  sql <- SqlRender::render(
+    sql = sql,
+    schema = schema,
+    table_name = tableName
+  )
+
+  sql <- SqlRender::translate(
+    sql = sql,
+    targetDialect = dbms,
+    tempEmulationSchema = tempEmulationSchema
+  )
+
+  return(sql)
+}
+
+
+createInclusionTableSql <- function(schema, tableName, dbms) {
+  sql <- "CREATE TABLE @schema.@table_name (
+    cohort_definition_id BIGINT NOT NULL,
+  	rule_sequence INT NOT NULL,
+  	name VARCHAR(255) NULL,
+  	description VARCHAR(1000) NULL
+  );"
+
+  sql <- SqlRender::render(
+    sql = sql,
+    schema = schema,
+    table_name = tableName
+  )
+
+  sql <- SqlRender::translate(
+    sql = sql,
+    targetDialect = dbms
+  )
+
+  return(sql)
+}
+
+
+createInclusionResultTableSql <- function(schema, tableName, dbms) {
+  sql <- "CREATE TABLE @schema.@table_name (
+    cohort_definition_id BIGINT NOT NULL,
+  	inclusion_rule_mask BIGINT NOT NULL,
+  	person_count BIGINT NOT NULL,
+  	mode_id INT
+  );"
+
+  sql <- SqlRender::render(
+    sql = sql,
+    schema = schema,
+    table_name = tableName
+  )
+
+  sql <- SqlRender::translate(
+    sql = sql,
+    targetDialect = dbms
+  )
+
+  return(sql)
+}
+
+
+createInclusionStatsTableSql <- function(schema, tableName, dbms) {
+  sql <- "CREATE TABLE @schema.@table_name (
+    cohort_definition_id BIGINT NOT NULL,
+  	rule_sequence INT NOT NULL,
+  	person_count BIGINT NOT NULL,
+  	gain_count BIGINT NOT NULL,
+  	person_total BIGINT NOT NULL,
+  	mode_id INT
+  );"
+
+  sql <- SqlRender::render(
+    sql = sql,
+    schema = schema,
+    table_name = tableName
+  )
+
+  sql <- SqlRender::translate(
+    sql = sql,
+    targetDialect = dbms
+  )
+
+  return(sql)
+}
+
+
+createSummaryStatsTableSql <- function(schema, tableName, dbms) {
+  sql <- "CREATE TABLE @schema.@table_name (
+    cohort_definition_id BIGINT NOT NULL,
+  	base_count BIGINT NOT NULL,
+  	final_count BIGINT NOT NULL,
+  	mode_id INT
+  );"
+
+  sql <- SqlRender::render(
+    sql = sql,
+    schema = schema,
+    table_name = tableName
+  )
+
+  sql <- SqlRender::translate(
+    sql = sql,
+    targetDialect = dbms
+  )
+
+  return(sql)
+}
+
+
+createCensorStatsTableSql <- function(schema, tableName, dbms) {
+  sql <- "CREATE TABLE @schema.@table_name (
+    cohort_definition_id BIGINT NOT NULL,
+    lost_count BIGINT NOT NULL
+  );"
+
+  sql <- SqlRender::render(
+    sql = sql,
+    schema = schema,
+    table_name = tableName
+  )
+
+  sql <- SqlRender::translate(
+    sql = sql,
+    targetDialect = dbms
+  )
+
+  return(sql)
+}
+
+
+createChecksumTableSql <- function(schema, tableName, dbms) {
+  sql <- "CREATE TABLE @schema.@table_name (
+    cohort_definition_id BIGINT NOT NULL,
+    checksum varchar(500) NOT NULL,
+    start_time FLOAT,
+    end_time FLOAT
+  );"
+
+  sql <- SqlRender::render(
+    sql = sql,
+    schema = schema,
+    table_name = tableName
+  )
+
+  sql <- SqlRender::translate(
+    sql = sql,
+    targetDialect = dbms
+  )
+
+  return(sql)
+}
+
+
+getCohortTableNames <- function(cohortTable = "cohort",
+                                cohortSampleTable = cohortTable,
+                                cohortInclusionTable = paste0(cohortTable, "_inclusion"),
+                                cohortInclusionResultTable = paste0(cohortTable, "_inclusion_result"),
+                                cohortInclusionStatsTable = paste0(cohortTable, "_inclusion_stats"),
+                                cohortSummaryStatsTable = paste0(cohortTable, "_summary_stats"),
+                                cohortCensorStatsTable = paste0(cohortTable, "_censor_stats"),
+                                cohortSubsetAttritionTable = paste0(cohortTable, "_subset_attrition"),
+                                cohortChecksumTable = paste0(cohortTable, "_checksum")) {
+  return(list(
+    cohortTable = cohortTable,
+    cohortSampleTable = cohortSampleTable,
+    cohortInclusionTable = cohortInclusionTable,
+    cohortInclusionResultTable = cohortInclusionResultTable,
+    cohortInclusionStatsTable = cohortInclusionStatsTable,
+    cohortSummaryStatsTable = cohortSummaryStatsTable,
+    cohortCensorStatsTable = cohortCensorStatsTable,
+    cohortSubsetAttritionTable = cohortSubsetAttritionTable,
+    cohortChecksumTable = cohortChecksumTable
+  ))
+}
+
+
+# ============================================================
+# ATLAS IMPORT HELPERS
+# ============================================================
+
+#' Cascade stale status to downstream dependents
+#'
+#' Given a set of cohort IDs whose definitions changed, marks all transitive
+#' dependent cohorts as 'stale' in the manifest database. Uses BFS through
+#' the reverse dependency graph stored in cohort_manifest.depends_on.
+#'
+#' @param dbPath Character. Path to the manifest SQLite database.
+#' @param cohort_ids Integer vector. The seed cohort IDs that changed.
+#' @return Invisibly returns the integer vector of IDs marked stale.
+#' @keywords internal
+cascadeStaleDownstream <- function(dbPath, cohort_ids) {
+  cohort_ids <- as.integer(cohort_ids)
+
+  conn <- DBI::dbConnect(RSQLite::SQLite(), dbPath)
+  on.exit(DBI::dbDisconnect(conn))
+
+  rows <- DBI::dbGetQuery(
+    conn,
+    "SELECT id, depends_on FROM cohort_manifest
+     WHERE status IN ('active', 'stale')"
+  )
+
+  if (nrow(rows) == 0) {
+    return(invisible(integer(0)))
+  }
+
+  # Build reverse graph: parent_id -> vector of child_ids
+  reverse_graph <- list()
+  for (i in seq_len(nrow(rows))) {
+    child_id <- rows$id[i]
+    dep_raw  <- rows$depends_on[i]
+
+    if (!is.na(dep_raw) && nchar(dep_raw) > 0) {
+      parent_ids <- tryCatch(
+        as.integer(jsonlite::fromJSON(dep_raw)),
+        error = function(e) integer(0)
+      )
+
+      for (pid in parent_ids) {
+        pid_str <- as.character(pid)
+        reverse_graph[[pid_str]] <- c(reverse_graph[[pid_str]], child_id)
+      }
+    }
+  }
+
+  # BFS from seed cohort_ids through the reverse graph
+  visited  <- integer(0)
+  queue    <- cohort_ids
+
+  while (length(queue) > 0) {
+    current  <- queue[1]
+    queue    <- queue[-1]
+    curr_str <- as.character(current)
+
+    children <- reverse_graph[[curr_str]]
+    if (!is.null(children)) {
+      new_children <- setdiff(children, visited)
+      visited <- c(visited, new_children)
+      queue   <- c(queue, new_children)
+    }
+  }
+
+  if (length(visited) == 0) {
+    return(invisible(integer(0)))
+  }
+
+  # Build parameterized IN clause with placeholders
+  placeholders <- paste(rep("?", length(visited)), collapse = ", ")
+
+  # Bulk update to stale
+  DBI::dbExecute(
+    conn,
+    paste0(
+      "UPDATE cohort_manifest SET status = 'stale', updated_at = CURRENT_TIMESTAMP",
+      " WHERE id IN (", placeholders, ")"
+    ),
+    as.list(visited)
+  )
+
+  # Report
+  labels <- DBI::dbGetQuery(
+    conn,
+    paste0("SELECT id, label FROM cohort_manifest WHERE id IN (", placeholders, ")"),
+    as.list(visited)
+  )
+  for (i in seq_len(nrow(labels))) {
+    cli::cli_alert_warning(
+      "Marked stale: [{labels$id[i]}] {labels$label[i]}"
+    )
+  }
+
+  invisible(visited)
+}
+
+
+#' Import one Atlas cohort intelligently (skip/update/add)
+#'
+#' Checks if a cohort with the same label already exists in the manifest.
+#' If it does and the Atlas JSON hasn't changed, skip it. If JSON changed,
+#' overwrite the file and update the manifest hash. If new, add normally.
+#'
+#' @param row A one-row data frame from cohortsLoad.csv.
+#' @param tag_cols Character vector. Extra column names to treat as tags.
+#' @param dbPath Character. Path to the manifest SQLite database.
+#' @param atlasConnection An ATLAS connection object with getCohortDefinition().
+#' @param sqlite_conn An open DBI connection to the manifest database.
+#' @return A list with \code{id}, \code{label}, \code{status}.
+#' @keywords internal
+importOneAtlasCohort <- function(row, tag_cols, dbPath, atlasConnection, sqlite_conn) {
+  # Build tags from extra columns
+  tags <- list()
+  for (col in tag_cols) {
+    val <- row[[col]]
+    if (!is.na(val) && nchar(as.character(val)) > 0) {
+      tags[[col]] <- as.character(val)
+    }
+  }
+
+  row_label <- as.character(row$label)
+  row_atlas_id <- as.integer(row$atlasId)
+  row_category <- as.character(row$category)
+
+  # Check if a cohort with this label already exists
+  existing <- DBI::dbGetQuery(
+    sqlite_conn,
+    "SELECT id, label, file_path, hash FROM cohort_manifest WHERE label = ? AND status = 'active'",
+    list(row_label)
+  )
+
+  if (nrow(existing) > 0) {
+    # Fetch JSON from ATLAS and compare hashes
+    cohort_def <- atlasConnection$getCohortDefinition(cohortId = row_atlas_id)
+    expression_json <- cohort_def$expression[1]
+    new_hash <- rlang::hash(expression_json)
+
+    existing_id <- existing$id[1]
+    existing_path <- existing$file_path[1]
+
+    if (identical(new_hash, existing$hash[1])) {
+      cli::cli_alert_info("Skipping {row_label} (ID {existing_id}) — unchanged")
+      return(list(id = existing_id, label = row_label, status = "skipped"))
+    }
+
+    # JSON changed — overwrite file and update manifest
+    cohorts_dir <- dirname(dbPath)
+    full_path <- fs::path(cohorts_dir, existing_path)
+    if (file.exists(full_path)) {
+      writeLines(expression_json, full_path)
+    } else {
+      output_name <- if (!is.null(cohort_def$saveName[1]) && nzchar(cohort_def$saveName[1])) {
+        cohort_def$saveName[1]
+      } else {
+        row_label
+      }
+      json_dir <- fs::path(cohorts_dir, "json")
+      if (!dir.exists(json_dir)) dir.create(json_dir, recursive = TRUE)
+      full_path <- fs::path(json_dir, paste0(output_name, ".json"))
+      writeLines(expression_json, full_path)
+      existing_path <- fs::path_rel(full_path)
+    }
+
+    DBI::dbExecute(
+      sqlite_conn,
+      "UPDATE cohort_manifest SET hash = ?, file_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      list(new_hash, existing_path, existing_id)
+    )
+    cascadeStaleDownstream(dbPath, existing_id)
+    cli::cli_alert_success("Updated {row_label} (ID {existing_id}) — JSON changed, file overwritten")
+    return(list(id = existing_id, label = row_label, status = "updated"))
+  }
+
+  # New cohort — note: addAtlasCohort is called by the caller (the R6 method)
+  # who has access to the manifest object and its private methods.
+  # We return a marker that the caller will handle.
+  return(list(id = NULL, label = row_label, status = "new", 
+              row = row, tags = tags, atlasConnection = atlasConnection,
+              row_atlas_id = row_atlas_id, row_category = row_category))
+}
+
+

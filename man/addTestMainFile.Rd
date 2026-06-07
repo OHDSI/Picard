@@ -13,7 +13,7 @@ addTestMainFile(repoName, repoFolder, toolType, configBlocks, studyName)
 
 \item{toolType}{Character. Tool type, either "dbms" or "external".}
 
-\item{configBlocks}{List or Character vector. Database config blocks (from ExecOptions) or block names.}
+\item{configBlocks}{List or Character vector. Database config blocks or block names.}
 
 \item{studyName}{Character. Name of the study.}
 }

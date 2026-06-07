@@ -28,5 +28,5 @@ This function:
 \item Returns lockfile hash for audit/reproducibility tracking
 }
 
-Call before execStudyPipeline() or orchestratePipelineExport().
+Call before execStudyPipeline() or runPostProcessing().
 }
