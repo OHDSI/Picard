@@ -37,7 +37,6 @@ reference:
       - ConceptSetManifest
       - ContributorLine
       - DbConfigBlock
-      - ExecOptions
       - ExecutionSettings
       - StudyMeta
       - UlyssesStudy
@@ -45,7 +44,7 @@ reference:
   - title: "Creation Functions"
     desc: "Functions for creating objects and structures (make*)"
     contents:
-      - makeExecOptions
+      - makeBlock
       - makePrintFriendlyFile
       - makeSrcFile
       - makeSrcSqlFile
@@ -64,14 +63,7 @@ reference:
   - title: "Build Functions"
     desc: "Functions for building study components (build*)"
     contents:
-      - buildComplementCohort
-      - buildCompositeCohort
-      - buildCustomDependentCohort
-      - buildStratifiedCohorts
       - buildStudyHub
-      - buildDemographicCohort
-      - buildSubsetCohortTemporal
-      - buildUnionCohort
 
   - title: "Create Functions"
     desc: "Functions for creating new objects (create*)"
@@ -99,6 +91,8 @@ reference:
       - setContributor
       - setDbConfigBlock
       - setOutputFolder
+      - setupAtlasSecretsKeyring
+      - setupDbSecretsKeyring
 
   - title: "Loading Functions"
     desc: "Functions for loading and importing data (load*)"
@@ -109,23 +103,21 @@ reference:
   - title: "Utility Functions"
     desc: "Other utility and helper functions"
     contents:
+      - addBlock
       - agentSaveWork
       - cleanColumnNames
       - clearPendingPR
-      - defineCustomCohort
       - displayTaskStatusReport
       - documentDependencies
+      - editSecrets
       - formatFloats
       - formatPercentages
       - generateCohorts
       - importAndBind
-      - importAtlasCohorts
       - importAtlasConceptSets
       - migrateCohortManifest
       - migrateConceptSetManifest
-      - runPostProcessing
       - pivotForComparison
-      - placeHolderExecOptions
       - plotCohortGraph
       - prepareDisseminationData
       - recordTaskExecution
@@ -133,12 +125,14 @@ reference:
       - resetConceptSetManifest
       - restoreEnvironment
       - reviewExportSchema
+      - reviewKeyringCredentials
+      - runPostProcessing
+      - runTestPostProcessing
       - saveWork
       - shouldRerunTask
       - snapshotEnvironment
       - standardizeDataTypes
       - templateAtlasCredentials
-      - runTestPostProcessing
       - testStudyPipeline
       - testStudyTask
       - updateCohortManifest
@@ -148,7 +142,6 @@ reference:
       - validateConfigYaml
       - validateStudyTask
       - validateUlyssesStructure
-      - visualizeCohortDependencies
       - zipAndArchive
 
 development:
