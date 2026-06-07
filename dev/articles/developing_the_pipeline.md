@@ -507,17 +507,17 @@ release branch and running the full validated pipeline.
 
 ## Quick Reference: Key Functions by Phase
 
-| Phase           | Function                                                                                   | Purpose                                        |
-|-----------------|--------------------------------------------------------------------------------------------|------------------------------------------------|
-| **Setup**       | `launchCohortsLoadEditor()`                                                                | Interactive cohort metadata editor             |
-| **Setup**       | `launchConceptSetsLoadEditor()`                                                            | Interactive concept set editor                 |
-| **Development** | [`makeTaskFile()`](https://ohdsi.github.io/Picard/dev/reference/makeTaskFile.md)           | Create new analysis task                       |
-| **Development** | [`makeSrcFile()`](https://ohdsi.github.io/Picard/dev/reference/makeSrcFile.md)             | (optional) Create utility/helper function file |
-| **Development** | [`makeSrcSqlFile()`](https://ohdsi.github.io/Picard/dev/reference/makeSrcSqlFile.md)       | (optional) Create parameterized SQL query file |
-| **Development** | [`saveWork()`](https://ohdsi.github.io/Picard/dev/reference/saveWork.md)                   | Commit and push code changes to remote         |
-| **Testing**     | [`testStudyTask()`](https://ohdsi.github.io/Picard/dev/reference/testStudyTask.md)         | Test single task file                          |
-| **Testing**     | [`testStudyPipeline()`](https://ohdsi.github.io/Picard/dev/reference/testStudyPipeline.md) | Test full pipeline end-to-end                  |
-| **Production**  | See Running the Pipeline                                                                   | Execute on release branch                      |
+| Phase | Function | Purpose |
+|----|----|----|
+| **Setup** | `launchCohortsLoadEditor()` | Interactive cohort metadata editor |
+| **Setup** | `launchConceptSetsLoadEditor()` | Interactive concept set editor |
+| **Development** | [`makeTaskFile()`](https://ohdsi.github.io/Picard/dev/reference/makeTaskFile.md) | Create new analysis task |
+| **Development** | [`makeSrcFile()`](https://ohdsi.github.io/Picard/dev/reference/makeSrcFile.md) | (optional) Create utility/helper function file |
+| **Development** | [`makeSrcSqlFile()`](https://ohdsi.github.io/Picard/dev/reference/makeSrcSqlFile.md) | (optional) Create parameterized SQL query file |
+| **Development** | [`saveWork()`](https://ohdsi.github.io/Picard/dev/reference/saveWork.md) | Commit and push code changes to remote |
+| **Testing** | [`testStudyTask()`](https://ohdsi.github.io/Picard/dev/reference/testStudyTask.md) | Test single task file |
+| **Testing** | [`testStudyPipeline()`](https://ohdsi.github.io/Picard/dev/reference/testStudyPipeline.md) | Test full pipeline end-to-end |
+| **Production** | See Running the Pipeline | Execute on release branch |
 
 ## See Also
 

@@ -7,8 +7,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <title>picard - RWE Pipelining Tool • picard</title>
 <script src="deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<link href="deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
-<script src="deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
+<link href="deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
+<script src="deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="picard - RWE Pipelining Tool">
 <meta name="description" content="A pipeline tool for RWE analysis using the OHDSI stack">
@@ -22,7 +22,7 @@
 
     <a class="navbar-brand me-2" href="index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.3</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.4</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -58,7 +58,7 @@
 </h1>
 <p>Install and load the picard package:</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ohdsi.github.io/picard/" class="external-link">picard</a></span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ohdsi.github.io/Picard/">picard</a></span><span class="op">)</span></span></code></pre></div>
 <div class="section level2">
 <h2 id="begin-a-new-ulysses-repo">Begin a new Ulysses Repo<a class="anchor" aria-label="anchor" href="#begin-a-new-ulysses-repo"></a>
 </h2>
@@ -101,28 +101,15 @@
 <span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
-<h3 id="define-execution-options">Define Execution Options<a class="anchor" aria-label="anchor" href="#define-execution-options"></a>
-</h3>
-<p>Specify how and where to execute your analysis:</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">eo</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/makeExecOptions.html">makeExecOptions</a></span><span class="op">(</span></span>
-<span>  dbms <span class="op">=</span> <span class="st">"snowflake"</span>,</span>
-<span>  workDatabaseSchema <span class="op">=</span> <span class="st">"work_schema"</span>,</span>
-<span>  tempEmulationSchema <span class="op">=</span> <span class="st">"work_schema"</span>,</span>
-<span>  dbConnectionBlocks <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">db</span><span class="op">)</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level3">
 <h3 id="initialize-project">Initialize Project<a class="anchor" aria-label="anchor" href="#initialize-project"></a>
 </h3>
-<p>Create and initialize your study repository:</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<p>Create and initialize your study repository (the <code>dbConnectionBlocks</code> carry all DBMS/schema info from your config blocks):</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">ulySt</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/makeUlyssesStudySettings.html">makeUlyssesStudySettings</a></span><span class="op">(</span></span>
 <span>  repoName <span class="op">=</span> <span class="st">"my_study_project"</span>,</span>
-<span>  toolType <span class="op">=</span> <span class="st">"dbms"</span>,</span>
 <span>  repoFolder <span class="op">=</span> <span class="st">"~/studies/my_study_project"</span>,</span>
 <span>  studyMeta <span class="op">=</span> <span class="va">sm</span>,</span>
-<span>  execOptions <span class="op">=</span> <span class="va">eo</span></span>
+<span>  dbConnectionBlocks <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">db</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Initialize the repository structure</span></span>
@@ -138,32 +125,32 @@
 <h3 id="load-execution-settings">Load Execution Settings<a class="anchor" aria-label="anchor" href="#load-execution-settings"></a>
 </h3>
 <p>Load your database configuration from the config file:</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">settings</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/createExecutionSettingsFromConfig.html">createExecutionSettingsFromConfig</a></span><span class="op">(</span>configBlock <span class="op">=</span> <span class="st">"omop_cdm"</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="import-cohorts-from-atlas">Import Cohorts from ATLAS<a class="anchor" aria-label="anchor" href="#import-cohorts-from-atlas"></a>
 </h3>
 <p>Before importing cohorts, create a load list by running:</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="reference/createBlankCohortsLoadFile.html">createBlankCohortsLoadFile</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p>Edit <code>inputs/cohorts/cohortsLoad.csv</code> in Excel to add your ATLAS cohort IDs and metadata. Then import:</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">cohortManifest</span> <span class="op">&lt;-</span> <span class="va"><a href="reference/CohortManifest.html">CohortManifest</a></span><span class="op">$</span><span class="fu">new</span><span class="op">(</span>dbPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts/manifest.sqlite"</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="fu"><a href="reference/importAtlasCohorts.html">importAtlasCohorts</a></span><span class="op">(</span></span>
+<span><span class="fu">importAtlasCohorts</span><span class="op">(</span></span>
 <span>  manifest <span class="op">=</span> <span class="va">cohortManifest</span>,</span>
 <span>  atlasConnection <span class="op">=</span> <span class="fu"><a href="reference/setAtlasConnection.html">setAtlasConnection</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  cohortsLoadPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts/cohortsLoad.csv"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p>For you to set up the atlas connection you need to provide your credentials for logging into webApi. Follow this template to add credentials to .Renviron file:</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="reference/templateAtlasCredentials.html">templateAtlasCredentials</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="load-and-view-cohort-manifest">Load and View Cohort Manifest<a class="anchor" aria-label="anchor" href="#load-and-view-cohort-manifest"></a>
 </h3>
 <p>Create a CohortManifest and examine available cohorts:</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">cm</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/loadCohortManifest.html">loadCohortManifest</a></span><span class="op">(</span>executionSettings <span class="op">=</span> <span class="va">settings</span><span class="op">)</span></span>
 <span><span class="va">cm</span><span class="op">$</span><span class="fu">getManifest</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -171,21 +158,21 @@
 <h3 id="create-cohort-tables">Create Cohort Tables<a class="anchor" aria-label="anchor" href="#create-cohort-tables"></a>
 </h3>
 <p>Initialize the necessary database tables for cohort storage:</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">cm</span><span class="op">$</span><span class="fu">createCohortTables</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="generate-cohorts">Generate Cohorts<a class="anchor" aria-label="anchor" href="#generate-cohorts"></a>
 </h3>
 <p>Execute the cohort generation process:</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">cm</span><span class="op">$</span><span class="fu">generateCohorts</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="retrieve-cohort-counts">Retrieve Cohort Counts<a class="anchor" aria-label="anchor" href="#retrieve-cohort-counts"></a>
 </h3>
 <p>Get summary statistics for all generated cohorts:</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">counts</span> <span class="op">&lt;-</span> <span class="va">cm</span><span class="op">$</span><span class="fu">retrieveCohortCounts</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p>This will return a data frame with: - <code>cohort_id</code>: The cohort definition ID - <code>label</code>: The cohort label - <code>tags</code>: Associated cohort tags - <code>cohort_entries</code>: Total number of cohort records - <code>cohort_subjects</code>: Number of distinct subjects in each cohort</p>
 </div>

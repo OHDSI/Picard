@@ -7,8 +7,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <title>The Manifest: Architecture, Workflows, and Helpers • picard</title>
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<link href="../deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
-<script src="../deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
+<link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
+<script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="The Manifest: Architecture, Workflows, and Helpers">
 </head>
@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.3</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.4</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -48,20 +48,24 @@
 
 
 
-<script src="manifest_overview_files/accessible-code-block-0.0.1/empty-anchor.js"></script><div class="row">
+
+<div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>The Manifest: Architecture, Workflows, and Helpers</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/ohdsi/Picard/blob/HEAD/vignettes/manifest_overview.Rmd" class="external-link"><code>vignettes/manifest_overview.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/ohdsi/Picard/blob/main/vignettes/manifest_overview.Rmd" class="external-link"><code>vignettes/manifest_overview.Rmd</code></a></small>
       <div class="d-none name"><code>manifest_overview.Rmd</code></div>
     </div>
 
     
     
-<p>This vignette covers the manifest system in depth — how it works under the hood, how to handle non-trivial situations mid-cycle, and the review helpers available for both cohort and concept set manifests.</p>
-<p>If you are setting up a study for the first time, start with the <a href="loading_inputs.html">Loading Inputs: Getting Started</a> vignette instead.</p>
+<p>This vignette covers the manifest system in depth — how it works
+under the hood, how to handle non-trivial situations mid-cycle, and the
+review helpers available for both cohort and concept set manifests.</p>
+<p>If you are setting up a study for the first time, start with the <a href="loading_inputs.html">Loading Inputs: Getting Started</a> vignette
+instead.</p>
 <hr>
 <div class="section level2">
 <h2 id="architecture">1. Architecture<a class="anchor" aria-label="anchor" href="#architecture"></a>
@@ -69,7 +73,8 @@
 <div class="section level3">
 <h3 id="sqlite-as-the-source-of-truth">SQLite as the source of truth<a class="anchor" aria-label="anchor" href="#sqlite-as-the-source-of-truth"></a>
 </h3>
-<p>Each manifest is a SQLite database file stored inside your study’s <code>inputs/</code> folder:</p>
+<p>Each manifest is a SQLite database file stored inside your study’s
+<code>inputs/</code> folder:</p>
 <pre><code>inputs/
 ├── cohorts/
 │   ├── cohortManifest.sqlite    # cohort manifest DB
@@ -79,7 +84,10 @@
 └── conceptSets/
     ├── conceptSetManifest.sqlite
     └── json/                    # CIRCE JSON concept set definitions</code></pre>
-<p>The SQLite database is the <strong>single source of truth</strong> for all metadata. The R6 <code>CohortManifest</code> and <code>ConceptSetManifest</code> objects are in-memory mirrors loaded from SQLite at startup.</p>
+<p>The SQLite database is the <strong>single source of truth</strong>
+for all metadata. The R6 <code>CohortManifest</code> and
+<code>ConceptSetManifest</code> objects are in-memory mirrors loaded
+from SQLite at startup.</p>
 </div>
 <div class="section level3">
 <h3 id="key-columns-in-cohort_manifest">Key columns in <code>cohort_manifest</code><a class="anchor" aria-label="anchor" href="#key-columns-in-cohort_manifest"></a>
@@ -109,7 +117,9 @@
 <tr class="even">
 <td><code>cohort_type</code></td>
 <td>
-<code>circe</code>, <code>custom</code>, <code>union</code>, <code>subset</code>, <code>complement</code>, <code>composite</code>
+<code>circe</code>, <code>custom</code>, <code>union</code>,
+<code>subset</code>, <code>complement</code>, <code>composite</code>,
+<code>oprior</code>, <code>tprior</code>, <code>censor</code>
 </td>
 </tr>
 <tr class="odd">
@@ -124,7 +134,8 @@
 </tr>
 <tr class="odd">
 <td><code>hash</code></td>
-<td>MD5 of the file — used by <code><a href="../reference/generateCohorts.html">generateCohorts()</a></code> to skip unchanged cohorts</td>
+<td>MD5 of the file — used by <code><a href="../reference/generateCohorts.html">generateCohorts()</a></code> to skip
+unchanged cohorts</td>
 </tr>
 <tr class="even">
 <td><code>depends_on</code></td>
@@ -137,7 +148,8 @@
 <tr class="even">
 <td><code>status</code></td>
 <td>
-<code>active</code>, <code>stale</code>, <code>deleted</code>, or <code>purged</code>
+<code>active</code>, <code>stale</code>, <code>deleted</code>, or
+<code>purged</code>
 </td>
 </tr>
 <tr class="odd">
@@ -154,22 +166,34 @@
 <ol style="list-style-type: decimal">
 <li>Opens the SQLite file</li>
 <li>Reads all <code>status = 'active'</code> rows</li>
-<li>Constructs a <code>CohortDef</code> R6 object for each row and holds them in a list</li>
+<li>Constructs a <code>CohortDef</code> R6 object for each row and holds
+them in a list</li>
 </ol>
-<p>Mutations (add, delete, update) write to <strong>both</strong> SQLite and the in-memory list. If you edit SQLite externally, call <code>manifest$reloadFromDb()</code> to sync.</p>
+<p>Mutations (add, delete, update) write to <strong>both</strong> SQLite
+and the in-memory list. If you edit SQLite externally, call
+<code>manifest$reloadFromDb()</code> to sync.</p>
 </div>
 <div class="section level3">
 <h3 id="hash-based-skip-logic">Hash-based skip logic<a class="anchor" aria-label="anchor" href="#hash-based-skip-logic"></a>
 </h3>
-<p>Every cohort file has an MD5 hash stored in the manifest. At execution time, <code><a href="../reference/generateCohorts.html">generateCohorts()</a></code> compares the current file hash to the stored hash and skips cohorts whose files have not changed. For derived cohorts, a combined hash of parent hashes plus the <code>dependency_rule</code> is used.</p>
-<p><strong>Stale cohorts</strong> (<code>status = 'stale'</code>) bypass the hash check and are always re-executed. They are reset to <code>'active'</code> automatically after successful execution. See <a href="#mid-cycle-changes">Section 4</a> for how cohorts become stale.</p>
+<p>Every cohort file has an MD5 hash stored in the manifest. At
+execution time, <code><a href="../reference/generateCohorts.html">generateCohorts()</a></code> compares the current file
+hash to the stored hash and skips cohorts whose files have not changed.
+For derived cohorts, a combined hash of parent hashes plus the
+<code>dependency_rule</code> is used.</p>
+<p><strong>Stale cohorts</strong> (<code>status = 'stale'</code>) bypass
+the hash check and are always re-executed. They are reset to
+<code>'active'</code> automatically after successful execution. See <a href="#mid-cycle-changes">Section 4</a> for how cohorts become
+stale.</p>
 <hr>
 </div>
 </div>
 <div class="section level2">
 <h2 id="adding-cohorts-mid-cycle">2. Adding Cohorts Mid-Cycle<a class="anchor" aria-label="anchor" href="#adding-cohorts-mid-cycle"></a>
 </h2>
-<p>Use the <code>$add*()</code> R6 methods to register individual cohorts without a bulk CSV import. Each method validates uniqueness and writes to SQLite immediately.</p>
+<p>Use the <code>$add*()</code> R6 methods to register individual
+cohorts without a bulk CSV import. Each method validates uniqueness and
+writes to SQLite immediately.</p>
 <div class="section level3">
 <h3 id="from-atlas-circe-json">From ATLAS (CIRCE JSON)<a class="anchor" aria-label="anchor" href="#from-atlas-circe-json"></a>
 </h3>
@@ -187,10 +211,10 @@
 <h3 id="from-capr">From Capr<a class="anchor" aria-label="anchor" href="#from-capr"></a>
 </h3>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">Capr</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ohdsi.github.io/Capr/" class="external-link">Capr</a></span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">t2dm</span> <span class="op">&lt;-</span> <span class="fu">cs</span><span class="op">(</span><span class="fu">descendants</span><span class="op">(</span><span class="fl">201826</span><span class="op">)</span>, name <span class="op">=</span> <span class="st">"Type 2 Diabetes"</span><span class="op">)</span></span>
-<span><span class="va">cohort_def</span> <span class="op">&lt;-</span> <span class="fu">cohort</span><span class="op">(</span>entry <span class="op">=</span> <span class="fu">entry</span><span class="op">(</span><span class="fu">conditionOccurrence</span><span class="op">(</span><span class="va">t2dm</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">t2dm</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">cs</a></span><span class="op">(</span><span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">descendants</a></span><span class="op">(</span><span class="fl">201826</span><span class="op">)</span>, name <span class="op">=</span> <span class="st">"Type 2 Diabetes"</span><span class="op">)</span></span>
+<span><span class="va">cohort_def</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cohort.html" class="external-link">cohort</a></span><span class="op">(</span>entry <span class="op">=</span> <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/entry.html" class="external-link">entry</a></span><span class="op">(</span><span class="fu"><a href="https://ohdsi.github.io/Capr/reference/conditionOccurrence.html" class="external-link">conditionOccurrence</a></span><span class="op">(</span><span class="va">t2dm</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">manifest</span><span class="op">$</span><span class="fu">addCaprCohort</span><span class="op">(</span></span>
 <span>  caprCohort <span class="op">=</span> <span class="va">cohort_def</span>,</span>
@@ -201,19 +225,24 @@
 <div class="section level3">
 <h3 id="custom-sql">Custom SQL<a class="anchor" aria-label="anchor" href="#custom-sql"></a>
 </h3>
-<p>Place your <code>.sql</code> file in <code>inputs/cohorts/sql/</code>, then register it:</p>
+<p>Place your <code>.sql</code> file in
+<code>inputs/cohorts/sql/</code>, then register it:</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">manifest</span><span class="op">$</span><span class="fu">addSqlCohort</span><span class="op">(</span></span>
 <span>  filePath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts/sql/my_cohort.sql"</span><span class="op">)</span>,</span>
 <span>  label    <span class="op">=</span> <span class="st">"My Custom Cohort"</span>,</span>
 <span>  category <span class="op">=</span> <span class="st">"Exposure"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<p>The SQL must use SqlRender parameters — see <code><a href="../reference/CohortManifest.html">?CohortManifest</a></code> for required parameter names (<code>@target_cohort_id</code>, <code>@target_database_schema</code>, etc.).</p>
+<p>The SQL must use SqlRender parameters — see
+<code><a href="../reference/CohortManifest.html">?CohortManifest</a></code> for required parameter names
+(<code>@target_cohort_id</code>, <code>@target_database_schema</code>,
+etc.).</p>
 </div>
 <div class="section level3">
 <h3 id="from-a-local-circe-json-file">From a Local CIRCE JSON file<a class="anchor" aria-label="anchor" href="#from-a-local-circe-json-file"></a>
 </h3>
-<p>If you have a Circe-compatible <code>.json</code> file on disk, register it with:</p>
+<p>If you have a Circe-compatible <code>.json</code> file on disk,
+register it with:</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">manifest</span><span class="op">$</span><span class="fu">addCirceCohort</span><span class="op">(</span></span>
 <span>  filePath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts/json/my_cohort.json"</span><span class="op">)</span>,</span>
@@ -226,14 +255,20 @@
 <div class="section level2">
 <h2 id="derived-cohorts">3. Derived Cohorts<a class="anchor" aria-label="anchor" href="#derived-cohorts"></a>
 </h2>
-<p>Derived cohorts are built from existing manifest cohorts using one of four R6 builder methods. They write rendered SQL to <code>derived/</code> and record all dependency metadata directly in SQLite — no sidecar files needed.</p>
+<p>Derived cohorts are built from existing manifest cohorts using one of
+four R6 builder methods. They write rendered SQL to
+<code>derived/</code> and record all dependency metadata directly in
+SQLite — no sidecar files needed.</p>
 <blockquote>
-<p><strong>Dependency order is handled automatically.</strong> <code><a href="../reference/generateCohorts.html">generateCohorts()</a></code> runs a topological sort before execution, ensuring parents always run before dependents.</p>
+<p><strong>Dependency order is handled automatically.</strong>
+<code><a href="../reference/generateCohorts.html">generateCohorts()</a></code> runs a topological sort before execution,
+ensuring parents always run before dependents.</p>
 </blockquote>
 <div class="section level3">
 <h3 id="union-cohort">Union cohort<a class="anchor" aria-label="anchor" href="#union-cohort"></a>
 </h3>
-<p>Combines the observation periods of two or more cohorts into a single cohort.</p>
+<p>Combines the observation periods of two or more cohorts into a single
+cohort.</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Assume IDs 1 and 2 are already in the manifest</span></span>
 <span><span class="va">manifest</span><span class="op">$</span><span class="fu">buildUnionCohort</span><span class="op">(</span></span>
@@ -246,9 +281,10 @@
 <div class="section level3">
 <h3 id="subset-cohort-temporal">Subset cohort (temporal)<a class="anchor" aria-label="anchor" href="#subset-cohort-temporal"></a>
 </h3>
-<p>Subsets a base cohort to members who also appear in a filter cohort within a specified time window.</p>
+<p>Subsets a base cohort to members who also appear in a filter cohort
+within a specified time window.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ohdsi.github.io/picard/" class="external-link">picard</a></span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ohdsi.github.io/Picard/">picard</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">start_window</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/createSubsetStartWindow.html">createSubsetStartWindow</a></span><span class="op">(</span></span>
 <span>  subsetCohortWindowAnchor <span class="op">=</span> <span class="st">"cohort_start_date"</span>,</span>
@@ -268,7 +304,8 @@
 <div class="section level3">
 <h3 id="complement-cohort">Complement cohort<a class="anchor" aria-label="anchor" href="#complement-cohort"></a>
 </h3>
-<p>Members of a population cohort who are <strong>not</strong> in a base cohort.</p>
+<p>Members of a population cohort who are <strong>not</strong> in a base
+cohort.</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">manifest</span><span class="op">$</span><span class="fu">buildComplementCohort</span><span class="op">(</span></span>
 <span>  label              <span class="op">=</span> <span class="st">"No T2DM - General Population"</span>,</span>
@@ -278,10 +315,25 @@
 <span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
+<h3 id="custom-dependent-cohort">Custom dependent cohort<a class="anchor" aria-label="anchor" href="#custom-dependent-cohort"></a>
+</h3>
+<p>Registers a user-supplied <code>.sql</code> file as a derived cohort
+with explicit dependencies on existing manifest cohorts. The SQL is
+copied to <code>derived/</code> and the skip-logic handles
+dependency-aware hashing automatically.</p>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">manifest</span><span class="op">$</span><span class="fu">buildCustomDependentCohort</span><span class="op">(</span></span>
+<span>  filePath  <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"extras/my_custom_logic.sql"</span><span class="op">)</span>,</span>
+<span>  label     <span class="op">=</span> <span class="st">"Custom Outcome Definition"</span>,</span>
+<span>  category  <span class="op">=</span> <span class="st">"Outcomes"</span>,</span>
+<span>  cohortIds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1L</span>, <span class="fl">3L</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
 <h3 id="composite-cohort">Composite cohort<a class="anchor" aria-label="anchor" href="#composite-cohort"></a>
 </h3>
 <p>Requires membership in a minimum number of component cohorts.</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">manifest</span><span class="op">$</span><span class="fu">buildCompositeCohort</span><span class="op">(</span></span>
 <span>  label      <span class="op">=</span> <span class="st">"T2DM + HF + CKD"</span>,</span>
 <span>  cohortIds  <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1L</span>, <span class="fl">2L</span>, <span class="fl">4L</span><span class="op">)</span>,</span>
@@ -290,9 +342,57 @@
 <span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
+<h3 id="outcome-prior-target-cohort">Outcome-Prior-Target cohort<a class="anchor" aria-label="anchor" href="#outcome-prior-target-cohort"></a>
+</h3>
+<p>Filters an outcome cohort based on whether a prior target (exposure)
+event exists. Optionally restricts the lookback to a time window.</p>
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># GI bleed events where the patient had prior NSAID use within 365 days</span></span>
+<span><span class="va">manifest</span><span class="op">$</span><span class="fu">buildOPriorT</span><span class="op">(</span></span>
+<span>  label              <span class="op">=</span> <span class="st">"GI Bleed - Prior NSAID"</span>,</span>
+<span>  outcomeCohortId    <span class="op">=</span> <span class="fl">1L</span>,</span>
+<span>  targetCohortId     <span class="op">=</span> <span class="fl">2L</span>,</span>
+<span>  category           <span class="op">=</span> <span class="st">"Outcomes"</span>,</span>
+<span>  mode               <span class="op">=</span> <span class="st">"prior"</span>,           <span class="co"># "prior" or "no_prior"</span></span>
+<span>  priorTimeWindowDays <span class="op">=</span> <span class="fl">365L</span>,             <span class="co"># NULL = all time</span></span>
+<span>  subsetLimit        <span class="op">=</span> <span class="st">"Last"</span>             <span class="co"># "First", "Last", or "All"</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="target-prior-outcome-cohort">Target-Prior-Outcome cohort<a class="anchor" aria-label="anchor" href="#target-prior-outcome-cohort"></a>
+</h3>
+<p>Reverse direction — filters a target cohort based on whether a prior
+outcome event exists.</p>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># NSAID initiations where the patient had a prior GI bleed</span></span>
+<span><span class="va">manifest</span><span class="op">$</span><span class="fu">buildTPriorO</span><span class="op">(</span></span>
+<span>  label              <span class="op">=</span> <span class="st">"NSAID - Prior GI Bleed"</span>,</span>
+<span>  targetCohortId     <span class="op">=</span> <span class="fl">2L</span>,</span>
+<span>  outcomeCohortId    <span class="op">=</span> <span class="fl">1L</span>,</span>
+<span>  category           <span class="op">=</span> <span class="st">"Exposures"</span>,</span>
+<span>  mode               <span class="op">=</span> <span class="st">"prior"</span>,</span>
+<span>  priorTimeWindowDays <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  subsetLimit        <span class="op">=</span> <span class="st">"First"</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="censor-cohort">Censor cohort<a class="anchor" aria-label="anchor" href="#censor-cohort"></a>
+</h3>
+<p>Truncates cohort end dates to the earliest censoring event (e.g.,
+death, exacerbation, procedure).</p>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Censor NSAID exposure at date of death</span></span>
+<span><span class="va">manifest</span><span class="op">$</span><span class="fu">buildCensorCohort</span><span class="op">(</span></span>
+<span>  label          <span class="op">=</span> <span class="st">"NSAID - Censored at Death"</span>,</span>
+<span>  targetCohortId <span class="op">=</span> <span class="fl">2L</span>,</span>
+<span>  censorCohortId <span class="op">=</span> <span class="fl">3L</span>,</span>
+<span>  category       <span class="op">=</span> <span class="st">"Exposures"</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
 <h3 id="reviewing-derived-cohorts">Reviewing derived cohorts<a class="anchor" aria-label="anchor" href="#reviewing-derived-cohorts"></a>
 </h3>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Tabular summary with parent labels and rule parameters</span></span>
 <span><span class="va">manifest</span><span class="op">$</span><span class="fu">reviewDependentCohorts</span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
@@ -307,30 +407,42 @@
 <div class="section level3">
 <h3 id="sync-manifest-against-disk-files">Sync manifest against disk files<a class="anchor" aria-label="anchor" href="#sync-manifest-against-disk-files"></a>
 </h3>
-<p>If SQL or JSON files have been edited outside picard, <code>$syncManifest()</code> updates stored hashes, reports unregistered files on disk, and — crucially — <strong>cascades a <code>stale</code> flag to all derived cohorts that depend on any changed file</strong>.</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<p>If SQL or JSON files have been edited outside picard,
+<code>$syncManifest()</code> updates stored hashes, reports unregistered
+files on disk, and — crucially — <strong>cascades a <code>stale</code>
+flag to all derived cohorts that depend on any changed
+file</strong>.</p>
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">manifest</span><span class="op">$</span><span class="fu">syncManifest</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-<p>When a base cohort’s SQL/JSON file changes, <code>syncManifest()</code> will:</p>
+<p>When a base cohort’s SQL/JSON file changes,
+<code>syncManifest()</code> will:</p>
 <ol style="list-style-type: decimal">
 <li>Detect the hash difference and update the stored hash</li>
-<li>Walk the dependency graph and mark every downstream derived cohort as <code>'stale'</code>
+<li>Walk the dependency graph and mark every downstream derived cohort
+as <code>'stale'</code>
 </li>
 <li>Report each staled cohort by name</li>
 </ol>
-<p>Stale derived cohorts still have valid SQL — their parent data has changed but their build logic has not. They will be <strong>re-executed automatically</strong> the next time <code><a href="../reference/generateCohorts.html">generateCohorts()</a></code> runs (the hash-skip is bypassed for stale cohorts).</p>
+<p>Stale derived cohorts still have valid SQL — their parent data has
+changed but their build logic has not. They will be <strong>re-executed
+automatically</strong> the next time <code><a href="../reference/generateCohorts.html">generateCohorts()</a></code> runs
+(the hash-skip is bypassed for stale cohorts).</p>
 </div>
 <div class="section level3">
 <h3 id="review-stale-cohorts">Review stale cohorts<a class="anchor" aria-label="anchor" href="#review-stale-cohorts"></a>
 </h3>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># See which derived cohorts are waiting for re-execution</span></span>
 <span><span class="va">manifest</span><span class="op">$</span><span class="fu">reviewStaleCohorts</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="rebuilding-the-derived-pipeline">Rebuilding the derived pipeline<a class="anchor" aria-label="anchor" href="#rebuilding-the-derived-pipeline"></a>
 </h3>
-<p>If you need to change a build parameter (e.g. adjust <code>gapDays</code> on a union cohort, or change demographic filters), the derived cohort SQL needs to be re-rendered — not just re-executed. The workflow is:</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<p>If you need to change a build parameter (e.g. adjust
+<code>gapDays</code> on a union cohort, or change demographic filters),
+the derived cohort SQL needs to be re-rendered — not just re-executed.
+The workflow is:</p>
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># 1. Clear all derived cohorts (keeps base cohort registrations)</span></span>
 <span><span class="fu"><a href="../reference/resetCohortManifest.html">resetCohortManifest</a></span><span class="op">(</span>manifest <span class="op">=</span> <span class="va">manifest</span>, scope <span class="op">=</span> <span class="st">"derived"</span><span class="op">)</span></span>
 <span></span>
@@ -349,8 +461,8 @@
 <div class="section level3">
 <h3 id="update-label-or-tags">Update label or tags<a class="anchor" aria-label="anchor" href="#update-label-or-tags"></a>
 </h3>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/updateCohortMetadata.html">updateCohortMetadata</a></span><span class="op">(</span></span>
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/updateCohortManifest.html">updateCohortManifest</a></span><span class="op">(</span></span>
 <span>  manifest  <span class="op">=</span> <span class="va">manifest</span>,</span>
 <span>  cohortId  <span class="op">=</span> <span class="fl">3L</span>,</span>
 <span>  label     <span class="op">=</span> <span class="st">"Metformin Initiators (revised)"</span>,</span>
@@ -360,15 +472,17 @@
 <div class="section level3">
 <h3 id="soft-delete-a-cohort">Soft-delete a cohort<a class="anchor" aria-label="anchor" href="#soft-delete-a-cohort"></a>
 </h3>
-<p>Marks the cohort as <code>deleted</code> in SQLite; it is excluded from generation but can be recovered.</p>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<p>Marks the cohort as <code>deleted</code> in SQLite; it is excluded
+from generation but can be recovered.</p>
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">manifest</span><span class="op">$</span><span class="fu">deleteCohort</span><span class="op">(</span>cohortId <span class="op">=</span> <span class="fl">3L</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="hard-delete-permanent">Hard-delete (permanent)<a class="anchor" aria-label="anchor" href="#hard-delete-permanent"></a>
 </h3>
-<p>Removes the row from SQLite entirely and optionally deletes the file from disk and/or purges rows from the DBMS cohort table.</p>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<p>Removes the row from SQLite entirely and optionally deletes the file
+from disk and/or purges rows from the DBMS cohort table.</p>
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Remove from manifest only</span></span>
 <span><span class="va">manifest</span><span class="op">$</span><span class="fu">removeCohort</span><span class="op">(</span>id <span class="op">=</span> <span class="fl">3L</span>, confirm <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span></span>
@@ -383,8 +497,16 @@
 <div class="section level2">
 <h2 id="reset">5. Reset<a class="anchor" aria-label="anchor" href="#reset"></a>
 </h2>
-<p>Use <code><a href="../reference/resetCohortManifest.html">resetCohortManifest()</a></code> when you need to clear cohort data. Choose the scope based on what you want to preserve:</p>
+<p>Use <code><a href="../reference/resetCohortManifest.html">resetCohortManifest()</a></code> when you need to clear cohort
+data. Choose the scope based on what you want to preserve:</p>
 <table class="table">
+<colgroup>
+<col width="20%">
+<col width="20%">
+<col width="20%">
+<col width="20%">
+<col width="20%">
+</colgroup>
 <thead><tr class="header">
 <th>Scope</th>
 <th>SQLite</th>
@@ -423,13 +545,20 @@
 </h3>
 <ul>
 <li>
-<strong>Rebuilding derived pipeline with new parameters</strong> → <code>"derived"</code>. Your base cohort registrations and ATLAS imports are preserved; just re-run the <code>$build*()</code> calls.</li>
+<strong>Rebuilding derived pipeline with new parameters</strong> →
+<code>"derived"</code>. Your base cohort registrations and ATLAS imports
+are preserved; just re-run the <code>$build*()</code> calls.</li>
 <li>
-<strong>Corrupt or restructured database</strong> → <code>"manifest"</code>. Source files are kept; call <code><a href="../reference/initCohortManifest.html">initCohortManifest()</a></code> then re-register via <code>$add*()</code> or <code>$importAtlasCohorts()</code>.</li>
+<strong>Corrupt or restructured database</strong> →
+<code>"manifest"</code>. Source files are kept; call
+<code><a href="../reference/initCohortManifest.html">initCohortManifest()</a></code> then re-register via
+<code>$add*()</code> or <code>$importAtlasCohorts()</code>.</li>
 <li>
-<strong>Complete restart</strong> → <code>"full"</code>. Requires <code>executionSettings</code> to drop OMOP tables. Use with caution.</li>
+<strong>Complete restart</strong> → <code>"full"</code>. Requires
+<code>executionSettings</code> to drop OMOP tables. Use with
+caution.</li>
 </ul>
-<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Rebuild derived pipeline only (keeps base cohorts)</span></span>
 <span><span class="fu"><a href="../reference/resetCohortManifest.html">resetCohortManifest</a></span><span class="op">(</span>manifest <span class="op">=</span> <span class="va">manifest</span>, scope <span class="op">=</span> <span class="st">"derived"</span><span class="op">)</span></span>
 <span></span>
@@ -441,12 +570,13 @@
 <span><span class="fu"><a href="../reference/resetCohortManifest.html">resetCohortManifest</a></span><span class="op">(</span>manifest          <span class="op">=</span> <span class="va">manifest</span>,</span>
 <span>                    scope             <span class="op">=</span> <span class="st">"full"</span>,</span>
 <span>                    executionSettings <span class="op">=</span> <span class="va">execSettings</span><span class="op">)</span></span></code></pre></div>
-<p>All scopes prompt for confirmation. Pass <code>confirm = FALSE</code> to skip in scripts.</p>
+<p>All scopes prompt for confirmation. Pass <code>confirm = FALSE</code>
+to skip in scripts.</p>
 </div>
 <div class="section level3">
 <h3 id="concept-set-manifest-reset">Concept set manifest reset<a class="anchor" aria-label="anchor" href="#concept-set-manifest-reset"></a>
 </h3>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Delete only the SQLite DB; json/ files are preserved and auto-re-registered</span></span>
 <span><span class="co"># on the next loadConceptSetManifest() call</span></span>
 <span><span class="fu"><a href="../reference/resetConceptSetManifest.html">resetConceptSetManifest</a></span><span class="op">(</span>scope <span class="op">=</span> <span class="st">"manifest"</span><span class="op">)</span></span>
@@ -462,7 +592,7 @@
 <div class="section level3">
 <h3 id="cohort-manifest">Cohort manifest<a class="anchor" aria-label="anchor" href="#cohort-manifest"></a>
 </h3>
-<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Full tabular view (all active cohorts)</span></span>
 <span><span class="va">manifest</span><span class="op">$</span><span class="fu">tabulateManifest</span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
@@ -481,7 +611,7 @@
 <div class="section level3">
 <h3 id="concept-set-manifest">Concept set manifest<a class="anchor" aria-label="anchor" href="#concept-set-manifest"></a>
 </h3>
-<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">csm</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadConceptSetManifest.html">loadConceptSetManifest</a></span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Tabular view of all concept sets</span></span>
@@ -498,8 +628,10 @@
 <span>  conceptSetIds  <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1L</span>, <span class="fl">2L</span><span class="op">)</span>,</span>
 <span>  sourceVocabs   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ICD10CM"</span>, <span class="st">"ICD9CM"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<p><code>extractSourceCodes()</code> requires <code>executionSettings</code> to be attached to the manifest (it queries the vocabulary tables in your CDM):</p>
-<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
+<p><code>extractSourceCodes()</code> requires
+<code>executionSettings</code> to be attached to the manifest (it
+queries the vocabulary tables in your CDM):</p>
+<div class="sourceCode" id="cb25"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">csm</span><span class="op">$</span><span class="fu">setExecutionSettings</span><span class="op">(</span><span class="va">execSettings</span><span class="op">)</span></span>
 <span><span class="va">csm</span><span class="op">$</span><span class="fu">extractSourceCodes</span><span class="op">(</span>conceptSetIds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1L</span>, <span class="fl">2L</span><span class="op">)</span>, sourceVocabs <span class="op">=</span> <span class="st">"ICD10CM"</span><span class="op">)</span></span></code></pre></div>
 </div>

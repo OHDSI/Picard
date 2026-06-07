@@ -7,7 +7,7 @@
 ## Citation
 
 Source:
-[`DESCRIPTION`](https://github.com/ohdsi/Picard/blob/main/DESCRIPTION)
+[`DESCRIPTION`](https://github.com/ohdsi/Picard/blob/HEAD/DESCRIPTION)
 
 Lavallee M (2026). *picard: RWE Pipelining Tool*. R package version
 0.0.3.1, <https://ohdsi.github.io/Picard/>.

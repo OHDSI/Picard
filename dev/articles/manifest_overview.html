@@ -56,7 +56,7 @@
       <h1>The Manifest: Architecture, Workflows, and Helpers</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/ohdsi/Picard/blob/main/vignettes/manifest_overview.Rmd" class="external-link"><code>vignettes/manifest_overview.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/ohdsi/Picard/blob/HEAD/vignettes/manifest_overview.Rmd" class="external-link"><code>vignettes/manifest_overview.Rmd</code></a></small>
       <div class="d-none name"><code>manifest_overview.Rmd</code></div>
     </div>
 
@@ -212,10 +212,10 @@ writes to SQLite immediately.</p>
 <h3 id="from-capr">From Capr<a class="anchor" aria-label="anchor" href="#from-capr"></a>
 </h3>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ohdsi.github.io/Capr/" class="external-link">Capr</a></span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">Capr</span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">t2dm</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">cs</a></span><span class="op">(</span><span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">descendants</a></span><span class="op">(</span><span class="fl">201826</span><span class="op">)</span>, name <span class="op">=</span> <span class="st">"Type 2 Diabetes"</span><span class="op">)</span></span>
-<span><span class="va">cohort_def</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cohort.html" class="external-link">cohort</a></span><span class="op">(</span>entry <span class="op">=</span> <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/entry.html" class="external-link">entry</a></span><span class="op">(</span><span class="fu"><a href="https://ohdsi.github.io/Capr/reference/conditionOccurrence.html" class="external-link">conditionOccurrence</a></span><span class="op">(</span><span class="va">t2dm</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">t2dm</span> <span class="op">&lt;-</span> <span class="fu">cs</span><span class="op">(</span><span class="fu">descendants</span><span class="op">(</span><span class="fl">201826</span><span class="op">)</span>, name <span class="op">=</span> <span class="st">"Type 2 Diabetes"</span><span class="op">)</span></span>
+<span><span class="va">cohort_def</span> <span class="op">&lt;-</span> <span class="fu">cohort</span><span class="op">(</span>entry <span class="op">=</span> <span class="fu">entry</span><span class="op">(</span><span class="fu">conditionOccurrence</span><span class="op">(</span><span class="va">t2dm</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">manifest</span><span class="op">$</span><span class="fu">addCaprCohort</span><span class="op">(</span></span>
 <span>  caprCohort <span class="op">=</span> <span class="va">cohort_def</span>,</span>

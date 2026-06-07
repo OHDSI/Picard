@@ -7,8 +7,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <title>Evidence Generation Plan • picard</title>
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<link href="../deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
-<script src="../deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
+<link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
+<script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Evidence Generation Plan">
 </head>
@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.3</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.4</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -48,53 +48,77 @@
 
 
 
-<script src="evidence_generation_plan_files/accessible-code-block-0.0.1/empty-anchor.js"></script><div class="row">
+
+<div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Evidence Generation Plan</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/ohdsi/Picard/blob/HEAD/vignettes/evidence_generation_plan.Rmd" class="external-link"><code>vignettes/evidence_generation_plan.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/ohdsi/Picard/blob/main/vignettes/evidence_generation_plan.Rmd" class="external-link"><code>vignettes/evidence_generation_plan.Rmd</code></a></small>
       <div class="d-none name"><code>evidence_generation_plan.Rmd</code></div>
     </div>
 
     
     
 <blockquote>
-<p><strong>Note:</strong> This vignette is currently in development and subject to change.</p>
+<p><strong>Note:</strong> This vignette is currently in development and
+subject to change.</p>
 </blockquote>
 <div class="section level2">
 <h2 id="introduction">Introduction<a class="anchor" aria-label="anchor" href="#introduction"></a>
 </h2>
-<p>An <em>Evidence Generation Plan</em> (EGP) is a <strong>required document</strong> in the Picard pipeline. It is a structured specification document that bridges your research questions to your analysis code. The EGP defines the analytical experiment in layman’s terms and <strong>drives the pipeline</strong>—your code implements the specifications you document here.</p>
+<p>An <em>Evidence Generation Plan</em> (EGP) is a <strong>required
+document</strong> in the Picard pipeline. It is a structured
+specification document that bridges your research questions to your
+analysis code. The EGP defines the analytical experiment in layman’s
+terms and <strong>drives the pipeline</strong>—your code implements the
+specifications you document here.</p>
 <p>It serves three critical purposes:</p>
 <ol style="list-style-type: decimal">
 <li>
-<strong>Precision:</strong> Translates research questions into exact analytical specifications (numerators, denominators, observation windows, inclusion/exclusion logic)</li>
+<strong>Precision:</strong> Translates research questions into exact
+analytical specifications (numerators, denominators, observation
+windows, inclusion/exclusion logic)</li>
 <li>
-<strong>Transparency:</strong> Makes all choices explicit and justified, enabling others to understand and validate your approach<br>
+<strong>Transparency:</strong> Makes all choices explicit and
+justified, enabling others to understand and validate your
+approach<br>
 </li>
 <li>
-<strong>Implementation:</strong> Provides sufficient detail that programmers can implement your vision without ambiguity</li>
+<strong>Implementation:</strong> Provides sufficient detail that
+programmers can implement your vision without ambiguity</li>
 </ol>
-<p><strong>Key insight:</strong> EGPs are NOT one-size-fits-all templates. They adapt fundamentally based on study design:</p>
+<p><strong>Key insight:</strong> EGPs are NOT one-size-fits-all
+templates. They adapt fundamentally based on study design:</p>
 <ul>
 <li>
-<strong>Surveillance studies</strong> (prevalence, incidence) emphasize observation periods, lookback windows, numerator/denominator specifications (example: Type 2 Diabetes prevalence)</li>
+<strong>Surveillance studies</strong> (prevalence, incidence)
+emphasize observation periods, lookback windows, numerator/denominator
+specifications (example: Type 2 Diabetes prevalence)</li>
 <li>
-<strong>Characterization studies</strong> describe patient populations, baseline features, treatment patterns, temporal trends (example: Psoriasis patients)</li>
+<strong>Characterization studies</strong> describe patient
+populations, baseline features, treatment patterns, temporal trends
+(example: Psoriasis patients)</li>
 <li>
-<strong>Outcome studies</strong> focus on exposure definitions, time-at-risk, outcome specifications</li>
+<strong>Outcome studies</strong> focus on exposure definitions,
+time-at-risk, outcome specifications</li>
 <li>
-<strong>Treatment pathway studies</strong> detail era logic, gap collapsing rules, sequence analysis</li>
+<strong>Treatment pathway studies</strong> detail era logic, gap
+collapsing rules, sequence analysis</li>
 </ul>
-<p>Note that the EGP file is automatically generated when you launch a study. The template contains comments and guidance to help you fill in the details.</p>
-<p>This vignette teaches the principles of EGP construction and shows examples from different study types. You’ll adapt the structure to match your research questions.</p>
+<p>Note that the EGP file is automatically generated when you launch a
+study. The template contains comments and guidance to help you fill in
+the details.</p>
+<p>This vignette teaches the principles of EGP construction and shows
+examples from different study types. You’ll adapt the structure to match
+your research questions.</p>
 </div>
 <div class="section level2">
 <h2 id="egp-as-a-bridge-between-planning-and-code">EGP as a Bridge Between Planning and Code<a class="anchor" aria-label="anchor" href="#egp-as-a-bridge-between-planning-and-code"></a>
 </h2>
-<p>An EGP sits between your research vision and your Picard implementation:</p>
+<p>An EGP sits between your research vision and your Picard
+implementation:</p>
 <pre><code>Research Questions
        ↓
   Evidence Generation Plan
@@ -104,24 +128,33 @@
   (analysis/tasks/ implement specs)
        ↓
   Results &amp; Dissemination</code></pre>
-<p>Each element of your EGP should have a corresponding task in your analysis pipeline. The EGP drives the code—every analytical decision in the code should trace back to a specification in your EGP.</p>
+<p>Each element of your EGP should have a corresponding task in your
+analysis pipeline. The EGP drives the code—every analytical decision in
+the code should trace back to a specification in your EGP.</p>
 </div>
 <div class="section level2">
 <h2 id="universal-egp-components">Universal EGP Components<a class="anchor" aria-label="anchor" href="#universal-egp-components"></a>
 </h2>
-<p>While structure varies by study type, most EGPs contain these sections:</p>
+<p>While structure varies by study type, most EGPs contain these
+sections:</p>
 <ul>
 <li>Background (Rationale, Research Questions, Data Sources)</li>
 <li>Cohort Definitions (structured by study design)</li>
-<li>Analysis Specifications (baseline characteristics, prevalence calculations, treatment pathways, etc.)</li>
+<li>Analysis Specifications (baseline characteristics, prevalence
+calculations, treatment pathways, etc.)</li>
 </ul>
-<p>We go into more detail in the following sections, showing how to adapt these components based on your study design.</p>
+<p>We go into more detail in the following sections, showing how to
+adapt these components based on your study design.</p>
 <div class="section level3">
 <h3 id="background">1. Background<a class="anchor" aria-label="anchor" href="#background"></a>
 </h3>
 <p>Establish context for your study.</p>
-<p><strong>Always include:</strong> - <strong>Rationale:</strong> Why does this study matter? - <strong>Research Questions:</strong> What specific questions will you answer? - <strong>Data Sources:</strong> Where does your data come from? Why that source?</p>
-<p>Below we provide some examples of research questions for different study types.</p>
+<p><strong>Always include:</strong> - <strong>Rationale:</strong> Why
+does this study matter? - <strong>Research Questions:</strong> What
+specific questions will you answer? - <strong>Data Sources:</strong>
+Where does your data come from? Why that source?</p>
+<p>Below we provide some examples of research questions for different
+study types.</p>
 <p>Example (Prevalence Study):</p>
 <pre><code>### Research Questions
 1. What is the annual crued and standardized prevalence of Type 2 Diabetes from 2015-2024?
@@ -143,16 +176,21 @@
 <div class="section level3">
 <h3 id="cohort-definitions">2. Cohort Definitions<a class="anchor" aria-label="anchor" href="#cohort-definitions"></a>
 </h3>
-<p>Define your study populations and other important cohorts precisely. The cohort definitions will have three main components:</p>
+<p>Define your study populations and other important cohorts precisely.
+The cohort definitions will have three main components:</p>
 <ul>
 <li>
-<strong>Entry criteria:</strong> How do patients enter the cohort?</li>
+<strong>Entry criteria:</strong> How do patients enter the
+cohort?</li>
 <li>
-<strong>Inclusion criteria:</strong> What additional criteria must be met to stay in the cohort?</li>
+<strong>Inclusion criteria:</strong> What additional criteria must
+be met to stay in the cohort?</li>
 <li>
-<strong>Exit criteria:</strong> How do patients exit from the cohort (i.e censored by death or end of continuous observation)?</li>
+<strong>Exit criteria:</strong> How do patients exit from the cohort
+(i.e censored by death or end of continuous observation)?</li>
 </ul>
-<p>Here are a few examples of how cohort definitions can be structured based on study design:</p>
+<p>Here are a few examples of how cohort definitions can be structured
+based on study design:</p>
 <p><strong>Psoriasis Example</strong>:</p>
 <pre><code>### Newly-Diagnosed Psoriasis Cohort
 
@@ -183,28 +221,48 @@
 #### Cohort Exit
 - End of continuous observation, OR
 - Death</code></pre>
-<p>A few guiding principles about defining cohort definitions in your EGP:</p>
+<p>A few guiding principles about defining cohort definitions in your
+EGP:</p>
 <ul>
-<li>The index date should be clearly defined. Typically the index date in a sequence of events is the second occurrence (to avoid immortal time bias).</li>
-<li>The index date should be the occurrence of a clinical event (diagnosis, procedure, medication dispensing) rather than an arbitrary date (calendar date, visit).</li>
-<li>Always provide temporal logic on sequence of events. For example if no prior treatment state either all time or some window relative to the index date</li>
-<li>Be explicit about whether you limit to first-ever occurrence or allow multiple occurrences per patient</li>
-<li>Clearly define exit criteria (death, end of observation) to ensure proper censoring in follow-up analyses</li>
+<li>The index date should be clearly defined. Typically the index date
+in a sequence of events is the second occurrence (to avoid immortal time
+bias).</li>
+<li>The index date should be the occurrence of a clinical event
+(diagnosis, procedure, medication dispensing) rather than an arbitrary
+date (calendar date, visit).</li>
+<li>Always provide temporal logic on sequence of events. For example if
+no prior treatment state either all time or some window relative to the
+index date</li>
+<li>Be explicit about whether you limit to first-ever occurrence or
+allow multiple occurrences per patient</li>
+<li>Clearly define exit criteria (death, end of observation) to ensure
+proper censoring in follow-up analyses</li>
 <li>
-<strong>Programming tip:</strong> Cohort definitions from Atlas come with a markdown format that be pasted into the EGP or you can clean up the format.</li>
+<strong>Programming tip:</strong> Cohort definitions from Atlas come
+with a markdown format that be pasted into the EGP or you can clean up
+the format.</li>
 </ul>
 <div class="section level4">
 <h4 id="codelists">Codelists<a class="anchor" aria-label="anchor" href="#codelists"></a>
 </h4>
-<p>Codelists are very important since the describe what codes define a clinical concept. However codelists tend to be very long and hard to read. Attach the codelist as an appendix or add a new tab in the study hub with codelists.</p>
-<p>The focus of the EGP should be on the logic of how the codes are used to define cohorts and analyses, not on the specific codes themselves.</p>
+<p>Codelists are very important since the describe what codes define a
+clinical concept. However codelists tend to be very long and hard to
+read. Attach the codelist as an appendix or add a new tab in the study
+hub with codelists.</p>
+<p>The focus of the EGP should be on the logic of how the codes are used
+to define cohorts and analyses, not on the specific codes
+themselves.</p>
 </div>
 </div>
 <div class="section level3">
 <h3 id="analysis-specifications">3. Analysis Specifications<a class="anchor" aria-label="anchor" href="#analysis-specifications"></a>
 </h3>
-<p>This section varies greatly by study type. The keyprinciple: <strong>Be specific enough that a programmer can implement without guessing.</strong> Want to convey the experiment logic in a way that it is easy to codify the experiment with a set of parameters.</p>
-<p>Below are some examples of how to specify analyses for different study types. Provide as much detail as possible about the analysis.</p>
+<p>This section varies greatly by study type. The keyprinciple:
+<strong>Be specific enough that a programmer can implement without
+guessing.</strong> Want to convey the experiment logic in a way that it
+is easy to codify the experiment with a set of parameters.</p>
+<p>Below are some examples of how to specify analyses for different
+study types. Provide as much detail as possible about the analysis.</p>
 <p>Prevalence Example:</p>
 <pre><code>### Prevalence Calculation: Any-Time Point Estimate
 
@@ -272,7 +330,8 @@ Prevalence = (Numerator / Denominator) per 100,000
 <div class="section level2">
 <h2 id="linking-egp-to-picard-implementation">Linking EGP to Picard Implementation<a class="anchor" aria-label="anchor" href="#linking-egp-to-picard-implementation"></a>
 </h2>
-<p>Each major section of your EGP should correspond to at least one analysis task:</p>
+<p>Each major section of your EGP should correspond to at least one
+analysis task:</p>
 <pre><code>EGP Section                 →  Ulysses Structure
 ─────────────────────────────────────────
 Cohort Definitions         →  inputs/cohorts/
@@ -280,12 +339,15 @@ Baseline Characteristics   →  analysis/task/01_descriptiveStats.R
 Prevalence/Surveillance    →  analysis/task/02_prevalenceAnalysis.R
 Post-Index Follow-up       →  analysis/task/03_followupCharacterization.R
 Treatment Pathways         →  analysis/task/04_treatmentPathways.R</code></pre>
-<p>It may be helpful to include this mapping as an appendix to your EGP to ensure that all specifications are implemented in code and to facilitate traceability between the document and the implementation.</p>
+<p>It may be helpful to include this mapping as an appendix to your EGP
+to ensure that all specifications are implemented in code and to
+facilitate traceability between the document and the implementation.</p>
 </div>
 <div class="section level2">
 <h2 id="versioning-your-egp">Versioning Your EGP<a class="anchor" aria-label="anchor" href="#versioning-your-egp"></a>
 </h2>
-<p>Keep a changelog as your study evolves. This should be placed at the end of the file. Here is an example</p>
+<p>Keep a changelog as your study evolves. This should be placed at the
+end of the file. Here is an example</p>
 <pre><code>## Version 1.1 (2026-04-15)
 
 ### Changes from v1.0
@@ -301,55 +363,60 @@ clinical team identified CKD progression as important secondary endpoint.</code>
 <h2 id="example-complete-minimal-egp">Example: Complete Minimal EGP<a class="anchor" aria-label="anchor" href="#example-complete-minimal-egp"></a>
 </h2>
 <p>For a quick reference, here’s a minimal EGP template:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true"></a><span class="fu"># Evidence Generation Plan: [Study Name]</span></span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true"></a></span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true"></a><span class="fu">## Background</span></span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true"></a></span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true"></a><span class="fu">### Rationale</span></span>
-<span id="cb11-6"><a href="#cb11-6" aria-hidden="true"></a><span class="co">[</span><span class="ot">1-2 sentences: Why does this study matter?</span><span class="co">]</span></span>
-<span id="cb11-7"><a href="#cb11-7" aria-hidden="true"></a></span>
-<span id="cb11-8"><a href="#cb11-8" aria-hidden="true"></a><span class="fu">### Research Questions</span></span>
-<span id="cb11-9"><a href="#cb11-9" aria-hidden="true"></a><span class="ss">1. </span><span class="co">[</span><span class="ot">First question</span><span class="co">]</span></span>
-<span id="cb11-10"><a href="#cb11-10" aria-hidden="true"></a><span class="ss">2. </span><span class="co">[</span><span class="ot">Second question</span><span class="co">]</span></span>
-<span id="cb11-11"><a href="#cb11-11" aria-hidden="true"></a></span>
-<span id="cb11-12"><a href="#cb11-12" aria-hidden="true"></a><span class="fu">### Data Sources</span></span>
-<span id="cb11-13"><a href="#cb11-13" aria-hidden="true"></a><span class="co">[</span><span class="ot">Database name</span><span class="co">]</span>, <span class="co">[</span><span class="ot">coverage period</span><span class="co">]</span>, <span class="co">[</span><span class="ot">size</span><span class="co">]</span>, <span class="co">[</span><span class="ot">type of data</span><span class="co">]</span></span>
-<span id="cb11-14"><a href="#cb11-14" aria-hidden="true"></a></span>
-<span id="cb11-15"><a href="#cb11-15" aria-hidden="true"></a><span class="fu">## Cohort Definitions</span></span>
-<span id="cb11-16"><a href="#cb11-16" aria-hidden="true"></a></span>
-<span id="cb11-17"><a href="#cb11-17" aria-hidden="true"></a><span class="fu">### Base Population</span></span>
-<span id="cb11-18"><a href="#cb11-18" aria-hidden="true"></a><span class="ss">- </span>Entry criteria: <span class="co">[</span><span class="ot">How patients enter</span><span class="co">]</span></span>
-<span id="cb11-19"><a href="#cb11-19" aria-hidden="true"></a><span class="ss">- </span>Inclusion: <span class="co">[</span><span class="ot">Who stays in</span><span class="co">]</span></span>
-<span id="cb11-20"><a href="#cb11-20" aria-hidden="true"></a><span class="ss">- </span>Exclusion: <span class="co">[</span><span class="ot">Who gets excluded</span><span class="co">]</span></span>
-<span id="cb11-21"><a href="#cb11-21" aria-hidden="true"></a></span>
-<span id="cb11-22"><a href="#cb11-22" aria-hidden="true"></a><span class="fu">## Analysis</span></span>
-<span id="cb11-23"><a href="#cb11-23" aria-hidden="true"></a></span>
-<span id="cb11-24"><a href="#cb11-24" aria-hidden="true"></a><span class="fu">### Primary Analysis</span></span>
-<span id="cb11-25"><a href="#cb11-25" aria-hidden="true"></a><span class="co">[</span><span class="ot">What is measured, how, when</span><span class="co">]</span></span>
-<span id="cb11-26"><a href="#cb11-26" aria-hidden="true"></a></span>
-<span id="cb11-27"><a href="#cb11-27" aria-hidden="true"></a><span class="fu">### Secondary/Subgroup Analysis  </span></span>
-<span id="cb11-28"><a href="#cb11-28" aria-hidden="true"></a><span class="co">[</span><span class="ot">Optional: stratifications or sensitivity tests</span><span class="co">]</span></span>
-<span id="cb11-29"><a href="#cb11-29" aria-hidden="true"></a></span>
-<span id="cb11-30"><a href="#cb11-30" aria-hidden="true"></a><span class="fu">### Output</span></span>
-<span id="cb11-31"><a href="#cb11-31" aria-hidden="true"></a><span class="co">[</span><span class="ot">What gets delivered - tables, figures, dataframes</span><span class="co">]</span></span>
-<span id="cb11-32"><a href="#cb11-32" aria-hidden="true"></a></span>
-<span id="cb11-33"><a href="#cb11-33" aria-hidden="true"></a><span class="fu">## Version</span></span>
-<span id="cb11-34"><a href="#cb11-34" aria-hidden="true"></a><span class="co">[</span><span class="ot">Version number, date, and change log</span><span class="co">]</span></span></code></pre></div>
+<div class="sourceCode" id="cb11"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="fu"># Evidence Generation Plan: [Study Name]</span></span>
+<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a></span>
+<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a><span class="fu">## Background</span></span>
+<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a></span>
+<span id="cb11-5"><a href="#cb11-5" tabindex="-1"></a><span class="fu">### Rationale</span></span>
+<span id="cb11-6"><a href="#cb11-6" tabindex="-1"></a><span class="co">[</span><span class="ot">1-2 sentences: Why does this study matter?</span><span class="co">]</span></span>
+<span id="cb11-7"><a href="#cb11-7" tabindex="-1"></a></span>
+<span id="cb11-8"><a href="#cb11-8" tabindex="-1"></a><span class="fu">### Research Questions</span></span>
+<span id="cb11-9"><a href="#cb11-9" tabindex="-1"></a><span class="ss">1. </span><span class="co">[</span><span class="ot">First question</span><span class="co">]</span></span>
+<span id="cb11-10"><a href="#cb11-10" tabindex="-1"></a><span class="ss">2. </span><span class="co">[</span><span class="ot">Second question</span><span class="co">]</span></span>
+<span id="cb11-11"><a href="#cb11-11" tabindex="-1"></a></span>
+<span id="cb11-12"><a href="#cb11-12" tabindex="-1"></a><span class="fu">### Data Sources</span></span>
+<span id="cb11-13"><a href="#cb11-13" tabindex="-1"></a><span class="co">[</span><span class="ot">Database name</span><span class="co">]</span>, <span class="co">[</span><span class="ot">coverage period</span><span class="co">]</span>, <span class="co">[</span><span class="ot">size</span><span class="co">]</span>, <span class="co">[</span><span class="ot">type of data</span><span class="co">]</span></span>
+<span id="cb11-14"><a href="#cb11-14" tabindex="-1"></a></span>
+<span id="cb11-15"><a href="#cb11-15" tabindex="-1"></a><span class="fu">## Cohort Definitions</span></span>
+<span id="cb11-16"><a href="#cb11-16" tabindex="-1"></a></span>
+<span id="cb11-17"><a href="#cb11-17" tabindex="-1"></a><span class="fu">### Base Population</span></span>
+<span id="cb11-18"><a href="#cb11-18" tabindex="-1"></a><span class="ss">- </span>Entry criteria: <span class="co">[</span><span class="ot">How patients enter</span><span class="co">]</span></span>
+<span id="cb11-19"><a href="#cb11-19" tabindex="-1"></a><span class="ss">- </span>Inclusion: <span class="co">[</span><span class="ot">Who stays in</span><span class="co">]</span></span>
+<span id="cb11-20"><a href="#cb11-20" tabindex="-1"></a><span class="ss">- </span>Exclusion: <span class="co">[</span><span class="ot">Who gets excluded</span><span class="co">]</span></span>
+<span id="cb11-21"><a href="#cb11-21" tabindex="-1"></a></span>
+<span id="cb11-22"><a href="#cb11-22" tabindex="-1"></a><span class="fu">## Analysis</span></span>
+<span id="cb11-23"><a href="#cb11-23" tabindex="-1"></a></span>
+<span id="cb11-24"><a href="#cb11-24" tabindex="-1"></a><span class="fu">### Primary Analysis</span></span>
+<span id="cb11-25"><a href="#cb11-25" tabindex="-1"></a><span class="co">[</span><span class="ot">What is measured, how, when</span><span class="co">]</span></span>
+<span id="cb11-26"><a href="#cb11-26" tabindex="-1"></a></span>
+<span id="cb11-27"><a href="#cb11-27" tabindex="-1"></a><span class="fu">### Secondary/Subgroup Analysis  </span></span>
+<span id="cb11-28"><a href="#cb11-28" tabindex="-1"></a><span class="co">[</span><span class="ot">Optional: stratifications or sensitivity tests</span><span class="co">]</span></span>
+<span id="cb11-29"><a href="#cb11-29" tabindex="-1"></a></span>
+<span id="cb11-30"><a href="#cb11-30" tabindex="-1"></a><span class="fu">### Output</span></span>
+<span id="cb11-31"><a href="#cb11-31" tabindex="-1"></a><span class="co">[</span><span class="ot">What gets delivered - tables, figures, dataframes</span><span class="co">]</span></span>
+<span id="cb11-32"><a href="#cb11-32" tabindex="-1"></a></span>
+<span id="cb11-33"><a href="#cb11-33" tabindex="-1"></a><span class="fu">## Version</span></span>
+<span id="cb11-34"><a href="#cb11-34" tabindex="-1"></a><span class="co">[</span><span class="ot">Version number, date, and change log</span><span class="co">]</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="see-also">See Also<a class="anchor" aria-label="anchor" href="#see-also"></a>
 </h2>
 <ul>
 <li>
-<a href="picard_repository_structure.html">The Ulysses Standard Repository Structure</a> - Where EGP fits</li>
+<a href="picard_repository_structure.html">The Ulysses Standard
+Repository Structure</a> - Where EGP fits</li>
 <li>
-<a href="launching_a_study.html">Launching a Study</a> - Study setup</li>
+<a href="launching_a_study.html">Launching a Study</a> - Study
+setup</li>
 <li>
-<a href="developing_the_pipeline.html">Developing the Pipeline</a> - Implementing EGP as code</li>
+<a href="developing_the_pipeline.html">Developing the Pipeline</a> -
+Implementing EGP as code</li>
 <li>
-<a href="running_the_pipeline.html">Running the Pipeline</a> - Executing analyses defined in EGP</li>
+<a href="running_the_pipeline.html">Running the Pipeline</a> -
+Executing analyses defined in EGP</li>
 <li>
-<a href="post_processing.html">Post-Processing Steps</a> - Converting EGP outputs to deliverables</li>
+<a href="post_processing.html">Post-Processing Steps</a> -
+Converting EGP outputs to deliverables</li>
 </ul>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

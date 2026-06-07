@@ -34,19 +34,19 @@ mirrors loaded from SQLite at startup.
 
 ### Key columns in `cohort_manifest`
 
-| Column            | Purpose                                                                                                                                    |
-|-------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| `id`              | Auto-assigned integer ID                                                                                                                   |
-| `label`           | User-defined display name (unique among active records)                                                                                    |
-| `category`        | User classification (e.g., “Disease Populations”)                                                                                          |
-| `cohort_type`     | `circe`, `custom`, `union`, `subset`, `complement`, `composite`                                                                            |
-| `source_type`     | `circe`, `sql`, `derived`                                                                                                                  |
-| `file_path`       | Relative path to the SQL/JSON file on disk                                                                                                 |
-| `hash`            | MD5 of the file — used by [`generateCohorts()`](https://ohdsi.github.io/Picard/dev/reference/generateCohorts.md) to skip unchanged cohorts |
-| `depends_on`      | JSON array of parent cohort IDs (derived cohorts only)                                                                                     |
-| `dependency_rule` | JSON object of build parameters (derived cohorts only)                                                                                     |
-| `status`          | `active`, `stale`, `deleted`, or `purged`                                                                                                  |
-| `created_at`      | Timestamp of registration                                                                                                                  |
+| Column | Purpose |
+|----|----|
+| `id` | Auto-assigned integer ID |
+| `label` | User-defined display name (unique among active records) |
+| `category` | User classification (e.g., “Disease Populations”) |
+| `cohort_type` | `circe`, `custom`, `union`, `subset`, `complement`, `composite`, `oprior`, `tprior`, `censor` |
+| `source_type` | `circe`, `sql`, `derived` |
+| `file_path` | Relative path to the SQL/JSON file on disk |
+| `hash` | MD5 of the file — used by [`generateCohorts()`](https://ohdsi.github.io/Picard/dev/reference/generateCohorts.md) to skip unchanged cohorts |
+| `depends_on` | JSON array of parent cohort IDs (derived cohorts only) |
+| `dependency_rule` | JSON object of build parameters (derived cohorts only) |
+| `status` | `active`, `stale`, `deleted`, or `purged` |
+| `created_at` | Timestamp of registration |
 
 ### In-memory R6 object vs SQLite
 
@@ -334,11 +334,11 @@ Use
 when you need to clear cohort data. Choose the scope based on what you
 want to preserve:
 
-| Scope        | SQLite                         | `derived/` | `json/` + `sql/` | OMOP tables |
-|--------------|--------------------------------|------------|------------------|-------------|
-| `"derived"`  | Updated (derived rows removed) | Deleted    | Kept             | Not touched |
-| `"manifest"` | Deleted                        | Deleted    | Kept             | Not touched |
-| `"full"`     | Deleted                        | Deleted    | Deleted          | Dropped     |
+| Scope | SQLite | `derived/` | `json/` + `sql/` | OMOP tables |
+|----|----|----|----|----|
+| `"derived"` | Updated (derived rows removed) | Deleted | Kept | Not touched |
+| `"manifest"` | Deleted | Deleted | Kept | Not touched |
+| `"full"` | Deleted | Deleted | Deleted | Dropped |
 
 ### Which scope do I need?
 

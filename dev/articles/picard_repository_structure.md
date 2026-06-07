@@ -559,17 +559,17 @@ for later querying (e.g., `$queryCohortsByTag()`,
 SQLite database created/managed by `CohortManifest` class. Contains
 `cohort_manifest` table tracking all cohort metadata:
 
-| Column       | Type                               | Purpose                                                                                                  |
-|--------------|------------------------------------|----------------------------------------------------------------------------------------------------------|
-| `id`         | INTEGER PRIMARY KEY                | Sequential cohort ID assigned by Picard                                                                  |
-| `label`      | TEXT NOT NULL                      | Cohort display name                                                                                      |
-| `tags`       | TEXT                               | Serialized tags (e.g., `"atlasId: 1 \| category: Disease Populations \| subCategory: Endocrine"`)        |
-| `filePath`   | TEXT NOT NULL                      | Full path to cohort definition file                                                                      |
-| `hash`       | TEXT NOT NULL                      | MD5 hash of SQL for change detection                                                                     |
-| `cohortType` | TEXT DEFAULT ‘circe’               | Type: `'circe'` (ATLAS JSON), `'sql'` (custom), `'subset'`, `'union'`, `'complement'` (dependency-based) |
-| `timestamp`  | DATETIME DEFAULT CURRENT_TIMESTAMP | When cohort was added to manifest                                                                        |
-| `status`     | TEXT DEFAULT ‘active’              | Status tracking: `'active'`, `'missing'`, `'archived'`                                                   |
-| `deleted_at` | DATETIME                           | Soft-delete timestamp if cohort removed                                                                  |
+| Column | Type | Purpose |
+|----|----|----|
+| `id` | INTEGER PRIMARY KEY | Sequential cohort ID assigned by Picard |
+| `label` | TEXT NOT NULL | Cohort display name |
+| `tags` | TEXT | Serialized tags (e.g., `"atlasId: 1 \| category: Disease Populations \| subCategory: Endocrine"`) |
+| `filePath` | TEXT NOT NULL | Full path to cohort definition file |
+| `hash` | TEXT NOT NULL | MD5 hash of SQL for change detection |
+| `cohortType` | TEXT DEFAULT ‘circe’ | Type: `'circe'` (ATLAS JSON), `'sql'` (custom), `'subset'`, `'union'`, `'complement'` (dependency-based) |
+| `timestamp` | DATETIME DEFAULT CURRENT_TIMESTAMP | When cohort was added to manifest |
+| `status` | TEXT DEFAULT ‘active’ | Status tracking: `'active'`, `'missing'`, `'archived'` |
+| `deleted_at` | DATETIME | Soft-delete timestamp if cohort removed |
 
 **Workflow:**
 
@@ -640,16 +640,16 @@ for querying (e.g., `$getConceptSetsByTag()`,
 SQLite database created/managed by `ConceptSetManifest` class. Contains
 `concept_set_manifest` table:
 
-| Column       | Type                               | Purpose                                                                                    |
-|--------------|------------------------------------|--------------------------------------------------------------------------------------------|
-| `id`         | INTEGER PRIMARY KEY                | Sequential concept set ID assigned by Picard                                               |
-| `label`      | TEXT NOT NULL                      | Concept set display name                                                                   |
-| `tags`       | TEXT                               | Serialized tags (e.g., `"atlasId: 456 \| domain: drug_exposure \| category: Medications"`) |
-| `filePath`   | TEXT NOT NULL                      | Full path to concept set JSON file                                                         |
-| `hash`       | TEXT NOT NULL                      | MD5 hash of JSON for change detection                                                      |
-| `timestamp`  | DATETIME DEFAULT CURRENT_TIMESTAMP | When concept set added to manifest                                                         |
-| `status`     | TEXT DEFAULT ‘active’              | Status: `'active'`, `'missing'`, `'archived'`                                              |
-| `deleted_at` | DATETIME                           | Soft-delete timestamp if removed                                                           |
+| Column | Type | Purpose |
+|----|----|----|
+| `id` | INTEGER PRIMARY KEY | Sequential concept set ID assigned by Picard |
+| `label` | TEXT NOT NULL | Concept set display name |
+| `tags` | TEXT | Serialized tags (e.g., `"atlasId: 456 \| domain: drug_exposure \| category: Medications"`) |
+| `filePath` | TEXT NOT NULL | Full path to concept set JSON file |
+| `hash` | TEXT NOT NULL | MD5 hash of JSON for change detection |
+| `timestamp` | DATETIME DEFAULT CURRENT_TIMESTAMP | When concept set added to manifest |
+| `status` | TEXT DEFAULT ‘active’ | Status: `'active'`, `'missing'`, `'archived'` |
+| `deleted_at` | DATETIME | Soft-delete timestamp if removed |
 
 **Workflow:**
 

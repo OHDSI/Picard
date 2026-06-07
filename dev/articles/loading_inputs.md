@@ -31,11 +31,11 @@ sections in order.
 
 The template has three top-level sections:
 
-| Section                           | Purpose                                                                                                                                                                                                                             |
-|-----------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Section | Purpose |
+|----|----|
 | **A. Concept Sets “” First Time** | [`initConceptSetManifest()`](https://ohdsi.github.io/Picard/dev/reference/initConceptSetManifest.md), fill CSV, connect ATLAS, [`importAtlasConceptSets()`](https://ohdsi.github.io/Picard/dev/reference/importAtlasConceptSets.md) |
-| **B. Cohorts “” First Time**      | [`initCohortManifest()`](https://ohdsi.github.io/Picard/dev/reference/initCohortManifest.md), fill CSV, connect ATLAS, [`importAtlasCohorts()`](https://ohdsi.github.io/Picard/dev/reference/importAtlasCohorts.md)                 |
-| **C. Subsequent Sessions**        | [`loadConceptSetManifest()`](https://ohdsi.github.io/Picard/dev/reference/loadConceptSetManifest.md) + [`loadCohortManifest()`](https://ohdsi.github.io/Picard/dev/reference/loadCohortManifest.md)                                 |
+| **B. Cohorts “” First Time** | [`initCohortManifest()`](https://ohdsi.github.io/Picard/dev/reference/initCohortManifest.md), fill CSV, connect ATLAS, [`importAtlasCohorts()`](https://ohdsi.github.io/Picard/dev/reference/importAtlasCohorts.md) |
+| **C. Subsequent Sessions** | [`loadConceptSetManifest()`](https://ohdsi.github.io/Picard/dev/reference/loadConceptSetManifest.md) + [`loadCohortManifest()`](https://ohdsi.github.io/Picard/dev/reference/loadCohortManifest.md) |
 
 Run only the section that applies to your current situation.
 
@@ -83,8 +83,9 @@ conceptSetManifest$importAtlasConceptSets(
 
 [`getAtlasConnection()`](https://ohdsi.github.io/Picard/dev/reference/getAtlasConnection.md)
 reads `atlasBaseUrl`, `atlasAuthMethod`, `atlasUser`, and
-`atlasPassword` from `.Renviron`. Run `usethis::edit_r_environ()` to add
-them. For keyring-based storage use
+`atlasPassword` from `.Renviron`. Run
+[`usethis::edit_r_environ()`](https://usethis.r-lib.org/reference/edit.html)
+to add them. For keyring-based storage use
 `getAtlasConnection(useKeyring = TRUE)`.
 
 ### Step 4: Load and review
@@ -170,9 +171,9 @@ network connection or CSV file is required.
 
 ## What’s Next
 
-| Task                                                   | Where to go                                                                                                        |
-|--------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------|
+| Task | Where to go |
+|----|----|
 | Derived cohorts (union, subset, complement, composite) | [Manifest: Architecture, Workflows, and Helpers](https://ohdsi.github.io/Picard/dev/articles/manifest_overview.md) |
-| Custom SQL cohorts                                     | [Manifest: Architecture, Workflows, and Helpers](https://ohdsi.github.io/Picard/dev/articles/manifest_overview.md) |
-| Mid-cycle changes, sync, delete, reset                 | [Manifest: Architecture, Workflows, and Helpers](https://ohdsi.github.io/Picard/dev/articles/manifest_overview.md) |
-| Running the analysis pipeline                          | [Running the Pipeline](https://ohdsi.github.io/Picard/dev/articles/running_the_pipeline.md)                        |
+| Custom SQL cohorts | [Manifest: Architecture, Workflows, and Helpers](https://ohdsi.github.io/Picard/dev/articles/manifest_overview.md) |
+| Mid-cycle changes, sync, delete, reset | [Manifest: Architecture, Workflows, and Helpers](https://ohdsi.github.io/Picard/dev/articles/manifest_overview.md) |
+| Running the analysis pipeline | [Running the Pipeline](https://ohdsi.github.io/Picard/dev/articles/running_the_pipeline.md) |
