@@ -18,7 +18,16 @@ Invisibly returns TRUE if valid. Stops with errors otherwise.
 Checks that the secrets file exists, is parseable by \code{yaml::read_yaml}, and
 has a top-level entry for each \code{dbServer} name. Each server entry requires
 \code{dbms}; then either \code{connectionString} (Snowflake) or \code{server} + \code{port} +
-\code{user} + \code{password} (other DBMS). If an \code{atlas} entry is present, requires
-\code{baseUrl}, \code{authMethod}, \code{user}, \code{password}.
+\code{user} + \code{password} (other DBMS).
+}
+\details{
+If credentials are stored via \code{\link[=setupDbSecretsKeyring]{setupDbSecretsKeyring()}}, fields may contain
+\verb{!expr keyring::key_get(...)} expressions. Validation checks for the presence
+of required fields but cannot fully validate the DBMS type or expression
+validity when using keyring-based credentials (that validation happens at
+credential resolution time).
+
+If an \code{atlas} entry is present, requires \code{baseUrl}, \code{authMethod}, \code{user},
+\code{password}.
 }
 \keyword{internal}

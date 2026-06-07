@@ -573,15 +573,17 @@ plotCohortGraph <- function(manifest) {
 
 
 
-#' Update the Label and/or Tags of an Existing Cohort Manifest 
+#' Update the Label, Category, and/or Tags of an Existing Cohort Manifest
 #'
 #' @description
-#' Updates `label`, `tags`, or both on any cohort present in the manifest.
+#' Updates `label`, `category`, `tags`, or any combination on any cohort present in the manifest.
 #' Changes are applied to both the in-memory object and the SQLite database.
 #'
 #' @param manifest A `CohortManifest` object.
 #' @param cohortId Integer. The ID of the cohort to update.
 #' @param label Character or `NULL`. New label. If `NULL`, the existing label is kept.
+#' @param category Character or `NULL`. New category (e.g., 'target', 'outcome', 'exposure'). 
+#'   If `NULL`, the existing category is kept.
 #' @param tags Named list or `NULL`. New tags. If `NULL`, the existing tags are kept.
 #'
 #' @return Invisibly returns `NULL`.
@@ -590,14 +592,16 @@ plotCohortGraph <- function(manifest) {
 updateCohortManifest <- function(manifest,
                                  cohortId,
                                  label = NULL,
+                                 category = NULL,
                                  tags = NULL) {
   checkmate::assert_class(x = manifest, classes = "CohortManifest")
   checkmate::assert_int(x = cohortId, lower = 1)
 
-  if (is.null(label) && is.null(tags)) {
-    cli::cli_abort("At least one of `label` or `tags` must be provided.")
+  if (is.null(label) && is.null(category) && is.null(tags)) {
+    cli::cli_abort("At least one of `label`, `category`, or `tags` must be provided.")
   }
   if (!is.null(label)) checkmate::assert_string(x = label, min.chars = 1)
+  if (!is.null(category)) checkmate::assert_string(x = category, min.chars = 1)
   if (!is.null(tags))  checkmate::assert_list(x = tags, names = "named")
 
   cohort <- manifest$getCohortById(as.integer(cohortId))
@@ -606,6 +610,7 @@ updateCohortManifest <- function(manifest,
   }
 
   if (!is.null(label)) cohort$label <- label
+  if (!is.null(category)) cohort$category <- category
   if (!is.null(tags))  cohort$tags  <- tags
 
   set_parts <- character(0)
@@ -616,10 +621,15 @@ updateCohortManifest <- function(manifest,
     params    <- c(params, list(label))
   }
 
+  if (!is.null(category)) {
+    set_parts <- c(set_parts, "category = ?")
+    params    <- c(params, list(category))
+  }
+
   if (!is.null(tags)) {
-    tags_str  <- cohort$formatTagsAsString()
+    tags_json <- jsonlite::toJSON(tags, auto_unbox = TRUE)
     set_parts <- c(set_parts, "tags = ?")
-    params    <- c(params, list(tags_str))
+    params    <- c(params, list(tags_json))
   }
 
   params <- c(params, list(as.integer(cohortId)))
@@ -637,6 +647,7 @@ updateCohortManifest <- function(manifest,
 
   changed <- character(0)
   if (!is.null(label)) changed <- c(changed, paste0("label \u2192 ", label))
+  if (!is.null(category)) changed <- c(changed, paste0("category \u2192 ", category))
   if (!is.null(tags))  changed <- c(changed, paste0("tags \u2192 ", cohort$formatTagsAsString()))
 
   cli::cli_alert_success("Updated cohort {cohortId}: {paste(changed, collapse = ', ')}")
@@ -710,9 +721,9 @@ updateConceptSetManifest <- function(manifest,
   }
 
   if (!is.null(tags)) {
-    tags_str  <- conceptSet$formatTagsAsString()
+    tags_json <- jsonlite::toJSON(tags, auto_unbox = TRUE)
     set_parts <- c(set_parts, "tags = ?")
-    params    <- c(params, list(tags_str))
+    params    <- c(params, list(tags_json))
   }
 
   params <- c(params, list(as.integer(conceptSetId)))

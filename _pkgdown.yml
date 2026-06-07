@@ -123,7 +123,7 @@ reference:
       - importAtlasConceptSets
       - migrateCohortManifest
       - migrateConceptSetManifest
-      - orchestratePipelineExport
+      - runPostProcessing
       - pivotForComparison
       - placeHolderExecOptions
       - plotCohortGraph
@@ -138,7 +138,7 @@ reference:
       - snapshotEnvironment
       - standardizeDataTypes
       - templateAtlasCredentials
-      - testOrchestratePipelineExport
+      - runTestPostProcessing
       - testStudyPipeline
       - testStudyTask
       - updateCohortManifest

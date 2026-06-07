@@ -1,8 +1,11 @@
 # picard 0.0.4
 
+- move login credentials to secrets file
 - Correct the Dependent Cohort builders
 - Add a query tool for category now that it is not a tag
 - reorganize cohort generation to make it easier to debug
+- Add `stopIfExists` to `$addSqlCohort` method allowing user to overwrite a file they worked on
+- **API CHANGE**: rename `orchestratePipelineExport` to `runPostProcessing`, for test mode it is `testOrchestratePipelineExport` to `runTestPostProcessing`.
 
 ## New Features
 
@@ -11,6 +14,7 @@
   cohort with explicit dependencies. The SQL is copied to `derived/` and the cohort
   is registered with `cohort_type = "custom"` and `depends_on` set. The Phase 1.1
   skip-logic (`length(parent_ids) > 0`) handles dependency-aware hashing automatically.
+- Move credentials to secrets file using `editSecrets()` and helpers for keyring `setupDbSecretsKeyring` and `setupAtlasSecretsKeyring`
 
 ## Bug Fixes
 

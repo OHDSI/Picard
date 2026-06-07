@@ -323,6 +323,52 @@ Initialize renv in your project:
 renv::init(project = "~/studies/diabetes_study")
 ```
 
+## Setting Up Database Credentials
+
+Before you can execute any pipelines, you need to configure database credentials. These are stored securely in `~/.picard/secrets.yml` using the keyring package.
+
+**Interactive Setup (Recommended):**
+
+Set up database server credentials interactively using `setupDbSecretsKeyring()`:
+
+```{r eval = FALSE}
+picard::setupDbSecretsKeyring(dbServerName = "my_cdm")
+```
+
+This prompts you to:
+
+1. Select your DBMS type (e.g., PostgreSQL, SQL Server, Snowflake)
+2. Enter connection details (server, port, username, password)
+3. Store credentials securely in your OS keyring
+4. Save the configuration to `~/.picard/secrets.yml`
+
+The function automatically opens `editSecrets()` after setup so you can review the saved configuration.
+
+**Manual Setup:**
+
+If you prefer to manually edit your secrets file:
+
+```{r eval = FALSE}
+picard::editSecrets()
+```
+
+This opens `~/.picard/secrets.yml` in your editor. You can add database server blocks with either:
+- Plain text credentials (not recommended)
+- `!expr keyring::key_get(...)` references (recommended - stores passwords securely)
+- `!expr Sys.getenv(...)` references (for environment variables)
+
+**Example secrets.yml format:**
+
+```yaml
+# Database Servers
+my_cdm:
+  dbms: !expr keyring::key_get("picard", "my_cdm_dbms")
+  server: !expr keyring::key_get("picard", "my_cdm_server")
+  port: !expr keyring::key_get("picard", "my_cdm_port")
+  user: !expr keyring::key_get("picard", "my_cdm_user")
+  password: !expr keyring::key_get("picard", "my_cdm_password")
+```
+
 ## Complete Example
 
 Here's the full workflow combining all steps:

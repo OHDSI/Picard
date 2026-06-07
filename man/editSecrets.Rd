@@ -4,29 +4,18 @@
 \alias{editSecrets}
 \title{Edit the secrets.yml file}
 \usage{
-editSecrets(
-  secretsFilePath = "~/.picard/secrets.yml",
-  dbServerNames = NULL,
-  atlas = TRUE
-)
+editSecrets(secretsFilePath = "~/.picard/secrets.yml")
 }
 \arguments{
 \item{secretsFilePath}{Character. Path to the secrets.yml file. Default
 \code{"~/.picard/secrets.yml"} — the canonical user-level location outside
 any git repo.}
-
-\item{dbServerNames}{Character vector. Optional unique server names to
-include in the skeleton. Each gets a template entry with commented-out
-credential placeholders.}
-
-\item{atlas}{Logical. If TRUE, include a commented-out Atlas credentials
-section in the skeleton. Default is TRUE}
 }
 \value{
 Invisibly returns the file path.
 }
 \description{
 Opens the secrets file in the user's editor (like \code{usethis::edit_r_environ()}).
-If the file doesn't exist, creates a skeleton first with optional server
-placeholders and an optional Atlas section, then opens it.
+If the file doesn't exist, creates a minimal skeleton with just a header comment,
+then opens it for editing.
 }

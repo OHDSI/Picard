@@ -417,7 +417,13 @@ Add a custom SQL cohort
 Registers an existing SQL file in the manifest. The file must already exist
 on disk (typically in \verb{sql/}).
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$addSqlCohort(filePath, label, category, tags = list())}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$addSqlCohort(
+  filePath,
+  label,
+  category,
+  tags = list(),
+  stopIfExists = TRUE
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -430,6 +436,10 @@ on disk (typically in \verb{sql/}).
 \item{\code{category}}{Character. Required classification.}
 
 \item{\code{tags}}{Named list. Optional metadata tags.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error if the file
+already exists on disk or is already registered in the manifest. If FALSE,
+overwrites silently with a warning. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }

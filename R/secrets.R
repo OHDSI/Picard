@@ -170,8 +170,16 @@ getBlockCredentials <- function(configBlock,
 #' Checks that the secrets file exists, is parseable by `yaml::read_yaml`, and
 #' has a top-level entry for each `dbServer` name. Each server entry requires
 #' `dbms`; then either `connectionString` (Snowflake) or `server` + `port` +
-#' `user` + `password` (other DBMS). If an `atlas` entry is present, requires
-#' `baseUrl`, `authMethod`, `user`, `password`.
+#' `user` + `password` (other DBMS). 
+#'
+#' If credentials are stored via [setupDbSecretsKeyring()], fields may contain
+#' `!expr keyring::key_get(...)` expressions. Validation checks for the presence
+#' of required fields but cannot fully validate the DBMS type or expression
+#' validity when using keyring-based credentials (that validation happens at
+#' credential resolution time).
+#'
+#' If an `atlas` entry is present, requires `baseUrl`, `authMethod`, `user`,
+#' `password`.
 #'
 #' @param secretsFilePath Character. Path to secrets.yml.
 #' @param dbServerNames Character vector. Expected server names.
@@ -204,24 +212,45 @@ validateSecretsYaml <- function(secretsFilePath, dbServerNames) {
       cli::cli_abort("Server {.val {svr}} is missing {.field dbms}")
     }
 
-    dbms <- tolower(as.character(entry$dbms))
+    # Check if dbms is an expression (from keyring) or plain value
+    dbms_value <- as.character(entry$dbms)
+    is_expr <- startsWith(dbms_value, "!expr ")
 
-    if (dbms == "snowflake") {
-      if (is.null(entry$connectionString)) {
-        cli::cli_abort("Snowflake server {.val {svr}} requires {.field connectionString}")
-      }
-    } else {
-      if (is.null(entry$server)) {
-        cli::cli_abort("Server {.val {svr}} ({dbms}) requires {.field server}")
-      }
-      if (is.null(entry$port)) {
-        cli::cli_abort("Server {.val {svr}} ({dbms}) requires {.field port}")
+    if (is_expr) {
+      # Can't validate expression values, just check field presence
+      if (is.null(entry$connectionString) && is.null(entry$server)) {
+        cli::cli_warn(
+          "Server {.val {svr}} has {.field dbms} as expression but no {.field connectionString} or {.field server} field.",
+          "Cannot fully validate keyring-based credentials."
+        )
       }
       if (is.null(entry$user)) {
-        cli::cli_abort("Server {.val {svr}} ({dbms}) requires {.field user}")
+        cli::cli_abort("Server {.val {svr}} is missing {.field user}")
       }
       if (is.null(entry$password)) {
-        cli::cli_abort("Server {.val {svr}} ({dbms}) requires {.field password}")
+        cli::cli_abort("Server {.val {svr}} is missing {.field password}")
+      }
+    } else {
+      # Plain text value - validate DBMS type and fields
+      dbms <- tolower(dbms_value)
+
+      if (dbms == "snowflake") {
+        if (is.null(entry$connectionString)) {
+          cli::cli_abort("Snowflake server {.val {svr}} requires {.field connectionString}")
+        }
+      } else {
+        if (is.null(entry$server)) {
+          cli::cli_abort("Server {.val {svr}} ({dbms}) requires {.field server}")
+        }
+        if (is.null(entry$port)) {
+          cli::cli_abort("Server {.val {svr}} ({dbms}) requires {.field port}")
+        }
+        if (is.null(entry$user)) {
+          cli::cli_abort("Server {.val {svr}} ({dbms}) requires {.field user}")
+        }
+        if (is.null(entry$password)) {
+          cli::cli_abort("Server {.val {svr}} ({dbms}) requires {.field password}")
+        }
       }
     }
   }
@@ -253,22 +282,15 @@ validateSecretsYaml <- function(secretsFilePath, dbServerNames) {
 #' Edit the secrets.yml file
 #'
 #' Opens the secrets file in the user's editor (like `usethis::edit_r_environ()`).
-#' If the file doesn't exist, creates a skeleton first with optional server
-#' placeholders and an optional Atlas section, then opens it.
+#' If the file doesn't exist, creates a minimal skeleton with just a header comment,
+#' then opens it for editing.
 #'
 #' @param secretsFilePath Character. Path to the secrets.yml file. Default
 #'   `"~/.picard/secrets.yml"` — the canonical user-level location outside
 #'   any git repo.
-#' @param dbServerNames Character vector. Optional unique server names to
-#'   include in the skeleton. Each gets a template entry with commented-out
-#'   credential placeholders.
-#' @param atlas Logical. If TRUE, include a commented-out Atlas credentials
-#'   section in the skeleton. Default is TRUE
 #' @return Invisibly returns the file path.
 #' @export
-editSecrets <- function(secretsFilePath = "~/.picard/secrets.yml",
-                        dbServerNames = NULL,
-                        atlas = TRUE) {
+editSecrets <- function(secretsFilePath = "~/.picard/secrets.yml") {
   secretsFilePath <- fs::path_expand(secretsFilePath)
 
   if (!file.exists(secretsFilePath)) {
@@ -282,33 +304,7 @@ editSecrets <- function(secretsFilePath = "~/.picard/secrets.yml",
       error = function(e) "# secrets.yml — Database & Atlas Credentials\n"
     )
 
-    # Build server entries
-    serverEntries <- character(0)
-    if (!is.null(dbServerNames) && length(dbServerNames) > 0) {
-      uniqueServers <- unique(dbServerNames)
-      for (svr in uniqueServers) {
-        serverEntries <- c(serverEntries, sprintf(
-          "\n%s:\n  dbms: \"\"\n  # connectionString: \"\"  # uncomment for Snowflake\n  # server: \"\"           # uncomment for other DBMS\n  # port: \"\"             # uncomment for other DBMS\n  user: \"\"\n  password: \"\"\n  # extraSettings:  # optional",
-          svr
-        ))
-      }
-    }
-
-    # Build atlas section
-    atlasSection <- if (atlas) {
-      sprintf(
-        "\n\n# OHDSI Atlas/WebAPI credentials (used by getAtlasConnection)\n# atlas:\n#   baseUrl: \"https://atlas.example.com/WebAPI\"\n#   authMethod: \"ad\"\n#   user: \"\"\n#   password: \"\"\n"
-      )
-    } else {
-      ""
-    }
-
-    content <- paste0(header,
-                      paste0(serverEntries, collapse = ""),
-                      atlasSection,
-                      "\n")
-
-    readr::write_file(x = content, file = secretsFilePath)
+    readr::write_file(x = header, file = secretsFilePath)
     cli::cli_alert_success("Created secrets file: {.path {secretsFilePath}}")
   }
 
@@ -319,23 +315,26 @@ editSecrets <- function(secretsFilePath = "~/.picard/secrets.yml",
   invisible(secretsFilePath)
 }
 
-#' Set up keyring-based credentials
+#' Set up keyring-based credentials for a database server
 #'
 #' Interactively prompts for credentials using `keyring::key_set()` dialogs,
-#' then writes a secrets.yml skeleton with `!expr keyring::key_get(...)`
+#' then writes a secrets.yml entry with `!expr keyring::key_get(...)`
 #' references. This is the most secure workflow — credentials never appear
 #' in plain text on disk.
 #'
-#' @param dbServerNames Character vector. Server names to set up (e.g.,
-#'   `c("snowflake_prod", "redshift_jmdc")`).
+#' If the secrets file already exists, the new server entry is appended rather than
+#' overwriting. This allows adding new database servers to an existing configuration.
+#' For Atlas credentials, use [setupAtlasSecretsKeyring()] separately.
+#'
+#' @param dbServerName Character. The database server name to set up (e.g.,
+#'   `"snowflake_prod"` or `"redshift_jmdc"`).
+#' @param dbmsVal Character. The dbms value, could be snowflake, redshift, postgres
 #' @param secretsFilePath Character. Path to the secrets.yml file to write.
 #'   Default `"~/.picard/secrets.yml"`.
-#' @param atlas Logical. If TRUE, also prompt for Atlas credentials.
 #' @return Invisibly returns the secrets file path.
 #' @export
-setupKeyring <- function(dbServerNames,
-                         secretsFilePath = "~/.picard/secrets.yml",
-                         atlas = FALSE) {
+setupDbSecretsKeyring <- function(dbServerName, dbmsVal, 
+                         secretsFilePath = "~/.picard/secrets.yml") {
   if (!requireNamespace("keyring", quietly = TRUE)) {
     cli::cli_abort("keyring package is required. Install with: {.run install.packages('keyring')}")
   }
@@ -343,66 +342,203 @@ setupKeyring <- function(dbServerNames,
   secretsFilePath <- fs::path_expand(secretsFilePath)
   fs::dir_create(fs::path_dir(secretsFilePath))
 
-  cli::cli_h2("Setting up keyring credentials")
+  cli::cli_h2("Setting up keyring credentials in .picard/secrets.yml")
+  cli::cli_h3("Server: {.val {dbServerName}}")
 
-  serverLines <- character(0)
+  # Always store dbms in keyring first
+  keyring::key_set(service = "picard", username = paste0(dbServerName, "_dbms"), prompt = paste0("DBMS [{dbmsVal}]: "), password = dbmsVal)
 
-  for (svr in unique(dbServerNames)) {
-    cli::cli_h3("Server: {.val {svr}}")
+  # Build the entry — ask for connectionString (snowflake) or server/port
+  if (tolower(dbmsVal) == "snowflake") {
+    keyring::key_set(service = "picard", username = paste0(dbServerName, "_connectionString"), prompt = "ConnectionString: ")
+    keyring::key_set(service = "picard", username = paste0(dbServerName, "_user"), prompt = "User: ")
+    keyring::key_set(service = "picard", username = paste0(dbServerName, "_password"), prompt = "Password: ")
 
-    # Prompt for dbms
-    keyring::key_set(service = "picard", username = paste0(svr, "_dbms"))
-    dbms_val <- keyring::key_get("picard", paste0(svr, "_dbms"))
+    serverLines <- sprintf(
+      "\n%s:\n  dbms: !expr keyring::key_get(\"picard\", \"%s_dbms\")\n  connectionString: !expr keyring::key_get(\"picard\", \"%s_connectionString\")\n  user: !expr keyring::key_get(\"picard\", \"%s_user\")\n  password: !expr keyring::key_get(\"picard\", \"%s_password\")",
+      dbServerName, dbServerName, dbServerName, dbServerName, dbServerName
+    )
+  } else {
+    keyring::key_set(service = "picard", username = paste0(dbServerName, "_server"), prompt = "Server: ")
+    keyring::key_set(service = "picard", username = paste0(dbServerName, "_port"), prompt = "Port: ")
+    keyring::key_set(service = "picard", username = paste0(dbServerName, "_user"), prompt = "User: ")
+    keyring::key_set(service = "picard", username = paste0(dbServerName, "_password"), prompt = "Password: ")
 
-    # Build the entry — ask for connectionString (snowflake) or server/port
-    if (tolower(dbms_val) == "snowflake") {
-      keyring::key_set(service = "picard", username = paste0(svr, "_connectionString"))
-      keyring::key_set(service = "picard", username = paste0(svr, "_user"))
-      keyring::key_set(service = "picard", username = paste0(svr, "_password"))
-    } else {
-      keyring::key_set(service = "picard", username = paste0(svr, "_server"))
-      keyring::key_set(service = "picard", username = paste0(svr, "_port"))
-      keyring::key_set(service = "picard", username = paste0(svr, "_user"))
-      keyring::key_set(service = "picard", username = paste0(svr, "_password"))
-    }
-
-    serverLines <- c(serverLines, sprintf(
-      "\n%s:\n  dbms: !expr keyring::key_get(\"picard\", \"%s_dbms\")\n  user: !expr keyring::key_get(\"picard\", \"%s_user\")\n  password: !expr keyring::key_get(\"picard\", \"%s_password\")",
-      svr, svr, svr, svr
-    ))
-  }
-
-  # Atlas
-  atlasSection <- ""
-  if (atlas) {
-    cli::cli_h3("Atlas/WebAPI credentials")
-    keyring::key_set(service = "picard", username = "atlas_baseUrl")
-    keyring::key_set(service = "picard", username = "atlas_authMethod")
-    keyring::key_set(service = "picard", username = "atlas_user")
-    keyring::key_set(service = "picard", username = "atlas_password")
-
-    atlasSection <- sprintf(
-      "\n\natlas:\n  baseUrl: !expr keyring::key_get(\"picard\", \"atlas_baseUrl\")\n  authMethod: !expr keyring::key_get(\"picard\", \"atlas_authMethod\")\n  user: !expr keyring::key_get(\"picard\", \"atlas_user\")\n  password: !expr keyring::key_get(\"picard\", \"atlas_password\")"
+    serverLines <- sprintf(
+      "\n%s:\n  dbms: !expr keyring::key_get(\"picard\", \"%s_dbms\")\n  server: !expr keyring::key_get(\"picard\", \"%s_server\")\n  port: !expr keyring::key_get(\"picard\", \"%s_port\")\n  user: !expr keyring::key_get(\"picard\", \"%s_user\")\n  password: !expr keyring::key_get(\"picard\", \"%s_password\")",
+      dbServerName, dbServerName, dbServerName, dbServerName, dbServerName, dbServerName
     )
   }
 
-  # Write the secrets file
-  header <- tryCatch(
-    fs::path_package("picard", "templates/secretsHeader.txt") |>
-      readr::read_file(),
-    error = function(e) "# secrets.yml\n"
-  )
+  # Build content, appending to existing file if it exists
+  if (file.exists(secretsFilePath)) {
+    # File exists - read existing content and append new entries
+    existingContent <- readr::read_file(secretsFilePath)
 
-  content <- paste0(header,
-                    paste0(serverLines, collapse = ""),
-                    atlasSection,
-                    "\n")
+    # Remove trailing whitespace
+    existingContent <- sub("\\s+$", "", existingContent)
+
+    # Append new entries
+    content <- paste0(existingContent, serverLines, "\n")
+
+    cli::cli_alert_info("Appending to existing secrets file: {.path {secretsFilePath}}")
+  } else {
+    # File doesn't exist - create new with header
+    header <- tryCatch(
+      fs::path_package("picard", "templates/secretsHeader.txt") |>
+        readr::read_file(),
+      error = function(e) "# secrets.yml\n"
+    )
+
+    content <- paste0(header, serverLines, "\n")
+
+    cli::cli_alert_info("Creating new secrets file: {.path {secretsFilePath}}")
+  }
+
   readr::write_file(x = content, file = secretsFilePath)
 
-  cli::cli_alert_success("Keyring credentials stored and secrets file created: {.path {secretsFilePath}}")
+  cli::cli_alert_success("Database server keyring credentials stored: {.path {secretsFilePath}}")
 
   # Open for review
-  editSecrets(secretsFilePath)
+  usethis::edit_file(secretsFilePath)
+  cli::cli_alert_info("Review {.path {secretsFilePath}} with your credentials, then save and close.")
 
   invisible(secretsFilePath)
 }
+
+#' Set up Atlas/WebAPI keyring credentials
+#'
+#' Interactively prompts for Atlas/WebAPI credentials using `keyring::key_set()`
+#' and writes them to secrets.yml with `!expr keyring::key_get(...)` references.
+#' This is the most secure workflow — credentials never appear in plain text on disk.
+#'
+#' If the secrets file already exists, the atlas entry is appended rather than
+#' overwriting.
+#'
+#' @param secretsFilePath Character. Path to the secrets.yml file to write.
+#'   Default `"~/.picard/secrets.yml"`.
+#' @return Invisibly returns the secrets file path.
+#' @export
+setupAtlasSecretsKeyring <- function(secretsFilePath = "~/.picard/secrets.yml") {
+  if (!requireNamespace("keyring", quietly = TRUE)) {
+    cli::cli_abort("keyring package is required. Install with: {.run install.packages('keyring')}")
+  }
+
+  secretsFilePath <- fs::path_expand(secretsFilePath)
+  fs::dir_create(fs::path_dir(secretsFilePath))
+
+  cli::cli_h2("Setting up keyring credentials in .picard/secrets.yml")
+  cli::cli_h3("Atlas/WebAPI credentials")
+  keyring::key_set(service = "picard", username = "atlas_baseUrl", prompt = "Base URL: ")
+  keyring::key_set(service = "picard", username = "atlas_authMethod", prompt = "Auth Method: ")
+  keyring::key_set(service = "picard", username = "atlas_user", prompt = "User: ")
+  keyring::key_set(service = "picard", username = "atlas_password", prompt = "Password: ")
+
+  atlasSection <- sprintf(
+    "\n\natlas:\n  baseUrl: !expr keyring::key_get(\"picard\", \"atlas_baseUrl\")\n  authMethod: !expr keyring::key_get(\"picard\", \"atlas_authMethod\")\n  user: !expr keyring::key_get(\"picard\", \"atlas_user\")\n  password: !expr keyring::key_get(\"picard\", \"atlas_password\")"
+  )
+
+  # Build content, appending to existing file if it exists
+  if (file.exists(secretsFilePath)) {
+    # File exists - read existing content and append new entries
+    existingContent <- readr::read_file(secretsFilePath)
+
+    # Remove trailing whitespace
+    existingContent <- sub("\\s+$", "", existingContent)
+
+    # Append new entries
+    content <- paste0(existingContent, "\n", atlasSection, "\n")
+
+    cli::cli_alert_info("Appending to existing secrets file: {.path {secretsFilePath}}")
+  } else {
+    # File doesn't exist - create new with header
+    header <- tryCatch(
+      fs::path_package("picard", "templates/secretsHeader.txt") |>
+        readr::read_file(),
+      error = function(e) "# secrets.yml\n"
+    )
+
+    content <- paste0(header, atlasSection, "\n")
+
+    cli::cli_alert_info("Creating new secrets file: {.path {secretsFilePath}}")
+  }
+
+  readr::write_file(x = content, file = secretsFilePath)
+
+  cli::cli_alert_success("Atlas keyring credentials stored: {.path {secretsFilePath}}")
+
+  # Open for review
+  usethis::edit_file(secretsFilePath)
+  cli::cli_alert_info("Review {.path {secretsFilePath}} with your credentials, then save and close.")
+
+  invisible(secretsFilePath)
+}
+
+#' Review keyring credentials for picard service
+#'
+#' Lists all credentials stored in the "picard" keyring service with their
+#' actual values, organized by database servers and Atlas. Useful for verifying
+#' that setup functions correctly stored credentials and debugging resolution issues.
+#'
+#' @details
+#' Displays credentials in two organized sections:
+#' - Database Server Credentials: all `{server}_dbms`, `{server}_server`, 
+#'   `{server}_port`, `{server}_user`, `{server}_password`, and 
+#'   `{server}_connectionString` entries
+#' - Atlas Credentials: all `atlas_*` entries
+#'
+#' @return Invisibly returns a tibble with columns: username, service.
+#' @export
+reviewKeyringCredentials <- function() {
+  if (!requireNamespace("keyring", quietly = TRUE)) {
+    cli::cli_abort("keyring package is required. Install with: {.run install.packages('keyring')}")
+  }
+
+  # Get all keys for picard service
+  all_keys <- tryCatch(
+    keyring::key_list(service = "picard"),
+    error = function(e) {
+      cli::cli_alert_info("No credentials found in picard keyring service")
+      return(NULL)
+    }
+  )
+
+  if (is.null(all_keys) || nrow(all_keys) == 0) {
+    cli::cli_alert_info("No credentials found in picard keyring service")
+    return(invisible(tibble::tibble(username = character(), service = character())))
+  }
+
+  # Organize by type
+  db_keys <- all_keys$username[grepl("_dbms|_server|_port|_user|_password|_connectionString", all_keys$username)]
+  atlas_keys <- all_keys$username[grepl("^atlas_", all_keys$username)]
+
+  # get each credential
+  # first db_keys
+  db_val <- vector('list', length(db_keys))
+  for (i in seq_along(db_val)) {
+    val <- keyring::key_get("picard", username = db_keys[i])
+    db_val[i] <- glue::glue_col("{db_keys[i]}: {yellow {val}}")
+  }
+  
+
+  # next atlas
+  atlas_val <- vector('list', length(atlas_keys))
+  for (i in seq_along(atlas_val)) {
+    val <- keyring::key_get("picard", username = atlas_keys[i])
+    atlas_val[i] <- glue::glue("{atlas_keys[i]}: {yellow {val}}")
+  }
+  atlas_val <- do.call('c', atlas_val)
+
+  if (length(db_val) > 0) {
+    cli::cli_h2("Database Server Credentials in picard")
+    cli::cli_bullets(setNames(db_val, rep("i", length(db_val))))
+  }
+
+  if (length(atlas_val) > 0) {
+    cli::cli_h2("Atlas Credentials in picard")
+    cli::cli_bullets(setNames(atlas_val, rep("i", length(atlas_val))))
+  }
+
+  invisible(all_keys)
+}
+

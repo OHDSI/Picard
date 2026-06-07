@@ -838,13 +838,17 @@ CohortManifest <- R6::R6Class(
     #' @param label Character. Display name for the cohort.
     #' @param category Character. Required classification.
     #' @param tags Named list. Optional metadata tags.
+    #' @param stopIfExists Logical. If TRUE (default), raises an error if the file
+    #'   already exists on disk or is already registered in the manifest. If FALSE,
+    #'   overwrites silently with a warning. Default: TRUE (fail-safe).
     #'
     #' @return Invisible integer. The assigned cohort ID.
-    addSqlCohort = function(filePath, label, category, tags = list()) {
+    addSqlCohort = function(filePath, label, category, tags = list(), stopIfExists = TRUE) {
       checkmate::assert_file_exists(filePath)
       checkmate::assert_string(label, min.chars = 1)
       checkmate::assert_string(category, min.chars = 1)
       checkmate::assert_list(tags, names = "named")
+      checkmate::assert_flag(stopIfExists)
 
       # Validate file is SQL
       ext <- tolower(tools::file_ext(filePath))
@@ -855,9 +859,27 @@ CohortManifest <- R6::R6Class(
       # Validate label uniqueness
       private$validate_label_unique(label)
 
-      # Validate file_path uniqueness
+      # Check file path: query manifest to see if already registered
       rel_path <- fs::path_rel(filePath)
-      private$validate_filepath_unique(rel_path)
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      existing_cohort <- DBI::dbGetQuery(
+        conn,
+        "SELECT id FROM cohort_manifest WHERE file_path = ? AND status = 'active'",
+        list(rel_path)
+      )
+
+      if (nrow(existing_cohort) > 0) {
+        if (isTRUE(stopIfExists)) {
+          cli::cli_abort(c(
+            "File path already registered in manifest (cohort {existing_cohort$id[1]})",
+            i = "Set {.arg stopIfExists = FALSE} to replace registration"
+          ))
+        } else {
+          cli::cli_warn("Replacing existing manifest entry for {.file {rel_path}}")
+        }
+      }
 
       # Run portability validation
       sql_content <- readr::read_file(filePath)

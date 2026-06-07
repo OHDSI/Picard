@@ -26,7 +26,7 @@ Creates a \code{WebApiConnection} object using credentials from:
 \enumerate{
 \item \strong{secrets.yml} (preferred) — uses the \code{atlas} key in your
 \code{~/.picard/secrets.yml} file (see \code{editSecrets()} and
-\code{setupKeyring()}).
+\code{setupAtlasSecretsKeyring()}).
 \item \code{.Renviron} — reads \code{atlasBaseUrl}, \code{atlasAuthMethod},
 \code{atlasUser}, \code{atlasPassword} environment variables.
 \item \code{keyring} — retrieves from the OS keyring directly (legacy).
@@ -34,7 +34,7 @@ Creates a \code{WebApiConnection} object using credentials from:
 }
 \details{
 The recommended workflow is to store Atlas credentials in
-\code{~/.picard/secrets.yml} via \code{setupKeyring()} or \code{editSecrets()}.
+\code{~/.picard/secrets.yml} via \code{setupAtlasSecretsKeyring()} or \code{editSecrets()}.
 The secrets.yml approach supports three credential formats:
 \itemize{
 \item Plain strings, \code{!expr keyring::key_get(...)}, or \code{!expr Sys.getenv(...)}.

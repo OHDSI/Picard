@@ -12,6 +12,6 @@ Invisible TRUE if valid, aborts if drift detected
 \description{
 Checks that installed packages match renv.lock.
 Prevents running pipelines with environment drift.
-Call before execStudyPipeline() or orchestratePipelineExport().
+Call before execStudyPipeline() or runPostProcessing().
 }
 \keyword{internal}

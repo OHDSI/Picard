@@ -14,15 +14,15 @@ The main post-processing step is **orchestrating the pipeline export**, which:
 
 ## The Post-Processing Workflow
 
-### Step 1: Orchestrate the Pipeline Export
+### Step 1: Run the Post-Processing Pipeline
 
-After your production pipeline completes, call `orchestratePipelineExport()` to merge and validate all results:
+After your production pipeline completes, call `runPostProcessing()` to merge and validate all results:
 
 ```r
 library(picard)
 
 # Orchestrate export for version 1.0.0 across two databases
-orchestratePipelineExport(
+runPostProcessing(
   pipelineVersion = "1.0.0",
   dbIds = c("omop_cdm", "another_cdm"),
   resultsPath = here::here("exec/results"),
@@ -197,7 +197,7 @@ issues <- validation[validation$validationStatus != "OK", ]
 
 ## Next Steps
 
-1. **Run orchestration:** Call `orchestratePipelineExport()` after production pipeline completes
+1. **Run orchestration:** Call `runPostProcessing()` after production pipeline completes
 2. **Review QC reports:** Check qc_cohortValidation.csv and qc_processMeta.csv
 3. **Examine schema:** Use schema_review.csv to understand data structure
 4. **Handle issues:** If cohorts are missing or zero, investigate in analysis tasks

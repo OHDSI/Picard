@@ -82,10 +82,39 @@ Opens `inputs/conceptSets/conceptSetsLoad.csv`. Fill in one row per concept set:
 
 Any additional columns are stored as tags.
 
-### Step 3: Connect to ATLAS and import
+### Step 3: Set up ATLAS Credentials
+
+Before connecting to ATLAS, store your credentials securely in `~/.picard/secrets.yml` using the secrets management system:
 
 ```{r}
-atlasConnection <- getAtlasConnection()            # reads credentials from .Renviron
+# Interactive setup for Atlas credentials - guides you through keyring storage
+setupAtlasSecretsKeyring()
+
+# Or edit the secrets file directly
+editSecrets()
+```
+
+This creates/updates `~/.picard/secrets.yml` with your credentials stored securely. The file should contain an `atlas` section:
+
+```yaml
+atlas:
+  baseUrl: "https://organization-atlas.com/WebAPI"
+  authMethod: "ad"
+  user: "atlas.user@company.com"
+  password: !expr keyring::key_get(service = "picard", username = "atlasPassword")
+```
+
+You can store credentials three ways:
+- **Plaintext** (not recommended): `password: "YourPassword"`
+- **Keyring** (recommended): `password: !expr keyring::key_get(...)`
+- **Environment variable**: `password: !expr Sys.getenv("ATLAS_PASSWORD")`
+
+### Step 4: Connect to ATLAS and import
+
+```{r}
+# Credentials are automatically read from ~/.picard/secrets.yml
+atlasConnection <- getAtlasConnection()
+
 conceptSetManifest$setAtlasConnection(atlasConnection)
 
 conceptSetManifest$importAtlasConceptSets(
@@ -93,11 +122,9 @@ conceptSetManifest$importAtlasConceptSets(
 )
 ```
 
-`getAtlasConnection()` reads `atlasBaseUrl`, `atlasAuthMethod`, `atlasUser`, and
-`atlasPassword` from `.Renviron`. Run `usethis::edit_r_environ()` to add them.
-For keyring-based storage use `getAtlasConnection(useKeyring = TRUE)`.
+This downloads JSON definitions to `inputs/conceptSets/json/` and updates your manifest with metadata.
 
-### Step 4: Load and review
+### Step 5: Load and review
 
 ```{r}
 conceptSetManifest <- loadConceptSetManifest()
@@ -136,11 +163,39 @@ Opens `inputs/cohorts/cohortsLoad.csv`. Fill in one row per cohort:
 
 Any additional columns are stored as tags.
 
-### Step 3: Connect to ATLAS and import
+### Step 3: Set up ATLAS Credentials
+
+Before connecting to ATLAS, store your credentials securely in `~/.picard/secrets.yml` using the secrets management system:
 
 ```{r}
-# Reuse the connection from the concept sets step, or create a new one:
-# atlasConnection <- getAtlasConnection()
+# Interactive setup for Atlas credentials - guides you through keyring storage
+setupAtlasSecretsKeyring()
+
+# Or edit the secrets file directly
+editSecrets()
+```
+
+This creates/updates `~/.picard/secrets.yml` with your credentials stored securely. The file should contain an `atlas` section:
+
+```yaml
+atlas:
+  baseUrl: "https://organization-atlas.com/WebAPI"
+  authMethod: "ad"
+  user: "atlas.user@company.com"
+  password: !expr keyring::key_get(service = "picard", username = "atlasPassword")
+```
+
+You can store credentials three ways:
+- **Plaintext** (not recommended): `password: "YourPassword"`
+- **Keyring** (recommended): `password: !expr keyring::key_get(...)`
+- **Environment variable**: `password: !expr Sys.getenv("ATLAS_PASSWORD")`
+
+### Step 4: Connect to ATLAS and import
+
+```{r}
+# Credentials are automatically read from ~/.picard/secrets.yml
+atlasConnection <- getAtlasConnection()
+
 cohortManifest$setAtlasConnection(atlasConnection)
 
 cohortManifest$importAtlasCohorts(
@@ -151,7 +206,7 @@ cohortManifest$importAtlasCohorts(
 Downloads CIRCE JSON definitions to `inputs/cohorts/json/` and records each
 cohort in SQLite.
 
-### Step 4: Load and review
+### Step 5: Load and review
 
 ```{r}
 cohortManifest <- loadCohortManifest()

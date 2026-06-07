@@ -25,11 +25,30 @@ The launch process has four key steps:
 If your study repository already exists on GitHub, GitLab, or another Git hosting service, you can clone it directly:
 
 ```bash
-cd ~/studies
+# Clone the repository
 git clone https://github.com/myorg/diabetes_study.git
 ```
 
-After cloning, open the `.Rproj` file and you can immediately start working - all configuration files, directory structure, and git history are already in place.
+After cloning, the repository has all configuration files, directory structure, and git history already in place. Next, click on the .Rproj file to open the project in RStudio and you can immediately start working.
+
+However, agent mode files are excluded from git (for security and customization). You'll need to restore them using `initAgentMode()`:
+
+```r
+library(picard)
+
+# Restore agent mode configuration (if not already present)
+initAgentMode(projectPath = here::here(), verbose = TRUE)
+```
+
+This function:
+1. **Checks if agent mode exists** - Looks for `.agent/` folder and `copilot-instructions.md`
+2. **If missing**, restores from package templates by:
+   - Extracting study metadata from README.md and config.yml
+   - Creating `.agent/` folder with reference documentation
+   - Writing customized `copilot-instructions.md` to workspace root (auto-loaded by VS Code Copilot)
+   - Copying numbered reference guides to `.agent/reference-docs/`
+
+After running `initAgentMode()`, you can open the repository in VS Code and Copilot will automatically use the study context to provide AI assistance tailored to your project.
 
 ---
 
@@ -123,6 +142,9 @@ sm <- makeStudyMeta(
 - `therapeuticArea`: Therapeutic or disease area (e.g., "CRM", "Oncology", "Cardiology")
 - `studyType`: Type of study (e.g., "Characterization", "Population-Level Estimation", "Patient-Level Prediction")
 - `contributors`: List of contributor profiles created with `setContributor()`
+  - `name`: Full name
+  - `email`: Contact email
+  - `role`: Role type (e.g., "developer", "qc", "principal investigator")
 - `studyTags`: Character vector of study tags for organization
 
 ## Step 2: Configure Database Connection
@@ -146,7 +168,25 @@ db <- setDbConfigBlock(
 - `cohortTable`: Name of the table where cohorts will be created
 - `databaseLabel`: Human-readable label for reports and documentation
 
-**For multiple databases**, create multiple blocks and pass them as a list.
+**For multiple databases**, create multiple blocks:
+
+```r
+db1 <- setDbConfigBlock(
+  configBlockName = "my_cdm",
+  cdmDatabaseSchema = "omop_cdm_schema",
+  databaseName = "my_database_v1",
+  cohortTable = "study_cohorts",
+  databaseLabel = "Primary CDM"
+)
+
+db2 <- setDbConfigBlock(
+  configBlockName = "secondary_cdm",
+  cdmDatabaseSchema = "secondary_omop_schema",
+  databaseName = "secondary_database_v1",
+  cohortTable = "study_cohorts_sec",
+  databaseLabel = "Secondary CDM"
+)
+```
 
 ## Step 3: Create Study Settings
 
@@ -169,6 +209,8 @@ ulySt <- makeUlyssesStudySettings(
 
 **Optional Parameters:**
 
+You can also specify Git and renv configuration at setup time:
+
 ```r
 ulySt <- makeUlyssesStudySettings(
   repoName = "diabetes_study",
@@ -180,7 +222,7 @@ ulySt <- makeUlyssesStudySettings(
 )
 ```
 
-**Optional:**
+**Optional Parameters:**
 - `gitRemote`: URL to a Git remote repository (for version control integration)
 - `renvLockFile`: Path to an existing `renv.lock` file to copy into the project (for reproducible environments)
 
@@ -214,9 +256,15 @@ Follow these steps to add a remote and sync your repository:
 
 ### 1. Open the Project
 
-Open the `.Rproj` file in RStudio or navigate to the folder in VS Code:
+Open the `.Rproj` file in RStudio:
 
-```bash
+```
+~/studies/diabetes_study/diabetes_study.Rproj
+```
+
+Alternatively, navigate to the folder in VS Code:
+
+```
 code ~/studies/diabetes_study
 ```
 
@@ -236,16 +284,19 @@ You should see that initial files are already committed locally.
 Link your local repository to a remote:
 
 ```bash
+# Add remote named 'origin'
 git remote add origin https://github.com/myorg/diabetes_study.git
+
+# Verify remote was added
 git remote -v
 ```
 
 ### 4. Push to Remote
 
-Push your committed files to the remote:
+Sync your local repository with the remote:
 
 ```bash
-git branch -M main
+# Push to remote
 git push -u origin main
 ```
 
@@ -253,33 +304,141 @@ git push -u origin main
 
 ## Setting Up renv for Reproducibility
 
-After your repository is initialized, capture your R environment with renv:
+renv configuration is handled automatically during repository initialization.
+
+**If you provided `renvLockFile` during setup:**
+- Your `renv.lock` file is automatically copied to the project root
+- Run `renv::restore()` in the project to install the locked packages
 
 ```r
-# In the project root directory
-renv::init()
+renv::restore(project = "~/studies/diabetes_study")
 ```
 
-This creates `renv.lock` capturing all installed packages and versions. Commit these files:
-
-```bash
-git add renv.lock .Rprofile
-git commit -m "Initialize renv for reproducible environment"
-git push
-```
-
-Then, other team members can restore the identical environment:
+**If you did NOT provide `renvLockFile` during setup:**
+Initialize renv in your project:
 
 ```r
-renv::restore()
+renv::init(project = "~/studies/diabetes_study")
 ```
 
 ---
 
-## Next Steps
+## Setting Up Database Credentials
 
-1. **Initialize repository** - Run `initUlyssesRepo()` as shown above
-2. **Configure Git remote** - If you didn't set it during initialization
-3. **Set up renv** - Run `renv::init()` to capture package versions
-4. **Define inputs** - See "Loading Inputs" guide for cohorts and concept sets
-5. **Develop analysis** - See "Developing the Pipeline" guide for creating tasks
+Before you can execute any pipelines, you need to configure database credentials. These are stored securely in `~/.picard/secrets.yml` using the keyring package.
+
+**Interactive Setup (Recommended):**
+
+Set up database server credentials interactively using `setupDbSecretsKeyring()`:
+
+```r
+picard::setupDbSecretsKeyring(dbServerName = "my_cdm")
+```
+
+This prompts you to:
+1. Select your DBMS type (e.g., PostgreSQL, SQL Server, Snowflake)
+2. Enter connection details (server, port, username, password)
+3. Store credentials securely in your OS keyring
+4. Save the configuration to `~/.picard/secrets.yml`
+
+The function automatically opens `editSecrets()` after setup so you can review the saved configuration.
+
+**Manual Setup:**
+
+If you prefer to manually edit your secrets file:
+
+```r
+picard::editSecrets()
+```
+
+This opens `~/.picard/secrets.yml` in your editor. You can add database server blocks with either:
+- Plain text credentials (not recommended)
+- `!expr keyring::key_get(...)` references (recommended - stores passwords securely)
+- `!expr Sys.getenv(...)` references (for environment variables)
+
+**Example secrets.yml format:**
+
+```yaml
+# Database Servers
+my_cdm:
+  dbms: !expr keyring::key_get("picard", "my_cdm_dbms")
+  server: !expr keyring::key_get("picard", "my_cdm_server")
+  port: !expr keyring::key_get("picard", "my_cdm_port")
+  user: !expr keyring::key_get("picard", "my_cdm_user")
+  password: !expr keyring::key_get("picard", "my_cdm_password")
+```
+
+---
+
+## Complete Example
+
+Here's the full workflow combining all steps:
+
+```r
+library(picard)
+
+# 1. Create study metadata
+sm <- makeStudyMeta(
+  studyTitle = "Diabetes Characterization Study",
+  therapeuticArea = "Endocrinology",
+  studyType = "Characterization",
+  contributors = list(
+    setContributor(
+      name = "Jane Doe",
+      email = "jane.doe@institution.org",
+      role = "developer"
+    ),
+    setContributor(
+      name = "John Smith",
+      email = "john.smith@institution.org",
+      role = "qc"
+    )
+  ),
+  studyTags = c("OMOP", "OHDSI", "Characterization")
+)
+
+# 2. Configure database connection
+db <- setDbConfigBlock(
+  configBlockName = "my_cdm",
+  cdmDatabaseSchema = "omop_cdm_schema",
+  databaseName = "my_database_v1",
+  cohortTable = "study_cohorts",
+  databaseLabel = "Primary CDM"
+)
+
+# 3. Create study settings (with optional Git and renv configuration)
+ulySt <- makeUlyssesStudySettings(
+  repoName = "diabetes_study",
+  repoFolder = "~/studies",
+  studyMeta = sm,
+  dbConnectionBlocks = list(db),
+  gitRemote = "https://github.com/myorg/diabetes_study.git",
+  renvLockFile = "~/my_dependencies/renv.lock"
+)
+
+# 4. Initialize the repository
+ulySt$initUlyssesRepo(verbose = TRUE, openProject = FALSE)
+```
+
+## What Gets Created
+
+After successful initialization, your repository contains:
+
+- **Standard directories:** analysis/, inputs/, dissemination/, exec/, extras/
+- **Configuration file:** config.yml with your study settings
+- **Project file:** .Rproj file for RStudio
+- **README and documentation:** README.md, NEWS.md
+- **Git setup:** .gitignore configured for Picard projects
+
+For detailed information about the repository structure, see the repository structure documentation.
+
+## What's Next?
+
+Your repository is now initialized and ready for development. The next phase is to develop your analysis pipeline. This includes:
+
+- Setting up your development branch
+- Defining inputs (cohorts and concept sets)
+- Creating analysis tasks and supporting code
+- Testing your pipeline on the `develop` branch
+
+See the development guide for the complete development workflow.
