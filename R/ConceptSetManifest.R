@@ -530,7 +530,7 @@ ConceptSetManifest <- R6::R6Class(
           results[[i]] <- list(id = cs_id, label = as.character(row$label), status = "success")
         }, error = function(e) {
           cli::cli_alert_danger("Failed to import {row$label}: {e$message}")
-          results[[i]] <<- list(id = NA_integer_, label = as.character(row$label),
+          results[[i]] <- list(id = NA_integer_, label = as.character(row$label),
                                 status = paste("error:", e$message))
         })
       }
