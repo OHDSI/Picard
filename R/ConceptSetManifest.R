@@ -378,9 +378,10 @@ ConceptSetManifest <- R6::R6Class(
 
       checkmate::assert_int(atlasId)
       checkmate::assert_string(label, min.chars = 1)
-      valid_categories <- c("drug_exposure", "condition_occurrence", "measurement", "procedure",
-                         "observation", "device_exposure", "visit_occurrence", "init")
-      checkmate::assert_choice(category, valid_categories)
+      # this is for domains...TODO add a checkmate on acceptable domains prior to add to tags
+      # valid_domains <- c("drug_exposure", "condition_occurrence", "measurement", "procedure",
+      #                    "observation", "device_exposure", "visit_occurrence", "init")
+      checkmate::assert_string(category, min.chars = 1)
       checkmate::assert_list(tags, names = "named")
 
       # Fetch concept set JSON from ATLAS
