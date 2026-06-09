@@ -1,3 +1,10 @@
+# picard 0.0.5
+
+- ConceptManifest Updates
+    - bug fix for conceptSetManifest category checkmate (using domain requirements)
+    - add function to expandManifestTags to help subsetting
+
+
 # picard 0.0.4
 
 - move login credentials to secrets file

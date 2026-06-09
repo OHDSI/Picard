@@ -321,18 +321,17 @@ ConceptSetManifest <- R6::R6Class(
     #'
     #' @param filePath Character. Absolute or relative path to a valid CIRCE JSON file.
     #' @param label Character. Display name for the concept set.
-    #' @param category Character. Category for the concept set. One of `"drug_exposure"`,
-    #'   `"condition_occurrence"`, `"measurement"`, `"procedure"`, `"observation"`,
-    #'   `"device_exposure"`, `"visit_occurrence"`, `"init"`. Defaults to `"init"`.
+    #' @param category Character. Category for the concept set. Defaults to `"init"`.
     #' @param tags Named list. Optional extra metadata tags. Defaults to `list()`.
     #'
     #' @return Invisible integer. The assigned concept set ID.
     addConceptSetFile = function(filePath, label, category = "init", tags = list()) {
       checkmate::assert_file_exists(filePath)
       checkmate::assert_string(label, min.chars = 1)
-      valid_categories <- c("drug_exposure", "condition_occurrence", "measurement", "procedure",
-                         "observation", "device_exposure", "visit_occurrence", "init")
-      checkmate::assert_choice(category, valid_categories)
+      # this is for domains...TODO add a checkmate on acceptable domains prior to add to tags
+      # valid_domains <- c("drug_exposure", "condition_occurrence", "measurement", "procedure",
+      #                    "observation", "device_exposure", "visit_occurrence", "init")
+      checkmate::assert_string(category, min.chars = 1)
       checkmate::assert_list(tags, names = "named")
 
       ext <- tolower(tools::file_ext(filePath))
@@ -435,9 +434,10 @@ ConceptSetManifest <- R6::R6Class(
       }
 
       checkmate::assert_string(label, min.chars = 1)
-      valid_categories <- c("drug_exposure", "condition_occurrence", "measurement", "procedure",
-                         "observation", "device_exposure", "visit_occurrence", "init")
-      checkmate::assert_choice(category, valid_categories)
+      # this is for domains...TODO add a checkmate on acceptable domains prior to add to tags
+      # valid_domains <- c("drug_exposure", "condition_occurrence", "measurement", "procedure",
+      #                    "observation", "device_exposure", "visit_occurrence", "init")
+      checkmate::assert_string(category, min.chars = 1)
       checkmate::assert_list(tags, names = "named")
 
       concept_sets_dir <- dirname(private$.dbPath)
@@ -581,10 +581,16 @@ ConceptSetManifest <- R6::R6Class(
       )
 
       for (concept_set in matching_concept_sets) {
+        tags_json <- if (!is.null(concept_set$tags) && length(concept_set$tags) > 0) {
+          jsonlite::toJSON(concept_set$tags, auto_unbox = TRUE)
+        } else {
+          NA_character_
+        }
+
         manifest_df <- rbind(manifest_df, data.frame(
           id = concept_set$getId(),
           label = concept_set$label,
-          tags = concept_set$formatTagsAsString(),
+          tags = tags_json,
           filePath = concept_set$getFilePath(),
           hash = concept_set$getHash(),
           timestamp = NA_character_,
@@ -669,10 +675,16 @@ ConceptSetManifest <- R6::R6Class(
       )
 
       for (concept_set in matching_concept_sets) {
+        tags_json <- if (!is.null(concept_set$tags) && length(concept_set$tags) > 0) {
+          jsonlite::toJSON(concept_set$tags, auto_unbox = TRUE)
+        } else {
+          NA_character_
+        }
+
         manifest_df <- rbind(manifest_df, data.frame(
           id = concept_set$getId(),
           label = concept_set$label,
-          tags = concept_set$formatTagsAsString(),
+          tags = tags_json,
           filePath = concept_set$getFilePath(),
           hash = concept_set$getHash(),
           timestamp = NA_character_,
@@ -748,10 +760,16 @@ ConceptSetManifest <- R6::R6Class(
       )
 
       for (concept_set in matching_concept_sets) {
+        tags_json <- if (!is.null(concept_set$tags) && length(concept_set$tags) > 0) {
+          jsonlite::toJSON(concept_set$tags, auto_unbox = TRUE)
+        } else {
+          NA_character_
+        }
+
         manifest_df <- rbind(manifest_df, data.frame(
           id = concept_set$getId(),
           label = concept_set$label,
-          tags = concept_set$formatTagsAsString(),
+          tags = tags_json,
           filePath = concept_set$getFilePath(),
           hash = concept_set$getHash(),
           timestamp = NA_character_,

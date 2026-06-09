@@ -286,9 +286,7 @@ Register a local CIRCE JSON file in the manifest
 
 \item{\code{label}}{Character. Display name for the concept set.}
 
-\item{\code{category}}{Character. Category for the concept set. One of \code{"drug_exposure"},
-\code{"condition_occurrence"}, \code{"measurement"}, \code{"procedure"}, \code{"observation"},
-\code{"device_exposure"}, \code{"visit_occurrence"}, \code{"init"}. Defaults to \code{"init"}.}
+\item{\code{category}}{Character. Category for the concept set. Defaults to \code{"init"}.}
 
 \item{\code{tags}}{Named list. Optional extra metadata tags. Defaults to \code{list()}.}
 }

@@ -1259,6 +1259,91 @@ createChecksumTableSql <- function(schema, tableName, dbms) {
 }
 
 
+#' Expand JSON Tags to Columns
+#'
+#' Takes a manifest dataframe (from `tabulateManifest()`, `queryConceptSetsByTag()`, etc.)
+#' and pivots the JSON tags column into separate columns. Each tag key becomes a column name,
+#' and the values populate the rows.
+#'
+#' @param df Data frame. A manifest output dataframe with a `tags` column containing
+#'   JSON strings (e.g., from `ConceptSetManifest$tabulateManifest()` or
+#'   `ConceptSetManifest$queryConceptSetsByTag()`).
+#' @param dropTagsCol Logical. If TRUE, drops the original `tags` column after expansion.
+#'   Defaults to TRUE.
+#'
+#' @return Data frame. The input dataframe with JSON tags expanded into separate columns.
+#'   Rows with NA tags are preserved with NA values in the new columns.
+#'
+#' @details
+#' This function:
+#' 1. Parses each JSON string in the tags column using `jsonlite::fromJSON()`
+#' 2. Extracts all unique keys across all JSON objects
+#' 3. Creates new columns for each key
+#' 4. Populates values, with NA for missing keys in any row
+#' 5. Optionally drops the original JSON tags column
+#'
+#' **Example:**
+#' Input dataframe:
+#' ```
+#' id | label | tags
+#' 1  | CS1   | {"category":"drug","subCategory":"steroid","domain":"drug_exposure"}
+#' 2  | CS2   | {"category":"covariate","domain":"condition_occurrence"}
+#' ```
+#'
+#' Output dataframe:
+#' ```
+#' id | label | category  | subCategory | domain
+#' 1  | CS1   | drug      | steroid     | drug_exposure
+#' 2  | CS2   | covariate | NA          | condition_occurrence
+#' ```
+#'
+#' @export
+expandManifestTags <- function(df, dropTagsCol = TRUE) {
+  checkmate::assert_data_frame(df)
+  checkmate::assert_logical(dropTagsCol, len = 1)
+
+  # grab tags column
+  tags_col <- df$tags
+
+  tags_list <- vector('list', length = nrow(df))
+  for (i in seq_along(tags_list)) {
+    # if tags column na then return empty list
+    if (is.na(tags_col[i])) {
+      tags_list[[i]] <- list()
+    } else {
+      # ow get the parse json to r list
+      tags_list[[i]] <- tryCatch({
+        jsonlite::fromJSON(tags_col[i], simplifyVector = FALSE)
+      }, error = function(e) {
+        cli::cli_alert_warning("Failed to parse JSON tag: {tags_col[i]}")
+        return(list())
+      })
+    }
+  }
+
+  # Collect all unique keys
+  all_keys <- unique(unlist(lapply(tags_list, names)))
+
+  # Create new columns from tags
+  for (key in all_keys) {
+    df[[key]] <- sapply(tags_list, function(tag_obj) {
+      if (key %in% names(tag_obj)) {
+        tag_obj[[key]]
+      } else {
+        NA_character_
+      }
+    })
+  }
+
+  # Drop original tags column if requested
+  if (dropTagsCol) {
+    df$tags <- NULL
+  }
+
+  return(df)
+}
+
+
 getCohortTableNames <- function(cohortTable = "cohort",
                                 cohortSampleTable = cohortTable,
                                 cohortInclusionTable = paste0(cohortTable, "_inclusion"),
