@@ -405,7 +405,6 @@ createBlankCohortsLoadFile <- function(cohortsFolderPath = here::here("inputs/co
     label = character(1),
     category = character(1),
     subCategory = character(1),
-    file_name = character(1),
     stringsAsFactors = FALSE
   )
 
@@ -419,14 +418,13 @@ createBlankCohortsLoadFile <- function(cohortsFolderPath = here::here("inputs/co
     "{.field atlasId} - ATLAS cohort ID (numeric)",
     "{.field label} - Display name (e.g., 'Type 2 Diabetes patients')",
     "{.field category} - Broad category (e.g., 'Disease Populations')",
-    "{.field subCategory} - Optional sub-grouping",
-    "{.field file_name} - Path to JSON file (e.g., 'json/t2dm_patients.json')"
+    "{.field subCategory} - Optional sub-grouping"
   ))
   cli::cli_text("")
   cli::cli_h3("Next Steps:")
   cli::cli_ol(c(
     "Open {.file inputs/cohorts/cohortsLoad.csv} in Excel or your text editor",
-    "Fill in your cohort metadata",
+    "Fill in the table",
     "Save the file",
     "Use {.code importAtlasCohorts()} to import JSON definitions from ATLAS",
     "Use {.code loadCohortManifest()} to load into your study"
@@ -1465,89 +1463,115 @@ cascadeStaleDownstream <- function(dbPath, cohort_ids) {
   invisible(visited)
 }
 
-
-#' Import one Atlas cohort intelligently (skip/update/add)
-#'
-#' Checks if a cohort with the same label already exists in the manifest.
-#' If it does and the Atlas JSON hasn't changed, skip it. If JSON changed,
-#' overwrite the file and update the manifest hash. If new, add normally.
-#'
-#' @param row A one-row data frame from cohortsLoad.csv.
-#' @param tag_cols Character vector. Extra column names to treat as tags.
-#' @param dbPath Character. Path to the manifest SQLite database.
-#' @param atlasConnection An ATLAS connection object with getCohortDefinition().
-#' @param sqlite_conn An open DBI connection to the manifest database.
-#' @return A list with \code{id}, \code{label}, \code{status}.
-#' @keywords internal
-importOneAtlasCohort <- function(row, tag_cols, dbPath, atlasConnection, sqlite_conn) {
-  # Build tags from extra columns
-  tags <- list()
+list_tags_in_row <- function(row) {
+  reserved_cols <- c("atlasId","label", "category", "file_name") # file_name is legacy
+  tag_cols <- setdiff(names(row), reserved_cols)
+  tags <- list() # atlasId and other columns become tags
   for (col in tag_cols) {
     val <- row[[col]]
     if (!is.na(val) && nchar(as.character(val)) > 0) {
       tags[[col]] <- as.character(val)
     }
   }
-
-  row_label <- as.character(row$label)
-  row_atlas_id <- as.integer(row$atlasId)
-  row_category <- as.character(row$category)
-
-  # Check if a cohort with this label already exists
-  existing <- DBI::dbGetQuery(
-    sqlite_conn,
-    "SELECT id, label, file_path, hash FROM cohort_manifest WHERE label = ? AND status = 'active'",
-    list(row_label)
-  )
-
-  if (nrow(existing) > 0) {
-    # Fetch JSON from ATLAS and compare hashes
-    cohort_def <- atlasConnection$getCohortDefinition(cohortId = row_atlas_id)
-    expression_json <- cohort_def$expression[1]
-    new_hash <- rlang::hash(expression_json)
-
-    existing_id <- existing$id[1]
-    existing_path <- existing$file_path[1]
-
-    if (identical(new_hash, existing$hash[1])) {
-      cli::cli_alert_info("Skipping {row_label} (ID {existing_id}) — unchanged")
-      return(list(id = existing_id, label = row_label, status = "skipped"))
-    }
-
-    # JSON changed — overwrite file and update manifest
-    cohorts_dir <- dirname(dbPath)
-    full_path <- fs::path(cohorts_dir, existing_path)
-    if (file.exists(full_path)) {
-      writeLines(expression_json, full_path)
-    } else {
-      output_name <- if (!is.null(cohort_def$saveName[1]) && nzchar(cohort_def$saveName[1])) {
-        cohort_def$saveName[1]
-      } else {
-        row_label
-      }
-      json_dir <- fs::path(cohorts_dir, "json")
-      if (!dir.exists(json_dir)) dir.create(json_dir, recursive = TRUE)
-      full_path <- fs::path(json_dir, paste0(output_name, ".json"))
-      writeLines(expression_json, full_path)
-      existing_path <- fs::path_rel(full_path)
-    }
-
-    DBI::dbExecute(
-      sqlite_conn,
-      "UPDATE cohort_manifest SET hash = ?, file_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-      list(new_hash, existing_path, existing_id)
-    )
-    cascadeStaleDownstream(dbPath, existing_id)
-    cli::cli_alert_success("Updated {row_label} (ID {existing_id}) — JSON changed, file overwritten")
-    return(list(id = existing_id, label = row_label, status = "updated"))
-  }
-
-  # New cohort — note: addAtlasCohort is called by the caller (the R6 method)
-  # who has access to the manifest object and its private methods.
-  # We return a marker that the caller will handle.
-  return(list(id = NULL, label = row_label, status = "new", 
-              row = row, tags = tags, atlasConnection = atlasConnection,
-              row_atlas_id = row_atlas_id, row_category = row_category))
+  return(tags)
 }
 
+check_which_cohorts_exist <- function(cm_atlas_subset, cohort_load) {
+  # get the cm with atlas ids
+  current_atlas_cm <- cm_atlas_subset |>
+    dplyr::select(
+      id, label, category, tags
+    ) |> 
+    dplyr::mutate(
+      tags_list = purrr::map(tags, ~jsonlite::fromJSON(.x)),
+      atlasId = purrr::map_int(tags_list, ~.x$atlasId),
+      status = "active"
+    ) |>
+    dplyr::select(
+      id, atlasId, label, category, status
+    )
+  
+  # show which cohorts in the load file are new to the current manifest
+  compare_cm <- cohort_load |>
+    dplyr::left_join(
+      current_atlas_cm |> dplyr::select(id, atlasId, status), by = c("atlasId")
+    ) |>
+    tidyr::replace_na(list(status = "new"))
 
+  return(compare_cm)
+
+}
+
+# importOneAtlasCohort <- function(row, tag_cols, dbPath, atlasConnection, sqlite_conn) {
+#   # Build tags from extra columns
+#   tags <- list()
+#   for (col in tag_cols) {
+#     val <- row[[col]]
+#     if (!is.na(val) && nchar(as.character(val)) > 0) {
+#       tags[[col]] <- as.character(val)
+#     }
+#   }
+
+#   row_label <- as.character(row$label)
+#   row_atlas_id <- as.integer(row$atlasId)
+#   row_category <- as.character(row$category)
+
+#   # Check if a cohort with this label already exists
+#   existing <- DBI::dbGetQuery(
+#     sqlite_conn,
+#     "SELECT id, label, file_path, hash FROM cohort_manifest WHERE label = ? AND status = 'active'",
+#     list(row_label)
+#   )
+
+#   if (nrow(existing) > 0) {
+#     # Fetch JSON from ATLAS and compare hashes
+#     cohort_def <- atlasConnection$getCohortDefinition(cohortId = row_atlas_id)
+#     expression_json <- cohort_def$expression[1]
+#     new_hash <- rlang::hash(expression_json)
+
+#     existing_id <- existing$id[1]
+#     existing_path <- existing$file_path[1]
+
+#     if (identical(new_hash, existing$hash[1])) {
+#       cli::cli_alert_info("Skipping {row_label} (ID {existing_id}) — unchanged")
+#       res <- list(id = existing_id, label = row_label, row_category = row_category, status = "skipped")
+#       return(res)
+#     }
+
+#     # JSON changed — overwrite file and update manifest
+#     cohorts_dir <- dirname(dbPath)
+#     full_path <- fs::path(cohorts_dir, existing_path)
+#     if (file.exists(full_path)) {
+#       writeLines(expression_json, full_path)
+#     } else {
+#       output_name <- if (!is.null(cohort_def$saveName[1]) && nzchar(cohort_def$saveName[1])) {
+#         cohort_def$saveName[1]
+#       } else {
+#         row_label
+#       }
+#       json_dir <- fs::path(cohorts_dir, "json")
+#       if (!dir.exists(json_dir)) dir.create(json_dir, recursive = TRUE)
+#       full_path <- fs::path(json_dir, paste0(output_name, ".json"))
+#       writeLines(expression_json, full_path)
+#       existing_path <- fs::path_rel(full_path)
+#     }
+
+#     DBI::dbExecute(
+#       sqlite_conn,
+#       "UPDATE cohort_manifest SET hash = ?, file_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+#       list(new_hash, existing_path, existing_id)
+#     )
+#     cascadeStaleDownstream(dbPath, existing_id)
+#     cli::cli_alert_success("Updated {row_label} (ID {existing_id}) — JSON changed, file overwritten")
+#     res <- list(id = existing_id, label = row_label, row_category = row_category, status = "updated")
+#     return(res)
+#   }
+
+#   # New cohort — note: addAtlasCohort is called by the caller (the R6 method)
+#   # who has access to the manifest object and its private methods.
+#   # We return a marker that the caller will handle.
+#   res <- list(id = NULL, label = row_label, status = "new", 
+#               row = row, tags = tags, atlasConnection = atlasConnection,
+#               row_atlas_id = row_atlas_id, row_category = row_category)
+#   return(res)
+# }
