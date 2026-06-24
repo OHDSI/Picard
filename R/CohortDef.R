@@ -56,7 +56,7 @@ CohortDef <- R6::R6Class(
       file_content <- readr::read_file(filePath)
       private$.fileHash <- rlang::hash(file_content)
       # Create hash of SQL string
-      private$.hash <- rlang::hash(private$.sql)
+      private$.sqlHash <- rlang::hash(private$.sql)
     }
   ),
 
