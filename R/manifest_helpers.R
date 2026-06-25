@@ -283,10 +283,10 @@ resetCohortManifest <- function(manifest = NULL,
     DBI::dbDisconnect(conn_sq)
     cli::cli_alert_success("Removed {n_derived_rows} derived cohort record(s) from manifest database.")
 
-    # Remove derived folder
+    # Remove derived folder files (keep directory)
     if (dir.exists(derived_dir)) {
-      unlink(derived_dir, recursive = TRUE)
-      cli::cli_alert_success("Deleted {.file {fs::path_rel(derived_dir)}} ({n_derived} file(s)).")
+      unlink(list.files(derived_dir, full.names = TRUE, recursive = TRUE))
+      cli::cli_alert_success("Cleared {.file {fs::path_rel(derived_dir)}} ({n_derived} file(s)).")
     }
 
     # Evict derived entries from in-memory manifest
@@ -314,7 +314,7 @@ resetCohortManifest <- function(manifest = NULL,
         if (dir.exists(src_dir)) {
           dest_dir <- fs::path(archive_dir, basename(src_dir))
           fs::dir_copy(src_dir, dest_dir)
-          unlink(src_dir, recursive = TRUE)
+          unlink(list.files(src_dir, full.names = TRUE, recursive = TRUE))
           n_files <- length(list.files(dest_dir, recursive = TRUE))
           cli::cli_alert_success("Archived {.file {fs::path_rel(src_dir)}} ({n_files} file(s)) to {.file {fs::path_rel(dest_dir)}}")
         }
@@ -325,12 +325,12 @@ resetCohortManifest <- function(manifest = NULL,
         "To restore: Move files from archive back to {.file json/} or {.file sql/}, then call {.code initCohortManifest()} and use {.code $addCirceCohort()} or {.code $addSqlCohort()} to re-register."
       )
     } else {
-      # Delete without archive
+      # Delete files without archive (keep directories)
       for (target in list(derived_dir, json_dir, sql_dir)) {
         if (dir.exists(target)) {
           n_files <- length(list.files(target, recursive = TRUE))
-          unlink(target, recursive = TRUE)
-          cli::cli_alert_success("Deleted {.file {fs::path_rel(target)}} ({n_files} file(s)).")
+          unlink(list.files(target, full.names = TRUE, recursive = TRUE))
+          cli::cli_alert_success("Cleared {.file {fs::path_rel(target)}} ({n_files} file(s)).")
         }
       }
       
@@ -366,12 +366,12 @@ resetCohortManifest <- function(manifest = NULL,
       cli::cli_alert_success("Deleted manifest database: {.file {fs::path_rel(dbPath)}}")
     }
 
-    # Delete all cohort file folders
+    # Delete all cohort file folder contents (keep directories)
     for (target in list(derived_dir, json_dir, sql_dir)) {
       if (dir.exists(target)) {
         n_files <- length(list.files(target, recursive = TRUE))
-        unlink(target, recursive = TRUE)
-        cli::cli_alert_success("Deleted {.file {fs::path_rel(target)}} ({n_files} file(s)).")
+        unlink(list.files(target, full.names = TRUE, recursive = TRUE))
+        cli::cli_alert_success("Cleared {.file {fs::path_rel(target)}} ({n_files} file(s)).")
       }
     }
 
@@ -800,7 +800,7 @@ resetConceptSetManifest <- function(manifest = NULL,
 
       dest_dir <- fs::path(archive_dir, basename(json_dir))
       fs::dir_copy(json_dir, dest_dir)
-      unlink(json_dir, recursive = TRUE)
+      unlink(list.files(json_dir, full.names = TRUE, recursive = TRUE))
       n_files <- length(list.files(dest_dir, recursive = TRUE))
       cli::cli_alert_success("Archived {.file {fs::path_rel(json_dir)}} ({n_files} file(s)) to {.file {fs::path_rel(dest_dir)}}")
 
@@ -809,16 +809,16 @@ resetConceptSetManifest <- function(manifest = NULL,
         "To restore: Move files from archive back to {.file json/}, then call {.code initConceptSetManifest()} and use {.code $addConceptSetFile()} to re-register."
       )
     } else if (dir.exists(json_dir)) {
-      unlink(json_dir, recursive = TRUE)
-      cli::cli_alert_success("Deleted {.file {fs::path_rel(json_dir)}} ({n_json} file(s)).")
+      unlink(list.files(json_dir, full.names = TRUE, recursive = TRUE))
+      cli::cli_alert_success("Cleared {.file {fs::path_rel(json_dir)}} ({n_json} file(s)).")
       cli::cli_alert_info(
         "Call {.code initConceptSetManifest()} then re-register concept sets with {.code $addConceptSetFile()}."
       )
     }
   } else if (scope == "full") {
     if (dir.exists(json_dir)) {
-      unlink(json_dir, recursive = TRUE)
-      cli::cli_alert_success("Deleted {.file {fs::path_rel(json_dir)}} ({n_json} file(s)).")
+      unlink(list.files(json_dir, full.names = TRUE, recursive = TRUE))
+      cli::cli_alert_success("Cleared {.file {fs::path_rel(json_dir)}} ({n_json} file(s)).")
     }
     if (file.exists(load_csv)) {
       file.remove(load_csv)
