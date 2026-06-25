@@ -123,12 +123,22 @@ atlasConnection <- getAtlasConnection()
 
 conceptSetManifest$setAtlasConnection(atlasConnection)
 
+# Read the CSV file
+conceptSetsLoad <- readr::read_csv(
+  here::here("inputs/conceptSets/conceptSetsLoad.csv"),
+  show_col_types = FALSE
+)
+
+# Import
 conceptSetManifest$importAtlasConceptSets(
-  conceptSetsLoadPath = here::here("inputs/conceptSets/conceptSetsLoad.csv")
+  conceptSetsLoad = conceptSetsLoad,
+  atlasConnection = atlasConnection
 )
 ```
 
 This downloads JSON definitions to `inputs/conceptSets/json/` and updates your manifest.
+
+**Tip:** You can build the dataframe programmatically instead of reading a CSV, which is useful for dynamic workflows.
 
 **Step 5:** Load and review
 
@@ -173,10 +183,20 @@ atlasConnection <- getAtlasConnection()
 
 cohortManifest$setAtlasConnection(atlasConnection)
 
+# Read the CSV file
+cohortsLoad <- readr::read_csv(
+  here::here("inputs/cohorts/cohortsLoad.csv"),
+  show_col_types = FALSE
+)
+
+# Import
 cohortManifest$importAtlasCohorts(
-  cohortsLoadPath = here::here("inputs/cohorts/cohortsLoad.csv")
+  cohortsLoad = cohortsLoad,
+  atlasConnection = atlasConnection
 )
 ```
+
+**Tip:** You can build the dataframe programmatically instead of reading a CSV, which is useful for dynamic workflows.
 
 **Step 5:** Load and review
 
@@ -184,6 +204,32 @@ cohortManifest$importAtlasCohorts(
 cohortManifest <- loadCohortManifest()
 cohortManifest$tabulateManifest()
 ```
+
+### Checking for ATLAS Changes (Mid-Cycle)
+
+After the initial import, you can periodically check whether definitions in ATLAS have been updated.
+
+**Phase 1: Detection** — Compare remote ATLAS hashes to stored local hashes:
+
+```r
+# For concept sets
+conceptSetManifest$checkAtlasConceptSets(atlasConnection)
+
+# For cohorts
+cohortManifest$checkAtlasCohorts(atlasConnection)
+```
+
+**Phase 2: Update** — Download updated definitions and re-write JSON files:
+
+```r
+# For concept sets
+conceptSetManifest$updateAtlasConceptSets(atlasConnection)
+
+# For cohorts
+cohortManifest$updateAtlasCohorts(atlasConnection)
+```
+
+Updates cascade a `'stale'` status to any downstream dependent cohorts so they will be re-executed on the next pipeline run.
 
 ---
 
@@ -459,18 +505,20 @@ Use after: re-running `importAtlasCohorts()`, editing a SQL file directly, or de
 ```r
 cm <- loadCohortManifest()
 
-# Soft-delete: marks status = 'deleted', keeps record for audit trail
-cm$deleteCohort(id = 5, reason = "Replaced by updated phenotype")
-
-# Hard delete: permanently removes SQLite record
-cm$removeCohort(id = 5, confirm = TRUE)
-
-# Also delete the file on disk
-cm$removeCohort(id = 5, deleteFile = TRUE, confirm = TRUE)
+# Soft-delete: marks status = 'deleted' with timestamp, keeps record for audit trail
+cm$deleteCohort(id = 5, confirm = TRUE)
 
 # Also drop rows from DBMS cohort table
-cm$removeCohort(id = 5, deleteFile = TRUE, dropFromCohortTable = TRUE, confirm = TRUE)
+cm$deleteCohort(id = 5, dropFromDBMS = TRUE, confirm = TRUE)
+
+# For concept sets
+csm <- loadConceptSetManifest()
+csm$deleteConceptSet(id = 5, confirm = TRUE)
 ```
+
+All deletions are soft deletes — the SQLite record is preserved with a `deleted_at` 
+timestamp for audit purposes. The deleted definition is excluded from all manifest 
+operations.
 
 ### Querying and Reviewing Manifests
 

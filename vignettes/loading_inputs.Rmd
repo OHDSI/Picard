@@ -162,12 +162,22 @@ atlasConnection <- getAtlasConnection()
 
 conceptSetManifest$setAtlasConnection(atlasConnection)
 
+# Read the CSV file
+conceptSetsLoad <- readr::read_csv(
+  here::here("inputs/conceptSets/conceptSetsLoad.csv"),
+  show_col_types = FALSE
+)
+
+# Import
 conceptSetManifest$importAtlasConceptSets(
-  conceptSetsLoadPath = here::here("inputs/conceptSets/conceptSetsLoad.csv")
+  conceptSetsLoad = conceptSetsLoad,
+  atlasConnection = atlasConnection
 )
 ```
 
 This downloads JSON definitions to `inputs/conceptSets/json/` and updates your manifest with metadata.
+
+**Tip:** You can also pass the dataframe directly without reading from a file, which is useful for programmatic workflows.
 
 #### Step 5: Load and review
 
@@ -220,13 +230,23 @@ atlasConnection <- getAtlasConnection()
 
 cohortManifest$setAtlasConnection(atlasConnection)
 
+# Read the CSV file
+cohortsLoad <- readr::read_csv(
+  here::here("inputs/cohorts/cohortsLoad.csv"),
+  show_col_types = FALSE
+)
+
+# Import
 cohortManifest$importAtlasCohorts(
-  cohortsLoadPath = here::here("inputs/cohorts/cohortsLoad.csv")
+  cohortsLoad = cohortsLoad,
+  atlasConnection = atlasConnection
 )
 ```
 
 Downloads CIRCE JSON definitions to `inputs/cohorts/json/` and records each
 cohort in SQLite.
+
+**Tip:** You can also pass the dataframe directly without reading from a file, which is useful for programmatic workflows.
 
 #### Step 5: Load and review
 
@@ -234,6 +254,36 @@ cohort in SQLite.
 cohortManifest <- loadCohortManifest()
 cohortManifest$tabulateManifest()
 ```
+
+### Checking for ATLAS Changes (Mid-Cycle)
+
+After the initial import, you can periodically check whether definitions in ATLAS
+have changed. The workflow uses two phases:
+
+**Phase 1: Detection** — Compares remote ATLAS hashes to stored local hashes:
+
+```{r}
+# For concept sets
+conceptSetManifest$checkAtlasConceptSets(atlasConnection)
+
+# For cohorts
+cohortManifest$checkAtlasCohorts(atlasConnection)
+```
+
+Reports which definitions have changed in ATLAS.
+
+**Phase 2: Update** — Downloads updated definitions and re-writes JSON files:
+
+```{r}
+# For concept sets
+conceptSetManifest$updateAtlasConceptSets(atlasConnection)
+
+# For cohorts
+cohortManifest$updateAtlasCohorts(atlasConnection)
+```
+
+Updates the manifest with new hashes and cascades `'stale'` status to any downstream
+dependent cohorts (for cohorts only).
 
 ---
 
