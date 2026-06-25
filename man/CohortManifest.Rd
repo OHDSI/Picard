@@ -372,10 +372,11 @@ Invisible integer. The assigned cohort ID.
 \if{html}{\out{<a id="method-CohortManifest-importAtlasCohorts"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-importAtlasCohorts}{}}}
 \subsection{Method \code{importAtlasCohorts()}}{
-Batch import cohorts from ATLAS via cohortsLoad.csv
+Batch-import cohorts from ATLAS via a cohortsLoad dataframe
 
-Reads a CSV file with columns \code{atlasId}, \code{label}, \code{category}
-(plus optional extra columns for tags) and imports each cohort from ATLAS.
+Either create a dataframe or read in a csv file with columns \code{atlasId}, \code{label}, \code{category} (required) plus any
+additional columns treated as tag key-value pairs for tags. Calls \code{addAtlasCohort()} for each row inside
+a \code{tryCatch} so a single failure does not abort the entire batch.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$importAtlasCohorts(cohortsLoad, atlasConnection = NULL)}\if{html}{\out{</div>}}
 }

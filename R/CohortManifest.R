@@ -755,10 +755,11 @@ CohortManifest <- R6::R6Class(
       invisible(cohort_id)
     },
 
-    #' @description Batch import cohorts from ATLAS via cohortsLoad.csv
-    #'
-    #' Reads a CSV file with columns `atlasId`, `label`, `category`
-    #' (plus optional extra columns for tags) and imports each cohort from ATLAS.
+    #' @description Batch-import cohorts from ATLAS via a cohortsLoad dataframe
+    #' 
+    #' Either create a dataframe or read in a csv file with columns `atlasId`, `label`, `category` (required) plus any
+    #' additional columns treated as tag key-value pairs for tags. Calls `addAtlasCohort()` for each row inside 
+    #' a `tryCatch` so a single failure does not abort the entire batch.
     #'
     #' @param cohortsLoad a data frame requiring the columns atlasId, label and category used to bulk add cohorts to the manifest
     #' @param atlasConnection An ATLAS connection object with a `getCohortDefinition(cohortId)` method.
@@ -783,12 +784,12 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_data_frame(cohortsLoad, min.cols = 3) 
       missing_cols <- setdiff(required_cols, names(cohortsLoad))
       if (length(missing_cols) > 0) {
-        cli::cli_abort("cohortsLoad.csv missing required columns: {paste(missing_cols, collapse = ', ')}")
+        cli::cli_abort("cohortsLoad missing required columns: {paste(missing_cols, collapse = ', ')}")
       }
 
       # Determine which cohorts are new and need to be loaded
       cm_atlas_subset <- self$queryCohortsByTagName(tagName = "atlasId")
-      cohort_load_2 <- check_which_cohorts_exist(cm_atlas_subset, cohortsLoad)
+      cohort_load_2 <- check_which_atlas_exist(cm_atlas_subset, cohortsLoad)
 
       # Header
       cli::cli_rule("ATLAS Cohort Import")
@@ -3221,7 +3222,6 @@ CohortManifest <- R6::R6Class(
       
       label     <- cohort_row$label[1]
       file_path <- cohort_row$file_path[1]
-      status    <- cohort_row$status[1]
 
        # Validate DBMS requirements if requested
       if (dropFromDBMS && is.null(private$.executionSettings)) {

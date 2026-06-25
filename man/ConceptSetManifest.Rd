@@ -16,6 +16,20 @@ The ConceptSetManifest class manages multiple concept set definitions and stores
 metadata in a SQLite database located at inputs/conceptSets/conceptSetManifest.sqlite.
 Each ConceptSetDef is assigned a sequential ID based on its position in the manifest.
 
+This is the detection phase of the ATLAS maintenance workflow. Use this to identify
+which ATLAS concept sets have changed, then optionally call \code{updateAtlasConceptSets()} to
+apply updates. Changes are detected by comparing expression JSON hashes.
+
+This method updates ATLAS concept sets that have changed in the remote repository. It:
+\itemize{
+\item Calls checkAtlasConceptSets() to identify changes
+\item For each changed concept set: fetches current definition, updates JSON file, updates hash in manifest
+\item Refreshes the in-memory manifest
+}
+
+Use \code{checkAtlasConceptSets()} first to identify which concept sets have changed, then call
+this method to apply updates.
+
 \strong{Vocabulary Suggestion by Domain:}
 The function automatically suggests appropriate vocabularies based on concept set domains:
 \itemize{
@@ -115,6 +129,7 @@ by finding the reverse mapping relationship. For each concept set:
 \item \href{#method-ConceptSetManifest-importAtlasConceptSets}{\code{ConceptSetManifest$importAtlasConceptSets()}}
 \item \href{#method-ConceptSetManifest-queryConceptSetsByIds}{\code{ConceptSetManifest$queryConceptSetsByIds()}}
 \item \href{#method-ConceptSetManifest-queryConceptSetsByTag}{\code{ConceptSetManifest$queryConceptSetsByTag()}}
+\item \href{#method-ConceptSetManifest-queryConceptSetsByTagName}{\code{ConceptSetManifest$queryConceptSetsByTagName()}}
 \item \href{#method-ConceptSetManifest-queryConceptSetsByLabel}{\code{ConceptSetManifest$queryConceptSetsByLabel()}}
 \item \href{#method-ConceptSetManifest-nConceptSets}{\code{ConceptSetManifest$nConceptSets()}}
 \item \href{#method-ConceptSetManifest-getConceptSetById}{\code{ConceptSetManifest$getConceptSetById()}}
@@ -123,7 +138,11 @@ by finding the reverse mapping relationship. For each concept set:
 \item \href{#method-ConceptSetManifest-validateManifest}{\code{ConceptSetManifest$validateManifest()}}
 \item \href{#method-ConceptSetManifest-getManifestStatus}{\code{ConceptSetManifest$getManifestStatus()}}
 \item \href{#method-ConceptSetManifest-deleteConceptSet}{\code{ConceptSetManifest$deleteConceptSet()}}
-\item \href{#method-ConceptSetManifest-permanentlyDeleteConceptSet}{\code{ConceptSetManifest$permanentlyDeleteConceptSet()}}
+\item \href{#method-ConceptSetManifest-updateConceptSetLabel}{\code{ConceptSetManifest$updateConceptSetLabel()}}
+\item \href{#method-ConceptSetManifest-updateConceptSetCategory}{\code{ConceptSetManifest$updateConceptSetCategory()}}
+\item \href{#method-ConceptSetManifest-updateConceptSetTags}{\code{ConceptSetManifest$updateConceptSetTags()}}
+\item \href{#method-ConceptSetManifest-checkAtlasConceptSets}{\code{ConceptSetManifest$checkAtlasConceptSets()}}
+\item \href{#method-ConceptSetManifest-updateAtlasConceptSets}{\code{ConceptSetManifest$updateAtlasConceptSets()}}
 \item \href{#method-ConceptSetManifest-cleanupMissing}{\code{ConceptSetManifest$cleanupMissing()}}
 \item \href{#method-ConceptSetManifest-syncManifest}{\code{ConceptSetManifest$syncManifest()}}
 \item \href{#method-ConceptSetManifest-extractSourceCodes}{\code{ConceptSetManifest$extractSourceCodes()}}
@@ -137,10 +156,7 @@ by finding the reverse mapping relationship. For each concept set:
 \subsection{Method \code{new()}}{
 Initialize a new ConceptSetManifest
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$new(
-  dbPath = "inputs/conceptSets/conceptSetManifest.sqlite",
-  executionSettings = NULL
-)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$new(dbPath = "inputs/conceptSets/conceptSetManifest.sqlite")}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -148,11 +164,7 @@ Initialize a new ConceptSetManifest
 \describe{
 \item{\code{dbPath}}{Character. Path to the SQLite database. Defaults to
 "inputs/conceptSets/conceptSetManifest.sqlite". The directory is created
-automatically if it does not exist.}
-
-\item{\code{executionSettings}}{ExecutionSettings object. (Optional) Execution settings
-for accessing the vocabulary database. Defaults to NULL. Only required for
-operations like extractSourceCodes().
+automatically if it does not exist.
 Get the manifest as a list of ConceptSetDef objects}
 }
 \if{html}{\out{</div>}}
@@ -168,19 +180,28 @@ Get the manifest as a list of ConceptSetDef objects}
 
 \subsection{Returns}{
 List. A list of ConceptSetDef objects in the manifest.
-Tabulate the manifest as a data frame
 }
 }
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ConceptSetManifest-tabulateManifest"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-tabulateManifest}{}}}
 \subsection{Method \code{tabulateManifest()}}{
+Tabulate the manifest as a tibble
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$tabulateManifest()}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$tabulateManifest(filter = c("active", "deleted", "all"))}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{filter}}{Character. Controls which rows are returned. One of
+\code{"active"} (default), \code{"deleted"}, or \code{"all"}.}
+}
+\if{html}{\out{</div>}}
+}
 \subsection{Returns}{
-Data frame. Manifest data with columns: id, label, category, tags, filePath, hash, timestamp
+A tibble with columns: id, label, category, tags, file_path, hash,
+source_type, cohort_type, status, created_at, deleted_at
 Get the manifest path
 }
 }
@@ -368,33 +389,31 @@ Invisible integer. The assigned concept set ID.
 \if{html}{\out{<a id="method-ConceptSetManifest-importAtlasConceptSets"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-importAtlasConceptSets}{}}}
 \subsection{Method \code{importAtlasConceptSets()}}{
-Batch-import concept sets from ATLAS via a conceptSetsLoad CSV
+Batch-import concept sets from ATLAS via a conceptSetsLoad dataframe
 
-Reads a CSV with columns \code{atlasId}, \code{label}, \code{category} (required) plus any
-additional columns treated as tag key-value pairs. Calls
-\code{addAtlasConceptSet()} for each row inside a \code{tryCatch} so a single failure
-does not abort the entire batch.
+Either create a dataframe or read in a csv file with columns \code{atlasId}, \code{label}, \code{category} (required) plus any
+additional columns treated as tag key-value pairs for tags. Calls \code{addAtlasConceptSet()} for each row inside
+a \code{tryCatch} so a single failure does not abort the entire batch.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$importAtlasConceptSets(
-  atlasConnection = NULL,
-  conceptSetsLoadPath = here::here("inputs/conceptSets/conceptSetsLoad.csv")
+  conceptSetsLoad,
+  atlasConnection = NULL
 )}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
+\item{\code{conceptSetsLoad}}{a data frame requiring the columns atlasId, label and category used to bulk add cohorts to the manifest}
+
 \item{\code{atlasConnection}}{An ATLAS connection object with a
 \code{getConceptSetDefinition(conceptSetId)} method.
 If \code{NULL}, falls back to the connection stored via \verb{$setAtlasConnection()}.}
-
-\item{\code{conceptSetsLoadPath}}{Character. Path to the CSV file. Defaults to
-\code{here::here("inputs/conceptSets/conceptSetsLoad.csv")}.}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Invisible tibble with columns \code{id}, \code{label}, \code{status}.
+Invisible tibble imported concept sets.
 Query concept sets by IDs
 }
 }
@@ -414,7 +433,7 @@ Query concept sets by IDs
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Data frame. A subset of the manifest with columns id, label, tags, filePath, hash, timestamp for matching concept sets, or NULL if none found.
+Tibble with columns: id, label, category, tags, file_path, hash, created_at.
 Query concept sets by tag
 }
 }
@@ -439,7 +458,27 @@ argument controls whether a concept set must satisfy any or all of them.}
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Data frame. A subset of the manifest with columns id, label, tags, filePath, hash, timestamp for matching concept sets, or NULL if none found.
+Tibble with columns: id, label, category, tags, file_path, hash, created_at.
+Query cohorts by category
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-queryConceptSetsByTagName"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-queryConceptSetsByTagName}{}}}
+\subsection{Method \code{queryConceptSetsByTagName()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsByTagName(tagName)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{tagName}}{Character vector. The name of tags to query}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
 Query concept sets by label
 }
 }
@@ -466,7 +505,7 @@ Defaults to "exact".}
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Data frame. A subset of the manifest with columns id, label, tags, filePath, hash, timestamp for matching concept sets, or NULL if none found.
+Tibble with columns: id, label, category, tags, file_path, hash, created_at.
 }
 }
 \if{html}{\out{<hr>}}
@@ -586,7 +625,7 @@ List with elements: active_count, missing_count, deleted_count, next_available_i
 \subsection{Method \code{deleteConceptSet()}}{
 Soft delete a concept set (mark as deleted, preserve record)
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$deleteConceptSet(id, reason = NULL)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$deleteConceptSet(id, confirm = FALSE)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -594,7 +633,8 @@ Soft delete a concept set (mark as deleted, preserve record)
 \describe{
 \item{\code{id}}{Integer. The concept set ID to delete.}
 
-\item{\code{reason}}{Character. Optional reason for deletion.}
+\item{\code{confirm}}{Logical. If FALSE (default), prompts for interactive confirmation.
+Pass TRUE to skip the prompt (suitable for scripts).}
 }
 \if{html}{\out{</div>}}
 }
@@ -603,25 +643,132 @@ Invisibly returns TRUE if successful, FALSE otherwise.
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-ConceptSetManifest-permanentlyDeleteConceptSet"></a>}}
-\if{latex}{\out{\hypertarget{method-ConceptSetManifest-permanentlyDeleteConceptSet}{}}}
-\subsection{Method \code{permanentlyDeleteConceptSet()}}{
-Permanently delete a concept set (removes the record from database, irreversible)
+\if{html}{\out{<a id="method-ConceptSetManifest-updateConceptSetLabel"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-updateConceptSetLabel}{}}}
+\subsection{Method \code{updateConceptSetLabel()}}{
+Update a concept set label
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$permanentlyDeleteConceptSet(id, confirm = FALSE)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$updateConceptSetLabel(conceptSetId, newLabel)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{id}}{Integer. The concept set ID to permanently remove.}
+\item{\code{conceptSetId}}{Integer. The concept set ID to update.}
 
-\item{\code{confirm}}{Logical. Must be TRUE to proceed; prevents accidental deletion. Defaults to FALSE.}
+\item{\code{newLabel}}{Character. The new label for the concept set.}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Invisibly returns TRUE if successful, FALSE otherwise.
+Invisible NULL.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-updateConceptSetCategory"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-updateConceptSetCategory}{}}}
+\subsection{Method \code{updateConceptSetCategory()}}{
+Update a concept set category
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$updateConceptSetCategory(conceptSetId, newCategory)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{conceptSetId}}{Integer. The concept set ID to update.}
+
+\item{\code{newCategory}}{Character. The new category for the concept set.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible NULL.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-updateConceptSetTags"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-updateConceptSetTags}{}}}
+\subsection{Method \code{updateConceptSetTags()}}{
+Update concept set tags
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$updateConceptSetTags(conceptSetId, newTags)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{conceptSetId}}{Integer. The concept set ID to update.}
+
+\item{\code{newTags}}{Named list. The new tags for the concept set.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible NULL.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-checkAtlasConceptSets"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-checkAtlasConceptSets}{}}}
+\subsection{Method \code{checkAtlasConceptSets()}}{
+Auto-detect changes to ATLAS concept sets in remote repository
+
+Queries the manifest for all active ATLAS concept sets (identified by \code{atlasId} in tags),
+fetches their current definitions from ATLAS, computes hashes, and compares against
+the stored local hash. Provides a read-only summary of which concept sets have changed
+in ATLAS since import. No modifications are made.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$checkAtlasConceptSets(atlasConnection = NULL)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{atlasConnection}}{An ATLAS connection object with a method \code{getConceptSetDefinition(conceptSetId)}
+that returns a list with an \code{expression} element (the CIRCE JSON as a string).
+If \code{NULL} (default), uses the connection stored via \verb{$setAtlasConnection()}.
+If no connection is available, raises an error.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible tibble with columns:
+\itemize{
+\item \code{id}: Concept set ID in the local manifest
+\item \code{label}: Concept set label
+\item \code{atlasId}: ATLAS concept set ID
+\item \code{filePath}: Local path to the JSON file
+\item \code{hasChanged}: Logical, TRUE if remote definition differs from local hash
+\item \code{localHash}: Hash of the stored JSON file
+\item \code{remoteHash}: Hash of the current ATLAS definition
+}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-updateAtlasConceptSets"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-updateAtlasConceptSets}{}}}
+\subsection{Method \code{updateAtlasConceptSets()}}{
+Update ATLAS concept sets with remote definitions
+
+Fetches current definitions from ATLAS for concept sets that have changed and updates
+the stored JSON files and manifest entries. This is the modification phase that applies
+changes detected by checkAtlasConceptSets().
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$updateAtlasConceptSets(atlasConnection = NULL)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{atlasConnection}}{An ATLAS connection object with a method \code{getConceptSetDefinition(conceptSetId)}.
+If \code{NULL} (default), uses the connection stored via \verb{$setAtlasConnection()}.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible tibble of concept sets that were updated, with columns:
+id, label, atlasId, filePath, hasChanged, localHash, remoteHash
 }
 }
 \if{html}{\out{<hr>}}
@@ -658,9 +805,17 @@ the SQLite manifest, and updates both the database and the in-memory list:
 \item Existing files whose JSON hash has changed are updated in the manifest.
 }
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$syncManifest()}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$syncManifest(strict_mode = TRUE)}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{strict_mode}}{Logical. If TRUE (default), automatically removes orphaned files found
+on disk. If FALSE, only warns about them without deletion. Default: TRUE.}
+}
+\if{html}{\out{</div>}}
+}
 \subsection{Returns}{
 Data frame with columns: id, label, action
 (\code{"added"}, \code{"hash_updated"}, \code{"missing_flagged"}, or \code{"unchanged"}).

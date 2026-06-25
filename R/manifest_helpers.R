@@ -589,184 +589,6 @@ plotCohortGraph <- function(manifest) {
 
 
 
-
-#' Update the Label, Category, and/or Tags of an Existing Cohort Manifest
-#'
-#' @description
-#' Updates `label`, `category`, `tags`, or any combination on any cohort present in the manifest.
-#' Changes are applied to both the in-memory object and the SQLite database.
-#'
-#' @param manifest A `CohortManifest` object.
-#' @param cohortId Integer. The ID of the cohort to update.
-#' @param label Character or `NULL`. New label. If `NULL`, the existing label is kept.
-#' @param category Character or `NULL`. New category (e.g., 'target', 'outcome', 'exposure'). 
-#'   If `NULL`, the existing category is kept.
-#' @param tags Named list or `NULL`. New tags. If `NULL`, the existing tags are kept.
-#'
-#' @return Invisibly returns `NULL`.
-#'
-#' @export
-updateCohortManifest <- function(manifest,
-                                 cohortId,
-                                 label = NULL,
-                                 category = NULL,
-                                 tags = NULL) {
-  checkmate::assert_class(x = manifest, classes = "CohortManifest")
-  checkmate::assert_int(x = cohortId, lower = 1)
-
-  if (is.null(label) && is.null(category) && is.null(tags)) {
-    cli::cli_abort("At least one of `label`, `category`, or `tags` must be provided.")
-  }
-  if (!is.null(label)) checkmate::assert_string(x = label, min.chars = 1)
-  if (!is.null(category)) checkmate::assert_string(x = category, min.chars = 1)
-  if (!is.null(tags))  checkmate::assert_list(x = tags, names = "named")
-
-  cohort <- manifest$getCohortById(as.integer(cohortId))
-  if (is.null(cohort)) {
-    cli::cli_abort("No cohort with ID {cohortId} found in the manifest.")
-  }
-
-  if (!is.null(label)) cohort$label <- label
-  if (!is.null(category)) cohort$category <- category
-  if (!is.null(tags))  cohort$tags  <- tags
-
-  set_parts <- character(0)
-  params    <- list()
-
-  if (!is.null(label)) {
-    set_parts <- c(set_parts, "label = ?")
-    params    <- c(params, list(label))
-  }
-
-  if (!is.null(category)) {
-    set_parts <- c(set_parts, "category = ?")
-    params    <- c(params, list(category))
-  }
-
-  if (!is.null(tags)) {
-    tags_json <- jsonlite::toJSON(tags, auto_unbox = TRUE)
-    set_parts <- c(set_parts, "tags = ?")
-    params    <- c(params, list(tags_json))
-  }
-
-  params <- c(params, list(as.integer(cohortId)))
-
-  sql <- paste(
-    "UPDATE cohort_manifest SET",
-    paste(set_parts, collapse = ", "),
-    "WHERE id = ?"
-  )
-
-  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
-  on.exit(DBI::dbDisconnect(conn))
-
-  DBI::dbExecute(conn, sql, params)
-
-  changed <- character(0)
-  if (!is.null(label)) changed <- c(changed, paste0("label \u2192 ", label))
-  if (!is.null(category)) changed <- c(changed, paste0("category \u2192 ", category))
-  if (!is.null(tags))  changed <- c(changed, paste0("tags \u2192 ", cohort$formatTagsAsString()))
-
-  cli::cli_alert_success("Updated cohort {cohortId}: {paste(changed, collapse = ', ')}")
-
-  invisible(NULL)
-}
-
-
-#' Update a Concept Set in the Manifest
-#'
-#' Updates metadata (label, category, and/or tags) for a concept set in the ConceptSetManifest.
-#'
-#' @param manifest A ConceptSetManifest object.
-#' @param conceptSetId Integer. The ID of the concept set to update.
-#' @param label Character. New label for the concept set. If NULL (default), label is not updated.
-#' @param category Character. New category for the concept set. If NULL (default), category is not updated.
-#'   Valid values: "drug_exposure", "condition_occurrence", "measurement", "procedure", "observation", "device_exposure", "visit_occurrence", "init".
-#' @param tags List. New tags (named list) for the concept set. If NULL (default), tags are not updated.
-#'
-#' @return Invisibly returns NULL. Prints a success message if the update succeeds.
-#'
-#' @export
-#'
-#' @examples
-#' \dontrun{
-#'   manifest <- loadConceptSetManifest()
-#'   updateConceptSetManifest(manifest, 1, label = "Updated Label")
-#'   updateConceptSetManifest(manifest, 2, category = "measurement")
-#'   updateConceptSetManifest(manifest, 3, tags = list(source = "ATLAS", version = "2"))
-#' }
-updateConceptSetManifest <- function(manifest,
-                                     conceptSetId,
-                                     label = NULL,
-                                     category = NULL,
-                                     tags = NULL) {
-  checkmate::assert_class(x = manifest, classes = "ConceptSetManifest")
-  checkmate::assert_int(x = conceptSetId, lower = 1)
-
-  if (is.null(label) && is.null(category) && is.null(tags)) {
-    cli::cli_abort("At least one of `label`, `category`, or `tags` must be provided.")
-  }
-  if (!is.null(label)) checkmate::assert_string(x = label, min.chars = 1)
-  if (!is.null(category)) {
-    checkmate::assert_string(x = category, min.chars = 1)
-    valid_categories <- c("drug_exposure", "condition_occurrence", "measurement", "procedure",
-                          "observation", "device_exposure", "visit_occurrence", "init")
-    checkmate::assert_choice(x = category, choices = valid_categories)
-  }
-  if (!is.null(tags)) checkmate::assert_list(x = tags, names = "named")
-
-  conceptSet <- manifest$getConceptSetById(as.integer(conceptSetId))
-  if (is.null(conceptSet)) {
-    cli::cli_abort("No concept set with ID {conceptSetId} found in the manifest.")
-  }
-
-  if (!is.null(label)) conceptSet$label <- label
-  if (!is.null(category)) conceptSet$category <- category
-  if (!is.null(tags)) conceptSet$tags <- tags
-
-  set_parts <- character(0)
-  params    <- list()
-
-  if (!is.null(label)) {
-    set_parts <- c(set_parts, "label = ?")
-    params    <- c(params, list(label))
-  }
-
-  if (!is.null(category)) {
-    set_parts <- c(set_parts, "category = ?")
-    params    <- c(params, list(category))
-  }
-
-  if (!is.null(tags)) {
-    tags_json <- jsonlite::toJSON(tags, auto_unbox = TRUE)
-    set_parts <- c(set_parts, "tags = ?")
-    params    <- c(params, list(tags_json))
-  }
-
-  params <- c(params, list(as.integer(conceptSetId)))
-
-  sql <- paste(
-    "UPDATE concept_set_manifest SET",
-    paste(set_parts, collapse = ", "),
-    "WHERE id = ?"
-  )
-
-  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
-  on.exit(DBI::dbDisconnect(conn))
-
-  DBI::dbExecute(conn, sql, params)
-
-  changed <- character(0)
-  if (!is.null(label)) changed <- c(changed, paste0("label \u2192 ", label))
-  if (!is.null(category)) changed <- c(changed, paste0("category \u2192 ", category))
-  if (!is.null(tags)) changed <- c(changed, paste0("tags \u2192 ", conceptSet$formatTagsAsString()))
-
-  cli::cli_alert_success("Updated concept set {conceptSetId}: {paste(changed, collapse = ', ')}")
-
-  invisible(NULL)
-}
-
-
 # ============================================================
 # CONCEPT SET MANIFEST HELPERS
 # ============================================================
@@ -805,12 +627,14 @@ initConceptSetManifest <- function(path = "inputs/conceptSets") {
 #' Load Concept Set Manifest
 #'
 #' Loads a ConceptSetManifest R6 object from an existing SQLite database.
-#' Scans the `json/` directory for new files not yet registered in the manifest
-#' and auto-registers them.
+#' By default, automatically syncs the manifest to ensure 1:1 correspondence
+#' between SQLite and the file system.
 #'
 #' @param conceptSetsFolderPath Character. Path to the conceptSets folder.
 #'   Defaults to `here::here("inputs/conceptSets")`.
 #' @param executionSettings ExecutionSettings object. Optional.
+#' @param autoSync Logical. If TRUE (default), syncs the manifest to reconcile
+#'   files on disk with the SQLite database (removes orphaned files, flags missing).
 #' @param verbose Logical. If TRUE (default), prints informative messages.
 #'
 #' @return ConceptSetManifest object.
@@ -818,67 +642,42 @@ initConceptSetManifest <- function(path = "inputs/conceptSets") {
 #' @export
 loadConceptSetManifest <- function(conceptSetsFolderPath = here::here("inputs/conceptSets"),
                                    executionSettings = NULL,
+                                   autoSync = TRUE,
                                    verbose = TRUE) {
   checkmate::assert_class(executionSettings, "ExecutionSettings", null.ok = TRUE)
+  checkmate::assert_logical(autoSync, len = 1)
   checkmate::assert_logical(verbose, len = 1)
 
   dbPath <- fs::path(conceptSetsFolderPath, "conceptSetManifest.sqlite")
 
+  if (!file.exists(dbPath)) {
+    cli::cli_abort(c(
+      "Concept set manifest not found at {.path {fs::path_rel(dbPath)}}.",
+      "i" = "Use {.code initConceptSetManifest()} to create a new manifest.",
+      "i" = "Use {.code migrateConceptSetManifest()} if upgrading from picard <= 0.0.3."
+    ))
+  }
+
   manifest <- ConceptSetManifest$new(dbPath = dbPath, executionSettings = executionSettings)
 
-  json_dir <- fs::path(conceptSetsFolderPath, "json")
-
-  if (dir.exists(json_dir)) {
-    on_disk <- list.files(json_dir, pattern = "\\.json$", full.names = TRUE, recursive = TRUE)
-
-    if (length(on_disk) > 0) {
-      conn <- DBI::dbConnect(RSQLite::SQLite(), dbPath)
-      on.exit(DBI::dbDisconnect(conn))
-
-      registered_paths <- DBI::dbGetQuery(
-        conn,
-        "SELECT filePath FROM concept_set_manifest WHERE status = 'active'"
-      )$filePath
-
-      new_files <- on_disk[!(fs::path_rel(on_disk) %in% registered_paths)]
-
-      if (length(new_files) > 0) {
-        if (verbose) {
-          cli::cli_alert_info("Registering {length(new_files)} new concept set file(s) found in {fs::path_rel(json_dir)}")
-        }
-        for (file_path in new_files) {
-          label <- tools::file_path_sans_ext(basename(file_path))
-          tryCatch({
-            manifest$addConceptSetFile(filePath = file_path, label = label)
-          }, error = function(e) {
-            cli::cli_alert_warning("Skipping {label}: {e$message}")
-          })
-        }
+  # Auto-sync manifest to ensure 1:1 correspondence between SQLite and file system
+  if (autoSync) {
+    if (verbose) {
+      cli::cli_alert_info("Auto-syncing manifest to reconcile files...")
+    }
+    sync_results <- manifest$syncManifest(strict_mode = TRUE)
+    if (verbose) {
+      n_orphan_removed <- sum(sync_results$action == "auto_removed_orphan")
+      n_missing <- sum(sync_results$action == "missing_flagged")
+      if (n_orphan_removed > 0 || n_missing > 0) {
+        cli::cli_alert_info("Sync cleaned {n_orphan_removed} orphaned file(s) and marked {n_missing} missing")
       }
     }
   }
 
   if (verbose) {
-    validation_status  <- manifest$validateManifest()
-    missing_conceptsets <- validation_status[
-      !is.na(validation_status$status) &
-        validation_status$status == "active" &
-        !validation_status$file_exists,
-    ]
-
-    if (nrow(missing_conceptsets) > 0) {
-      cli::cli_rule("Missing Concept Set Files Detected")
-      cli::cli_alert_warning("{nrow(missing_conceptsets)} concept set file(s) are missing:")
-      for (i in seq_len(nrow(missing_conceptsets))) {
-        cs_info <- missing_conceptsets[i, ]
-        cli::cli_bullets(c("x" = "ID {cs_info$id}: {cs_info$label}"))
-      }
-      cli::cli_rule()
-      cli::cli_bullets(c(
-        "i" = "Use {.code manifest$validateManifest()} to see full status",
-        "i" = "Use {.code manifest$cleanupMissing()} to remove missing concept sets"
-      ))
-    }
+    n_conceptsets <- length(manifest$getManifest())
+    cli::cli_alert_success("Loaded concept set manifest: {n_conceptsets} active concept set(s)")
   }
 
   return(manifest)
@@ -897,9 +696,9 @@ loadConceptSetManifest <- function(conceptSetsFolderPath = here::here("inputs/co
 #' @section Scope options:
 #' \describe{
 #'   \item{\code{"manifest"} (default)}{Deletes only the SQLite database.
-#'     JSON files in \code{json/} are preserved. On the next call to
-#'     \code{loadConceptSetManifest()}, those files are automatically
-#'     re-registered — no manual \code{$add*()} calls required.}
+#'     JSON files in \code{json/} are archived to a timestamped directory
+#'     (unless \code{archive = FALSE}) and can be restored after
+#'     \code{initConceptSetManifest()} using \code{$addConceptSetFile()}.}
 #'   \item{\code{"full"}}{Deletes the SQLite database, the \code{json/}
 #'     folder, and \code{conceptSetsLoad.csv}. Complete wipe.}
 #' }
@@ -911,6 +710,9 @@ loadConceptSetManifest <- function(conceptSetsFolderPath = here::here("inputs/co
 #'   \code{here::here("inputs/conceptSets")}.
 #' @param scope Character. One of \code{"manifest"} (default) or
 #'   \code{"full"}.
+#' @param archive Logical. For \code{scope = "manifest"}, if \code{TRUE} (default),
+#'   archives JSON files in \code{json/} to a timestamped directory instead of
+#'   deleting them. Set to \code{FALSE} to delete without archiving.
 #' @param confirm Logical. If \code{TRUE} (default), the user must type
 #'   \code{"yes"} to proceed. Set to \code{FALSE} for non-interactive use.
 #'
@@ -920,8 +722,10 @@ loadConceptSetManifest <- function(conceptSetsFolderPath = here::here("inputs/co
 resetConceptSetManifest <- function(manifest = NULL,
                                     conceptSetsFolderPath = here::here("inputs/conceptSets"),
                                     scope = c("manifest", "full"),
+                                    archive = TRUE,
                                     confirm = TRUE) {
   scope <- match.arg(scope)
+  checkmate::assert_logical(archive, len = 1)
   checkmate::assert_logical(confirm, len = 1)
 
   if (!is.null(manifest)) {
@@ -948,11 +752,17 @@ resetConceptSetManifest <- function(manifest = NULL,
   if (scope == "manifest") {
     cli::cli_alert_danger("The following will be {.strong permanently deleted}:")
     cli::cli_bullets(c("x" = "Manifest database: {.file {fs::path_rel(dbPath)}}"))
+    if (archive) {
+      cli::cli_alert_info(
+        "{n_json} JSON file(s) in {.file {fs::path_rel(json_dir)}} will be {.strong archived} to {.file _archive/manifest_reset_TIMESTAMP/}."
+      )
+    } else {
+      cli::cli_alert_warning(
+        "{n_json} JSON file(s) in {.file {fs::path_rel(json_dir)}} will be {.strong permanently deleted}."
+      )
+    }
     cli::cli_alert_info(
-      "{n_json} JSON file(s) in {.file {fs::path_rel(json_dir)}} will be preserved."
-    )
-    cli::cli_alert_info(
-      "Call {.code loadConceptSetManifest()} to automatically re-register them."
+      "Call {.code loadConceptSetManifest()} to rebuild from existing or archived JSON files."
     )
   } else if (scope == "full") {
     cli::cli_alert_danger("The following will be {.strong permanently deleted}:")
@@ -978,7 +788,30 @@ resetConceptSetManifest <- function(manifest = NULL,
     cli::cli_alert_success("Deleted manifest database: {.file {fs::path_rel(dbPath)}}")
   }
 
-  if (scope == "full") {
+  if (scope == "manifest") {
+    if (archive && dir.exists(json_dir)) {
+      archive_dir <- fs::path(conceptSetsFolderPath, "_archive",
+                               paste0("manifest_reset_", format(Sys.time(), "%Y%m%d_%H%M%S")))
+      dir.create(archive_dir, recursive = TRUE)
+
+      dest_dir <- fs::path(archive_dir, basename(json_dir))
+      fs::dir_copy(json_dir, dest_dir)
+      unlink(json_dir, recursive = TRUE)
+      n_files <- length(list.files(dest_dir, recursive = TRUE))
+      cli::cli_alert_success("Archived {.file {fs::path_rel(json_dir)}} ({n_files} file(s)) to {.file {fs::path_rel(dest_dir)}}")
+
+      cli::cli_alert_info("Archive location: {.file {fs::path_rel(archive_dir)}}")
+      cli::cli_alert_info(
+        "To restore: Move files from archive back to {.file json/}, then call {.code initConceptSetManifest()} and use {.code $addConceptSetFile()} to re-register."
+      )
+    } else if (dir.exists(json_dir)) {
+      unlink(json_dir, recursive = TRUE)
+      cli::cli_alert_success("Deleted {.file {fs::path_rel(json_dir)}} ({n_json} file(s)).")
+      cli::cli_alert_info(
+        "Call {.code initConceptSetManifest()} then re-register concept sets with {.code $addConceptSetFile()}."
+      )
+    }
+  } else if (scope == "full") {
     if (dir.exists(json_dir)) {
       unlink(json_dir, recursive = TRUE)
       cli::cli_alert_success("Deleted {.file {fs::path_rel(json_dir)}} ({n_json} file(s)).")
@@ -989,10 +822,6 @@ resetConceptSetManifest <- function(manifest = NULL,
     }
     cli::cli_alert_info(
       "Full reset complete. Call {.code initConceptSetManifest()} to start fresh."
-    )
-  } else {
-    cli::cli_alert_info(
-      "Call {.code loadConceptSetManifest()} to rebuild from existing JSON files."
     )
   }
 
@@ -1495,9 +1324,9 @@ list_tags_in_row <- function(row) {
   return(tags)
 }
 
-check_which_cohorts_exist <- function(cm_atlas_subset, cohort_load) {
-  # get the cm with atlas ids
-  current_atlas_cm <- cm_atlas_subset |>
+check_which_atlas_exist <- function(atlas_subset, input_load) {
+  # get the manifest with atlas ids
+  current_atlas_man <- atlas_subset |>
     dplyr::select(
       id, label, category, tags
     ) |> 
@@ -1510,16 +1339,16 @@ check_which_cohorts_exist <- function(cm_atlas_subset, cohort_load) {
       id, atlasId, label, category, status
     )
   
-  # show which cohorts in the load file are new to the current manifest
-  compare_cm <- cohort_load |>
+  # show which items in the load file are new to the current manifest
+  compare_man <- input_load |>
     dplyr::left_join(
-      current_atlas_cm |> dplyr::select(id, atlasId, status), by = c("atlasId")
+      current_atlas_man |> dplyr::select(id, atlasId, status), by = c("atlasId")
     ) |>
     tidyr::replace_na(list(status = "new"))
 
-  return(compare_cm)
-
+  return(compare_man)
 }
+
 
 # importOneAtlasCohort <- function(row, tag_cols, dbPath, atlasConnection, sqlite_conn) {
 #   # Build tags from extra columns

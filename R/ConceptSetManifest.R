@@ -8,6 +8,9 @@
 #' metadata in a SQLite database located at inputs/conceptSets/conceptSetManifest.sqlite.
 #' Each ConceptSetDef is assigned a sequential ID based on its position in the manifest.
 #'
+#' @param dbPath Character. Path to the SQLite database file. Defaults to
+#'   \code{"inputs/conceptSets/conceptSetManifest.sqlite"}.
+#'
 #' @export
 ConceptSetManifest <- R6::R6Class(
   classname = "ConceptSetManifest",
@@ -343,9 +346,13 @@ ConceptSetManifest <- R6::R6Class(
       return(private$.manifest)
     },
 
-    #' Tabulate the manifest as a data frame
+    #' @description Tabulate the manifest as a tibble
     #'
-    #' @return Data frame. Manifest data with columns: id, label, category, tags, file_path, hash, created_at, deleted_at
+    #' @param filter Character. Controls which rows are returned. One of
+    #'   \code{"active"} (default), \code{"deleted"}, or \code{"all"}.
+    #'
+    #' @return A tibble with columns: id, label, category, tags, file_path, hash,
+    #'   source_type, cohort_type, status, created_at, deleted_at
     tabulateManifest = function(filter = c("active", "deleted", "all")) {
 
       filter <- match.arg(filter)
@@ -564,22 +571,20 @@ ConceptSetManifest <- R6::R6Class(
       invisible(cs_id)
     },
 
-    #' @description Batch-import concept sets from ATLAS via a conceptSetsLoad CSV
+    #' @description Batch-import concept sets from ATLAS via a conceptSetsLoad dataframe
+    #' 
+    #' Either create a dataframe or read in a csv file with columns `atlasId`, `label`, `category` (required) plus any
+    #' additional columns treated as tag key-value pairs for tags. Calls `addAtlasConceptSet()` for each row inside 
+    #' a `tryCatch` so a single failure does not abort the entire batch.
     #'
-    #' Reads a CSV with columns `atlasId`, `label`, `category` (required) plus any
-    #' additional columns treated as tag key-value pairs. Calls
-    #' `addAtlasConceptSet()` for each row inside a `tryCatch` so a single failure
-    #' does not abort the entire batch.
-    #'
+    #' @param conceptSetsLoad a data frame requiring the columns atlasId, label and category used to bulk add cohorts to the manifest
     #' @param atlasConnection An ATLAS connection object with a
     #'   `getConceptSetDefinition(conceptSetId)` method.
     #'   If `NULL`, falls back to the connection stored via `$setAtlasConnection()`.
-    #' @param conceptSetsLoadPath Character. Path to the CSV file. Defaults to
-    #'   `here::here("inputs/conceptSets/conceptSetsLoad.csv")`.
     #'
-    #' @return Invisible tibble with columns `id`, `label`, `status`.
-    importAtlasConceptSets = function(atlasConnection = NULL,
-                                      conceptSetsLoadPath = here::here("inputs/conceptSets/conceptSetsLoad.csv")) {
+    #' @return Invisible tibble imported concept sets.
+    importAtlasConceptSets = function(conceptSetsLoad,
+                                      atlasConnection = NULL) {
       if (is.null(atlasConnection)) {
         atlasConnection <- private$.atlasConnection
       }
@@ -591,62 +596,74 @@ ConceptSetManifest <- R6::R6Class(
         ))
       }
 
-      checkmate::assert_file_exists(conceptSetsLoadPath)
-      concept_sets_load <- readr::read_csv(conceptSetsLoadPath, show_col_types = FALSE, comment = "#")
-
+      # Validate required columns
       required_cols <- c("atlasId", "label", "category")
-      missing_cols <- setdiff(required_cols, names(concept_sets_load))
-
+      # Validate data frame if provided directly
+      checkmate::assert_data_frame(conceptSetsLoad, min.cols = 3)
+      missing_cols <- setdiff(required_cols, names(conceptSetsLoad))
       if (length(missing_cols) > 0) {
-        cli::cli_abort("conceptSetsLoad.csv missing required columns: {paste(missing_cols, collapse = ', ')}")
+        cli::cli_abort("conceptSetsLoad missing required columns: {paste(missing_cols, collapse = ', ')}")
       }
 
-      reserved_cols <- c("atlasId", "label", "category")
-      tag_cols <- setdiff(names(concept_sets_load), reserved_cols)
+      # Determine which concept sets are new and which already exist
+      cm_atlas_subset <- self$queryConceptSetsByTagName(tagName = "atlasId")
+      concept_set_load_2 <- check_which_atlas_exist(cm_atlas_subset, conceptSetsLoad)
 
-      cli::cli_alert_info(
-        "Importing {nrow(concept_sets_load)} concept set(s) from {fs::path_rel(conceptSetsLoadPath)}"
-      )
+      # Header
+      cli::cli_rule("ATLAS Concept Set Import")
+      cli::cli_alert_info("Evaluating {nrow(conceptSetsLoad)} concept set(s) from load file")
 
-      results <- vector("list", nrow(concept_sets_load))
+      # Subset new and existing concept sets
+      new_concept_sets <- concept_set_load_2 |>
+        dplyr::filter(status == "new")
 
-      for (i in seq_len(nrow(concept_sets_load))) {
-        row <- concept_sets_load[i, ]
+      existing_concept_sets <- concept_set_load_2 |>
+        dplyr::filter(status == "active")
 
-        tags <- list()
-
-        for (col in tag_cols) {
-          val <- row[[col]]
-          if (!is.na(val) && nchar(as.character(val)) > 0) {
-            tags[[col]] <- as.character(val)
-          }
-        }
-
-        tryCatch({
-          cs_id <- self$addAtlasConceptSet(
-            atlasId = as.integer(row$atlasId),
-            label = as.character(row$label),
-            category = as.character(row$category),
-            tags = tags,
+      # Process new concept sets
+      if (nrow(new_concept_sets) > 0) {
+        cli::cli_rule("Adding {nrow(new_concept_sets)} new concept set(s)")
+        for (i in seq_len(nrow(new_concept_sets))) {
+          row <- new_concept_sets[i, ]
+          additional_tags <- list_tags_in_row(row)
+          # Delegate to addAtlasConceptSet for actual manifest insertion
+          concept_set_id <- self$addAtlasConceptSet(
+            atlasId = row$atlasId,
+            label = row$label,
+            category = row$category,
+            tags = additional_tags,
             atlasConnection = atlasConnection
           )
-          results[[i]] <- list(id = cs_id, label = as.character(row$label), status = "success")
-        }, error = function(e) {
-          cli::cli_alert_danger("Failed to import {row$label}: {e$message}")
-          results[[i]] <- list(id = NA_integer_, label = as.character(row$label),
-                                status = paste("error:", e$message))
-        })
+        }
       }
 
-      result_df <- tibble::tibble(
-        id     = vapply(results, function(x) if (is.null(x$id)) NA_integer_ else as.integer(x$id), integer(1)),
-        label  = vapply(results, function(x) x$label, character(1)),
-        status = vapply(results, function(x) x$status, character(1))
-      )
+      # Process existing concept sets
+      if (nrow(existing_concept_sets) > 0) {
+        cli::cli_rule("Existing concept set(s) in manifest ({nrow(existing_concept_sets)})")
+        for (i in seq_len(nrow(existing_concept_sets))) {
+          row <- existing_concept_sets[i, ]
+          cli::cli_alert_warning("  ID {row$id}: {row$label} (atlasId: {row$atlasId})")
+        }
+        
+        cli::cli_alert_info("To check for ATLAS changes, run: {.code manifest$checkAtlasConceptSets(atlasConnection)}")
+        cli::cli_alert_info("To update ATLAS definitions, run: {.code manifest$updateAtlasConceptSets(atlasConnection)}")
+      }
 
-      successful <- sum(result_df$status == "success")
-      cli::cli_alert_success("Imported {successful}/{nrow(concept_sets_load)} concept set(s)")
-      invisible(result_df)
+      # Build and print final summary table
+      summary_tbl <- concept_set_load_2 |>
+        dplyr::mutate(
+          message = dplyr::case_when(
+            status == "new" ~ "Successfully added to manifest",
+            status == "active" ~ "Already in manifest",
+            TRUE ~ "Unknown"
+          )
+        ) |>
+        dplyr::select(dplyr::any_of(c("id", "label", "atlasId", "status", "message")))
+
+      cli::cli_rule("Import Summary ({nrow(summary_tbl)} concept set(s) total)")
+      print(summary_tbl)
+
+      invisible(concept_set_load_2)
     },
 
     #' Query concept sets by IDs
@@ -831,7 +848,7 @@ ConceptSetManifest <- R6::R6Class(
       }
 
       return(tibble::as_tibble(manifest_df))
-    }
+    },
 
     #' @description Get number of concept sets in manifest
     #'
@@ -1022,7 +1039,7 @@ ConceptSetManifest <- R6::R6Class(
     #'   Pass TRUE to skip the prompt (suitable for scripts).
     #'
     #' @return Invisibly returns TRUE if successful, FALSE otherwise.
-    deleteConceptSet = function(id, confirm FALSE) {
+    deleteConceptSet = function(id, confirm = FALSE) {
       checkmate::assert_int(id)
       checkmate::assert_flag(confirm)
       
@@ -1043,7 +1060,6 @@ ConceptSetManifest <- R6::R6Class(
       
       label     <- cs_row$label[1]
       file_path <- cs_row$file_path[1]
-      status    <- cs_row$status[1]
 
 
       # Request confirmation if not already confirmed
@@ -1377,10 +1393,15 @@ ConceptSetManifest <- R6::R6Class(
     #'   \item Active manifest records whose file no longer exists are soft-deleted.
     #'   \item Existing files whose JSON hash has changed are updated in the manifest.
     #' }
-    #'
+    #' 
+    #' @param strict_mode Logical. If TRUE (default), automatically removes orphaned files found
+    #'   on disk. If FALSE, only warns about them without deletion. Default: TRUE.
+    #' 
     #' @return Data frame with columns: id, label, action
     #'   (\code{"added"}, \code{"hash_updated"}, \code{"missing_flagged"}, or \code{"unchanged"}).
-    syncManifest = function() {
+    syncManifest = function(strict_mode = TRUE) {
+      checkmate::assert_flag(strict_mode)
+      
       concept_sets_folder <- dirname(private$.dbPath)
       json_dir <- file.path(concept_sets_folder, "json")
 
@@ -1401,7 +1422,8 @@ ConceptSetManifest <- R6::R6Class(
       db_records <- DBI::dbGetQuery(
         conn,
         "SELECT id, label, category, tags, file_path, hash, status
-         FROM concept_set_manifest"
+         FROM concept_set_manifest
+         WHERE status IN ('active', 'deleted')"
       )
 
       results <- data.frame(
@@ -1448,7 +1470,7 @@ ConceptSetManifest <- R6::R6Class(
           if (new_hash != rec$hash) {
             DBI::dbExecute(
               conn,
-              "UPDATE concept_set_manifest SET hash = ?, timestamp = CURRENT_TIMESTAMP WHERE id = ?",
+              "UPDATE concept_set_manifest SET hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
               list(new_hash, rec_id)
             )
             # Update in-memory entry if present
@@ -1497,9 +1519,9 @@ ConceptSetManifest <- R6::R6Class(
 
           DBI::dbExecute(
             conn,
-            "INSERT INTO concept_set_manifest (id, label, category, tags, filePath, hash, timestamp, status)
-             VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'active')",
-            list(next_id, label, "init", NA_character_, new_def$getFilePath(), new_def$getHash())
+            "INSERT INTO concept_set_manifest (id, label, category, tags, file_path, hash, created_at, updated_at, status)
+             VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'active')",
+            list(next_id, label, "init", NA_character_, fs::path_rel(file_path), new_def$getHash())
           )
 
           private$.manifest[[length(private$.manifest) + 1]] <- new_def
@@ -1511,14 +1533,51 @@ ConceptSetManifest <- R6::R6Class(
         })
       }
 
+      # ── Step 3: Auto-remove orphaned files not in manifest ──────────────────
+      existing_rel <- db_records$file_path
+      orphaned_files <- on_disk[!(on_disk_rel %in% existing_rel)]
+
+      if (length(orphaned_files) > 0) {
+        if (strict_mode) {
+          cli::cli_rule("Removing {length(orphaned_files)} orphaned file(s) from disk")
+          
+          for (f in orphaned_files) {
+            f_rel <- fs::path_rel(f)
+            tryCatch({
+              unlink(f)
+              cli::cli_alert_success("Deleted orphaned file: {f_rel}")
+              results <- rbind(results, data.frame(id = NA_integer_, 
+                                                    label = tools::file_path_sans_ext(basename(f_rel)),
+                                                    action = "auto_removed_orphan", 
+                                                    stringsAsFactors = FALSE))
+            }, error = function(e) {
+              cli::cli_alert_warning("Could not delete orphaned file {f_rel}: {e$message}")
+            })
+          }
+        } else {
+          # Warn-only mode (for testing or audit trails)
+          cli::cli_alert_warning("{length(orphaned_files)} orphaned file(s) on disk not in manifest:")
+          for (f in utils::head(orphaned_files, 5)) {
+            f_rel <- fs::path_rel(f)
+            cli::cli_bullets(c("!" = "{f_rel}"))
+          }
+          if (length(orphaned_files) > 5) {
+            cli::cli_bullets(c("!" = "... and {length(orphaned_files) - 5} more"))
+          }
+          cli::cli_alert_info("Set {.code strict_mode = TRUE} to auto-remove these files.")
+        }
+      }
+
       # ── Summary ──────────────────────────────────────────────────────────────
       n_added   <- sum(results$action == "added")
       n_updated <- sum(results$action == "hash_updated")
       n_missing <- sum(results$action == "missing_flagged")
+      n_orphan_removed <- sum(results$action == "auto_removed_orphan")
       n_same    <- sum(results$action == "unchanged")
+      
       cli::cli_rule()
       cli::cli_alert_success(
-        "Sync complete — Added: {n_added} | Updated: {n_updated} | Missing: {n_missing} | Unchanged: {n_same}"
+        "Sync complete — Added: {n_added} | Updated: {n_updated} | Missing: {n_missing} | Orphaned removed: {n_orphan_removed} | Unchanged: {n_same}"
       )
 
       return(results)
