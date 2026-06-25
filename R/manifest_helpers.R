@@ -124,8 +124,10 @@ loadCohortManifest <- function(cohortsFolderPath = here::here("inputs/cohorts"),
 #'     are untouched. Use when rebuilding the derived pipeline with new
 #'     parameters. Requires a live \code{manifest} object.}
 #'   \item{\code{"manifest"}}{Deletes the SQLite database and the \code{derived/}
-#'     folder. Source files in \code{json/} and \code{sql/} are preserved and
-#'     can be re-registered after \code{initCohortManifest()}.}
+#'     folder. Source files in \code{json/} and \code{sql/} are archived to a
+#'     timestamped directory (unless \code{archive = FALSE}) and can be restored
+#'     after \code{initCohortManifest()} using \code{$addCirceCohort()} or
+#'     \code{$addSqlCohort()}.}
 #'   \item{\code{"full"}}{Deletes the SQLite database, \code{derived/},
 #'     \code{json/}, \code{sql/}, and \code{cohortsLoad.csv}. Also drops OMOP
 #'     cohort tables from the database (requires \code{executionSettings}).}
@@ -143,6 +145,9 @@ loadCohortManifest <- function(cohortsFolderPath = here::here("inputs/cohorts"),
 #'   \code{scope = "full"} to drop OMOP cohort tables. If \code{manifest} is
 #'   provided and already has settings attached, those are used automatically;
 #'   this argument overrides them.
+#' @param archive Logical. For \code{scope = "manifest"}, if \code{TRUE} (default),
+#'   archives source files in \code{json/} and \code{sql/} to a timestamped
+#'   directory instead of deleting them. Set to \code{FALSE} to delete without archiving.
 #' @param confirm Logical. If \code{TRUE} (default), the user must type
 #'   \code{"yes"} to proceed. Set to \code{FALSE} for non-interactive use.
 #'
@@ -153,9 +158,11 @@ resetCohortManifest <- function(manifest = NULL,
                                 cohortsFolderPath = here::here("inputs/cohorts"),
                                 scope = c("derived", "manifest", "full"),
                                 executionSettings = NULL,
+                                archive = TRUE,
                                 confirm = TRUE) {
   scope <- match.arg(scope)
   checkmate::assert_logical(confirm, len = 1)
+  checkmate::assert_logical(archive, len = 1)
 
   # Resolve cohortsFolderPath and executionSettings from manifest object
   if (!is.null(manifest)) {
@@ -221,16 +228,22 @@ resetCohortManifest <- function(manifest = NULL,
     cli::cli_alert_info("Base cohorts (circe, custom) and their source files will be preserved.")
 
   } else if (scope == "manifest") {
-    cli::cli_alert_danger("The following will be {.strong permanently deleted}:")
+    cli::cli_alert_danger("The following will be {.strong deleted}:")
     cli::cli_bullets(c(
       "x" = "Manifest database: {.file {fs::path_rel(dbPath)}}",
       "x" = "{n_derived} derived file(s) in {.file {fs::path_rel(derived_dir)}}"
     ))
+    if (archive) {
+      cli::cli_alert_info(
+        "Source files in {.file json/} ({n_json} file(s)) and {.file sql/} ({n_sql} file(s)) will be {.strong archived} to {.file _archive/manifest_reset_TIMESTAMP/}."
+      )
+    } else {
+      cli::cli_alert_warning(
+        "Source files in {.file json/} ({n_json} file(s)) and {.file sql/} ({n_sql} file(s)) will be {.strong permanently deleted}."
+      )
+    }
     cli::cli_alert_info(
-      "Source files in {.file json/} ({n_json} file(s)) and {.file sql/} ({n_sql} file(s)) will be preserved."
-    )
-    cli::cli_alert_info(
-      "After reset, call {.code initCohortManifest()} then re-register cohorts with {.code $add*()} methods."
+      "After reset, call {.code initCohortManifest()} then re-register cohorts with {.code $addCirceCohort()} or {.code $addSqlCohort()}."
     )
 
   } else if (scope == "full") {
@@ -290,13 +303,41 @@ resetCohortManifest <- function(manifest = NULL,
       file.remove(dbPath)
       cli::cli_alert_success("Deleted manifest database: {.file {fs::path_rel(dbPath)}}")
     }
-    if (dir.exists(derived_dir)) {
-      unlink(derived_dir, recursive = TRUE)
-      cli::cli_alert_success("Deleted {.file {fs::path_rel(derived_dir)}} ({n_derived} file(s)).")
+    
+    # Archive or delete source and derived cohort files
+    if (archive && (dir.exists(json_dir) || dir.exists(sql_dir))) {
+      archive_dir <- fs::path(cohortsFolderPath, "_archive", 
+                               paste0("manifest_reset_", format(Sys.time(), "%Y%m%d_%H%M%S")))
+      dir.create(archive_dir, recursive = TRUE)
+      
+      for (src_dir in list(json_dir, sql_dir)) {
+        if (dir.exists(src_dir)) {
+          dest_dir <- fs::path(archive_dir, basename(src_dir))
+          fs::dir_copy(src_dir, dest_dir)
+          unlink(src_dir, recursive = TRUE)
+          n_files <- length(list.files(dest_dir, recursive = TRUE))
+          cli::cli_alert_success("Archived {.file {fs::path_rel(src_dir)}} ({n_files} file(s)) to {.file {fs::path_rel(dest_dir)}}")
+        }
+      }
+      
+      cli::cli_alert_info("Archive location: {.file {fs::path_rel(archive_dir)}}")
+      cli::cli_alert_info(
+        "To restore: Move files from archive back to {.file json/} or {.file sql/}, then call {.code initCohortManifest()} and use {.code $addCirceCohort()} or {.code $addSqlCohort()} to re-register."
+      )
+    } else {
+      # Delete without archive
+      for (target in list(derived_dir, json_dir, sql_dir)) {
+        if (dir.exists(target)) {
+          n_files <- length(list.files(target, recursive = TRUE))
+          unlink(target, recursive = TRUE)
+          cli::cli_alert_success("Deleted {.file {fs::path_rel(target)}} ({n_files} file(s)).")
+        }
+      }
+      
+      cli::cli_alert_info(
+        "Call {.code initCohortManifest()} then re-register cohorts with {.code $addCirceCohort()} or {.code $addSqlCohort()}."
+      )
     }
-    cli::cli_alert_info(
-      "Call {.code initCohortManifest()} then re-register cohorts with {.code $addAtlasCohort()}, {.code $addCirceCohort()}, {.code $addSqlCohort()}, etc."
-    )
 
   } else if (scope == "full") {
     # Drop OMOP cohort tables first (while we still have settings)

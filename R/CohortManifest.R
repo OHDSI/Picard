@@ -2603,7 +2603,7 @@ CohortManifest <- R6::R6Class(
             tags = list(),
             filePath = file_path
           )
-          new_hash <- tmp_def$getHash()
+          new_hash <- tmp_def$getFileHash()
 
           if (new_hash != rec$hash) {
             DBI::dbExecute(
