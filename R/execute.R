@@ -1133,3 +1133,116 @@ clearPendingPR <- function() {
     return(invisible(FALSE))
   }
 }
+
+#' @title Source Pre-Pipeline Input Builder Scripts
+#' @description Auto-discovers and sources builder scripts from pre-pipeline directories
+#'   in alphabetical order. Designed to be called from main.R before the production pipeline.
+#'   Concept set scripts are sourced first (they may be dependencies for cohort scripts).
+#'
+#' Searches and sources (in order):
+#'   1. All .R files from inputs/conceptSets/R/ (alphabetically)
+#'   2. All .R files from inputs/cohorts/R/ (alphabetically)
+#'
+#'   Missing directories are skipped gracefully with optional warnings.
+#'   This allows users to delete unused builder scripts without breaking main.R.
+#'
+#' @param projectPath Character. Path to the project root. Defaults to current project.
+#' @param verbose Logical. If TRUE (default), displays which scripts are being sourced.
+#' @param warnMissing Logical. If TRUE (default), warns when directories don't exist.
+#' @return Invisibly returns a list with:
+#'   - `sourced_files`: Character vector of sourced files (absolute paths)
+#'   - `directories_checked`: Character vector of directories checked
+#'   - `error_summary`: List of any errors encountered
+#'
+#' @export 
+sourceInputScripts <- function(
+    projectPath = here::here(),
+    verbose = TRUE,
+    warnMissing = TRUE) {
+
+  # Initialize tracking
+  sourced_files <- character(0)
+  directories_checked <- character(0)
+  errors <- list()
+
+  # Define builder directories (concept sets first, then cohorts)
+  builder_dirs <- c(
+    fs::path(projectPath, "inputs/conceptSets/R"),
+    fs::path(projectPath, "inputs/cohorts/R")
+  )
+
+  tryCatch({
+    if (verbose) {
+      cli::cli_inform("Sourcing pre-pipeline input builder scripts...")
+    }
+
+    for (dir in builder_dirs) {
+      directories_checked <- c(directories_checked, dir)
+
+      # Check if directory exists
+      if (!fs::dir_exists(dir)) {
+        if (warnMissing) {
+          cli::cli_alert_warning(
+            "Input builder directory not found: {.file {fs::path_rel(dir)}}"
+          )
+        }
+        next
+      }
+
+      # Find all .R files in this directory
+      r_files <- fs::dir_ls(dir, glob = "*.R", type = "file")
+
+      # Sort alphabetically
+      r_files <- sort(r_files)
+
+      if (length(r_files) == 0) {
+        if (verbose) {
+          cli::cli_alert_info(
+            "No input builder scripts found in {.file {fs::path_rel(dir)}}"
+          )
+        }
+        next
+      }
+
+      # Source each file
+      for (file in r_files) {
+        tryCatch({
+          if (verbose) {
+            cli::cli_bullets(c(
+              "bullet" = "Sourcing {.file {fs::path_file(file)}} from {.file {fs::path_file(dir)}}"
+            ))
+          }
+          source(file = file, local = FALSE)
+          sourced_files <- c(sourced_files, file)
+        }, error = function(e) {
+          error_msg <- paste0(
+            "Error sourcing {fs::path_rel(file)}: ",
+            e$message
+          )
+          errors[[fs::path_rel(file)]] <- error_msg
+          cli::cli_alert_danger(error_msg)
+        })
+      }
+    }
+
+    if (length(sourced_files) > 0) {
+      cli::cli_alert_success(
+        "Successfully sourced {length(sourced_files)} input builder script(s)"
+      )
+    } else {
+      cli::cli_alert_info("No input builder scripts were sourced")
+    }
+
+  }, error = function(e) {
+    cli::cli_alert_danger(
+      "Error in sourceInputScripts(): {e$message}"
+    )
+    errors[["critical"]] <- e$message
+  })
+  ll <- list(
+    sourced_files = sourced_files,
+    directories_checked = directories_checked,
+    error_summary = errors
+  )
+  invisible(ll)
+}

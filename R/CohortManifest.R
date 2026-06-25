@@ -570,8 +570,9 @@ CohortManifest <- R6::R6Class(
         "ORDER BY id"
       )
 
-      man <- DBI::dbGetQuery(conn, sql)
-      return(tibble::as_tibble(man))
+      man <- DBI::dbGetQuery(conn, sql) |>
+        tibble::as_tibble()
+      return(man)
     },
 
     #' Review stale derived cohorts
@@ -826,7 +827,7 @@ CohortManifest <- R6::R6Class(
           cli::cli_alert_warning("  ID {row$id}: {row$label} (atlasId: {row$atlasId})")
         }
         
-        cli::cli_alert_info("To check for ATLAS changes, run: {.code manifest$checkAtlasChanges(atlasConnection)}")
+        cli::cli_alert_info("To check for ATLAS changes, run: {.code manifest$checkAtlasCohorts(atlasConnection)}")
         cli::cli_alert_info("To update ATLAS definitions, run: {.code manifest$updateAtlasCohorts(atlasConnection)}")
       }
 
@@ -2053,6 +2054,11 @@ CohortManifest <- R6::R6Class(
         dplyr::select(
           id, atlasId, label, category, hash, file_path
         )
+      
+      if (is.null(cm_atlas_subset) || nrow(cm_atlas_subset) == 0) {
+        cli::cli_alert_info("No ATLAS cohorts found in manifest")
+        invisible(NULL)
+      }
 
       res <- vector('list', length = nrow(cm_atlas_subset))
       # go through each atlas cohort row and check if any change to the definition
@@ -2138,7 +2144,7 @@ CohortManifest <- R6::R6Class(
 
       if (nrow(check_atlas_changes) == 0) {
         cli::cli_alert_info("No changed ATLAS cohorts found. All {nrow(check_atlas_changes)} cohort(s) are current.")
-        return(NULL)
+        invisible(NULL)
       }
 
       # get sqlite
