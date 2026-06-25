@@ -1035,11 +1035,6 @@ makeLoadScript <- function(type,
   
   # Write the file
   readr::write_file(x = loadScriptTemplate, file = filePath)
-  cli::cat_bullet(
-    "Builder script created: {.file {fs::path_rel(filePath)}}",
-    bullet = "bullet",
-    bullet_col = "green"
-  )
   
   if (open) {
     rstudioapi::navigateToFile(file = filePath)

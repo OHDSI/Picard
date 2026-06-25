@@ -87,7 +87,7 @@ cohortManifest <- loadCohortManifest()
 # sqlDir <- here::here("inputs/cohorts/sql")
 # sqlFiles <- list.files(sqlDir, pattern = "\\.sql$", full.names = TRUE)
 #
-# for (sqlFile in sqlFiles) {
+# for (sqlFile in sqlFiles) {{
 #   fileName <- tools::file_path_sans_ext(basename(sqlFile))
 #   cohortManifest$addSqlCohort(
 #     filePath = sqlFile,
@@ -95,7 +95,7 @@ cohortManifest <- loadCohortManifest()
 #     category = "Custom SQL",
 #     tags = list(source = "custom_sql")
 #   )
-# }
+# }}
 
 
 # ================================================================================
@@ -125,4 +125,5 @@ cli::cli_alert_success("SQL cohorts added successfully to manifest!")
 #
 # Example of proper parameterization:
 # - DO:   ... AND concept_id = @my_parameter
-# - DON'T: ... AND concept_id = {my_parameter}  (only for SqlRender template mode)
+
+
