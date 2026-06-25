@@ -1155,7 +1155,7 @@ clearPendingPR <- function() {
 #'   - `error_summary`: List of any errors encountered
 #'
 #' @export 
-sourceInputScripts <- function(
+sourceInputBuilderScripts <- function(
     projectPath = here::here(),
     verbose = TRUE,
     warnMissing = TRUE) {

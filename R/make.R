@@ -969,15 +969,15 @@ initAgentMode <- function(projectPath = here::here(), verbose = TRUE) {
 #' @examples
 #' \dontrun{
 #' # Create a script for importing ATLAS cohorts
-#' makeLoadScript(type = "importAtlas", category = "cohorts")
+#' makeInputBuilderScript(type = "importAtlas", category = "cohorts")
 #'
 #' # Create a script for building Capr-based cohorts
-#' makeLoadScript(type = "importCapr", category = "cohorts")
+#' makeInputBuilderScript(type = "importCapr", category = "cohorts")
 #'
 #' # Create a script for importing ATLAS concept sets
-#' makeLoadScript(type = "importAtlas", category = "conceptSets")
+#' makeInputBuilderScript(type = "importAtlas", category = "conceptSets")
 #' }
-makeLoadScript <- function(type,
+makeInputBuilderScript <- function(type,
                            category = c("cohorts", "conceptSets"),
                            projectPath = here::here(),
                            open = TRUE) {
@@ -1007,6 +1007,15 @@ makeLoadScript <- function(type,
   
   # Convert type to snake_case for filename
   fileName <- snakecase::to_snake_case(type)
+  
+  # Convert category to snake_case singular form for filename suffix
+  categorySuffix <- switch(category,
+    cohorts = "cohort",
+    conceptSets = "concept_set"
+  )
+  
+  # Combine type and category for filename
+  fileName <- paste0(fileName, "_", categorySuffix)
   filePath <- fs::path(builderFolderPath, fileName, ext = "R")
   
   # Read template

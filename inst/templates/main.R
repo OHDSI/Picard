@@ -39,7 +39,7 @@ library(SqlRender) # SQL translation and rendering
 # WARNING: Do NOT add builder scripts to analysis/tasks/ folder!
 #          Use the dedicated R/ folders in inputs/cohorts/ and inputs/conceptSets/
 
-sourceBuilderScripts(verbose = TRUE)
+sourceInputBuilderScripts(verbose = TRUE)
 
 # D. Database Configuration ──────────────────────────────────────────────────
 

@@ -406,7 +406,7 @@ UlyssesStudy <- R6::R6Class(
         # Create each builder script
         for (script in builderScripts) {
           tryCatch({
-            makeLoadScript(
+            makeInputBuilderScript(
               type = script$type,
               category = script$category,
               projectPath = repoPath,
