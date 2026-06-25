@@ -107,8 +107,11 @@ UlyssesStudy <- R6::R6Class(
         private$.initConfigFile()
         private$.initQuarto()
         private$.initMainExec()
-        private$.initLoadingInputs()   # add after .initTestMainExec()
         private$.initAgent()
+        
+        # Step 3b: Populate pre-pipeline builder scripts
+        if (verbose) cli::cli_inform("Creating pre-pipeline builder scripts...")
+        private$.populateBuilderScripts(repoPath, verbose)
         
         # Step 4: Initialize git
         if (verbose) cli::cli_inform("Initializing git repository...")
@@ -319,22 +322,6 @@ UlyssesStudy <- R6::R6Class(
       invisible(NULL)
     },
 
-    .initLoadingInputs = function() {
-      repoPath <- private$.getRepoPath()
-      studyName <- private$.studyMeta$studyTitle
-      tryCatch({
-        loadingInputsR <- fs::path_package("picard", "templates/loadingInputs.R") |>
-          readr::read_file() |>
-          glue::glue(.open = "{", .close = "}")
-
-        dest <- fs::path(repoPath, "extras", "loadingInputs.R")
-        readr::write_file(x = loadingInputsR, file = dest)
-        cli::cli_alert_success("Created loading inputs script: {.file {fs::path_rel(dest)}}")
-      }, error = function(e) {
-        cli::cli_abort("Failed to initialize loading inputs file: {e$message}")
-      })
-      invisible(NULL)
-    },
 
     .initAgent = function() {
       repoPath <- private$.getRepoPath()
@@ -401,6 +388,40 @@ UlyssesStudy <- R6::R6Class(
         cli::cli_abort("Failed to initialize agent configuration: {e$message}")
       })
       invisible(NULL)
+    },
+
+    .populateBuilderScripts = function(repoPath, verbose = TRUE) {
+      tryCatch({
+        # Define builder scripts to create
+        # Format: list(type = "...", category = "...")
+        builderScripts <- list(
+          list(type = "importAtlas", category = "conceptSets"),
+          list(type = "importCapr", category = "conceptSets"),
+          list(type = "importAtlas", category = "cohorts"),
+          list(type = "importCapr", category = "cohorts"),
+          list(type = "importSql", category = "cohorts"),
+          list(type = "buildDependentCohorts", category = "cohorts")
+        )
+        
+        # Create each builder script
+        for (script in builderScripts) {
+          tryCatch({
+            makeLoadScript(
+              type = script$type,
+              category = script$category,
+              projectPath = repoPath,
+              open = FALSE
+            )
+          }, error = function(e) {
+            cli::cli_warn("Failed to create {script$category}/{script$type} builder script: {e$message}")
+          })
+        }
+        
+        cli::cli_alert_success("Created all pre-pipeline builder scripts")
+        invisible(NULL)
+      }, error = function(e) {
+        cli::cli_abort("Failed to populate builder scripts: {e$message}")
+      })
     }
   ),
   active = list(
@@ -924,7 +945,7 @@ DbConfigBlock <- R6::R6Class(
 listDefaultFolders <- function(repoPath) {
   analysisFolders <- c("src", "tasks")
   execFolders <- c('logs', 'results')
-  inputFolders <- c("cohorts/json", "cohorts/sql", "cohorts/derived", "conceptSets/json")
+  inputFolders <- c("cohorts/json", "cohorts/sql", "cohorts/derived", "cohorts/R", "conceptSets/json", "conceptSets/R")
   disseminationFolders <- c("quarto", "export/merge", "export/pretty", "export/studyHubOutput", "documents")
 
   folders <- c(

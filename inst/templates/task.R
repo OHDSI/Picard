@@ -22,7 +22,7 @@ configBlock <- "!||configBlock||!"
 pipelineVersion <- "!||pipelineVersion||!"
 
 # set executionSettings
-executionSettings <- createExecutionSettingsFromConfig(
+executionSettings <- picard::createExecutionSettingsFromConfig(
   configBlock = configBlock,
   pipelineVersion = pipelineVersion
 )
@@ -30,14 +30,14 @@ executionSettings <- createExecutionSettingsFromConfig(
 # D. Task Settings ------------------
 
 # set output folder
-outputFolder <- setOutputFolder(
+outputFolder <- picard::setOutputFolder(
   executionSettings = executionSettings, 
   pipelineVersion = pipelineVersion, 
   taskName = "{taskName}"
 )
 
 # get cohort manifest
-cm <- loadCohortManifest()
+cm <- picard::loadCohortManifest()
 
 ##### Note: Add code that identifies task settings like cohorts or time windows
 

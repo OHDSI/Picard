@@ -939,3 +939,116 @@ initAgentMode <- function(projectPath = here::here(), verbose = TRUE) {
     cli::cli_abort("Failed to initialize agent mode: {e$message}")
   })
 }
+
+#' @title Create a Pre-Pipeline Builder Script
+#' @description Creates a new R script in the pre-pipeline builder directories
+#'   (inputs/cohorts/R/ or inputs/conceptSets/R/) for loading, building, and maintaining
+#'   manifests before executing the study pipeline.
+#'   Unlike task files, builder scripts execute in sequence as part of manifest setup.
+#' @param type Character. Type of builder script.
+#'   For cohorts: "importAtlas", "importCapr", "importSql", or "buildDependentCohorts"
+#'   For concept sets: "importAtlas" or "importCapr"
+#' @param category Character. Category of manifest to build. Options: "cohorts" or "conceptSets"
+#' @param projectPath Character. Path to the project root (defaults to current project)
+#' @param open Logical. Whether to open the file after creating it (default TRUE)
+#' @return Invisibly returns the template content as a character string
+#' @details
+#' Builder scripts are organized in two main pre-pipeline directories:
+#'   - inputs/cohorts/R/: Scripts for loading and building cohorts
+#'   - inputs/conceptSets/R/: Scripts for loading and building concept sets
+#'
+#' Available script types:
+#'   - importAtlas: Import definitions from ATLAS using manifest API
+#'   - importCapr: Build definitions programmatically using Capr
+#'   - importSql: Load custom SQL-based definitions
+#'   - buildDependentCohorts: Build derived cohorts (cohorts only)
+#'
+#' All scripts are sourced in sequence by main.R before the production pipeline executes.
+#' Users can delete unused scripts (e.g., if they only need ATLAS imports).
+#' @export
+#' @examples
+#' \dontrun{
+#' # Create a script for importing ATLAS cohorts
+#' makeLoadScript(type = "importAtlas", category = "cohorts")
+#'
+#' # Create a script for building Capr-based cohorts
+#' makeLoadScript(type = "importCapr", category = "cohorts")
+#'
+#' # Create a script for importing ATLAS concept sets
+#' makeLoadScript(type = "importAtlas", category = "conceptSets")
+#' }
+makeLoadScript <- function(type,
+                           category = c("cohorts", "conceptSets"),
+                           projectPath = here::here(),
+                           open = TRUE) {
+
+  # Validate arguments
+  category <- match.arg(category)
+  
+  # Define allowed types per category
+  allowedTypes <- list(
+    cohorts = c("importAtlas", "importCapr", "importSql", "buildDependentCohorts"),
+    conceptSets = c("importAtlas", "importCapr")
+  )
+  
+  if (!(type %in% allowedTypes[[category]])) {
+    cli::cli_abort(c(
+      "Invalid type {.val {type}} for category {.val {category}}",
+      "i" = "Allowed types for {.val {category}}: {.val {allowedTypes[[category]]}}"
+    ))
+  }
+  
+  # Build paths
+  builderFolderPath <- fs::path(projectPath, "inputs", category, "R")
+  fs::dir_create(builderFolderPath, recurse = TRUE)
+  
+  # Get study name from config
+  studyName <- config::get("projectName", file = fs::path(projectPath, "config.yml"))
+  
+  # Convert type to snake_case for filename
+  fileName <- snakecase::to_snake_case(type)
+  filePath <- fs::path(builderFolderPath, fileName, ext = "R")
+  
+  # Read template
+  templateFileName <- paste0("loadScript_", category, "_", type, ".R")
+  templatePath <- fs::path_package("picard", "templates", templateFileName)
+  
+  if (!fs::file_exists(templatePath)) {
+    cli::cli_abort("Template not found: {.file {templateFileName}}")
+  }
+  
+  # Read and populate template
+  loadScriptTemplate <- readr::read_file(templatePath) |>
+    glue::glue(
+      studyName = studyName,
+      author = "ADD AUTHOR NAME HERE",
+      description = "Edit this file to build and load your manifest"
+    )
+  
+  # Display message
+  txt <- glue::glue_col("Create {cyan {fileName}.R} in {yellow {fs::path_rel(builderFolderPath)}}")
+  cli::cat_bullet(
+    txt,
+    bullet = "tick",
+    bullet_col = "green"
+  )
+  
+  # Write the file
+  readr::write_file(x = loadScriptTemplate, file = filePath)
+  cli::cat_bullet(
+    "Builder script created: {.file {fs::path_rel(filePath)}}",
+    bullet = "bullet",
+    bullet_col = "green"
+  )
+  
+  if (open) {
+    rstudioapi::navigateToFile(file = filePath)
+    cli::cat_bullet(
+      "Opening builder script",
+      bullet = "info",
+      bullet_col = "blue"
+    )
+  }
+  
+  invisible(loadScriptTemplate)
+}

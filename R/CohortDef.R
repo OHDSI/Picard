@@ -17,8 +17,9 @@ CohortDef <- R6::R6Class(
     .category = NULL,
     .tags = NULL,
     .filePath = NULL,
+    .fileHash = NULL,
     .sql = NULL,
-    .hash = NULL,
+    .sqlHash = NULL,
     .id = NULL,
     .sourceType = NULL,
     .cohortType = "circe",
@@ -51,8 +52,11 @@ CohortDef <- R6::R6Class(
         stop("File must be either .sql or .json, got: .", file_ext)
       }
 
+      # Compute file hash from raw file content (as-is on disk)
+      file_content <- readr::read_file(filePath)
+      private$.fileHash <- rlang::hash(file_content)
       # Create hash of SQL string
-      private$.hash <- rlang::hash(private$.sql)
+      private$.sqlHash <- rlang::hash(private$.sql)
     }
   ),
 
@@ -98,11 +102,18 @@ CohortDef <- R6::R6Class(
       private$.sql
     },
 
+    #' Get the file hash
+    #'
+    #' @return Character. MD5 hash of the raw file content on disk.
+    getFileHash = function() {
+      private$.fileHash
+    },
+
     #' Get the SQL hash
     #'
-    #' @return Character. MD5 hash of the current SQL definition.
-    getHash = function() {
-      private$.hash
+    #' @return Character. MD5 hash of the normalized SQL definition (line endings standardized).
+    getSqlHash = function() {
+      private$.sqlHash
     },
 
     #' Get the cohort ID

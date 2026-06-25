@@ -1,13 +1,54 @@
-# Loading Inputs: Cohorts and Concept Sets
+# Loading Inputs: Pre-Pipeline Builder Scripts
 
 ## Introduction
 
 Before running your study pipeline, you need to define the populations and phenotypes your analysis will use. Picard organizes these through two key input types:
 
-- **Cohorts:** Define study populations, comparators, and outcomes as CIRCE-based JSON definitions or custom SQL
-- **Concept Sets:** Define phenotypes for diseases, exposures, covariates, etc. as CIRCE-based JSON definitions
+- **Cohorts:** Define study populations, comparators, and outcomes as CIRCE-based JSON definitions, programmatic Capr definitions, or custom SQL
+- **Concept Sets:** Define phenotypes for diseases, exposures, covariates, etc. as CIRCE-based JSON definitions or programmatic Capr definitions
 
-Picard uses *manifests* to catalog, version, and track these definitions throughout your study. This document walks through the complete workflow for loading and managing cohorts and concept sets.
+Picard uses *manifests* to catalog, version, and track these definitions throughout your study. This document walks through the complete workflow for loading and managing cohorts and concept sets using **pre-pipeline builder scripts**.
+
+## Pre-Pipeline Builder Scripts Overview
+
+Every Picard study is initialized with a set of **builder scripts** in dedicated folders:
+
+- **`inputs/conceptSets/R/`** — Scripts for building concept set manifests
+- **`inputs/cohorts/R/`** — Scripts for building cohort manifests
+
+These scripts are **pre-populated** with templates for six different builder types:
+
+### Concept Set Builders
+
+| Script | Purpose |
+|---|---|
+| `importAtlas.R` | Bulk import concept sets from ATLAS via CSV + WebAPI connection |
+| `importCapr.R` | Build concept sets programmatically using Capr cs() functions |
+
+### Cohort Builders
+
+| Script | Purpose |
+|---|---|
+| `importAtlas.R` | Bulk import cohorts from ATLAS via CSV + WebAPI connection |
+| `importCapr.R` | Build cohorts programmatically using Capr library |
+| `importSql.R` | Load custom SQL-based cohorts |
+| `buildDependentCohorts.R` | Create derived cohorts (temporal, union, complement, etc.) |
+
+## How Builder Scripts Work
+
+1. **Project initializes** with all 6 builder scripts pre-created in their respective folders
+2. **You choose which builders to use** by editing or deleting scripts:
+   - **Keep scripts** you need (e.g., if using ATLAS only, keep `importAtlas.R`)
+   - **Delete scripts** you don't need (e.g., if not using Capr, delete `importCapr.R`)
+3. **Run `main.R`** which calls `sourceBuilderScripts()`
+4. **Auto-discovery:** Remaining scripts are automatically discovered and sourced in order:
+   - Concept set builders run first (importAtlas, then importCapr)
+   - Cohort builders run second (importAtlas, importCapr, importSql, buildDependentCohorts)
+5. **Manifests load** — Your cohorts and concept sets are ready for the pipeline
+
+Each builder script is self-contained with embedded guidance comments for its workflow.
+
+> **⚠️ Important:** Builder scripts belong in `inputs/cohorts/R/` and `inputs/conceptSets/R/` — **NOT** in `analysis/tasks/`
 
 ## Manifest Overview
 
@@ -20,33 +61,40 @@ A manifest is a SQLite database that catalogs and tracks definitions. For each c
 
 Manifests enable reproducibility and change tracking as your study evolves.
 
-## Working with Cohorts
+---
 
-The cohort workflow has several key steps:
+## Builder Pattern 1: ATLAS Import
 
-### Step 1: Create or Update Cohorts Load File (Optional)
+### Importing Concept Sets from ATLAS
 
-The `cohortsLoad.csv` file provides metadata for organizing and enriching your cohorts. You can create a blank template or edit it interactively:
+Edit `inputs/conceptSets/R/importAtlas.R`:
 
-**Option A: Create a blank template**
+**Step 1:** Initialize the manifest
 
 ```r
-createBlankCohortsLoadFile(cohortsFolderPath = here::here("inputs/cohorts"))
+conceptSetManifest <- initConceptSetManifest()
 ```
 
-This creates `inputs/cohorts/cohortsLoad.csv` with columns: `atlasId`, `label`, `category`, `subCategory`, `file_name`
+This creates `inputs/conceptSets/conceptSetManifest.sqlite` if needed.
 
-Edit this file in Excel to add your cohort entries.
+**Step 2:** Create and fill the load file
 
-### Step 2: Import Cohort Definitions from ATLAS
+```r
+createBlankConceptSetsLoadFile()
+```
 
-#### Setting up Atlas Credentials
+Opens `inputs/conceptSets/conceptSetsLoad.csv`. Fill in one row per concept set:
 
-Before connecting to ATLAS, store your credentials securely using the secrets management system. This authenticates your connection to the ATLAS WebAPI.
+| Column | Required | Notes |
+|---|---|---|
+| `atlasId` | Yes | ATLAS concept set ID |
+| `label` | Yes | Display name |
+| `domain` | Yes | OMOP domain (e.g., `drug_exposure`, `condition_occurrence`) |
+| `sourceCode` | No | `TRUE`/`FALSE` — whether it includes source codes |
 
-**Step 1: Set up credentials in secrets.yml**
+**Step 3:** Set up ATLAS Credentials
 
-Use the `setupAtlasSecretsKeyring()` or `editSecrets()` function to configure ATLAS credentials:
+Before connecting to ATLAS, store your credentials securely using the secrets management system:
 
 ```r
 # Interactive setup for Atlas credentials - guides you through keyring storage
@@ -56,7 +104,7 @@ setupAtlasSecretsKeyring()
 editSecrets()
 ```
 
-This creates/updates `~/.picard/secrets.yml` with your credentials stored securely. The file should contain an `atlas` section like this:
+This creates/updates `~/.picard/secrets.yml`:
 
 ```yaml
 atlas:
@@ -66,208 +114,372 @@ atlas:
   password: !expr keyring::key_get(service = "picard", username = "atlasPassword")
 ```
 
-You can store credentials three ways:
-- **Plaintext** (not recommended): `password: "YourPassword"`
-- **Keyring** (recommended): `password: !expr keyring::key_get(service = "picard", username = "atlasPassword")`
-- **Environment variable**: `password: !expr Sys.getenv("ATLAS_PASSWORD")`
+Recommended: Use **Keyring** to store passwords securely instead of plaintext.
 
-**Step 2: Connect and import**
-
-Once credentials are configured in secrets.yml, connect to ATLAS and download cohort definitions:
+**Step 4:** Connect to ATLAS and import
 
 ```r
-# Credentials are automatically read from ~/.picard/secrets.yml
-atlasConn <- getAtlasConnection()
+atlasConnection <- getAtlasConnection()
 
-importAtlasCohorts(
-  cohortsFolderPath = here::here("inputs/cohorts"),
-  atlasConnection = atlasConn
+conceptSetManifest$setAtlasConnection(atlasConnection)
+
+# Read the CSV file
+conceptSetsLoad <- readr::read_csv(
+  here::here("inputs/conceptSets/conceptSetsLoad.csv"),
+  show_col_types = FALSE
+)
+
+# Import
+conceptSetManifest$importAtlasConceptSets(
+  conceptSetsLoad = conceptSetsLoad,
+  atlasConnection = atlasConnection
 )
 ```
 
-This downloads JSON definitions to `inputs/cohorts/json/` and updates your manifest with metadata.
+This downloads JSON definitions to `inputs/conceptSets/json/` and updates your manifest.
 
-### Step 3: Load the Cohort Manifest
+**Tip:** You can build the dataframe programmatically instead of reading a CSV, which is useful for dynamic workflows.
 
-Load the manifest to access all cohort definitions in your study:
+**Step 5:** Load and review
 
 ```r
-cm <- loadCohortManifest()
+conceptSetManifest <- loadConceptSetManifest()
+conceptSetManifest$tabulateManifest()
 ```
 
-### Step 4: Review and Validate Manifests
+### Importing Cohorts from ATLAS
 
-Examine the cohorts that were loaded:
+Edit `inputs/cohorts/R/importAtlas.R`:
+
+**Step 1:** Initialize the manifest
 
 ```r
-# View manifest list (metadata for all cohorts)
-manifest_df <- cm$getManifest()
-
-# Or get a formatted summary
-summary_df <- cm$tabulateManifest()
-
-# Query specific cohorts
-cohort_1 <- cm$queryCohortsByIds(ids = 1L)
-cohorts_by_tag <- cm$queryCohortsByTag(tagStrings = "category: Primary")
+cohortManifest <- initCohortManifest()
 ```
 
-### Step 5: Apply Functions for Cohort Operations
-
-Once manifests are loaded, you need `ExecutionSettings` to interact with the database:
+**Step 2:** Create and fill the load file
 
 ```r
-# Create execution settings for a specific database
-settings <- createExecutionSettingsFromConfig(configBlock = "my_cdm")
-
-# Set execution settings on the manifest
-cm$setExecutionSettings(settings)
-
-# Create cohort tables in the database
-cm$createCohortTables()
-
-# Generate cohort populations
-cm$generateCohorts()
-
-# Get cohort counts
-counts <- cm$retrieveCohortCounts()
-print(counts)
+createBlankCohortsLoadFile()
 ```
 
-## Building Dependent Cohorts
+Opens `inputs/cohorts/cohortsLoad.csv`. Fill in one row per cohort:
 
-Beyond base cohorts (imported from ATLAS or written as SQL), you can define dependent cohorts that derive from other cohorts using demographic or temporal constraints. This is useful for subpopulation analyses.
+| Column | Required | Notes |
+|---|---|---|
+| `atlasId` | Yes | ATLAS cohort definition ID |
+| `label` | Yes | Display name |
+| `category` | Yes | Broad grouping (e.g., `"Disease Populations"`) |
+| `subCategory` | No | Optional sub-grouping |
 
-### Temporal Subset Cohorts
+**Step 3:** Set up ATLAS Credentials
 
-Build cohorts based on temporal relationships between events. Example: "Chronic Kidney Disease (CKD) in patients with prior Type 2 Diabetes":
+Use the same `setupAtlasSecretsKeyring()` or `editSecrets()` as for concept sets.
+
+**Step 4:** Connect to ATLAS and import
 
 ```r
-ckd_given_t2d <- buildSubsetCohortTemporal(
-  label = "CKD given prior T2D",
-  baseCohortId = 1,          # CKD is the outcome
-  filterCohortId = 2,        # Must have T2D
-  temporalOperator = "before",
-  temporalStartOffset = 365, # Within 1 year before CKD
-  manifest = cm
+atlasConnection <- getAtlasConnection()
+
+cohortManifest$setAtlasConnection(atlasConnection)
+
+# Read the CSV file
+cohortsLoad <- readr::read_csv(
+  here::here("inputs/cohorts/cohortsLoad.csv"),
+  show_col_types = FALSE
+)
+
+# Import
+cohortManifest$importAtlasCohorts(
+  cohortsLoad = cohortsLoad,
+  atlasConnection = atlasConnection
 )
 ```
 
-### Demographic Subset Cohorts
+**Tip:** You can build the dataframe programmatically instead of reading a CSV, which is useful for dynamic workflows.
 
-Build cohorts based on demographic characteristics. Example: "CKD in males only":
-
-```r
-ckd_males <- buildSubsetCohortDemographic(
-  label = "CKD Males",
-  baseCohortId = 1,                  # CKD population
-  genderConceptIds = c(8507),        # 8507 = Male
-  manifest = cm
-)
-```
-
-Example: "CKD in adults (18+) only":
+**Step 5:** Load and review
 
 ```r
-ckd_adults <- buildSubsetCohortDemographic(
-  label = "CKD Adults",
-  baseCohortId = 1,
-  minAge = 18,
-  manifest = cm
-)
+cohortManifest <- loadCohortManifest()
+cohortManifest$tabulateManifest()
 ```
 
-### Union and Complement Cohorts
+### Checking for ATLAS Changes (Mid-Cycle)
 
-Combine multiple cohorts or create exclusions:
+After the initial import, you can periodically check whether definitions in ATLAS have been updated.
 
-**Union:** Patients in either CKD OR Diabetes:
+**Phase 1: Detection** — Compare remote ATLAS hashes to stored local hashes:
 
 ```r
-ckd_or_t2d <- buildUnionCohort(
-  label = "CKD or Type 2 Diabetes",
-  cohortIds = c(1, 2),
-  manifest = cm
-)
+# For concept sets
+conceptSetManifest$checkAtlasConceptSets(atlasConnection)
+
+# For cohorts
+cohortManifest$checkAtlasCohorts(atlasConnection)
 ```
 
-**Complement:** All patients NOT in a cohort:
+**Phase 2: Update** — Download updated definitions and re-write JSON files:
 
 ```r
-no_ckd <- buildComplementCohort(
-  label = "No Chronic Kidney Disease",
-  cohortId = 1,
-  manifest = cm
-)
+# For concept sets
+conceptSetManifest$updateAtlasConceptSets(atlasConnection)
+
+# For cohorts
+cohortManifest$updateAtlasCohorts(atlasConnection)
 ```
 
-### Outcome-Prior-Target and Target-Prior-Outcome Cohorts
-
-Filter a cohort based on the existence (or absence) of a prior event in another cohort.
-
-**O prior T:** Outcome events where a prior target event exists (e.g., GI bleeds with prior NSAID use):
-
-```r
-gi_bleed_prior_nsaid <- cm$buildOPriorT(
-  label = "GI Bleed - Prior NSAID",
-  outcomeCohortId = 1,        # GI bleed
-  targetCohortId = 2,         # NSAID use
-  mode = "prior",              # "prior" or "no_prior"
-  priorTimeWindowDays = 365,   # only NSAID within 365d before GI bleed
-  subsetLimit = "Last",        # use most recent NSAID event
-  category = "Outcomes"
-)
-```
-
-**T prior O:** Target events where a prior outcome exists (e.g., NSAID initiations after prior GI bleed):
-
-```r
-nsaid_after_gi_bleed <- cm$buildTPriorO(
-  label = "NSAID - Prior GI Bleed",
-  targetCohortId = 2,         # NSAID use
-  outcomeCohortId = 1,        # GI bleed
-  mode = "prior",
-  priorTimeWindowDays = NULL,  # all time
-  subsetLimit = "First",       # earliest prior GI bleed
-  category = "Exposures"
-)
-```
-
-### Censor Cohort
-
-Truncate cohort end dates based on a censoring event. Example: censor an NSAID exposure cohort at the date of death:
-
-```r
-nsaid_censored_death <- cm$buildCensorCohort(
-  label = "NSAID - Censored at Death",
-  targetCohortId = 2,        # NSAID use
-  censorCohortId = 3,         # Death cohort
-  category = "Exposures"
-)
-```
-
-> **Note:** All `build*` functions require a `manifest` argument and automatically register the new cohort via `addDependentCohort()` — no separate call is needed.
-
-### Visualizing Dependencies
-
-Once you've defined dependent cohorts, visualize the relationship graph:
-
-```r
-# Generate a dependency report (Mermaid diagram + table)
-report <- visualizeCohortDependencies(cm)
-
-# Optionally save to file
-visualizeCohortDependencies(cm, outputPath = here::here("inputs/cohorts"))
-```
+Updates cascade a `'stale'` status to any downstream dependent cohorts so they will be re-executed on the next pipeline run.
 
 ---
 
-## Managing the Manifest Mid-Cycle
+## Builder Pattern 2: Capr-Based Building
 
-Study development is rarely linear. Cohorts get revised in ATLAS, new definitions get added mid-analysis, or old definitions are retired. Use these methods to keep the manifest in sync without reloading from scratch.
+### Building Concept Sets with Capr
+
+Edit `inputs/conceptSets/R/importCapr.R` (requires `Capr` package installed):
+
+Capr provides an R interface for building OMOP concept sets programmatically:
+
+```r
+library(Capr)
+
+conceptSetManifest <- loadConceptSetManifest()
+
+# Example 1: Diabetes mellitus concepts
+diabetesConcepts <- cs(
+  descendants(201820),  # Type 2 diabetes mellitus
+  descendants(443238)   # Insulin-dependent diabetes mellitus
+)
+conceptSetManifest$addCaprConceptSet(
+  conceptSetName = "Diabetes",
+  conceptSet = diabetesConcepts
+)
+
+# Example 2: Antidiabetic drugs with source codes
+antidiabeticDrugs <- cs(
+  descendants(21600960),  # Metformin
+  descendants(21601389),  # Sulfonylureas
+  descendants(21602722),  # SGLT2 inhibitors
+  sourceCode = TRUE
+)
+conceptSetManifest$addCaprConceptSet(
+  conceptSetName = "AntidiabeticDrugs",
+  conceptSet = antidiabeticDrugs
+)
+
+# Example 3: Statins (cardiovascular medications)
+statins <- cs(
+  descendants(21602484),  # Statins
+  excludeDescendants(21602721)  # Exclude specific combination
+)
+conceptSetManifest$addCaprConceptSet(
+  conceptSetName = "Statins",
+  conceptSet = statins
+)
+```
+
+See the [Capr documentation](https://ohdsi.github.io/Capr/) for detailed syntax, including `ancestors()`, `descendants()`, `maps()`, `excludeDescendants()`, and more complex concept set definitions.
+
+### Building Cohorts with Capr
+
+Edit `inputs/cohorts/R/importCapr.R` (requires `Capr` package installed):
+
+Capr provides a fluent interface for building cohort definitions in R:
+
+```r
+library(Capr)
+
+cohortManifest <- loadCohortManifest()
+
+# Example: Type 2 Diabetes cohort with HbA1c measurement
+t2dCohort <- cohort(
+  entry = entry(
+    condition(
+      descendants(201820),  # Type 2 diabetes
+      on = "conditionStart"
+    ) %>%
+      filter(
+        relationshipDomain(
+          "measurement",
+          descendants(3002962)  # HbA1c measurement
+        ),
+        duringInterval(daysBefore = 365, daysAfter = 1)
+      )
+  ),
+  attrition(
+    "No prior T2D",
+    !condition(descendants(201820), on = "conditionStart") %>%
+      during(daysBefore = 365)
+  )
+)
+
+cohortManifest$addCaprCohort(
+  cohortName = "Type2Diabetes_HbA1c",
+  cohort = t2dCohort
+)
+
+# Example: CKD cohort with specific lab values
+ckdCohort <- cohort(
+  entry = entry(
+    condition(
+      descendants(193782)  # CKD
+    )
+  ),
+  attrition(
+    "At least one eGFR measurement",
+    measurement(
+      descendants(3048943)  # eGFR
+    )
+  )
+)
+
+cohortManifest$addCaprCohort(
+  cohortName = "ChronicKidneyDisease",
+  cohort = ckdCohort
+)
+```
+
+See the [Capr documentation](https://ohdsi.github.io/Capr/) for detailed examples of entry, attrition, filter, and temporal operators.
+
+---
+
+## Builder Pattern 3: Custom SQL Cohorts
+
+Edit `inputs/cohorts/R/importSql.R`:
+
+Custom SQL cohorts let you define cohorts using hand-written SQL queries. Place your SQL files in `inputs/cohorts/sql/`:
+
+```r
+cohortManifest <- loadCohortManifest()
+
+# Add a custom SQL cohort
+cohortManifest$addSqlCohort(
+  cohortName = "MyCustomCohort",
+  sqlPath = here::here("inputs/cohorts/sql/my_custom_cohort.sql"),
+  # SqlRender parameters (will substitute @param in the SQL file)
+  targetCohortId = 1001,
+  cdmDatabaseSchema = "cdm"
+)
+
+# Add another custom cohort
+cohortManifest$addSqlCohort(
+  cohortName = "AnotherCohort",
+  sqlPath = here::here("inputs/cohorts/sql/another_cohort.sql"),
+  targetCohortId = 1002,
+  cdmDatabaseSchema = "cdm"
+)
+```
+
+SQL files must follow SqlRender conventions with parameters prefixed by `@`:
+
+```sql
+-- Cohort: Patients with Type 2 Diabetes
+DELETE FROM @target_database_schema.cohort
+WHERE cohort_definition_id = @target_cohort_id;
+
+INSERT INTO @target_database_schema.cohort
+  (cohort_definition_id, subject_id, cohort_start_date, cohort_end_date)
+SELECT
+  @target_cohort_id as cohort_definition_id,
+  person_id as subject_id,
+  condition_start_date as cohort_start_date,
+  DATEADD(day, 365, condition_start_date) as cohort_end_date
+FROM @cdm_database_schema.condition_occurrence
+WHERE condition_concept_id IN (201820, 443238)  -- T2D concept IDs
+  AND condition_start_date >= '2015-01-01';
+```
+
+Key SqlRender parameters:
+- `@target_cohort_id` — The numeric ID for your cohort
+- `@target_database_schema` — The schema where results will be written
+- `@cdm_database_schema` — The CDM database schema location
+- `@vocabulary_database_schema` — The vocabulary schema location
+
+> Always use `DELETE` before `INSERT` to make your cohort idempotent (can be re-run without duplication).
+
+---
+
+## Builder Pattern 4: Dependent Cohorts
+
+Edit `inputs/cohorts/R/buildDependentCohorts.R`:
+
+Derived cohorts are relationships between existing base cohorts. All base cohorts must be imported first (via ATLAS, Capr, or SQL).
+
+```r
+cohortManifest <- loadCohortManifest()
+
+# Ensure base cohorts exist:
+# - CohortId 1: Chronic Kidney Disease
+# - CohortId 2: Type 2 Diabetes
+
+# Example 1: Temporal - CKD in patients with prior T2D
+cohortManifest$buildSubsetCohortTemporal(
+  baseCohortId = 1,
+  subsetParent = 2,
+  temporalType = "prior",
+  daysBefore = 365,
+  daysAfter = 0,
+  newCohortName = "CKD_With_Prior_T2D"
+)
+
+# Example 2: Union - CKD or T2D patients
+cohortManifest$buildUnionCohort(
+  cohortIds = c(1, 2),
+  newCohortName = "CKD_or_T2D"
+)
+
+# Example 3: Complement - CKD without T2D
+cohortManifest$buildComplementCohort(
+  baseCohortId = 1,
+  excludeCohortId = 2,
+  newCohortName = "CKD_Without_T2D"
+)
+
+# Example 4: O-Prior-T - Outcome prior to treatment
+# (Outcome cohort excludes those with outcome before/during treatment)
+cohortManifest$buildOPriorTCohort(
+  outcomeCohortId = 3,
+  treatmentCohortId = 2,
+  daysBefore = 30,
+  newCohortName = "Outcome_Prior_to_Treatment"
+)
+
+# Example 5: T-Prior-O - Treatment prior to outcome
+cohortManifest$buildTPriorOCohort(
+  targetCohortId = 2,
+  outcomeCohortId = 3,
+  daysBefore = -365,  # outcome must start 1+ years after target
+  newCohortName = "Treatment_With_Subsequent_Outcome"
+)
+
+# Example 6: Censor - Truncate cohort at censoring event
+cohortManifest$buildCensorCohort(
+  baseCohortId = 2,
+  censorCohortId = 4,  # death cohort
+  newCohortName = "Treatment_Censored_at_Death"
+)
+```
+
+Relationship types:
+- **Temporal:** Base cohort with another cohort before/after
+- **Union:** Combine multiple cohorts
+- **Complement:** Base cohort excluding another cohort
+- **O-Prior-T:** Outcome before treatment starts
+- **T-Prior-O:** Treatment before outcome
+- **Censor:** Cohort with censoring date
+
+---
+
+## Managing Manifests: Mid-Cycle Changes
+
+Study development is rarely linear. Cohorts get revised in ATLAS, new definitions get added mid-analysis, or old definitions are retired. Use these methods to keep the manifest in sync.
 
 ### Checking Manifest Health
 
 ```r
+cm <- loadCohortManifest()
+
 # Full status table: id, label, status, deleted_at, file_exists
 cm$validateManifest()
 
@@ -276,14 +488,9 @@ cm$getManifestStatus()
 # Returns: active_count, missing_count, deleted_count, next_available_id
 ```
 
-### syncManifest()
+### Syncing Manifest
 
-Reconciles the SQLite manifest against `json/` and `sql/` on disk in a single call:
-
-- **New files** found on disk → added as new manifest entries
-- **Active records** whose file has disappeared → soft-deleted (`status = 'deleted'`)
-- **Existing files** whose SQL hash has changed → hash updated in manifest
-- **Derived cohorts** (`derived/`) are not touched
+Reconciles the SQLite manifest against `json/` and `sql/` on disk:
 
 ```r
 synced <- cm$syncManifest()
@@ -293,89 +500,56 @@ synced <- cm$syncManifest()
 
 Use after: re-running `importAtlasCohorts()`, editing a SQL file directly, or deleting a cohort file.
 
-### deleteCohort() and removeCohort()
+### Deleting Definitions
 
 ```r
-# Soft-delete: marks status = 'deleted', keeps the record for audit trail
-cm$deleteCohort(id = 5, reason = "Replaced by updated phenotype")
+cm <- loadCohortManifest()
 
-# Hard delete: permanently removes the SQLite record (no soft-delete trace)
-cm$removeCohort(id = 5, confirm = TRUE)
+# Soft-delete: marks status = 'deleted' with timestamp, keeps record for audit trail
+cm$deleteCohort(id = 5, confirm = TRUE)
 
-# Also delete the file on disk
-cm$removeCohort(id = 5, deleteFile = TRUE, confirm = TRUE)
+# Also drop rows from DBMS cohort table
+cm$deleteCohort(id = 5, dropFromDBMS = TRUE, confirm = TRUE)
 
-# Also drop rows from the DBMS cohort and checksum tables (requires executionSettings)
-cm$removeCohort(id = 5, deleteFile = TRUE, dropFromCohortTable = TRUE, confirm = TRUE)
-```
-
-### cleanCohortTable()
-
-Purges DBMS rows for all `status = 'deleted'` cohorts, then marks them `'purged'` in SQLite. Requires `executionSettings`.
-
-```r
-cm$setExecutionSettings(settings)
-purge_results <- cm$cleanCohortTable()
-# Returns data frame: id, label for each purged cohort
-# Safe to call repeatedly — 'purged' records are skipped on subsequent calls
-```
-
-### Typical Mid-Cycle Workflow
-
-```r
-# 1. Re-import updated cohorts from ATLAS
-importAtlasCohorts(cohortsFolderPath = here::here("inputs/cohorts"), atlasConnection = atlasConn)
-
-# 2. Sync the manifest
-synced <- cm$syncManifest()
-synced[synced$action != "unchanged", ]  # review what changed
-
-# 3. Retire a cohort no longer needed
-cm$deleteCohort(id = 7, reason = "Out of scope for v2")
-
-# 4. Purge the retired cohort from DBMS
-cm$setExecutionSettings(settings)
-cm$cleanCohortTable()
-
-# 5. Re-generate to pick up revisions
-cm$generateCohorts()
-```
-
----
-
-## Working with Concept Sets
-
-The concept set workflow is similar to cohorts with slightly different organization.
-
-### Step 1: Create or Update Concept Sets Load File
-
-Create metadata for organizing your concept sets:
-
-```r
-createBlankConceptSetsLoadFile(conceptSetsFolderPath = here::here("inputs/conceptSets"))
-```
-
-### Step 2: Import Concept Sets from ATLAS
-
-```r
-atlasConn <- getAtlasConnection()
-
-importAtlasConceptSets(
-  conceptSetsFolderPath = here::here("inputs/conceptSets"),
-  atlasConnection = atlasConn
-)
-```
-
-### Step 3: Load and Review
-
-```r
+# For concept sets
 csm <- loadConceptSetManifest()
+csm$deleteConceptSet(id = 5, confirm = TRUE)
+```
+
+All deletions are soft deletes — the SQLite record is preserved with a `deleted_at` 
+timestamp for audit purposes. The deleted definition is excluded from all manifest 
+operations.
+
+### Querying and Reviewing Manifests
+
+```r
+cm <- loadCohortManifest()
 
 # View manifest
-manifest_df <- csm$tabulateManifest()
+manifest_df <- cm$tabulateManifest()
 
-# Query by concept
-malaria_concepts <- csm$queryConceptSetsByIds(1L)
+# Query specific cohorts by ID
+cohort_1 <- cm$queryCohortsByIds(ids = 1L)
+
+# Query by tag or category
+cohorts_by_tag <- cm$queryCohortsByTag(tagStrings = "category: Primary")
+
+# Query by status
+missing_cohorts <- cm$queryCohortsByStatus(status = "missing")
+```
+
+### Visualizing Dependencies
+
+Once you've defined dependent cohorts, visualize the relationship graph:
+
+```r
+cm <- loadCohortManifest()
+
+# Generate a dependency report (Mermaid diagram + table)
+report <- cm$visualizeCohortDependencies()
+
+# Optionally save to file
+cm$visualizeCohortDependencies(outputPath = here::here("inputs/cohorts"))
 ```
 
 ---
@@ -385,68 +559,62 @@ malaria_concepts <- csm$queryConceptSetsByIds(1L)
 ```
 inputs/
 ├── cohorts/
-│   ├── cohortsLoad.csv           # Metadata file
-│   └── json/                     # ATLAS JSON exports
-│       ├── cohort_1.json
-│       └── cohort_2.json
+│   ├── R/                        # Builder scripts (auto-sourced)
+│   │   ├── importAtlas.R
+│   │   ├── importCapr.R
+│   │   ├── importSql.R
+│   │   └── buildDependentCohorts.R
+│   ├── json/                     # ATLAS JSON exports
+│   │   ├── cohort_1.json
+│   │   └── cohort_2.json
+│   ├── sql/                      # Custom SQL cohorts
+│   │   ├── my_custom_cohort.sql
+│   │   └── another_cohort.sql
+│   ├── cohortsLoad.csv           # Metadata for ATLAS import
+│   └── cohortManifest.sqlite     # Manifest database
+│
 └── conceptSets/
-    ├── conceptSetsLoad.csv        # Metadata file
-    └── json/                      # ATLAS JSON exports
-        ├── concept_set_1.json
-        └── concept_set_2.json
-
-extras/
-├── cohort_helpers.R              # Custom helper functions for cohort operations
-├── concept_set_utilities.R       # Custom utilities for concept set work
-└── ...                           # Any other scripts or explorations
-
-analysis/src/
-├── functions.R                   # Functions that correspond to analysis tasks only
-└── sql/                          # SQL templates for analysis tasks
+    ├── R/                        # Builder scripts (auto-sourced)
+    │   ├── importAtlas.R
+    │   └── importCapr.R
+    ├── json/                     # ATLAS JSON exports
+    │   ├── concept_set_1.json
+    │   └── concept_set_2.json
+    ├── conceptSetsLoad.csv       # Metadata for ATLAS import
+    └── conceptSetManifest.sqlite # Manifest database
 ```
-
-## Where to Put Helper Functions
-
-- **Helper functions for cohort/concept set work:** `extras/` folder
-  - Custom functions for validating definitions
-  - Scripts for exploring or processing manifests
-  - One-off analyses or data exploration scripts
-  - Development and testing scripts
-
-- **Functions in `analysis/src/`:** Reserved for functions that directly support **analysis tasks**
-  - Functions called by task scripts in `analysis/tasks/`
-  - SQL query builders or result processors
-  - Pipeline-specific utilities
-
-Keep development and exploration code in `extras/` to maintain a clean separation between exploratory work and production analysis pipeline code.
 
 ---
 
-## Manifest Database Structure
+## Workflow Summary
 
-Manifests are SQLite databases storing:
+1. **Review builder scripts** in `inputs/cohorts/R/` and `inputs/conceptSets/R/`
+   - Each script has embedded guidance comments
+   - Edit scripts for your specific workflow
 
-- **ID:** Unique identifier for each definition
-- **Name/Label:** Human-readable name
-- **File path:** Where the definition JSON/SQL is stored
-- **Hash:** MD5 hash for detecting changes
-- **Status:** Current state (new, modified, deleted, executed)
-- **Metadata:** Custom tags and categories
+2. **Delete unused builders**
+   - Remove scripts you don't need
+   - Keep only importAtlas.R if only using ATLAS
+   - Keep only importCapr.R if only using Capr
 
-The manifest enables:
-- **Change tracking:** Detects when definitions are modified
-- **Version history:** Traces which version produced which results
-- **Dependency management:** Tracks dependent cohorts and their relationships
-- **Validation:** Ensures all referenced definitions exist
+3. **Run `main.R`**
+   - Calls `sourceBuilderScripts()` which auto-discovers remaining scripts
+   - Concept set builders run first, cohort builders run second
+   - Manifests are populated and ready for analysis
+
+4. **Manage mid-cycle changes**
+   - Re-edit and re-run builder scripts as needed
+   - Use `syncManifest()` to keep manifests in sync with files
+   - Delete or soft-delete outdated definitions
 
 ---
 
 ## Next Steps
 
-1. **Define cohorts** - Import from ATLAS or create manually
-2. **Load manifest** - `cm <- loadCohortManifest()`
-3. **Create dependent cohorts** - Build subsets for analyses
-4. **Configure execution** - Set up database connection settings
-5. **Generate cohorts** - Run pipeline to generate populations in database
+1. **Edit pre-pipeline builders** — Customize scripts in `inputs/*/R/`
+2. **Run main.R** — Execute production pipeline
+3. **Review results** — Inspect generated cohorts and concept sets in manifests
+4. **Develop analysis tasks** — Write scripts in `analysis/tasks/`
+5. **Post-process** — Merge results across databases if needed
 
-See "Developing the Pipeline" for how to use these cohorts in your analysis tasks.
+See "Developing the Pipeline" for how to use cohorts in your analysis tasks.

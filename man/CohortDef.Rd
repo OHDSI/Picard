@@ -34,7 +34,8 @@ the generated SQL.
 \item \href{#method-CohortDef-new}{\code{CohortDef$new()}}
 \item \href{#method-CohortDef-getFilePath}{\code{CohortDef$getFilePath()}}
 \item \href{#method-CohortDef-getSql}{\code{CohortDef$getSql()}}
-\item \href{#method-CohortDef-getHash}{\code{CohortDef$getHash()}}
+\item \href{#method-CohortDef-getFileHash}{\code{CohortDef$getFileHash()}}
+\item \href{#method-CohortDef-getSqlHash}{\code{CohortDef$getSqlHash()}}
 \item \href{#method-CohortDef-getId}{\code{CohortDef$getId()}}
 \item \href{#method-CohortDef-setId}{\code{CohortDef$setId()}}
 \item \href{#method-CohortDef-formatTagsAsString}{\code{CohortDef$formatTagsAsString()}}
@@ -95,19 +96,32 @@ Get the generated SQL
 
 \subsection{Returns}{
 Character. The SQL definition of the cohort.
+Get the file hash
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortDef-getFileHash"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortDef-getFileHash}{}}}
+\subsection{Method \code{getFileHash()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortDef$getFileHash()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Character. MD5 hash of the raw file content on disk.
 Get the SQL hash
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-CohortDef-getHash"></a>}}
-\if{latex}{\out{\hypertarget{method-CohortDef-getHash}{}}}
-\subsection{Method \code{getHash()}}{
+\if{html}{\out{<a id="method-CohortDef-getSqlHash"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortDef-getSqlHash}{}}}
+\subsection{Method \code{getSqlHash()}}{
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortDef$getHash()}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortDef$getSqlHash()}\if{html}{\out{</div>}}
 }
 
 \subsection{Returns}{
-Character. MD5 hash of the current SQL definition.
+Character. MD5 hash of the normalized SQL definition (line endings standardized).
 Get the cohort ID
 }
 }
