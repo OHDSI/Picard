@@ -245,6 +245,78 @@ ConceptSetManifest <- R6::R6Class(
       }
     },
 
+    # Combine multiple Capr ConceptSet objects into a unified concept set
+    # Flattens and categorizes concepts: include, include+descendants, exclude, exclude+descendants
+    combine_capr_concept_sets = function(caprList, combinedLabel) {
+      if (!requireNamespace("Capr", quietly = TRUE)) {
+        cli::cli_abort("Package Capr is required to combine concept sets")
+      }
+      
+      # Initialize empty dataframe with expected columns
+      csDf <- data.frame(
+        conceptId = integer(),
+        conceptName = character(),
+        domainId = character(),
+        vocabularyId = character(),
+        standardConcept = character(),
+        includeDescendants = logical(),
+        isExcluded = logical(),
+        includeMapped = logical(),
+        stringsAsFactors = FALSE
+      )
+      
+      # Combine all Capr objects into a single dataframe
+      for (caprCs in caprList) {
+        cs <- tryCatch(
+          Capr:::as.data.frame(caprCs),
+          error = function(e) {
+            cli::cli_warn("Failed to convert Capr object: {e$message}")
+            return(NULL)
+          }
+        )
+        if (!is.null(cs)) {
+          csDf <- rbind(csDf, cs)
+        }
+      }
+      
+      if (nrow(csDf) == 0) {
+        cli::cli_abort("No concepts found in the provided concept sets")
+      }
+      
+      # Categorize concepts
+      concepts <- c()
+      desc <- c()
+      excl <- c()
+      excl_desc <- c()
+      
+      for (j in seq_len(nrow(csDf))) {
+        include_desc <- csDf$includeDescendants[j]
+        is_excl <- csDf$isExcluded[j]
+        concept_id <- csDf$conceptId[j]
+        
+        if (include_desc && !is_excl) {
+          desc <- c(desc, concept_id)
+        } else if (is_excl && !include_desc) {
+          excl <- c(excl, concept_id)
+        } else if (is_excl && include_desc) {
+          excl_desc <- c(excl_desc, concept_id)
+        } else if (!is_excl && !include_desc) {
+          concepts <- c(concepts, concept_id)
+        }
+      }
+      
+      # Build combined Capr ConceptSet
+      caprCs <- Capr::cs(
+        unique(concepts),
+        Capr::descendants(unique(desc)),
+        Capr::exclude(unique(excl)),
+        Capr::exclude(Capr::descendants(unique(excl_desc))),
+        name = combinedLabel
+      )
+      
+      return(caprCs)
+    },
+
     # Update concept set metadata (label, category, tags)
     update_concept_set_def = function(conceptSetId, label = NULL, category = NULL, tags = NULL) {
       checkmate::assert_int(conceptSetId)
@@ -509,7 +581,7 @@ ConceptSetManifest <- R6::R6Class(
 
       cs_name <- ifelse(!is.null(cs_def$saveName[1]) && cs_def$saveName[1] != "", cs_def$saveName[1], label)
       json_path <- fs::path(json_dir, paste0(cs_name, ".json"))
-      writeLines(expression_json, json_path)
+      readr::write_lines(expression_json, json_path) # make line ending always \\n
 
       cs_id <- private$insert_concept_set(
         label = label,
@@ -558,7 +630,7 @@ ConceptSetManifest <- R6::R6Class(
 
       safe_label <- gsub("[^a-zA-Z0-9_-]", "_", label)
       json_path <- fs::path(json_dir, paste0(safe_label, ".json"))
-      Capr::writeCohort(caprConceptSet, json_path)
+      Capr::writeConceptSet(caprConceptSet, json_path)
 
       cs_id <- private$insert_concept_set(
         label = label,
@@ -630,7 +702,7 @@ ConceptSetManifest <- R6::R6Class(
           concept_set_id <- self$addAtlasConceptSet(
             atlasId = row$atlasId,
             label = row$label,
-            category = row$category,
+            category = ifelse(is.na(row$category), "None", row$category),
             tags = additional_tags,
             atlasConnection = atlasConnection
           )
@@ -1106,7 +1178,128 @@ ConceptSetManifest <- R6::R6Class(
       
     },
 
-  
+    # ========== COMBINE CONCEPT SETS METHOD ==========
+
+    #' @description Combine multiple concept sets into a single unified concept set
+    #'
+    #' Loads multiple concept sets from the manifest as Capr objects, merges them
+    #' into a unified concept set using set logic (include, include+descendants, exclude,
+    #' exclude+descendants), exports the result as JSON, and registers it in the manifest.
+    #'
+    #' @param conceptSetIds Integer vector. IDs of concept sets to combine (minimum 2).
+    #' @param combinedLabel Character. Display name for the combined concept set.
+    #' @param combinedCategory Character. Category for the combined concept set.
+    #'   Defaults to `"combined"`.
+    #' @param combinedTags Named list. Optional metadata tags for the combined set.
+    #'   Defaults to `list()`. A tag `sourceConceptSetIds` is automatically added
+    #'   with comma-separated source IDs.
+    #'
+    #' @return Invisible integer. The ID of the newly created combined concept set.
+    #'
+    #' @details
+    #' **Processing Steps:**
+    #' 1. Validates that all concept set IDs exist and are active
+    #' 2. Loads each concept set JSON as a Capr object using `Capr::readConceptSet()`
+    #' 3. Combines them using set logic (private helper `combine_capr_concept_sets()`)
+    #' 4. Exports combined Capr object to JSON in `json/` directory
+    #' 5. Registers the new combined concept set in the manifest
+    #' 6. Returns the new concept set ID
+    #'
+    #' **Concept Set Combination Logic:**
+    #' - Includes: All included concepts across sets
+    #' - Descendants: All concepts marked with descendants
+    #' - Excludes: All excluded concepts (without descendants)
+    #' - Exclude+Descendants: All concepts to exclude with descendants
+    #'
+    #' **Requirements:**
+    #' - Capr package must be installed
+    #' - All source concept sets must be active and have valid JSON files
+    #'
+    combineConceptSets = function(conceptSetIds, 
+                                  combinedLabel,
+                                  combinedCategory = "combined",
+                                  combinedTags = list()) {
+      if (!requireNamespace("Capr", quietly = TRUE)) {
+        cli::cli_abort(c(
+          "Package {.pkg Capr} is required for combineConceptSets().",
+          i = "Install with: {.code remotes::install_github('ohdsi/Capr')}"
+        ))
+      }
+      
+      # Validation
+      checkmate::assert_integerish(conceptSetIds, min.len = 2)
+      conceptSetIds <- as.integer(conceptSetIds)
+      checkmate::assert_string(combinedLabel, min.chars = 1)
+      checkmate::assert_string(combinedCategory, min.chars = 1)
+      checkmate::assert_list(combinedTags, names = "named")
+      
+      # Verify all concept set IDs exist
+      cli::cli_rule("Combining {length(conceptSetIds)} Concept Sets")
+      cli::cli_alert_info("Source IDs: {paste(conceptSetIds, collapse = ', ')}")
+      
+      for (cs_id in conceptSetIds) {
+        cs_def <- self$getConceptSetById(cs_id)
+        if (is.null(cs_def)) {
+          cli::cli_abort("Concept set {cs_id} not found in manifest")
+        }
+      }
+      
+      cli::cli_alert_success("All source concept sets validated")
+      
+      # Load Capr objects
+      cli::cli_alert_info("Loading Capr concept sets...")
+      caprList <- list()
+      
+      for (cs_id in conceptSetIds) {
+        cs_def <- self$getConceptSetById(cs_id)
+        filePath <- cs_def$getFilePath()
+        
+        tryCatch({
+          caprCs <- Capr::readConceptSet(filePath)
+          caprList[[length(caprList) + 1]] <- caprCs
+          cli::cli_alert_success("  [{cs_id}] {cs_def$label}")
+        }, error = function(e) {
+          cli::cli_abort("Failed to load concept set {cs_id} ({cs_def$label}): {e$message}")
+        })
+      }
+      
+      # Combine concept sets
+      cli::cli_alert_info("Combining concept sets...")
+      combinedCaprCs <- tryCatch({
+        private$combine_capr_concept_sets(caprList, combinedLabel)
+      }, error = function(e) {
+        cli::cli_abort("Failed to combine concept sets: {e$message}")
+      })
+      
+      cli::cli_alert_success("Concepts combined successfully")
+      
+      # Add source IDs to tags
+      if (is.null(combinedTags$sourceConceptSetIds)) {
+        combinedTags$sourceConceptSetIds <- paste(conceptSetIds, collapse = ",")
+      }
+      
+      # Register combined concept set
+      cli::cli_alert_info("Registering combined concept set...")
+      new_id <- tryCatch({
+        self$addCaprConceptSet(
+          caprConceptSet = combinedCaprCs,
+          label = combinedLabel,
+          category = combinedCategory,
+          tags = combinedTags
+        )
+      }, error = function(e) {
+        cli::cli_abort("Failed to register combined concept set: {e$message}")
+      })
+      
+      cli::cli_rule()
+      cli::cli_alert_success(
+        "Combined concept set created: ID {new_id} ({combinedLabel})"
+      )
+      cli::cli_alert_info("Source sets: {paste(conceptSetIds, collapse = ', ')}")
+      cli::cli_alert_info("Tags include: sourceConceptSetIds = {paste(conceptSetIds, collapse = ',')}")
+      
+      invisible(new_id)
+    },
 
     # ========== UPDATE METHODS ==========
 
@@ -1583,6 +1776,86 @@ ConceptSetManifest <- R6::R6Class(
       return(results)
     },
 
+    #' @description Retrieve concept information for all concepts in a concept set
+    #'
+    #' Fetches the standard concepts included in a concept set from the OMOP vocabulary tables.
+    #' The concept set definition (stored as CIRCE JSON) is used to build a query that retrieves
+    #' all concept IDs and names matching the set definition. Results are returned as a tibble
+    #' with concept identifiers and display names.
+    #'
+    #' @param conceptSetId Integer. The concept set ID in the manifest.
+    #'
+    #' @return Tibble with columns:
+    #'   - \code{conceptId}: Integer, the OMOP concept identifier
+    #'   - \code{conceptName}: Character, the concept name from the vocabulary
+    #'
+    #' @details
+    #' **Requirements:**
+    #' - ExecutionSettings must be initialized with a valid database connection
+    #' - ExecutionSettings must have \code{cdmDatabaseSchema} and optionally \code{tempEmulationSchema} set
+    #' - User must have READ access to OMOP concept and concept_ancestor tables
+    #'
+    #' **Processing:**
+    #' 1. Retrieves the concept set definition (CIRCE JSON) by ID
+    #' 2. Builds SQL query using \code{CirceR::buildConceptSetQuery()}
+    #' 3. Executes query against the OMOP vocabulary schema
+    #' 4. Returns results with concept_id and concept_name columns
+    #'
+    grabConceptInfoFromSet = function(conceptSetId) {
+      checkmate::assert_int(conceptSetId, lower = 1)
+      
+      # Validate ExecutionSettings
+      private$validateExecutionSettings()
+
+      # Get concept set definition
+      cs_def <- self$getConceptSetById(conceptSetId)
+      if (is.null(cs_def)) {
+        cli::cli_abort("Concept set {conceptSetId} not found in manifest")
+      }
+
+      csJson <- cs_def$getJson()
+      cs_sql <- CirceR::buildConceptSetQuery(csJson)
+
+      # Get connection and vocabulary schema from ExecutionSettings
+      exec_settings <- private$.executionSettings
+      connection <- exec_settings$getConnection()
+      
+      if (is.null(connection)) {
+        exec_settings$connect()
+        connection <- exec_settings$getConnection()
+      }
+      on.exit(exec_settings$disconnect())
+
+      # Wrap in CTE and find included standard concepts
+      full_sql <- glue::glue(
+        "WITH concepts AS ({cs_sql})\n",
+        "SELECT c.concept_id, c.concept_name, c.vocabulary_id, c.domain_id, c.concept_class_id, c.standard_concept, c.concept_code\n",
+            "FROM concepts\n",
+            "JOIN @vocabulary_database_schema.concept c\n",
+            "  ON c.concept_id = concepts.concept_id\n",
+            "ORDER BY 1, 2;"
+      )
+
+      # Execute query
+      conceptInfo <- DatabaseConnector::renderTranslateQuerySql(
+        connection,
+        full_sql,
+        vocabulary_database_schema = exec_settings$cdmDatabaseSchema,
+        tempEmulationSchema = exec_settings$tempEmulationSchema,
+        snakeCaseToCamelCase = TRUE
+      ) 
+
+      # Inform user of retrieval
+      cs_label <- cs_def$label
+      n_concepts <- nrow(conceptInfo)
+      cli::cli_alert_success(
+        "Retrieved {n_concepts} concept(s) for concept set {conceptSetId}: {cs_label}"
+      )
+
+      return(conceptInfo)
+      
+    },
+
     #' Extract Source Codes for Concept Sets
     #'
     #' @description
@@ -1712,7 +1985,7 @@ ConceptSetManifest <- R6::R6Class(
         exec_settings$connect()
         connection <- exec_settings$getConnection()
       }
-      on.exit(settings$disconnect())
+      on.exit(exec_settings$disconnect())
 
 
       if (is.null(vocab_schema)) {

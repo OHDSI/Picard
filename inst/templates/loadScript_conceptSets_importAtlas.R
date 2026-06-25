@@ -18,6 +18,8 @@
 # Note: After import, concept sets auto-register any new JSON files discovered
 # in inputs/conceptSets/json/ on subsequent loadConceptSetManifest() calls.
 
+library(picard)
+
 # ================================================================================
 # A. CREATE BLANK LOAD FILE (First Time Only)
 # ================================================================================
@@ -63,10 +65,12 @@ conceptSetManifest$setAtlasConnection(atlasConnection)
 # Reads conceptSetsLoad.csv and downloads CIRCE JSON definitions from ATLAS
 # Place your conceptSetsLoad.csv in inputs/conceptSets/ before running this
 
-conceptSetManifest$importAtlasConceptSets(
-  conceptSetsLoadPath = here::here("inputs/conceptSets/conceptSetsLoad.csv")
+conceptSetLoad <- readr::read_csv(
+    here::here("inputs/conceptSets/conceptSetLoad.csv"), 
+    show_col_types = FALSE
 )
 
+conceptSetManifest$importAtlasCohorts(conceptSetLoad = conceptSetLoad)
 
 # ================================================================================
 # E. REVIEW IMPORTED CONCEPT SETS

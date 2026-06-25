@@ -16,6 +16,30 @@ The ConceptSetManifest class manages multiple concept set definitions and stores
 metadata in a SQLite database located at inputs/conceptSets/conceptSetManifest.sqlite.
 Each ConceptSetDef is assigned a sequential ID based on its position in the manifest.
 
+\strong{Processing Steps:}
+\enumerate{
+\item Validates that all concept set IDs exist and are active
+\item Loads each concept set JSON as a Capr object using \code{Capr::readConceptSet()}
+\item Combines them using set logic (private helper \code{combine_capr_concept_sets()})
+\item Exports combined Capr object to JSON in \verb{json/} directory
+\item Registers the new combined concept set in the manifest
+\item Returns the new concept set ID
+}
+
+\strong{Concept Set Combination Logic:}
+\itemize{
+\item Includes: All included concepts across sets
+\item Descendants: All concepts marked with descendants
+\item Excludes: All excluded concepts (without descendants)
+\item Exclude+Descendants: All concepts to exclude with descendants
+}
+
+\strong{Requirements:}
+\itemize{
+\item Capr package must be installed
+\item All source concept sets must be active and have valid JSON files
+}
+
 This is the detection phase of the ATLAS maintenance workflow. Use this to identify
 which ATLAS concept sets have changed, then optionally call \code{updateAtlasConceptSets()} to
 apply updates. Changes are detected by comparing expression JSON hashes.
@@ -29,6 +53,23 @@ This method updates ATLAS concept sets that have changed in the remote repositor
 
 Use \code{checkAtlasConceptSets()} first to identify which concept sets have changed, then call
 this method to apply updates.
+
+\strong{Requirements:}
+\itemize{
+\item ExecutionSettings must be initialized with a valid database connection
+\item ExecutionSettings must have \code{cdmDatabaseSchema} and optionally \code{tempEmulationSchema} set
+\item User must have READ access to OMOP concept and concept_ancestor tables
+}
+
+\strong{Processing:}
+\enumerate{
+\item Retrieves the concept set definition (CIRCE JSON) by ID
+\item Builds SQL query using \code{CirceR::buildConceptSetQuery()}
+\item Executes query against the OMOP vocabulary schema
+\item Returns results with concept_id and concept_name columns
+}
+
+Extract Source Codes for Concept Sets
 
 \strong{Vocabulary Suggestion by Domain:}
 The function automatically suggests appropriate vocabularies based on concept set domains:
@@ -138,6 +179,7 @@ by finding the reverse mapping relationship. For each concept set:
 \item \href{#method-ConceptSetManifest-validateManifest}{\code{ConceptSetManifest$validateManifest()}}
 \item \href{#method-ConceptSetManifest-getManifestStatus}{\code{ConceptSetManifest$getManifestStatus()}}
 \item \href{#method-ConceptSetManifest-deleteConceptSet}{\code{ConceptSetManifest$deleteConceptSet()}}
+\item \href{#method-ConceptSetManifest-combineConceptSets}{\code{ConceptSetManifest$combineConceptSets()}}
 \item \href{#method-ConceptSetManifest-updateConceptSetLabel}{\code{ConceptSetManifest$updateConceptSetLabel()}}
 \item \href{#method-ConceptSetManifest-updateConceptSetCategory}{\code{ConceptSetManifest$updateConceptSetCategory()}}
 \item \href{#method-ConceptSetManifest-updateConceptSetTags}{\code{ConceptSetManifest$updateConceptSetTags()}}
@@ -145,6 +187,7 @@ by finding the reverse mapping relationship. For each concept set:
 \item \href{#method-ConceptSetManifest-updateAtlasConceptSets}{\code{ConceptSetManifest$updateAtlasConceptSets()}}
 \item \href{#method-ConceptSetManifest-cleanupMissing}{\code{ConceptSetManifest$cleanupMissing()}}
 \item \href{#method-ConceptSetManifest-syncManifest}{\code{ConceptSetManifest$syncManifest()}}
+\item \href{#method-ConceptSetManifest-grabConceptInfoFromSet}{\code{ConceptSetManifest$grabConceptInfoFromSet()}}
 \item \href{#method-ConceptSetManifest-extractSourceCodes}{\code{ConceptSetManifest$extractSourceCodes()}}
 \item \href{#method-ConceptSetManifest-extractIncludedCodes}{\code{ConceptSetManifest$extractIncludedCodes()}}
 \item \href{#method-ConceptSetManifest-clone}{\code{ConceptSetManifest$clone()}}
@@ -643,6 +686,44 @@ Invisibly returns TRUE if successful, FALSE otherwise.
 }
 }
 \if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-combineConceptSets"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-combineConceptSets}{}}}
+\subsection{Method \code{combineConceptSets()}}{
+Combine multiple concept sets into a single unified concept set
+
+Loads multiple concept sets from the manifest as Capr objects, merges them
+into a unified concept set using set logic (include, include+descendants, exclude,
+exclude+descendants), exports the result as JSON, and registers it in the manifest.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$combineConceptSets(
+  conceptSetIds,
+  combinedLabel,
+  combinedCategory = "combined",
+  combinedTags = list()
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{conceptSetIds}}{Integer vector. IDs of concept sets to combine (minimum 2).}
+
+\item{\code{combinedLabel}}{Character. Display name for the combined concept set.}
+
+\item{\code{combinedCategory}}{Character. Category for the combined concept set.
+Defaults to \code{"combined"}.}
+
+\item{\code{combinedTags}}{Named list. Optional metadata tags for the combined set.
+Defaults to \code{list()}. A tag \code{sourceConceptSetIds} is automatically added
+with comma-separated source IDs.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible integer. The ID of the newly created combined concept set.
+}
+}
+\if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ConceptSetManifest-updateConceptSetLabel"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-updateConceptSetLabel}{}}}
 \subsection{Method \code{updateConceptSetLabel()}}{
@@ -819,7 +900,35 @@ on disk. If FALSE, only warns about them without deletion. Default: TRUE.}
 \subsection{Returns}{
 Data frame with columns: id, label, action
 (\code{"added"}, \code{"hash_updated"}, \code{"missing_flagged"}, or \code{"unchanged"}).
-Extract Source Codes for Concept Sets
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-grabConceptInfoFromSet"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-grabConceptInfoFromSet}{}}}
+\subsection{Method \code{grabConceptInfoFromSet()}}{
+Retrieve concept information for all concepts in a concept set
+
+Fetches the standard concepts included in a concept set from the OMOP vocabulary tables.
+The concept set definition (stored as CIRCE JSON) is used to build a query that retrieves
+all concept IDs and names matching the set definition. Results are returned as a tibble
+with concept identifiers and display names.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$grabConceptInfoFromSet(conceptSetId)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{conceptSetId}}{Integer. The concept set ID in the manifest.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Tibble with columns:
+\itemize{
+\item \code{conceptId}: Integer, the OMOP concept identifier
+\item \code{conceptName}: Character, the concept name from the vocabulary
+}
 }
 }
 \if{html}{\out{<hr>}}

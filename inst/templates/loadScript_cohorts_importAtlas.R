@@ -15,6 +15,8 @@
 #   3. Run this script to import definitions from ATLAS
 #   4. Review the imported cohorts in the manifest
 
+library(picard)
+
 # ================================================================================
 # A. CREATE BLANK LOAD FILE (First Time Only)
 # ================================================================================
@@ -61,7 +63,10 @@ cohortManifest$setAtlasConnection(atlasConnection)
 # Reads cohortsLoad.csv and downloads CIRCE JSON definitions from ATLAS
 # Place your cohortsLoad.csv in inputs/cohorts/ before running this
 
-cohortsLoad <- readr::read_csv(here::here("inputs/cohorts/cohortsLoad.csv"), show_col_types = FALSE)
+cohortsLoad <- readr::read_csv(
+    here::here("inputs/cohorts/cohortsLoad.csv"), 
+    show_col_types = FALSE
+)
 
 cohortManifest$importAtlasCohorts(cohortsLoad = cohortsLoad)
 

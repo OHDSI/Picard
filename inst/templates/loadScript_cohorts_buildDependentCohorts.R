@@ -18,6 +18,8 @@
 #   - T-Prior-O: "Target exposure after prior outcome"
 #   - Censor: "Target exposure censored at death"
 
+library(picard)
+
 # ================================================================================
 # A. LOAD MANIFEST
 # ================================================================================

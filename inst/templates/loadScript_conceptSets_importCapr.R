@@ -21,6 +21,8 @@
 #   - Reused across multiple studies
 #   - Parameterized for different analyses
 
+library(picard)
+
 # ================================================================================
 # A. LOAD OR INITIALIZE MANIFEST
 # ================================================================================

@@ -18,6 +18,8 @@
 #
 # Important: Your SQL must use SqlRender parameters for compatibility
 
+library(picard)
+
 # ================================================================================
 # A. LOAD OR INITIALIZE MANIFEST
 # ================================================================================

@@ -658,7 +658,11 @@ loadConceptSetManifest <- function(conceptSetsFolderPath = here::here("inputs/co
     ))
   }
 
-  manifest <- ConceptSetManifest$new(dbPath = dbPath, executionSettings = executionSettings)
+  manifest <- ConceptSetManifest$new(dbPath = dbPath)
+
+  if (!is.null(executionSettings)) {
+    manifest$setExecutionSettings(executionSettings)
+  }
 
   # Auto-sync manifest to ensure 1:1 correspondence between SQLite and file system
   if (autoSync) {
@@ -864,7 +868,6 @@ createBlankConceptSetsLoadFile <- function(conceptSetsFolderPath = here::here("i
     subCategory = character(1),
     sourceCode = character(1),
     domain = character(1),
-    file_name = character(1),
     stringsAsFactors = FALSE
   )
 
@@ -881,8 +884,7 @@ createBlankConceptSetsLoadFile <- function(conceptSetsFolderPath = here::here("i
     "{.field category} - Broad category (e.g., 'Cardiovascular')",
     "{.field subCategory} - Optional sub-grouping",
     "{.field sourceCode} - TRUE/FALSE (usually FALSE for concept sets)",
-    "{.field domain} - One of: drug_exposure, condition_occurrence, measurement, procedure, observation, visit_occurrence",
-    "{.field file_name} - Path to JSON file (e.g., 'json/hypertension.json')"
+    "{.field domain} - One of: drug_exposure, condition_occurrence, measurement, procedure, observation, visit_occurrence"
   ))
   cli::cli_text("")
   cli::cli_h3("Next Steps:")

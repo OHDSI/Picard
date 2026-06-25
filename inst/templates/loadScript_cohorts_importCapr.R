@@ -20,6 +20,8 @@
 #   - Version-controlled in your repository
 #   - Parameterized for different analyses
 
+library(picard)
+
 # ================================================================================
 # A. LOAD OR INITIALIZE MANIFEST
 # ================================================================================
