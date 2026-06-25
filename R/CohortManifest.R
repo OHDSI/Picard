@@ -2133,7 +2133,7 @@ CohortManifest <- R6::R6Class(
       }
 
       # check for changes
-      check_atlas_changes <- self$checkAtlasChanges(atlasConnection) |>
+      check_atlas_changes <- self$checkAtlasCohorts(atlasConnection) |>
         dplyr::filter(hasChanged)
 
       if (nrow(check_atlas_changes) == 0) {
@@ -2176,7 +2176,8 @@ CohortManifest <- R6::R6Class(
         json_dir <- fs::path(cohorts_dir, "json")
 
         # extract cohort name from definition to use as file name (fallback to label if not available)
-        json_path <- fs::path(json_dir, existing_path)
+        json_file_path <- fs::path_file(existing_path)
+        json_path <- fs::path(json_dir, json_file_path)
         readr::write_lines(expression_json, json_path) # make line ending always \\n
 
         #update the manifest sqlite
@@ -2189,7 +2190,7 @@ CohortManifest <- R6::R6Class(
         #update in-memory manifest TODO
         #private$.manifest
 
-        cli::cli_alert_success("Updated {row_label} (ID {cohort_id})")
+        cli::cli_alert_success("Updated {row_label} (ID {existing_id})")
         # cascade dependency  
         cascadeStaleDownstream(dbPath, existing_id)
 
