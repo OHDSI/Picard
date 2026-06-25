@@ -67,6 +67,7 @@ initCohortManifest <- function(path = "inputs/cohorts") {
 #' @export
 loadCohortManifest <- function(cohortsFolderPath = here::here("inputs/cohorts"),
                                executionSettings = NULL,
+                               autoSync = TRUE,
                                verbose = TRUE) {
   dbPath <- fs::path(cohortsFolderPath, "cohortManifest.sqlite")
 
@@ -84,52 +85,29 @@ loadCohortManifest <- function(cohortsFolderPath = here::here("inputs/cohorts"),
     cm$setExecutionSettings(executionSettings)
   }
 
+  # Auto-sync manifest to ensure 1:1 correspondence between SQLite and file system
+  if (autoSync) {
+    if (verbose) {
+      cli::cli_alert_info("Auto-syncing manifest to reconcile files...")
+    }
+    sync_results <- cm$syncManifest(strict_mode = TRUE)
+    if (verbose) {
+      n_orphan_removed <- sum(sync_results$action == "auto_removed_orphan")
+      n_missing <- sum(sync_results$action == "missing_flagged")
+      if (n_orphan_removed > 0 || n_missing > 0) {
+        cli::cli_alert_info("Sync cleaned {n_orphan_removed} orphaned file(s) and marked {n_missing} missing")
+      }
+    }
+  }
+
   if (verbose) {
     n_cohorts <- length(cm$getManifest())
     cli::cli_alert_success("Loaded cohort manifest: {n_cohorts} active cohort(s)")
   }
 
-  if (verbose) {
-    .warn_untracked_files(cohortsFolderPath, cm)
-  }
-
   return(cm)
 }
 
-
-#' @noRd
-.warn_untracked_files <- function(cohortsFolderPath, cm) {
-  manifest_files <- vapply(cm$getManifest(), function(cd) cd$getFilePath(), character(1))
-
-  json_dir    <- fs::path(cohortsFolderPath, "json")
-  sql_dir     <- fs::path(cohortsFolderPath, "sql")
-  derived_dir <- fs::path(cohortsFolderPath, "derived")
-
-  all_files <- character(0)
-  if (dir.exists(json_dir)) {
-    all_files <- c(all_files, list.files(json_dir, pattern = "\\.(json|sql)$", full.names = TRUE, recursive = TRUE))
-  }
-  if (dir.exists(sql_dir)) {
-    all_files <- c(all_files, list.files(sql_dir, pattern = "\\.sql$", full.names = TRUE, recursive = TRUE))
-  }
-  if (dir.exists(derived_dir)) {
-    all_files <- c(all_files, list.files(derived_dir, pattern = "\\.sql$", full.names = TRUE, recursive = TRUE))
-  }
-
-  all_files_rel <- fs::path_rel(all_files)
-  untracked <- all_files_rel[!all_files_rel %in% manifest_files]
-
-  if (length(untracked) > 0) {
-    cli::cli_alert_warning("{length(untracked)} file(s) on disk not in manifest:")
-    for (f in utils::head(untracked, 5)) {
-      cli::cli_bullets(c("!" = "{f}"))
-    }
-    if (length(untracked) > 5) {
-      cli::cli_bullets(c("!" = "... and {length(untracked) - 5} more"))
-    }
-    cli::cli_alert_info("Use $addAtlasCohort(), $addCirceCohort(), $addSqlCohort(), or $importAtlasCohorts() to register them.")
-  }
-}
 
 
 #' Reset Cohort Manifest

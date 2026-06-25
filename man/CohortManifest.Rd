@@ -115,7 +115,6 @@ Requires that executionSettings has been set and includes:
 \item \href{#method-CohortManifest-updateAtlasCohorts}{\code{CohortManifest$updateAtlasCohorts()}}
 \item \href{#method-CohortManifest-statusReport}{\code{CohortManifest$statusReport()}}
 \item \href{#method-CohortManifest-print}{\code{CohortManifest$print()}}
-\item \href{#method-CohortManifest-removeCohort}{\code{CohortManifest$removeCohort()}}
 \item \href{#method-CohortManifest-createCohortTables}{\code{CohortManifest$createCohortTables()}}
 \item \href{#method-CohortManifest-dropCohortTables}{\code{CohortManifest$dropCohortTables()}}
 \item \href{#method-CohortManifest-syncManifest}{\code{CohortManifest$syncManifest()}}
@@ -1182,50 +1181,11 @@ Invisible tibble with columns: id, label, category, source_type, depends_on, sta
 Print a friendly view of the CohortManifest
 
 Displays key metadata about the manifest and its contents.
+Create cohort tables in the database
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$print()}\if{html}{\out{</div>}}
 }
 
-}
-\if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-CohortManifest-removeCohort"></a>}}
-\if{latex}{\out{\hypertarget{method-CohortManifest-removeCohort}{}}}
-\subsection{Method \code{removeCohort()}}{
-Remove a cohort from the manifest
-
-Permanently removes a cohort from the SQLite manifest and optionally deletes
-its file on disk and/or drops its rows from the DBMS cohort and checksum tables.
-This is a hard, irreversible removal — no soft-delete trace is left.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$removeCohort(
-  id,
-  deleteFile = FALSE,
-  dropFromCohortTable = FALSE,
-  confirm = FALSE
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{id}}{Integer. The cohort ID to remove.}
-
-\item{\code{deleteFile}}{Logical. If TRUE, deletes the associated SQL/JSON file on disk.
-Default: FALSE.}
-
-\item{\code{dropFromCohortTable}}{Logical. If TRUE, deletes the cohort's rows from the
-DBMS cohort table and checksum table. Requires \code{executionSettings} to be
-set via \code{$setExecutionSettings()}. Default: FALSE.}
-
-\item{\code{confirm}}{Logical. If FALSE (default), prompts for interactive confirmation.
-Pass TRUE to skip the prompt (suitable for scripts).}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible NULL.
-Create cohort tables in the database
-}
 }
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-createCohortTables"></a>}}
@@ -1273,19 +1233,28 @@ Sync the manifest against cohort files on disk
 Scans the \code{json/} and \code{sql/} subdirectories of the cohorts folder, reconciles
 them against the SQLite manifest, and updates both the database and the in-memory list:
 \itemize{
-\item New files found on disk are added (new CohortDef + manifest entry).
 \item Active manifest records whose file no longer exists are soft-deleted.
 \item Existing files whose SQL hash has changed are updated in the manifest.
+\item Orphaned files on disk not in manifest are automatically deleted.
 }
 Only the \code{json/} and \code{sql/} source directories are scanned — derived cohorts
 managed via \code{build*()} methods are not touched.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$syncManifest()}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$syncManifest(strict_mode = TRUE)}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{strict_mode}}{Logical. If TRUE (default), automatically removes orphaned files found
+on disk. If FALSE, only warns about them without deletion. Default: TRUE.}
+}
+\if{html}{\out{</div>}}
+}
 \subsection{Returns}{
 Data frame with columns: id, label, action
-(\code{"added"}, \code{"hash_updated"}, \code{"missing_flagged"}, or \code{"unchanged"}).
+(\code{"hash_updated"}, \code{"missing_flagged"}, \code{"unchanged"},
+\code{"auto_removed_orphan"}).
 Clean cohort data from the DBMS for deleted manifest entries
 }
 }
@@ -1392,9 +1361,17 @@ List with elements: active_count, missing_count, deleted_count, next_available_i
 \if{html}{\out{<a id="method-CohortManifest-deleteCohort"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-deleteCohort}{}}}
 \subsection{Method \code{deleteCohort()}}{
-Soft delete a cohort (mark as deleted, preserve record)
+Delete a cohort from manifest and file system
+
+Marks a cohort as deleted in the manifest and removes its file from the file
+system (json/ or sql/ directory). The SQLite record is preserved with
+status='deleted' for audit trail purposes.
+
+When a manifest is loaded, only active cohorts are loaded into memory.
+This enforces strict 1:1 correspondence between active manifest entries
+and files on disk.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$deleteCohort(id, reason = NULL)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$deleteCohort(id, confirm = FALSE, dropFromDBMS = FALSE)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -1402,12 +1379,17 @@ Soft delete a cohort (mark as deleted, preserve record)
 \describe{
 \item{\code{id}}{Integer. The cohort ID to delete.}
 
-\item{\code{reason}}{Character. Optional reason for deletion.}
+\item{\code{confirm}}{Logical. If FALSE (default), prompts for interactive confirmation.
+Pass TRUE to skip the prompt (suitable for scripts).}
+
+\item{\code{dropFromDBMS}}{Logical. If TRUE, also deletes the cohort from the DBMS
+cohort table and checksum table. Requires \code{executionSettings} to be set.
+Default: FALSE (filesystem/manifest cleanup only).}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Invisibly returns TRUE if successful, FALSE otherwise.
+Invisible NULL.
 }
 }
 \if{html}{\out{<hr>}}
