@@ -57,52 +57,140 @@
 <h2 class="pkg-version" data-toc-text="0.0.5" id="picard-005">picard 0.0.5<a class="anchor" aria-label="anchor" href="#picard-005"></a></h2>
 <div class="section level3">
 <h3 id="manifest-api-enhancements-0-0-5">Manifest API Enhancements<a class="anchor" aria-label="anchor" href="#manifest-api-enhancements-0-0-5"></a></h3>
-<p><strong>API CHANGES</strong>: - <code><a href="../reference/loadCohortManifest.html">loadCohortManifest()</a></code> and <code><a href="../reference/loadConceptSetManifest.html">loadConceptSetManifest()</a></code> now include <code>autoSync</code> (default <code>TRUE</code>) and <code>verbose</code> (default <code>TRUE</code>) parameters for controlling manifest initialization behavior - <code><a href="../reference/resetCohortManifest.html">resetCohortManifest()</a></code> and <code><a href="../reference/resetConceptSetManifest.html">resetConceptSetManifest()</a></code> now include <code>archive</code> parameter (default <code>TRUE</code>) to create timestamped backups of manifest database and files before reset - <code>importAtlasCohorts()</code> and <code><a href="../reference/importAtlasConceptSets.html">importAtlasConceptSets()</a></code> <strong>API CHANGE</strong>: changed from file-based (<code>conceptSetsLoadPath = "path/to/file.csv"</code>) to dataframe-based (<code>conceptSetsLoad = dataframe, atlasConnection = NULL</code>). Users now call <code><a href="https://readr.tidyverse.org/reference/read_delim.html" class="external-link">readr::read_csv()</a></code> first, then pass the resulting dataframe. Dataframe must contain columns: <code>atlasId</code>, <code>label</code>, <code>category</code> (plus optional tag columns)</p>
-</div>
+<p><strong>API CHANGES</strong>:</p>
+<ul><li>
+<code><a href="../reference/loadCohortManifest.html">loadCohortManifest()</a></code> and <code><a href="../reference/loadConceptSetManifest.html">loadConceptSetManifest()</a></code> now include <code>autoSync</code> (default <code>TRUE</code>) and <code>verbose</code> (default <code>TRUE</code>) parameters for controlling manifest initialization behavior<br></li>
+<li>
+<code><a href="../reference/resetCohortManifest.html">resetCohortManifest()</a></code> and <code><a href="../reference/resetConceptSetManifest.html">resetConceptSetManifest()</a></code> now include <code>archive</code> parameter (default <code>TRUE</code>) to create timestamped backups of manifest database and files before reset<br></li>
+<li>
+<code>importAtlasCohorts()</code> and <code><a href="../reference/importAtlasConceptSets.html">importAtlasConceptSets()</a></code> <strong>API CHANGE</strong>: changed from file-based (<code>conceptSetsLoadPath = "path/to/file.csv"</code>) to dataframe-based (<code>conceptSetsLoad = dataframe, atlasConnection = NULL</code>). Users now call <code><a href="https://readr.tidyverse.org/reference/read_delim.html" class="external-link">readr::read_csv()</a></code> first, then pass the resulting dataframe. Dataframe must contain columns: <code>atlasId</code>, <code>label</code>, <code>category</code> (plus optional tag columns)</li>
+</ul></div>
 <div class="section level3">
 <h3 id="input-builder-scripts-0-0-5">Input Builder Scripts<a class="anchor" aria-label="anchor" href="#input-builder-scripts-0-0-5"></a></h3>
-<p><strong>Pre-Pipeline Input Loading System</strong> (<code>sourceInputBuilderScripts(verbose = TRUE)</code>): - Auto-discovery and sourcing of builder scripts for pre-processing the pipeline - Loads concept set definitions from <code>inputs/conceptSets/R/</code> directory (sourced first) - Loads cohort definitions from <code>inputs/cohorts/R/</code> directory (sourced second) - Called automatically from <code>main.R</code> before the main pipeline executes</p>
-<p><strong>Six Template Builder Scripts</strong> (auto-populated in project init): 1. <strong>Concept Set Builders</strong>: - <code>import_atlas_concept_set.R</code> — bulk import from ATLAS via CSV + WebAPI connection - <code>import_capr_concept_set.R</code> — programmatic definition using Capr functions 2. <strong>Cohort Builders</strong>: - <code>import_atlas_cohort.R</code> — bulk import from ATLAS via CSV + WebAPI connection - <code>import_capr_cohort.R</code> — programmatic cohort definitions with Capr - <code>import_sql_cohort.R</code> — register hand-written SQL cohorts from <code>inputs/cohorts/sql/</code> - <code>build_dependent_cohorts.R</code> — create derived cohorts (temporal, union, complement, O-Prior-T, T-Prior-O, censor)</p>
-<p><strong>Mandatory Source Order</strong> ⚠️: - <code><a href="../reference/sourceInputBuilderScripts.html">sourceInputBuilderScripts()</a></code> now enforces strict source order to respect dependencies: 1. Concept set builders (import_atlas_concept_set → import_capr_concept_set) 2. Cohort builders (import_atlas_cohort → import_capr_cohort → import_sql_cohort → build_dependent_cohorts) - This ensures concept sets are always loaded before cohorts, and base cohorts before dependent cohorts - Missing scripts are gracefully skipped; deletion of unused templates will not break <code>main.R</code> - Users can delete unused scripts but cannot reorder sources</p>
-</div>
+<p><strong>Pre-Pipeline Input Loading System</strong> (<code>sourceInputBuilderScripts(verbose = TRUE)</code>):</p>
+<ul><li>Auto-discovery and sourcing of builder scripts for pre-processing the pipeline<br></li>
+<li>Loads concept set definitions from <code>inputs/conceptSets/R/</code> directory (sourced first)<br></li>
+<li>Loads cohort definitions from <code>inputs/cohorts/R/</code> directory (sourced second)<br></li>
+<li>Called automatically from <code>main.R</code> before the main pipeline executes</li>
+</ul><p><strong>Six Template Builder Scripts</strong> (auto-populated in project init):</p>
+<ol style="list-style-type: decimal"><li>
+<p><strong>Concept Set Builders</strong>:</p>
+<ul><li>
+<code>import_atlas_concept_set.R</code> — bulk import from ATLAS via CSV + WebAPI connection<br></li>
+<li>
+<code>import_capr_concept_set.R</code> — programmatic definition using Capr functions</li>
+</ul></li>
+<li>
+<p><strong>Cohort Builders</strong>:</p>
+<ul><li>
+<code>import_atlas_cohort.R</code> — bulk import from ATLAS via CSV + WebAPI connection<br></li>
+<li>
+<code>import_capr_cohort.R</code> — programmatic cohort definitions with Capr<br></li>
+<li>
+<code>import_sql_cohort.R</code> — register hand-written SQL cohorts from <code>inputs/cohorts/sql/</code><br></li>
+<li>
+<code>build_dependent_cohorts.R</code> — create derived cohorts (temporal, union, complement, O-Prior-T, T-Prior-O, censor)</li>
+</ul></li>
+</ol><p><strong>Mandatory Source Order</strong> ⚠️:</p>
+<ul><li>
+<code><a href="../reference/sourceInputBuilderScripts.html">sourceInputBuilderScripts()</a></code> now enforces strict source order to respect dependencies:
+<ol style="list-style-type: decimal"><li>Concept set builders (import_atlas_concept_set → import_capr_concept_set)<br></li>
+<li>Cohort builders (import_atlas_cohort → import_capr_cohort → import_sql_cohort → build_dependent_cohorts)<br></li>
+</ol></li>
+<li>This ensures concept sets are always loaded before cohorts, and base cohorts before dependent cohorts<br></li>
+<li>Missing scripts are gracefully skipped; deletion of unused templates will not break <code>main.R</code><br></li>
+<li>Users can delete unused scripts but cannot reorder sources</li>
+</ul></div>
 <div class="section level3">
 <h3 id="dissemination-script-workflow-0-0-5">Dissemination Script Workflow<a class="anchor" aria-label="anchor" href="#dissemination-script-workflow-0-0-5"></a></h3>
-<p><strong>Post-Pipeline Result Processing</strong> (<code>sourceDisseminationScripts(projectPath, pipelineVersion, databaseIds, outputPath, verbose, warnMissing)</code>): - Auto-discovery and sourcing of post-processing scripts from <code>dissemination/pretty/R/</code> directory - Called automatically after <code><a href="../reference/runPostProcessing.html">runPostProcessing()</a></code> completes in <code>main.R</code> - Scripts are numbered (01_, 02_, etc.) and sourced in alphabetical order - Each script receives <code>disseminationEnv</code> list with metadata: - <code>pipelineVersion</code> — current pipeline version for reproducibility - <code>databaseIds</code> — vector of databases included in the analysis - <code>outputPath</code> — root output directory for result export - <code>resultsPath</code> — merged results file path for post-processing</p>
-<p><strong>Dissemination Script Creation</strong> (<code>makeDisseminationScript(name = "format_results", projectPath, open = TRUE)</code>): - Template-based generation of new dissemination scripts - Auto-numbering: creates 01_name.R, 02_name.R, etc. based on existing files - Optional RStudio navigation to newly created file</p>
-<p><strong>Three-Phase Pipeline Integration</strong>: - Phase 1: Pre-pipeline (builder scripts in <code>inputs/*/R/</code>) - Phase 2: Main execution (<code><a href="../reference/execStudyPipeline.html">execStudyPipeline()</a></code> runs analysis tasks) - Phase 3: Post-processing with dissemination scripts - <code><a href="../reference/runPostProcessing.html">runPostProcessing()</a></code> aggregates results - <code><a href="../reference/sourceDisseminationScripts.html">sourceDisseminationScripts()</a></code> runs numbered dissemination scripts for formatting, pivoting, exporting</p>
-</div>
+<p><strong>Post-Pipeline Result Processing</strong> (<code>sourceDisseminationScripts(projectPath, pipelineVersion, databaseIds, outputPath, verbose, warnMissing)</code>):</p>
+<ul><li>Auto-discovery and sourcing of post-processing scripts from <code>dissemination/pretty/R/</code> directory<br></li>
+<li>Called automatically after <code><a href="../reference/runPostProcessing.html">runPostProcessing()</a></code> completes in <code>main.R</code><br></li>
+<li>Scripts are numbered (01_, 02_, etc.) and sourced in alphabetical order<br></li>
+<li>Each script receives <code>disseminationEnv</code> list with metadata:
+<ul><li>
+<code>pipelineVersion</code> — current pipeline version for reproducibility<br></li>
+<li>
+<code>databaseIds</code> — vector of databases included in the analysis<br></li>
+<li>
+<code>outputPath</code> — root output directory for result export<br></li>
+<li>
+<code>resultsPath</code> — merged results file path for post-processing</li>
+</ul></li>
+</ul><p><strong>Dissemination Script Creation</strong> (<code>makeDisseminationScript(name = "format_results", projectPath, open = TRUE)</code>):</p>
+<ul><li>Template-based generation of new dissemination scripts<br></li>
+<li>Auto-numbering: creates 01_name.R, 02_name.R, etc. based on existing files<br></li>
+<li>Optional RStudio navigation to newly created file</li>
+</ul><p><strong>Three-Phase Pipeline Integration</strong>:</p>
+<ul><li>Phase 1: Pre-pipeline (builder scripts in <code>inputs/*/R/</code>)<br></li>
+<li>Phase 2: Main execution (<code><a href="../reference/execStudyPipeline.html">execStudyPipeline()</a></code> runs analysis tasks)<br></li>
+<li>Phase 3: Post-processing with dissemination scripts
+<ul><li>
+<code><a href="../reference/runPostProcessing.html">runPostProcessing()</a></code> aggregates results<br></li>
+<li>
+<code><a href="../reference/sourceDisseminationScripts.html">sourceDisseminationScripts()</a></code> runs numbered dissemination scripts for formatting, pivoting, exporting</li>
+</ul></li>
+</ul></div>
 <div class="section level3">
 <h3 id="sync-and-update-method-improvements-0-0-5">Sync and Update Method Improvements<a class="anchor" aria-label="anchor" href="#sync-and-update-method-improvements-0-0-5"></a></h3>
-<p><strong>Sync Methods</strong> (<code>$syncManifest(strict_mode=TRUE)</code>): - Both <code>CohortManifest</code> and <code>ConceptSetManifest</code> now include <code>strict_mode</code> parameter to control strictness of file/database reconciliation - Reconciles files on disk (<code>json/</code>, <code>sql/</code>) against SQLite; flags missing files as deleted, detects hash changes, reports unregistered files - Integrated into <code><a href="../reference/loadCohortManifest.html">loadCohortManifest()</a></code> and <code><a href="../reference/loadConceptSetManifest.html">loadConceptSetManifest()</a></code> via <code>autoSync</code> parameter</p>
-<p><strong>Update Methods</strong> (segmented by field): - <code>$updateCohortLabel()</code>, <code>$updateCohortCategory()</code>, <code>$updateCohortTags()</code> for <code>CohortManifest</code> - <code>$updateConceptSetLabel()</code>, <code>$updateConceptSetCategory()</code>, <code>$updateConceptSetTags()</code> for <code>ConceptSetManifest</code> - Each method updates a single field and syncs changes to both SQLite and in-memory manifest object - All methods return invisible NULL for consistency with R6 patterns</p>
-</div>
+<p><strong>Sync Methods</strong> (<code>$syncManifest(strict_mode=TRUE)</code>):</p>
+<ul><li>Both <code>CohortManifest</code> and <code>ConceptSetManifest</code> now include <code>strict_mode</code> parameter to control strictness of file/database reconciliation<br></li>
+<li>Reconciles files on disk (<code>json/</code>, <code>sql/</code>) against SQLite; flags missing files as deleted, detects hash changes, reports unregistered files<br></li>
+<li>Integrated into <code><a href="../reference/loadCohortManifest.html">loadCohortManifest()</a></code> and <code><a href="../reference/loadConceptSetManifest.html">loadConceptSetManifest()</a></code> via <code>autoSync</code> parameter</li>
+</ul><p><strong>Update Methods</strong> (segmented by field):</p>
+<ul><li>
+<code>$updateCohortLabel()</code>, <code>$updateCohortCategory()</code>, <code>$updateCohortTags()</code> for <code>CohortManifest</code><br></li>
+<li>
+<code>$updateConceptSetLabel()</code>, <code>$updateConceptSetCategory()</code>, <code>$updateConceptSetTags()</code> for <code>ConceptSetManifest</code><br></li>
+<li>Each method updates a single field and syncs changes to both SQLite and in-memory manifest object<br></li>
+<li>All methods return invisible NULL for consistency with R6 patterns</li>
+</ul></div>
 <div class="section level3">
 <h3 id="manifest-to-filesystem-correspondence-principle-0-0-5">Manifest-to-Filesystem 1:1 Correspondence Principle<a class="anchor" aria-label="anchor" href="#manifest-to-filesystem-correspondence-principle-0-0-5"></a></h3>
-<p><strong>Core Architecture</strong>: Every cohort/concept set in the SQLite manifest database maintains a 1:1 correspondence with exactly one definition file on disk: - <strong>Circe/ATLAS cohorts</strong>: stored as <code>.json</code> file in <code>json/</code> directory - <strong>SQL cohorts</strong>: stored as <code>.sql</code> file in <code>sql/</code> directory<br>
+<p><strong>Core Architecture</strong>:</p>
+<p>Every cohort/concept set in the SQLite manifest database maintains a 1:1 correspondence with exactly one definition file on disk:<br>
+- <strong>Circe/ATLAS cohorts</strong>: stored as <code>.json</code> file in <code>json/</code> directory<br>
+- <strong>SQL cohorts</strong>: stored as <code>.sql</code> file in <code>sql/</code> directory<br>
 - <strong>Derived cohorts</strong>: generated <code>.sql</code> files in <code>sql/derived/</code> directory with dependency metadata in SQLite</p>
-<p><strong>Data Consistency Guarantees</strong>: - Each record in the manifest has a <code>file_path</code> column pointing to its corresponding disk file - File hashes are stored in SQLite and compared during <code>$syncManifest()</code> to detect out-of-sync changes - Soft deletes (<code>status = 'deleted'</code>) preserve both the database record and file for audit trail - Hard deletes (if performed) remove both record and file atomically</p>
-<p><strong>Sync Integrity</strong>: - <code>$syncManifest(strict_mode=TRUE)</code> enforces strict reconciliation: files on disk must match database records - Unregistered files on disk are flagged as orphaned; missing files for active records are flagged as missing - <code>autoSync=TRUE</code> in load functions ensures manifest is synchronized with disk on startup - This 1:1 principle prevents silent data loss and enables reliable recovery workflows</p>
-</div>
+<p><strong>Data Consistency Guarantees</strong>:</p>
+<ul><li>Each record in the manifest has a <code>file_path</code> column pointing to its corresponding disk file<br></li>
+<li>File hashes are stored in SQLite and compared during <code>$syncManifest()</code> to detect out-of-sync changes<br></li>
+<li>Soft deletes (<code>status = 'deleted'</code>) preserve both the database record and file for audit trail<br></li>
+<li>Hard deletes (if performed) remove both record and file atomically</li>
+</ul><p><strong>Sync Integrity</strong>:</p>
+<ul><li>
+<code>$syncManifest(strict_mode=TRUE)</code> enforces strict reconciliation: files on disk must match database records<br></li>
+<li>Unregistered files on disk are flagged as orphaned; missing files for active records are flagged as missing<br></li>
+<li>
+<code>autoSync=TRUE</code> in load functions ensures manifest is synchronized with disk on startup<br></li>
+<li>This 1:1 principle prevents silent data loss and enables reliable recovery workflows</li>
+</ul></div>
 <div class="section level3">
 <h3 id="two-phase-atlas-synchronization-workflow-0-0-5">Two-Phase ATLAS Synchronization Workflow<a class="anchor" aria-label="anchor" href="#two-phase-atlas-synchronization-workflow-0-0-5"></a></h3>
-<p><strong>Phase 1: Detection</strong> (<code>$checkAtlasCohorts()</code> / <code>$checkAtlasConceptSets()</code>): - Read-only operation: compares local hashes against remote ATLAS definitions - Returns a tibble showing which cohorts/concept sets have changed remotely - No modifications to local state; useful for mid-cycle discovery - Call parameters: <code>atlasConnection = NULL</code> (uses stored connection if available)</p>
-<p><strong>Phase 2: Update</strong> (<code>$updateAtlasCohorts()</code> / <code>$updateAtlasConceptSets()</code>): - Downloads definition JSON files from ATLAS for all cohorts/concept sets with remote changes - Updates JSON files on disk in <code>json/</code> directory - For <code>CohortManifest</code> only: <strong>automatically cascades stale status</strong> to all downstream derived cohorts that depend on updated base cohorts - Derived cohorts are automatically <strong>re-executed on next <code><a href="../reference/generateCohorts.html">generateCohorts()</a></code> run</strong> without user intervention</p>
-<p><strong>Workflow Automation</strong>: - No need for separate “rebuild derived cohorts” step after ATLAS updates - Dependent cohort execution order is automatically resolved via topological sort - Users can chain checks and updates seamlessly in scripts: <code>manifest$checkAtlasCohorts()</code> → review results → <code>manifest$updateAtlasCohorts()</code></p>
-</div>
-<div class="section level3">
-<h3 id="documentation-0-0-5">Documentation<a class="anchor" aria-label="anchor" href="#documentation-0-0-5"></a></h3>
-<ul><li>Comprehensive new agent file <code>inst/agent/04a-manifest-overview.md</code> provides deep-dive architecture guide, mid-cycle workflows, and ATLAS synchronization patterns</li>
-<li>Updated vignettes <code>loading_inputs.Rmd</code> and <code>manifest_overview.Rmd</code> with correct API signatures and two-phase ATLAS workflow documentation</li>
-<li>Corrected all documentation to use proper R6 method call syntax (<code>manifest$updateCohortLabel(...)</code> instead of standalone function <code>updateCohortManifest(...)</code>)</li>
+<p><strong>Phase 1: Detection</strong> (<code>$checkAtlasCohorts()</code> / <code>$checkAtlasConceptSets()</code>):</p>
+<ul><li>Read-only operation: compares local hashes against remote ATLAS definitions<br></li>
+<li>Returns a tibble showing which cohorts/concept sets have changed remotely<br></li>
+<li>No modifications to local state; useful for mid-cycle discovery<br></li>
+<li>Call parameters: <code>atlasConnection = NULL</code> (uses stored connection if available)</li>
+</ul><p><strong>Phase 2: Update</strong> (<code>$updateAtlasCohorts()</code> / <code>$updateAtlasConceptSets()</code>):</p>
+<ul><li>Downloads definition JSON files from ATLAS for all cohorts/concept sets with remote changes<br></li>
+<li>Updates JSON files on disk in <code>json/</code> directory<br></li>
+<li>For <code>CohortManifest</code> only: <strong>automatically cascades stale status</strong> to all downstream derived cohorts that depend on updated base cohorts<br></li>
+<li>Derived cohorts are automatically <strong>re-executed on next <code><a href="../reference/generateCohorts.html">generateCohorts()</a></code> run</strong> without user intervention</li>
+</ul><p><strong>Workflow Automation</strong>:</p>
+<ul><li>No need for separate “rebuild derived cohorts” step after ATLAS updates<br></li>
+<li>Dependent cohort execution order is automatically resolved via topological sort<br></li>
+<li>Users can chain checks and updates seamlessly in scripts: <code>manifest$checkAtlasCohorts()</code> → review results → <code>manifest$updateAtlasCohorts()</code>
+</li>
 </ul></div>
 <div class="section level3">
 <h3 id="bug-fixes--clarifications-0-0-5">Bug Fixes &amp; Clarifications<a class="anchor" aria-label="anchor" href="#bug-fixes--clarifications-0-0-5"></a></h3>
 <ul><li>ConceptManifest Updates
-<ul><li>bug fix for conceptSetManifest category checkmate (using domain requirements)</li>
-<li>add function to expandManifestTags to help subsetting</li>
+<ul><li>bug fix for conceptSetManifest category checkmate (using domain requirements)<br></li>
+<li>add function to expandManifestTags to help subsetting<br></li>
 </ul></li>
-<li>Removed non-existent method references (<code>removeCohort()</code> for CohortManifest; deletion uses soft delete via <code>deleteCohort(id, confirm=FALSE)</code>)</li>
-<li>Clarified soft delete behavior for both cohort and concept set manifests with audit trail preservation</li>
+<li>Removed non-existent method references (<code>removeCohort()</code> for CohortManifest; deletion uses soft delete via <code>deleteCohort(id, confirm=FALSE)</code>)<br></li>
+<li>Clarified soft delete behavior for both cohort and concept set manifests with audit trail preservation<br></li>
 <li>instill parity in the methods across the ConceptSetManifest and CohortManifest classes</li>
 </ul></div>
 </div>
