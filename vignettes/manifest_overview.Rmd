@@ -73,6 +73,16 @@ When you call `loadCohortManifest()`, the package:
 Mutations (add, delete, update) write to **both** SQLite and the in-memory list.
 If you edit SQLite externally, call `manifest$reloadFromDb()` to sync.
 
+**Loading with automatic sync:**
+
+```r
+# Auto-sync manifest against disk files on load (default: TRUE)
+manifest <- loadCohortManifest(autoSync = TRUE, verbose = TRUE)
+
+# Skip auto-sync if you know the manifest is up-to-date
+manifest <- loadCohortManifest(autoSync = FALSE)
+```
+
 ### Hash-based skip logic
 
 Every cohort file has an MD5 hash stored in the manifest. At execution time,
@@ -322,6 +332,39 @@ Stale derived cohorts still have valid SQL — their parent data has changed but
 their build logic has not. They will be **re-executed automatically** the next
 time `generateCohorts()` runs (the hash-skip is bypassed for stale cohorts).
 
+### Checking for ATLAS updates (mid-cycle)
+
+After the initial import, you can periodically check whether definitions in ATLAS
+have been updated. This is done in two phases:
+
+**Phase 1: Detection** — Compare remote ATLAS hashes to stored local hashes:
+
+```{r}
+# For cohorts
+manifest$checkAtlasCohorts(atlasConnection)
+
+# For concept sets
+conceptSetManifest$checkAtlasConceptSets(atlasConnection)
+```
+
+This returns a report of which definitions have changed in ATLAS.
+
+**Phase 2: Update** — Download updated definitions and re-write JSON files:
+
+```{r}
+# For cohorts
+manifest$updateAtlasCohorts(atlasConnection)
+
+# For concept sets
+conceptSetManifest$updateAtlasConceptSets(atlasConnection)
+```
+
+When ATLAS definitions are updated:
+- JSON files are overwritten with the latest definitions
+- Stored hashes are updated to reflect the new versions
+- If the cohort is a base cohort, all downstream derived cohorts automatically cascade to `'stale'` status
+- Derived cohorts will be **re-executed automatically** on the next `generateCohorts()` run
+
 ### Review stale cohorts
 
 ```{r}
@@ -352,41 +395,40 @@ manifest$buildUnionCohort(
 generateCohorts(executionSettings = execSettings, pipelineVersion = pipelineVersion)
 ```
 
-### Update label or tags
+### Update label, category, or tags
 
 ```{r}
-updateCohortManifest(
-  manifest  = manifest,
-  cohortId  = 3L,
-  label     = "Metformin Initiators (revised)",
-  tags      = list(category = "Exposure", subCategory = "Antidiabetics")
-)
+# Update label
+manifest$updateCohortLabel(cohortId = 3L, newLabel = "Metformin Initiators (revised)")
+
+# Update category
+manifest$updateCohortCategory(cohortId = 3L, newCategory = "Exposure")
+
+# Update tags
+manifest$updateCohortTags(cohortId = 3L, newTags = list(subCategory = "Antidiabetics"))
 ```
 
-### Soft-delete a cohort
+### Delete a cohort
 
-Marks the cohort as `deleted` in SQLite; it is excluded from generation but
-can be recovered.
+Marks the cohort as `deleted` in SQLite with a deletion timestamp (soft delete). The
+cohort is excluded from generation but the record is preserved for audit trail.
 
 ```{r}
-manifest$deleteCohort(cohortId = 3L)
+# Soft delete (default)
+manifest$deleteCohort(id = 3L, confirm = TRUE)
+
+# Delete and also remove from DBMS cohort table (requires executionSettings)
+manifest$deleteCohort(id = 3L, dropFromDBMS = TRUE, confirm = TRUE)
 ```
 
-### Hard-delete (permanent)
+When `dropFromDBMS = TRUE`:
+- Deletes the cohort file from disk
+- Marks the manifest record as `deleted`
+- Removes rows from the DBMS cohort table and checksum table (if it exists)
+- Requires `executionSettings` to be attached to the manifest
 
-Removes the row from SQLite entirely and optionally deletes the file from disk
-and/or purges rows from the DBMS cohort table.
-
-```{r}
-# Remove from manifest only
-manifest$removeCohort(id = 3L, confirm = TRUE)
-
-# Remove from manifest and delete the SQL file
-manifest$removeCohort(id = 3L, deleteFile = TRUE, confirm = TRUE)
-
-# Remove from manifest, delete the file, and drop DBMS rows (requires executionSettings)
-manifest$removeCohort(id = 3L, deleteFile = TRUE, dropFromCohortTable = TRUE, confirm = TRUE)
-```
+**Note:** Deletion is soft (records are preserved). For permanent hard deletion from
+SQLite, use administrative database tools directly.
 
 ---
 
@@ -417,16 +459,22 @@ scope based on what you want to preserve:
 resetCohortManifest(manifest = manifest, scope = "derived")
 
 # Wipe manifest DB, keep json/ and sql/ source files
+# With archive: creates timestamped backup before deletion
 resetCohortManifest(cohortsFolderPath = here::here("inputs/cohorts"),
-                    scope = "manifest")
+                    scope = "manifest",
+                    archive = TRUE)  # create backup at inputs/cohorts/.archive/
 
 # Full nuclear reset (also drops OMOP cohort tables)
 resetCohortManifest(manifest          = manifest,
                     scope             = "full",
-                    executionSettings = execSettings)
+                    executionSettings = execSettings,
+                    archive           = TRUE)
 ```
 
 All scopes prompt for confirmation. Pass `confirm = FALSE` to skip in scripts.
+
+When `archive = TRUE`, the SQLite database is backed up to `.archive/` with a
+timestamp before being deleted, allowing recovery if needed.
 
 ### Concept set manifest reset
 
@@ -437,6 +485,12 @@ resetConceptSetManifest(scope = "manifest")
 
 # Delete everything
 resetConceptSetManifest(scope = "full")
+
+# Create a timestamped backup before deletion
+resetConceptSetManifest(scope = "manifest", archive = TRUE)
+
+# Load with auto-sync enabled (default)
+csm <- loadConceptSetManifest(autoSync = TRUE, verbose = TRUE)
 ```
 
 ---
@@ -465,7 +519,7 @@ plotCohortGraph(manifest)
 ### Concept set manifest
 
 ```{r}
-csm <- loadConceptSetManifest()
+csm <- loadConceptSetManifest(autoSync = TRUE, verbose = TRUE)
 
 # Tabular view of all concept sets
 csm$tabulateManifest()

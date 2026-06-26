@@ -26,7 +26,7 @@
     
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.4</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.5</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -158,6 +158,15 @@ acceptance</li>
 <li>
 <strong>Verify configuration:</strong> Check config.yml for
 correctness</li>
+<li>
+<strong>Prepare builder scripts:</strong> Edit and finalize scripts
+in <code>inputs/cohorts/R/</code> and <code>inputs/conceptSets/R/</code>
+<ul>
+<li>Delete unused builders; keep only the ones you need</li>
+<li>See <a href="loading_inputs.html">Loading Inputs</a> for detailed
+guidance on each builder type</li>
+</ul>
+</li>
 </ol>
 <p>You can also do this by using the <code><a href="../reference/saveWork.html">saveWork()</a></code> function
 which we describe in <a href="developing_the_pipeline.html">Developing
@@ -209,13 +218,24 @@ redesign</li>
 <div class="section level2">
 <h2 id="understanding-the-pipeline-workflow">Understanding the Pipeline Workflow<a class="anchor" aria-label="anchor" href="#understanding-the-pipeline-workflow"></a>
 </h2>
-<p>Production execution follows four main phases:</p>
+<p>Production execution follows five main phases:</p>
 <ol style="list-style-type: decimal">
+<li>
+<p><strong>Pre-Pipeline:</strong> Auto-discover and source builder
+scripts from <code>inputs/conceptSets/R/</code> and
+<code>inputs/cohorts/R/</code></p>
+<ul>
+<li>Concept set builders run first (importAtlas, importCapr, or
+custom)</li>
+<li>Cohort builders run second (importAtlas, importCapr, importSql,
+buildDependentCohorts)</li>
+<li>Manifests are loaded and populated with all definitions</li>
+</ul>
+</li>
 <li><p><strong>Setup:</strong> Validate configuration, load execution
 settings, create output directories</p></li>
-<li><p><strong>Generate Cohorts:</strong> Load cohort and concept set
-manifests, validate all definitions exist, generate cohorts in database,
-retrieve cohort counts</p></li>
+<li><p><strong>Generate Cohorts:</strong> Instantiate all cohort
+definitions in the database, validate cohort counts</p></li>
 <li><p><strong>Run Analysis Tasks:</strong> For each task in
 <code>analysis/tasks/</code>, load configuration, execute task code,
 check for errors, record results</p></li>

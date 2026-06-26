@@ -45,6 +45,8 @@ reference:
     desc: "Functions for creating objects and structures (make*)"
     contents:
       - makeBlock
+      - makeDisseminationScript
+      - makeInputBuilderScript
       - makePrintFriendlyFile
       - makeSrcFile
       - makeSrcSqlFile
@@ -110,6 +112,7 @@ reference:
       - displayTaskStatusReport
       - documentDependencies
       - editSecrets
+      - expandManifestTags
       - formatFloats
       - formatPercentages
       - generateCohorts
@@ -131,12 +134,12 @@ reference:
       - saveWork
       - shouldRerunTask
       - snapshotEnvironment
+      - sourceDisseminationScripts
+      - sourceInputBuilderScripts
       - standardizeDataTypes
       - templateAtlasCredentials
       - testStudyPipeline
       - testStudyTask
-      - updateCohortManifest
-      - updateConceptSetManifest
       - updateStudyVersion
       - validateCohortResults
       - validateConfigYaml

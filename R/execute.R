@@ -1133,3 +1133,316 @@ clearPendingPR <- function() {
     return(invisible(FALSE))
   }
 }
+
+#' @title Source Pre-Pipeline Input Builder Scripts
+#' @description Auto-discovers and sources builder scripts from pre-pipeline directories
+#'   in a MANDATORY dependency order. Designed to be called from main.R before the 
+#'   production pipeline. This ensures concept sets are available before cohorts,
+#'   and dependent cohorts can reference already-loaded cohort definitions.
+#'
+#' @details
+#' Scripts are sourced in the following FIXED order (skipping any that don't exist):
+#'   1. \code{inputs/conceptSets/R/import_atlas_concept_set.R}
+#'   2. \code{inputs/conceptSets/R/import_capr_concept_set.R}
+#'   3. \code{inputs/cohorts/R/import_atlas_cohort.R}
+#'   4. \code{inputs/cohorts/R/import_capr_cohort.R}
+#'   5. \code{inputs/cohorts/R/import_sql_cohort.R}
+#'   6. \code{inputs/cohorts/R/build_dependent_cohorts.R}
+#'
+#' This order is enforced to guarantee dependencies are satisfied:
+#'   \itemize{
+#'     \item Concept sets load first (may be needed by cohort definitions)
+#'     \item Base cohorts load next (may be needed by dependent cohorts)
+#'     \item Dependent cohorts load last (can reference base cohorts)
+#'   }
+#'
+#' Use \code{\link{makeInputBuilderScript}} to create scripts with the correct naming convention.
+#' Missing scripts are silently skipped, allowing flexible configurations.
+#'
+#' @param projectPath Character. Path to the project root. Defaults to current project.
+#' @param verbose Logical. If TRUE (default), displays which scripts are being sourced.
+#' @param warnMissing Logical. If TRUE (default), warns when directories don't exist.
+#' @return Invisibly returns a list with:
+#'   - `sourced_files`: Character vector of sourced files (absolute paths)
+#'   - `directories_checked`: Character vector of directories checked
+#'   - `error_summary`: List of any errors encountered
+#'
+#' @export 
+sourceInputBuilderScripts <- function(
+    projectPath = here::here(),
+    verbose = TRUE,
+    warnMissing = TRUE) {
+
+  # Initialize tracking
+  sourced_files <- character(0)
+  directories_checked <- character(0)
+  errors <- list()
+
+  # Define the MANDATORY SOURCE ORDER
+  # Based on the fixed filenames created by makeInputBuilderScript()
+  # Missing files are skipped silently
+  source_order <- c(
+    # Concept Sets (first)
+    fs::path(projectPath, "inputs/conceptSets/R/import_atlas_concept_set.R"),
+    fs::path(projectPath, "inputs/conceptSets/R/import_capr_concept_set.R"),
+    # Cohorts (second)
+    fs::path(projectPath, "inputs/cohorts/R/import_atlas_cohort.R"),
+    fs::path(projectPath, "inputs/cohorts/R/import_capr_cohort.R"),
+    fs::path(projectPath, "inputs/cohorts/R/import_sql_cohort.R"),
+    # Dependent Cohorts (last)
+    fs::path(projectPath, "inputs/cohorts/R/build_dependent_cohorts.R")
+  )
+
+  # Track directories checked
+  directories_checked <- c(
+    fs::path(projectPath, "inputs/conceptSets/R"),
+    fs::path(projectPath, "inputs/cohorts/R")
+  )
+
+  tryCatch({
+    if (verbose) {
+      cli::cli_inform("Sourcing pre-pipeline input builder scripts in dependency order...")
+    }
+
+    # Source files in the MANDATORY ORDER
+    for (file in source_order) {
+      # Skip if file doesn't exist
+      if (!fs::file_exists(file)) {
+        next
+      }
+
+      tryCatch({
+        if (verbose) {
+          cli::cli_bullets(c(
+            "bullet" = "Sourcing {.file {fs::path_file(file)}} from {.file {fs::path_file(dirname(file))}}"
+          ))
+        }
+        source(file = file, local = FALSE)
+        sourced_files <- c(sourced_files, file)
+      }, error = function(e) {
+        error_msg <- paste0(
+          "Error sourcing {fs::path_rel(file)}: ",
+          e$message
+        )
+        errors[[fs::path_rel(file)]] <- error_msg
+        cli::cli_alert_danger(error_msg)
+      })
+    }
+
+    if (length(sourced_files) > 0) {
+      cli::cli_alert_success(
+        "Successfully sourced {length(sourced_files)} input builder script(s)"
+      )
+    } else {
+      if (warnMissing) {
+        cli::cli_alert_info("No input builder scripts found")
+      }
+    }
+
+  }, error = function(e) {
+    cli::cli_alert_danger(
+      "Error in sourceInputBuilderScripts(): {e$message}"
+    )
+    errors[["critical"]] <- e$message
+  })
+
+  ll <- list(
+    sourced_files = sourced_files,
+    directories_checked = directories_checked,
+    error_summary = errors
+  )
+  invisible(ll)
+}
+
+#' Source Dissemination Scripts
+#'
+#' A convenience function that sources all R scripts from the dissemination
+#' scripts directory in alphabetical order. After the pipeline runs and
+#' \code{\link{runPostProcessing}} merges results, this function allows users
+#' to source custom dissemination/formatting scripts to prepare results for
+#' Excel export, StudyHub submission, or other dissemination targets.
+#'
+#' @description
+#' Dissemination scripts are sourced from \code{dissemination/pretty/R/} in
+#' alphabetical order. Each script is sourced in the global environment, so
+#' any variables, functions, or file outputs are available at the console level.
+#' A \code{disseminationEnv} object is automatically created and injected into
+#' the global environment for use by dissemination scripts.
+#'
+#' @param projectPath Character. Path to the project root directory.
+#'   Defaults to \code{here::here()}.
+#' @param pipelineVersion Character. The pipeline/study version being disseminated
+#'   (e.g., "1.0.0"). Available to scripts via \code{disseminationEnv$pipelineVersion}.
+#'   If NULL (default), attempts to auto-detect from config.yml.
+#' @param databaseIds Character vector. Database IDs that were included in postprocessing
+#'   (e.g., c("database_1", "database_2")). Available to scripts via 
+#'   \code{disseminationEnv$databaseIds}. If NULL (default), can be set manually by user.
+#' @param outputPath Character. Base output directory for dissemination scripts.
+#'   Available to scripts via \code{disseminationEnv$outputPath}.
+#'   Defaults to \code{here::here("dissemination/pretty")}.
+#' @param verbose Logical. If TRUE (default), displays which scripts are being sourced.
+#' @param warnMissing Logical. If TRUE (default), warns when the dissemination
+#'   scripts directory doesn't exist.
+#'
+#' @return Invisibly returns a list with:
+#'   - `sourced_files`: Character vector of sourced files (absolute paths)
+#'   - `directories_checked`: Character vector of directories checked
+#'   - `error_summary`: List of any errors encountered
+#'   - `disseminationEnv`: List containing pipelineVersion, databaseIds, outputPath
+#'
+#' @details
+#' Typical workflow:
+#' \enumerate{
+#'   \item Run \code{\link{sourceInputBuilderScripts}} to load input definitions
+#'   \item Run \code{\link{execStudyPipeline}} to execute the analysis
+#'   \item Run \code{\link{runPostProcessing}} to merge results across databases
+#'   \item Use \code{\link{makeDisseminationScript}} to create a template for formatting
+#'   \item Edit the template script with your custom formatting/export logic
+#'   \item Run \code{sourceDisseminationScripts(pipelineVersion = "1.0.0", databaseIds = c("db1", "db2"))} 
+#'     to execute your dissemination scripts with metadata
+#' }
+#'
+#' The \code{disseminationEnv} object is made available to all sourced scripts and contains:
+#' \itemize{
+#'   \item \code{pipelineVersion}: The version string
+#'   \item \code{databaseIds}: Vector of database IDs
+#'   \item \code{outputPath}: Base output directory for results
+#'   \item \code{resultsPath}: Inferred merged results path based on version
+#' }
+#'
+#' @export
+sourceDisseminationScripts <- function(
+    projectPath = here::here(),
+    pipelineVersion = NULL,
+    databaseIds = NULL,
+    outputPath = here::here("dissemination/pretty"),
+    verbose = TRUE,
+    warnMissing = TRUE) {
+
+  # Initialize tracking
+  sourced_files <- character(0)
+  directories_checked <- character(0)
+  errors <- list()
+
+  # Auto-detect pipelineVersion from config if not provided
+  if (is.null(pipelineVersion)) {
+    tryCatch({
+      pipelineVersion <- config::get("version", file = fs::path(projectPath, "config.yml"))
+    }, error = function(e) {
+      # Version not found, will remain NULL
+    })
+  }
+
+  # Create disseminationEnv object to inject into global environment
+  # This allows dissemination scripts to access metadata without hardcoding
+  disseminationEnv <- list(
+    pipelineVersion = pipelineVersion,
+    databaseIds = databaseIds,
+    outputPath = outputPath,
+    resultsPath = if (!is.null(pipelineVersion)) {
+      fs::path(projectPath, "dissemination/export/merge", paste0("v", pipelineVersion))
+    } else {
+      NA_character_
+    }
+  )
+
+  # Define dissemination scripts directory
+  diss_dir <- fs::path(projectPath, "dissemination/pretty/R")
+
+  tryCatch({
+    if (verbose) {
+      cli::cli_inform("Sourcing dissemination scripts...")
+    }
+
+    directories_checked <- c(directories_checked, diss_dir)
+
+    # Check if directory exists
+    if (!fs::dir_exists(diss_dir)) {
+      if (warnMissing) {
+        cli::cli_alert_warning(
+          "Dissemination scripts directory not found: {.file {fs::path_rel(diss_dir)}}"
+        )
+      }
+      cli::cli_alert_info("Skipping dissemination scripts")
+      ll <- list(
+        sourced_files = sourced_files,
+        directories_checked = directories_checked,
+        error_summary = errors,
+        disseminationEnv = disseminationEnv
+      )
+      return(invisible(ll))
+    }
+
+    # Find all .R files in this directory
+    r_files <- fs::dir_ls(diss_dir, glob = "*.R", type = "file")
+
+    # Sort alphabetically
+    r_files <- sort(r_files)
+
+    if (length(r_files) == 0) {
+      if (verbose) {
+        cli::cli_alert_info(
+          "No dissemination scripts found in {.file {fs::path_rel(diss_dir)}}"
+        )
+      }
+      ll <- list(
+        sourced_files = sourced_files,
+        directories_checked = directories_checked,
+        error_summary = errors,
+        disseminationEnv = disseminationEnv
+      )
+      return(invisible(ll))
+    }
+
+    # Make disseminationEnv available in global environment for scripts to use
+    assign("disseminationEnv", disseminationEnv, envir = globalenv())
+
+    if (verbose) {
+      cli::cli_inform(
+        "Dissemination metadata available: pipelineVersion = {.val {disseminationEnv$pipelineVersion}}, outputPath = {.file {fs::path_rel(disseminationEnv$outputPath)}}"
+      )
+    }
+
+    # Source each file
+    for (file in r_files) {
+      tryCatch({
+        if (verbose) {
+          cli::cli_bullets(c(
+            "bullet" = "Sourcing {.file {fs::path_file(file)}}"
+          ))
+        }
+        source(file = file, local = FALSE)
+        sourced_files <- c(sourced_files, file)
+      }, error = function(e) {
+        error_msg <- paste0(
+          "Error sourcing {fs::path_rel(file)}: ",
+          e$message
+        )
+        errors[[fs::path_rel(file)]] <- error_msg
+        cli::cli_alert_danger(error_msg)
+      })
+    }
+
+    if (length(sourced_files) > 0) {
+      cli::cli_alert_success(
+        "Successfully sourced {length(sourced_files)} dissemination script(s)"
+      )
+    } else {
+      cli::cli_alert_info("No dissemination scripts were sourced")
+    }
+
+  }, error = function(e) {
+    cli::cli_alert_danger(
+      "Error in sourceDisseminationScripts(): {e$message}"
+    )
+    errors[["critical"]] <- e$message
+  })
+
+  ll <- list(
+    sourced_files = sourced_files,
+    directories_checked = directories_checked,
+    error_summary = errors,
+    disseminationEnv = disseminationEnv
+  )
+  invisible(ll)
+}

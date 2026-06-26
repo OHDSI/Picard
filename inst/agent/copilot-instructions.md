@@ -96,10 +96,11 @@ Only the user can execute, test, and run code. You are an assistant for writing,
    - Define research questions, cohorts, and analyses in `07-evidence-generation-plan.md`
    - Use this as the blueprint for developing the pipeline
 
-### 4. **Define Study Populations**
-   - Use `.agent/reference-docs/03-loading-inputs.md` to load cohorts and concept sets
-   - Import from ATLAS or create custom definitions
-   - Validate that all definitions are correct
+4. **Define Study Populations with Builder Scripts**
+   - Edit pre-pipeline builder scripts in `inputs/cohorts/R/` and `inputs/conceptSets/R/`
+   - Use `.agent/reference-docs/03-loading-inputs.md` for detailed guidance on each builder type
+   - Delete unused builders; keep only the ones you need
+   - Available builders: ATLAS import, Capr-based, SQL (cohorts only), and derived cohorts (cohorts only)
 
 ### 5. **Develop Analysis Tasks and Test**
    - Use `.agent/reference-docs/04-developing-pipeline.md` for guidance

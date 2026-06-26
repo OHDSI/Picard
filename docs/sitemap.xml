@@ -175,6 +175,9 @@
     <loc>https://ohdsi.github.io/Picard/reference/ExecutionSettings.html</loc>
   </url>
   <url>
+    <loc>https://ohdsi.github.io/Picard/reference/expandManifestTags.html</loc>
+  </url>
+  <url>
     <loc>https://ohdsi.github.io/Picard/reference/formatFloats.html</loc>
   </url>
   <url>
@@ -244,7 +247,13 @@
     <loc>https://ohdsi.github.io/Picard/reference/makeBlock.html</loc>
   </url>
   <url>
+    <loc>https://ohdsi.github.io/Picard/reference/makeDisseminationScript.html</loc>
+  </url>
+  <url>
     <loc>https://ohdsi.github.io/Picard/reference/makeExecOptions.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/makeInputBuilderScript.html</loc>
   </url>
   <url>
     <loc>https://ohdsi.github.io/Picard/reference/makePrintFriendlyFile.html</loc>
@@ -350,6 +359,12 @@
   </url>
   <url>
     <loc>https://ohdsi.github.io/Picard/reference/snapshotEnvironment.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/sourceDisseminationScripts.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/sourceInputBuilderScripts.html</loc>
   </url>
   <url>
     <loc>https://ohdsi.github.io/Picard/reference/standardizeDataTypes.html</loc>

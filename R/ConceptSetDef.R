@@ -56,7 +56,6 @@ ConceptSetDef <- R6::R6Class(
     #'
     #' @param label Character. The common name of the concept set.
     #' @param category Character. The category for this concept set.
-    #'   Valid values: "drug_exposure", "condition_occurrence", "measurement", "procedure", "observation", "device_exposure", "visit_occurrence", "init".
     #' @param tags List. A named list of tags that give metadata about the concept set.
     #' @param filePath Character. Path to the concept set JSON file in inputs/conceptSet folder.
     initialize = function(label, category = "init", tags = list(), filePath) {
@@ -65,12 +64,12 @@ ConceptSetDef <- R6::R6Class(
       checkmate::assert_list(x = tags, names = "named")
       checkmate::assert_file_exists(x = filePath)
 
-      # Validate category
-      valid_categories <- c("drug_exposure", "condition_occurrence", "measurement", "procedure", 
-        "observation", "device_exposure", "visit_occurrence", "init")
-      if (!(category %in% valid_categories)) {
-        stop("Invalid category '", category, "'. Valid categories: ", paste(valid_categories, collapse = ", "))
-      }
+      # Validate category...this is wrong this is validation for domain not category
+      # valid_categories <- c("drug_exposure", "condition_occurrence", "measurement", "procedure", 
+      #   "observation", "device_exposure", "visit_occurrence", "init")
+      # if (!(category %in% valid_categories)) {
+      #   stop("Invalid category '", category, "'. Valid categories: ", paste(valid_categories, collapse = ", "))
+      # }
       
       private$.label <- label
       private$.category <- category

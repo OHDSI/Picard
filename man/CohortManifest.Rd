@@ -16,6 +16,21 @@ The CohortManifest class manages multiple cohort definitions and stores their
 metadata in a SQLite database located at inputs/cohorts/cohortManifest.sqlite.
 Each CohortDef is assigned a sequential ID based on its position in the manifest.
 
+This is the detection phase of the ATLAS maintenance workflow. Use this to identify
+which ATLAS cohorts have changed, then optionally call \code{updateAtlasCohorts()} to
+apply updates. Changes are detected by comparing expression JSON hashes.
+
+This method updates ATLAS cohorts that have changed in the remote repository. It:
+\itemize{
+\item Fetches current definitions from ATLAS
+\item Updates JSON files on disk
+\item Recomputes and stores hashes
+\item Updates the manifest database
+}
+
+Use \code{checkAtlasChanges()} first to identify which cohorts have changed, then call this method
+to apply updates.
+
 Requires that executionSettings has been set and includes:
 \itemize{
 \item A database connection (via getConnection()
@@ -88,14 +103,18 @@ Requires that executionSettings has been set and includes:
 \item \href{#method-CohortManifest-queryCohortsByTag}{\code{CohortManifest$queryCohortsByTag()}}
 \item \href{#method-CohortManifest-queryCohortsByLabel}{\code{CohortManifest$queryCohortsByLabel()}}
 \item \href{#method-CohortManifest-queryCohortsByCategory}{\code{CohortManifest$queryCohortsByCategory()}}
+\item \href{#method-CohortManifest-queryCohortsByTagName}{\code{CohortManifest$queryCohortsByTagName()}}
 \item \href{#method-CohortManifest-nCohorts}{\code{CohortManifest$nCohorts()}}
 \item \href{#method-CohortManifest-getCohortById}{\code{CohortManifest$getCohortById()}}
 \item \href{#method-CohortManifest-getCohortsByTag}{\code{CohortManifest$getCohortsByTag()}}
 \item \href{#method-CohortManifest-getCohortsByLabel}{\code{CohortManifest$getCohortsByLabel()}}
-\item \href{#method-CohortManifest-updateCohortDef}{\code{CohortManifest$updateCohortDef()}}
+\item \href{#method-CohortManifest-updateCohortLabel}{\code{CohortManifest$updateCohortLabel()}}
+\item \href{#method-CohortManifest-updateCohortCategory}{\code{CohortManifest$updateCohortCategory()}}
+\item \href{#method-CohortManifest-updateCohortTags}{\code{CohortManifest$updateCohortTags()}}
+\item \href{#method-CohortManifest-checkAtlasCohorts}{\code{CohortManifest$checkAtlasCohorts()}}
+\item \href{#method-CohortManifest-updateAtlasCohorts}{\code{CohortManifest$updateAtlasCohorts()}}
 \item \href{#method-CohortManifest-statusReport}{\code{CohortManifest$statusReport()}}
 \item \href{#method-CohortManifest-print}{\code{CohortManifest$print()}}
-\item \href{#method-CohortManifest-removeCohort}{\code{CohortManifest$removeCohort()}}
 \item \href{#method-CohortManifest-createCohortTables}{\code{CohortManifest$createCohortTables()}}
 \item \href{#method-CohortManifest-dropCohortTables}{\code{CohortManifest$dropCohortTables()}}
 \item \href{#method-CohortManifest-syncManifest}{\code{CohortManifest$syncManifest()}}
@@ -353,25 +372,22 @@ Invisible integer. The assigned cohort ID.
 \if{html}{\out{<a id="method-CohortManifest-importAtlasCohorts"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-importAtlasCohorts}{}}}
 \subsection{Method \code{importAtlasCohorts()}}{
-Batch import cohorts from ATLAS via cohortsLoad.csv
+Batch-import cohorts from ATLAS via a cohortsLoad dataframe
 
-Reads a CSV file with columns \code{atlasId}, \code{label}, \code{category}
-(plus optional extra columns for tags) and imports each cohort from ATLAS.
+Either create a dataframe or read in a csv file with columns \code{atlasId}, \code{label}, \code{category} (required) plus any
+additional columns treated as tag key-value pairs for tags. Calls \code{addAtlasCohort()} for each row inside
+a \code{tryCatch} so a single failure does not abort the entire batch.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$importAtlasCohorts(
-  atlasConnection = NULL,
-  cohortsLoadPath = here::here("inputs/cohorts/cohortsLoad.csv")
-)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$importAtlasCohorts(cohortsLoad, atlasConnection = NULL)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
+\item{\code{cohortsLoad}}{a data frame requiring the columns atlasId, label and category used to bulk add cohorts to the manifest}
+
 \item{\code{atlasConnection}}{An ATLAS connection object with a \code{getCohortDefinition(cohortId)} method.
 If \code{NULL}, falls back to the connection stored via \verb{$setAtlasConnection()}.}
-
-\item{\code{cohortsLoadPath}}{Character. Path to the CSV file. Defaults to
-\code{here::here("inputs/cohorts/cohortsLoad.csv")}.}
 }
 \if{html}{\out{</div>}}
 }
@@ -913,6 +929,26 @@ Defaults to "exact".}
 }
 \subsection{Returns}{
 Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
+Query cohorts by category
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-queryCohortsByTagName"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-queryCohortsByTagName}{}}}
+\subsection{Method \code{queryCohortsByTagName()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsByTagName(tagName)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{tagName}}{Character vector. The name of tags to query}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
 }
 }
 \if{html}{\out{<hr>}}
@@ -998,20 +1034,12 @@ List. A list of CohortDef objects with matching labels, or NULL if none found.
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-CohortManifest-updateCohortDef"></a>}}
-\if{latex}{\out{\hypertarget{method-CohortManifest-updateCohortDef}{}}}
-\subsection{Method \code{updateCohortDef()}}{
-Update metadata for an existing cohort
-
-Modifies label, category, or tags for a cohort entry in the manifest.
-The file path remains immutable.
+\if{html}{\out{<a id="method-CohortManifest-updateCohortLabel"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-updateCohortLabel}{}}}
+\subsection{Method \code{updateCohortLabel()}}{
+Update a cohort label
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$updateCohortDef(
-  cohortId,
-  label = NULL,
-  category = NULL,
-  tags = NULL
-)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$updateCohortLabel(cohortId, newLabel)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -1019,16 +1047,116 @@ The file path remains immutable.
 \describe{
 \item{\code{cohortId}}{Integer. The cohort ID to update.}
 
-\item{\code{label}}{Character. New label. If NULL, keeps existing.}
-
-\item{\code{category}}{Character. New category. If NULL, keeps existing.}
-
-\item{\code{tags}}{Named list. New tags. If NULL, keeps existing.}
+\item{\code{newLabel}}{Character. The new label for the cohort.}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Invisible NULL. Updates the manifest.
+Invisible NULL.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-updateCohortCategory"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-updateCohortCategory}{}}}
+\subsection{Method \code{updateCohortCategory()}}{
+Update a cohort category
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$updateCohortCategory(cohortId, newCategory)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{cohortId}}{Integer. The cohort ID to update.}
+
+\item{\code{newCategory}}{Character. The new category for the cohort.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible NULL.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-updateCohortTags"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-updateCohortTags}{}}}
+\subsection{Method \code{updateCohortTags()}}{
+Update cohort tags
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$updateCohortTags(cohortId, newTags)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{cohortId}}{Integer. The cohort ID to update.}
+
+\item{\code{newTags}}{Named list. The new tags for the cohort.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible NULL.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-checkAtlasCohorts"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-checkAtlasCohorts}{}}}
+\subsection{Method \code{checkAtlasCohorts()}}{
+Auto-detect changes to ATLAS cohorts in remote repository
+
+Queries the manifest for all active ATLAS cohorts (identified by \code{atlasId} in tags),
+fetches their current definitions from ATLAS, computes hashes, and compares against
+the stored local hash. Provides a read-only summary of which cohorts have changed
+in ATLAS since import. No modifications are made.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$checkAtlasCohorts(atlasConnection = NULL)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{atlasConnection}}{An ATLAS connection object  with a method \code{getCohortDefinition(cohortId)}
+that returns a list with an \code{expression} element.
+If \code{NULL} (default), uses the connection stored via \verb{$setAtlasConnection()}.
+If no connection is available, raises an error.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible tibble with columns:
+\itemize{
+\item \code{id} - Cohort ID in manifest
+\item \code{label} - Cohort label
+\item \code{atlasId} - ATLAS cohort definition ID
+\item \code{hasChanged} - Logical; TRUE if remote hash differs from local
+\item \code{localHash} - Hash of stored JSON
+\item \code{remoteHash} - Hash of current ATLAS JSON
+}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-updateAtlasCohorts"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-updateAtlasCohorts}{}}}
+\subsection{Method \code{updateAtlasCohorts()}}{
+Update ATLAS cohorts with remote definitions
+
+Fetches current definitions from ATLAS for specified cohorts and updates the stored JSON files
+and manifest entries. This is the modification phase that applies changes detected by checkAtlasChanges().
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$updateAtlasCohorts(atlasConnection = NULL)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{atlasConnection}}{An ATLAS connection object with a method \code{getCohortDefinition(cohortId)}.
+If \code{NULL} (default), uses the connection stored via \verb{$setAtlasConnection()}.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+invisible of the tibble of atlas changes to update
 }
 }
 \if{html}{\out{<hr>}}
@@ -1054,50 +1182,11 @@ Invisible tibble with columns: id, label, category, source_type, depends_on, sta
 Print a friendly view of the CohortManifest
 
 Displays key metadata about the manifest and its contents.
+Create cohort tables in the database
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$print()}\if{html}{\out{</div>}}
 }
 
-}
-\if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-CohortManifest-removeCohort"></a>}}
-\if{latex}{\out{\hypertarget{method-CohortManifest-removeCohort}{}}}
-\subsection{Method \code{removeCohort()}}{
-Remove a cohort from the manifest
-
-Permanently removes a cohort from the SQLite manifest and optionally deletes
-its file on disk and/or drops its rows from the DBMS cohort and checksum tables.
-This is a hard, irreversible removal — no soft-delete trace is left.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$removeCohort(
-  id,
-  deleteFile = FALSE,
-  dropFromCohortTable = FALSE,
-  confirm = FALSE
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{id}}{Integer. The cohort ID to remove.}
-
-\item{\code{deleteFile}}{Logical. If TRUE, deletes the associated SQL/JSON file on disk.
-Default: FALSE.}
-
-\item{\code{dropFromCohortTable}}{Logical. If TRUE, deletes the cohort's rows from the
-DBMS cohort table and checksum table. Requires \code{executionSettings} to be
-set via \code{$setExecutionSettings()}. Default: FALSE.}
-
-\item{\code{confirm}}{Logical. If FALSE (default), prompts for interactive confirmation.
-Pass TRUE to skip the prompt (suitable for scripts).}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible NULL.
-Create cohort tables in the database
-}
 }
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-createCohortTables"></a>}}
@@ -1145,19 +1234,28 @@ Sync the manifest against cohort files on disk
 Scans the \code{json/} and \code{sql/} subdirectories of the cohorts folder, reconciles
 them against the SQLite manifest, and updates both the database and the in-memory list:
 \itemize{
-\item New files found on disk are added (new CohortDef + manifest entry).
 \item Active manifest records whose file no longer exists are soft-deleted.
 \item Existing files whose SQL hash has changed are updated in the manifest.
+\item Orphaned files on disk not in manifest are automatically deleted.
 }
 Only the \code{json/} and \code{sql/} source directories are scanned — derived cohorts
 managed via \code{build*()} methods are not touched.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$syncManifest()}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$syncManifest(strict_mode = TRUE)}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{strict_mode}}{Logical. If TRUE (default), automatically removes orphaned files found
+on disk. If FALSE, only warns about them without deletion. Default: TRUE.}
+}
+\if{html}{\out{</div>}}
+}
 \subsection{Returns}{
 Data frame with columns: id, label, action
-(\code{"added"}, \code{"hash_updated"}, \code{"missing_flagged"}, or \code{"unchanged"}).
+(\code{"hash_updated"}, \code{"missing_flagged"}, \code{"unchanged"},
+\code{"auto_removed_orphan"}).
 Clean cohort data from the DBMS for deleted manifest entries
 }
 }
@@ -1264,9 +1362,17 @@ List with elements: active_count, missing_count, deleted_count, next_available_i
 \if{html}{\out{<a id="method-CohortManifest-deleteCohort"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-deleteCohort}{}}}
 \subsection{Method \code{deleteCohort()}}{
-Soft delete a cohort (mark as deleted, preserve record)
+Delete a cohort from manifest and file system
+
+Marks a cohort as deleted in the manifest and removes its file from the file
+system (json/ or sql/ directory). The SQLite record is preserved with
+status='deleted' for audit trail purposes.
+
+When a manifest is loaded, only active cohorts are loaded into memory.
+This enforces strict 1:1 correspondence between active manifest entries
+and files on disk.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$deleteCohort(id, reason = NULL)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$deleteCohort(id, confirm = FALSE, dropFromDBMS = FALSE)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -1274,12 +1380,17 @@ Soft delete a cohort (mark as deleted, preserve record)
 \describe{
 \item{\code{id}}{Integer. The cohort ID to delete.}
 
-\item{\code{reason}}{Character. Optional reason for deletion.}
+\item{\code{confirm}}{Logical. If FALSE (default), prompts for interactive confirmation.
+Pass TRUE to skip the prompt (suitable for scripts).}
+
+\item{\code{dropFromDBMS}}{Logical. If TRUE, also deletes the cohort from the DBMS
+cohort table and checksum table. Requires \code{executionSettings} to be set.
+Default: FALSE (filesystem/manifest cleanup only).}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Invisibly returns TRUE if successful, FALSE otherwise.
+Invisible NULL.
 }
 }
 \if{html}{\out{<hr>}}

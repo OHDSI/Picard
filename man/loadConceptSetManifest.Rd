@@ -7,6 +7,7 @@
 loadConceptSetManifest(
   conceptSetsFolderPath = here::here("inputs/conceptSets"),
   executionSettings = NULL,
+  autoSync = TRUE,
   verbose = TRUE
 )
 }
@@ -16,6 +17,9 @@ Defaults to \code{here::here("inputs/conceptSets")}.}
 
 \item{executionSettings}{ExecutionSettings object. Optional.}
 
+\item{autoSync}{Logical. If TRUE (default), syncs the manifest to reconcile
+files on disk with the SQLite database (removes orphaned files, flags missing).}
+
 \item{verbose}{Logical. If TRUE (default), prints informative messages.}
 }
 \value{
@@ -23,6 +27,6 @@ ConceptSetManifest object.
 }
 \description{
 Loads a ConceptSetManifest R6 object from an existing SQLite database.
-Scans the \verb{json/} directory for new files not yet registered in the manifest
-and auto-registers them.
+By default, automatically syncs the manifest to ensure 1:1 correspondence
+between SQLite and the file system.
 }

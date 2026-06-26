@@ -12,7 +12,7 @@ CohortDef R6 Class"><!-- mathjax --><script src="https://cdnjs.cloudflare.com/aj
     
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.4</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.5</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -96,7 +96,8 @@ the generated SQL.</p>
 <ul><li><p><a href="#method-CohortDef-new"><code>CohortDef$new()</code></a></p></li>
 <li><p><a href="#method-CohortDef-getFilePath"><code>CohortDef$getFilePath()</code></a></p></li>
 <li><p><a href="#method-CohortDef-getSql"><code>CohortDef$getSql()</code></a></p></li>
-<li><p><a href="#method-CohortDef-getHash"><code>CohortDef$getHash()</code></a></p></li>
+<li><p><a href="#method-CohortDef-getFileHash"><code>CohortDef$getFileHash()</code></a></p></li>
+<li><p><a href="#method-CohortDef-getSqlHash"><code>CohortDef$getSqlHash()</code></a></p></li>
 <li><p><a href="#method-CohortDef-getId"><code>CohortDef$getId()</code></a></p></li>
 <li><p><a href="#method-CohortDef-setId"><code>CohortDef$setId()</code></a></p></li>
 <li><p><a href="#method-CohortDef-formatTagsAsString"><code>CohortDef$formatTagsAsString()</code></a></p></li>
@@ -164,20 +165,34 @@ Get the generated SQL</p>
 <div class="section">
 <h4 id="returns-1">Returns<a class="anchor" aria-label="anchor" href="#returns-1"></a></h4>
 <p>Character. The SQL definition of the cohort.
-Get the SQL hash</p>
+Get the file hash</p>
 </div>
 
-</div><p></p><hr><a id="method-CohortDef-getHash"></a><div class="section">
-<h3 id="method-gethash-">Method <code>getHash()</code><a class="anchor" aria-label="anchor" href="#method-gethash-"></a></h3>
+</div><p></p><hr><a id="method-CohortDef-getFileHash"></a><div class="section">
+<h3 id="method-getfilehash-">Method <code>getFileHash()</code><a class="anchor" aria-label="anchor" href="#method-getfilehash-"></a></h3>
 
 <div class="section">
 <h4 id="usage-3">Usage<a class="anchor" aria-label="anchor" href="#usage-3"></a></h4>
-<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortDef</span><span class="op">$</span><span class="fu">getHash</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortDef</span><span class="op">$</span><span class="fu">getFileHash</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
 <h4 id="returns-2">Returns<a class="anchor" aria-label="anchor" href="#returns-2"></a></h4>
-<p>Character. MD5 hash of the current SQL definition.
+<p>Character. MD5 hash of the raw file content on disk.
+Get the SQL hash</p>
+</div>
+
+</div><p></p><hr><a id="method-CohortDef-getSqlHash"></a><div class="section">
+<h3 id="method-getsqlhash-">Method <code>getSqlHash()</code><a class="anchor" aria-label="anchor" href="#method-getsqlhash-"></a></h3>
+
+<div class="section">
+<h4 id="usage-4">Usage<a class="anchor" aria-label="anchor" href="#usage-4"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortDef</span><span class="op">$</span><span class="fu">getSqlHash</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="returns-3">Returns<a class="anchor" aria-label="anchor" href="#returns-3"></a></h4>
+<p>Character. MD5 hash of the normalized SQL definition (line endings standardized).
 Get the cohort ID</p>
 </div>
 
@@ -185,12 +200,12 @@ Get the cohort ID</p>
 <h3 id="method-getid-">Method <code>getId()</code><a class="anchor" aria-label="anchor" href="#method-getid-"></a></h3>
 
 <div class="section">
-<h4 id="usage-4">Usage<a class="anchor" aria-label="anchor" href="#usage-4"></a></h4>
+<h4 id="usage-5">Usage<a class="anchor" aria-label="anchor" href="#usage-5"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortDef</span><span class="op">$</span><span class="fu">getId</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="returns-3">Returns<a class="anchor" aria-label="anchor" href="#returns-3"></a></h4>
+<h4 id="returns-4">Returns<a class="anchor" aria-label="anchor" href="#returns-4"></a></h4>
 <p>Integer. The cohort ID, or NA_integer_ if not set.
 Set the cohort ID (internal use)</p>
 </div>
@@ -199,7 +214,7 @@ Set the cohort ID (internal use)</p>
 <h3 id="method-setid-">Method <code>setId()</code><a class="anchor" aria-label="anchor" href="#method-setid-"></a></h3>
 
 <div class="section">
-<h4 id="usage-5">Usage<a class="anchor" aria-label="anchor" href="#usage-5"></a></h4>
+<h4 id="usage-6">Usage<a class="anchor" aria-label="anchor" href="#usage-6"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortDef</span><span class="op">$</span><span class="fu">setId</span><span class="op">(</span><span class="va">id</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
@@ -217,12 +232,12 @@ Format tags as string</p></dd>
 <h3 id="method-formattagsasstring-">Method <code>formatTagsAsString()</code><a class="anchor" aria-label="anchor" href="#method-formattagsasstring-"></a></h3>
 
 <div class="section">
-<h4 id="usage-6">Usage<a class="anchor" aria-label="anchor" href="#usage-6"></a></h4>
+<h4 id="usage-7">Usage<a class="anchor" aria-label="anchor" href="#usage-7"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortDef</span><span class="op">$</span><span class="fu">formatTagsAsString</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="returns-4">Returns<a class="anchor" aria-label="anchor" href="#returns-4"></a></h4>
+<h4 id="returns-5">Returns<a class="anchor" aria-label="anchor" href="#returns-5"></a></h4>
 <p>Character. Tags formatted as "name: value | name: value".
 Get the cohort type</p>
 </div>
@@ -231,12 +246,12 @@ Get the cohort type</p>
 <h3 id="method-getcohorttype-">Method <code>getCohortType()</code><a class="anchor" aria-label="anchor" href="#method-getcohorttype-"></a></h3>
 
 <div class="section">
-<h4 id="usage-7">Usage<a class="anchor" aria-label="anchor" href="#usage-7"></a></h4>
+<h4 id="usage-8">Usage<a class="anchor" aria-label="anchor" href="#usage-8"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortDef</span><span class="op">$</span><span class="fu">getCohortType</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="returns-5">Returns<a class="anchor" aria-label="anchor" href="#returns-5"></a></h4>
+<h4 id="returns-6">Returns<a class="anchor" aria-label="anchor" href="#returns-6"></a></h4>
 <p>Character. One of 'circe', 'custom', 'subset', 'union', 'complement', 'composite'.
 Set the cohort type (internal use)</p>
 </div>
@@ -245,7 +260,7 @@ Set the cohort type (internal use)</p>
 <h3 id="method-setcohorttype-">Method <code>setCohortType()</code><a class="anchor" aria-label="anchor" href="#method-setcohorttype-"></a></h3>
 
 <div class="section">
-<h4 id="usage-8">Usage<a class="anchor" aria-label="anchor" href="#usage-8"></a></h4>
+<h4 id="usage-9">Usage<a class="anchor" aria-label="anchor" href="#usage-9"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortDef</span><span class="op">$</span><span class="fu">setCohortType</span><span class="op">(</span><span class="va">cohortType</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
@@ -263,12 +278,12 @@ Get the source type</p></dd>
 <h3 id="method-getsourcetype-">Method <code>getSourceType()</code><a class="anchor" aria-label="anchor" href="#method-getsourcetype-"></a></h3>
 
 <div class="section">
-<h4 id="usage-9">Usage<a class="anchor" aria-label="anchor" href="#usage-9"></a></h4>
+<h4 id="usage-10">Usage<a class="anchor" aria-label="anchor" href="#usage-10"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortDef</span><span class="op">$</span><span class="fu">getSourceType</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="returns-6">Returns<a class="anchor" aria-label="anchor" href="#returns-6"></a></h4>
+<h4 id="returns-7">Returns<a class="anchor" aria-label="anchor" href="#returns-7"></a></h4>
 <p>Character. One of 'atlas', 'capr', 'sql', 'derived'.
 Get the category</p>
 </div>
@@ -277,12 +292,12 @@ Get the category</p>
 <h3 id="method-getcategory-">Method <code>getCategory()</code><a class="anchor" aria-label="anchor" href="#method-getcategory-"></a></h3>
 
 <div class="section">
-<h4 id="usage-10">Usage<a class="anchor" aria-label="anchor" href="#usage-10"></a></h4>
+<h4 id="usage-11">Usage<a class="anchor" aria-label="anchor" href="#usage-11"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortDef</span><span class="op">$</span><span class="fu">getCategory</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="returns-7">Returns<a class="anchor" aria-label="anchor" href="#returns-7"></a></h4>
+<h4 id="returns-8">Returns<a class="anchor" aria-label="anchor" href="#returns-8"></a></h4>
 <p>Character. The cohort category (e.g., 'target', 'exposure', 'outcome').
 Set the category</p>
 </div>
@@ -291,7 +306,7 @@ Set the category</p>
 <h3 id="method-setcategory-">Method <code>setCategory()</code><a class="anchor" aria-label="anchor" href="#method-setcategory-"></a></h3>
 
 <div class="section">
-<h4 id="usage-11">Usage<a class="anchor" aria-label="anchor" href="#usage-11"></a></h4>
+<h4 id="usage-12">Usage<a class="anchor" aria-label="anchor" href="#usage-12"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortDef</span><span class="op">$</span><span class="fu">setCategory</span><span class="op">(</span><span class="va">category</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
@@ -307,7 +322,7 @@ Set the category</p>
 </div><p></p><hr><a id="method-CohortDef-clone"></a><div class="section">
 <h3 id="method-clone-">Method <code>clone()</code><a class="anchor" aria-label="anchor" href="#method-clone-"></a></h3>
 <p>The objects of this class are cloneable with this method.</p><div class="section">
-<h4 id="usage-12">Usage<a class="anchor" aria-label="anchor" href="#usage-12"></a></h4>
+<h4 id="usage-13">Usage<a class="anchor" aria-label="anchor" href="#usage-13"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortDef</span><span class="op">$</span><span class="fu">clone</span><span class="op">(</span>deep <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 

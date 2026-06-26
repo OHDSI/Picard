@@ -26,7 +26,7 @@
     
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.4</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.5</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -561,7 +561,7 @@ dissemination. Migrations are numbered to correspond with their source
 analysis tasks (e.g., <code>02_migrate_surveillance.R</code> cleans
 output from task <code>02_surveillance.R</code>).</p>
 <p><strong>Purpose:</strong></p>
-<p>After <code><a href="https://ohdsi.github.io/Picard/reference/orchestratePipelineExport.html">orchestratePipelineExport()</a></code> binds raw results with
+<p>After <code>orchestratePipelineExport()</code> binds raw results with
 metadata, migrations handle data wrangling tasks that weren’t necessary
 during execution:</p>
 <ul>
@@ -950,7 +950,7 @@ website.</p>
 <h4 id="disseminationexport">dissemination/export/<a class="anchor" aria-label="anchor" href="#disseminationexport"></a>
 </h4>
 <p>Results exported from the pipeline via
-<code><a href="https://ohdsi.github.io/Picard/reference/orchestratePipelineExport.html">orchestratePipelineExport()</a></code> and processed into various
+<code>orchestratePipelineExport()</code> and processed into various
 formats for dissemination:</p>
 <pre><code>dissemination/export/
 ├── merge/                 # Raw merged results from orchestratePipelineExport()

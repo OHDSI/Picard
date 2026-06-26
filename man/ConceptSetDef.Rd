@@ -54,8 +54,7 @@ Initialize a new ConceptSetDef
 \describe{
 \item{\code{label}}{Character. The common name of the concept set.}
 
-\item{\code{category}}{Character. The category for this concept set.
-Valid values: "drug_exposure", "condition_occurrence", "measurement", "procedure", "observation", "device_exposure", "visit_occurrence", "init".}
+\item{\code{category}}{Character. The category for this concept set.}
 
 \item{\code{tags}}{List. A named list of tags that give metadata about the concept set.}
 

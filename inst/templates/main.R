@@ -23,12 +23,30 @@ library(picard) # pipeline orchestration and execution framework
 library(DatabaseConnector) # database connectivity and operations
 library(SqlRender) # SQL translation and rendering
 
-# C. Database Configuration ──────────────────────────────────────────────────
+# C. Pre-Pipeline: Load & Build Manifest ─────────────────────────────────────
+#
+# WORKFLOW:
+#   Edit scripts in inputs/cohorts/R/ and inputs/conceptSets/R/ to:
+#   - Load concept sets from ATLAS (importAtlas.R)
+#   - Build concepts programmatically with Capr (importCapr.R)
+#   - Load custom SQL cohorts (importSql.R) [cohorts only]
+#   - Build derived cohorts (buildDependentCohorts.R) [cohorts only]
+#
+# Delete unused builder scripts - only the ones you need will be sourced.
+# Scripts are sourced in alphabetical order, with concept sets first.
+# Concept set scripts run first so cohorts can reference them if needed.
+#
+# WARNING: Do NOT add builder scripts to analysis/tasks/ folder!
+#          Use the dedicated R/ folders in inputs/cohorts/ and inputs/conceptSets/
+
+sourceInputBuilderScripts(verbose = TRUE)
+
+# D. Database Configuration ──────────────────────────────────────────────────
 
 # Database identifiers to process (from config.yml)
 dbIds <- c("{configBlocks}")
 
-# D. Execute Production Pipeline ─────────────────────────────────────────────────
+# E. Execute Production Pipeline ─────────────────────────────────────────────────
 
 # PIPELINE ACTIVATION SEQUENCE:
 # - Validates environment and git state before running
@@ -46,7 +64,28 @@ taskResults <- execStudyPipeline(
 cli::cli_h2("Pipeline Execution Complete")
 cli::cli_alert_success("Task results saved to exec/logs/")
 
-# E. Post-Execution: Create Pull Request ──────────────────────────────────────
+# F. Post-Processing merge ──────────────────
+
+# Modify your pull request with post-processing results and notes as needed before final review.
+
+## Export results for further analysis
+cli::cli_alert_info("Initiating data export sequence...")
+results <- runPostProcessing(
+  executionSettings = eo,
+  reviewSchema = TRUE
+)
+
+# G. Post-Processing prett ──────────────────
+
+## Prepare dataset for dissemination
+# cli::cli_alert_info("Preparing dissemination package...")
+# sourceDisseminationScripts(
+#   pipelineVersion = "1.0.0",
+#   databaseIds = dbIds,
+#   outputPath = here::here("dissemination/pretty")
+# )
+
+# H. Post-Execution: Create Pull Request ──────────────────────────────────────
 #
 # REQUIRED NEXT STEPS:
 #   1. Consult PENDING_PR.md - contains branch name, title, and description
@@ -59,23 +98,9 @@ cli::cli_blockquote("Next steps: Review PENDING_PR.md and create PR in Git Clien
 # Uncomment after your pull request has been merged to main:
 # clearPendingPR()
 
-# F. Optional Post-Processing (as mission parameters require) ──────────────────
 
-# Modify your pull request with post-processing results and notes as needed before final review.
 
-## Export results for further analysis
-# cli::cli_alert_info("Initiating data export sequence...")
-# results <- runPostProcessing(
-#   executionSettings = eo,
-#   reviewSchema = TRUE
-# )
 
-## Prepare dataset for dissemination
-# cli::cli_alert_info("Preparing dissemination package...")
-# dissemination_data <- prepareDisseminationData(
-#   taskResults = taskResults,
-#   includeMetadata = TRUE
-# )
 
 
 
