@@ -1,8 +1,8 @@
 # Load Concept Set Manifest
 
 Loads a ConceptSetManifest R6 object from an existing SQLite database.
-Scans the `json/` directory for new files not yet registered in the
-manifest and auto-registers them.
+By default, automatically syncs the manifest to ensure 1:1
+correspondence between SQLite and the file system.
 
 ## Usage
 
@@ -10,6 +10,7 @@ manifest and auto-registers them.
 loadConceptSetManifest(
   conceptSetsFolderPath = here::here("inputs/conceptSets"),
   executionSettings = NULL,
+  autoSync = TRUE,
   verbose = TRUE
 )
 ```
@@ -24,6 +25,11 @@ loadConceptSetManifest(
 - executionSettings:
 
   ExecutionSettings object. Optional.
+
+- autoSync:
+
+  Logical. If TRUE (default), syncs the manifest to reconcile files on
+  disk with the SQLite database (removes orphaned files, flags missing).
 
 - verbose:
 

@@ -69,9 +69,7 @@ Initialize a new ConceptSetDef
 
 - `category`:
 
-  Character. The category for this concept set. Valid values:
-  "drug_exposure", "condition_occurrence", "measurement", "procedure",
-  "observation", "device_exposure", "visit_occurrence", "init".
+  Character. The category for this concept set.
 
 - `tags`:
 

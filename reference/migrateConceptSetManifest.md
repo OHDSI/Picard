@@ -2,8 +2,8 @@
 
 One-time migration utility that converts an existing
 `conceptSetManifest.sqlite` (picard \<= 0.0.3.1) to the new schema with
-`category`, `status`, `deleted_at` columns, and converts tags from
-pipe-delimited string format to JSON.
+`category`, `status`, `created_at`, `updated_at`, and `deleted_at`
+columns, and converts tags from pipe-delimited string format to JSON.
 
 ## Usage
 
@@ -48,11 +48,34 @@ The migration performs the following steps:
 4.  Converts tags from pipe-delimited string (e.g., "name: value \|
     name: value") to JSON named list
 
-5.  Adds missing columns (category, status, deleted_at) if they don't
-    exist
+5.  Adds missing columns (category, status, created_at, updated_at,
+    deleted_at) if they don't exist
 
 6.  Creates new schema with proper structure
 
-7.  Inserts migrated rows
+7.  Inserts migrated rows with `created_at` and `updated_at` set to old
+    `timestamp` value
 
 8.  Prints migration summary
+
+New schema columns:
+
+- `id`: Auto-incrementing primary key
+
+- `label`: Concept set display name
+
+- `category`: OMOP domain or custom category
+
+- `tags`: JSON object of key-value metadata
+
+- `file_path`: Absolute or relative path to JSON definition file
+
+- `hash`: File hash for change detection
+
+- `status`: 'active' or 'inactive' (soft delete flag)
+
+- `created_at`: Creation timestamp
+
+- `updated_at`: Last update timestamp
+
+- `deleted_at`: Soft delete timestamp (NULL if active)

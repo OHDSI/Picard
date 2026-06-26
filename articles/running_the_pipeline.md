@@ -54,6 +54,12 @@ Before running production mode:
 2.  **Be on develop branch (or feature branch):** `git checkout develop`
 3.  **Pull latest changes:** `git pull`
 4.  **Verify configuration:** Check config.yml for correctness
+5.  **Prepare builder scripts:** Edit and finalize scripts in
+    `inputs/cohorts/R/` and `inputs/conceptSets/R/`
+    - Delete unused builders; keep only the ones you need
+    - See [Loading
+      Inputs](https://ohdsi.github.io/Picard/articles/loading_inputs.md)
+      for detailed guidance on each builder type
 
 You can also do this by using the
 [`saveWork()`](https://ohdsi.github.io/Picard/reference/saveWork.md)
@@ -99,19 +105,27 @@ Choose the appropriate semantic version increment:
 
 ## Understanding the Pipeline Workflow
 
-Production execution follows four main phases:
+Production execution follows five main phases:
 
-1.  **Setup:** Validate configuration, load execution settings, create
+1.  **Pre-Pipeline:** Auto-discover and source builder scripts from
+    `inputs/conceptSets/R/` and `inputs/cohorts/R/`
+
+    - Concept set builders run first (importAtlas, importCapr, or
+      custom)
+    - Cohort builders run second (importAtlas, importCapr, importSql,
+      buildDependentCohorts)
+    - Manifests are loaded and populated with all definitions
+
+2.  **Setup:** Validate configuration, load execution settings, create
     output directories
 
-2.  **Generate Cohorts:** Load cohort and concept set manifests,
-    validate all definitions exist, generate cohorts in database,
-    retrieve cohort counts
+3.  **Generate Cohorts:** Instantiate all cohort definitions in the
+    database, validate cohort counts
 
-3.  **Run Analysis Tasks:** For each task in `analysis/tasks/`, load
+4.  **Run Analysis Tasks:** For each task in `analysis/tasks/`, load
     configuration, execute task code, check for errors, record results
 
-4.  **Post-Processing:** Generate version logs, create PR metadata, save
+5.  **Post-Processing:** Generate version logs, create PR metadata, save
     PENDING_PR.md
 
 ## Handling Errors and Failures

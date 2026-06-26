@@ -12,6 +12,7 @@ resetCohortManifest(
   cohortsFolderPath = here::here("inputs/cohorts"),
   scope = c("derived", "manifest", "full"),
   executionSettings = NULL,
+  archive = TRUE,
   confirm = TRUE
 )
 ```
@@ -40,6 +41,12 @@ resetCohortManifest(
   OMOP cohort tables. If `manifest` is provided and already has settings
   attached, those are used automatically; this argument overrides them.
 
+- archive:
+
+  Logical. For `scope = "manifest"`, if `TRUE` (default), archives
+  source files in `json/` and `sql/` to a timestamped directory instead
+  of deleting them. Set to `FALSE` to delete without archiving.
+
 - confirm:
 
   Logical. If `TRUE` (default), the user must type `"yes"` to proceed.
@@ -62,8 +69,10 @@ Invisibly returns NULL.
 - `"manifest"`:
 
   Deletes the SQLite database and the `derived/` folder. Source files in
-  `json/` and `sql/` are preserved and can be re-registered after
-  [`initCohortManifest()`](https://ohdsi.github.io/Picard/reference/initCohortManifest.md).
+  `json/` and `sql/` are archived to a timestamped directory (unless
+  `archive = FALSE`) and can be restored after
+  [`initCohortManifest()`](https://ohdsi.github.io/Picard/reference/initCohortManifest.md)
+  using `$addCirceCohort()` or `$addSqlCohort()`.
 
 - `"full"`:
 

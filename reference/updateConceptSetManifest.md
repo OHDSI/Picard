@@ -49,10 +49,10 @@ Invisibly returns NULL. Prints a success message if the update succeeds.
 ## Examples
 
 ``` r
-if (FALSE) { # \dontrun{
+if (FALSE) {
   manifest <- loadConceptSetManifest()
   updateConceptSetManifest(manifest, 1, label = "Updated Label")
   updateConceptSetManifest(manifest, 2, category = "measurement")
   updateConceptSetManifest(manifest, 3, tags = list(source = "ATLAS", version = "2"))
-} # }
+}
 ```

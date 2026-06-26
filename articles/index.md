@@ -14,7 +14,7 @@
   Helpers](https://ohdsi.github.io/Picard/articles/manifest_overview.md):
 - [The Ulysses Standard Repository
   Structure](https://ohdsi.github.io/Picard/articles/picard_repository_structure.md):
-- [Post-Processing
-  Steps](https://ohdsi.github.io/Picard/articles/post_processing.md):
+- [Post-Processing and
+  Dissemination](https://ohdsi.github.io/Picard/articles/post_processing.md):
 - [Running the Pipeline: Production
   Execution](https://ohdsi.github.io/Picard/articles/running_the_pipeline.md):

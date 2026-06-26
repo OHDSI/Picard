@@ -12,6 +12,7 @@ appropriate `$add*()` method.
 loadCohortManifest(
   cohortsFolderPath = here::here("inputs/cohorts"),
   executionSettings = NULL,
+  autoSync = TRUE,
   verbose = TRUE
 )
 ```

@@ -1,5 +1,224 @@
 # Changelog
 
+## picard 0.0.5
+
+### Manifest API Enhancements
+
+**API CHANGES**:
+
+- [`loadCohortManifest()`](https://ohdsi.github.io/Picard/reference/loadCohortManifest.md)
+  and
+  [`loadConceptSetManifest()`](https://ohdsi.github.io/Picard/reference/loadConceptSetManifest.md)
+  now include `autoSync` (default `TRUE`) and `verbose` (default `TRUE`)
+  parameters for controlling manifest initialization behavior  
+- [`resetCohortManifest()`](https://ohdsi.github.io/Picard/reference/resetCohortManifest.md)
+  and
+  [`resetConceptSetManifest()`](https://ohdsi.github.io/Picard/reference/resetConceptSetManifest.md)
+  now include `archive` parameter (default `TRUE`) to create timestamped
+  backups of manifest database and files before reset  
+- `importAtlasCohorts()` and
+  [`importAtlasConceptSets()`](https://ohdsi.github.io/Picard/reference/importAtlasConceptSets.md)
+  **API CHANGE**: changed from file-based
+  (`conceptSetsLoadPath = "path/to/file.csv"`) to dataframe-based
+  (`conceptSetsLoad = dataframe, atlasConnection = NULL`). Users now
+  call
+  [`readr::read_csv()`](https://readr.tidyverse.org/reference/read_delim.html)
+  first, then pass the resulting dataframe. Dataframe must contain
+  columns: `atlasId`, `label`, `category` (plus optional tag columns)
+
+### Input Builder Scripts
+
+**Pre-Pipeline Input Loading System**
+(`sourceInputBuilderScripts(verbose = TRUE)`):
+
+- Auto-discovery and sourcing of builder scripts for pre-processing the
+  pipeline  
+- Loads concept set definitions from `inputs/conceptSets/R/` directory
+  (sourced first)  
+- Loads cohort definitions from `inputs/cohorts/R/` directory (sourced
+  second)  
+- Called automatically from `main.R` before the main pipeline executes
+
+**Six Template Builder Scripts** (auto-populated in project init):
+
+1.  **Concept Set Builders**:
+
+    - `import_atlas_concept_set.R` — bulk import from ATLAS via CSV +
+      WebAPI connection  
+    - `import_capr_concept_set.R` — programmatic definition using Capr
+      functions
+
+2.  **Cohort Builders**:
+
+    - `import_atlas_cohort.R` — bulk import from ATLAS via CSV + WebAPI
+      connection  
+    - `import_capr_cohort.R` — programmatic cohort definitions with
+      Capr  
+    - `import_sql_cohort.R` — register hand-written SQL cohorts from
+      `inputs/cohorts/sql/`  
+    - `build_dependent_cohorts.R` — create derived cohorts (temporal,
+      union, complement, O-Prior-T, T-Prior-O, censor)
+
+**Mandatory Source Order** ⚠️:
+
+- [`sourceInputBuilderScripts()`](https://ohdsi.github.io/Picard/reference/sourceInputBuilderScripts.md)
+  now enforces strict source order to respect dependencies:
+  1.  Concept set builders (import_atlas_concept_set →
+      import_capr_concept_set)  
+  2.  Cohort builders (import_atlas_cohort → import_capr_cohort →
+      import_sql_cohort → build_dependent_cohorts)  
+- This ensures concept sets are always loaded before cohorts, and base
+  cohorts before dependent cohorts  
+- Missing scripts are gracefully skipped; deletion of unused templates
+  will not break `main.R`  
+- Users can delete unused scripts but cannot reorder sources
+
+### Dissemination Script Workflow
+
+**Post-Pipeline Result Processing**
+(`sourceDisseminationScripts(projectPath, pipelineVersion, databaseIds, outputPath, verbose, warnMissing)`):
+
+- Auto-discovery and sourcing of post-processing scripts from
+  `dissemination/pretty/R/` directory  
+- Called automatically after
+  [`runPostProcessing()`](https://ohdsi.github.io/Picard/reference/runPostProcessing.md)
+  completes in `main.R`  
+- Scripts are numbered (01\_, 02\_, etc.) and sourced in alphabetical
+  order  
+- Each script receives `disseminationEnv` list with metadata:
+  - `pipelineVersion` — current pipeline version for reproducibility  
+  - `databaseIds` — vector of databases included in the analysis  
+  - `outputPath` — root output directory for result export  
+  - `resultsPath` — merged results file path for post-processing
+
+**Dissemination Script Creation**
+(`makeDisseminationScript(name = "format_results", projectPath, open = TRUE)`):
+
+- Template-based generation of new dissemination scripts  
+- Auto-numbering: creates 01_name.R, 02_name.R, etc. based on existing
+  files  
+- Optional RStudio navigation to newly created file
+
+**Three-Phase Pipeline Integration**:
+
+- Phase 1: Pre-pipeline (builder scripts in `inputs/*/R/`)  
+- Phase 2: Main execution
+  ([`execStudyPipeline()`](https://ohdsi.github.io/Picard/reference/execStudyPipeline.md)
+  runs analysis tasks)  
+- Phase 3: Post-processing with dissemination scripts
+  - [`runPostProcessing()`](https://ohdsi.github.io/Picard/reference/runPostProcessing.md)
+    aggregates results  
+  - [`sourceDisseminationScripts()`](https://ohdsi.github.io/Picard/reference/sourceDisseminationScripts.md)
+    runs numbered dissemination scripts for formatting, pivoting,
+    exporting
+
+### Sync and Update Method Improvements
+
+**Sync Methods** (`$syncManifest(strict_mode=TRUE)`):
+
+- Both `CohortManifest` and `ConceptSetManifest` now include
+  `strict_mode` parameter to control strictness of file/database
+  reconciliation  
+- Reconciles files on disk (`json/`, `sql/`) against SQLite; flags
+  missing files as deleted, detects hash changes, reports unregistered
+  files  
+- Integrated into
+  [`loadCohortManifest()`](https://ohdsi.github.io/Picard/reference/loadCohortManifest.md)
+  and
+  [`loadConceptSetManifest()`](https://ohdsi.github.io/Picard/reference/loadConceptSetManifest.md)
+  via `autoSync` parameter
+
+**Update Methods** (segmented by field):
+
+- `$updateCohortLabel()`, `$updateCohortCategory()`,
+  `$updateCohortTags()` for `CohortManifest`  
+- `$updateConceptSetLabel()`, `$updateConceptSetCategory()`,
+  `$updateConceptSetTags()` for `ConceptSetManifest`  
+- Each method updates a single field and syncs changes to both SQLite
+  and in-memory manifest object  
+- All methods return invisible NULL for consistency with R6 patterns
+
+### Manifest-to-Filesystem 1:1 Correspondence Principle
+
+**Core Architecture**:
+
+Every cohort/concept set in the SQLite manifest database maintains a 1:1
+correspondence with exactly one definition file on disk:  
+- **Circe/ATLAS cohorts**: stored as `.json` file in `json/` directory  
+- **SQL cohorts**: stored as `.sql` file in `sql/` directory  
+- **Derived cohorts**: generated `.sql` files in `sql/derived/`
+directory with dependency metadata in SQLite
+
+**Data Consistency Guarantees**:
+
+- Each record in the manifest has a `file_path` column pointing to its
+  corresponding disk file  
+- File hashes are stored in SQLite and compared during `$syncManifest()`
+  to detect out-of-sync changes  
+- Soft deletes (`status = 'deleted'`) preserve both the database record
+  and file for audit trail  
+- Hard deletes (if performed) remove both record and file atomically
+
+**Sync Integrity**:
+
+- `$syncManifest(strict_mode=TRUE)` enforces strict reconciliation:
+  files on disk must match database records  
+- Unregistered files on disk are flagged as orphaned; missing files for
+  active records are flagged as missing  
+- `autoSync=TRUE` in load functions ensures manifest is synchronized
+  with disk on startup  
+- This 1:1 principle prevents silent data loss and enables reliable
+  recovery workflows
+
+### Two-Phase ATLAS Synchronization Workflow
+
+**Phase 1: Detection** (`$checkAtlasCohorts()` /
+`$checkAtlasConceptSets()`):
+
+- Read-only operation: compares local hashes against remote ATLAS
+  definitions  
+- Returns a tibble showing which cohorts/concept sets have changed
+  remotely  
+- No modifications to local state; useful for mid-cycle discovery  
+- Call parameters: `atlasConnection = NULL` (uses stored connection if
+  available)
+
+**Phase 2: Update** (`$updateAtlasCohorts()` /
+`$updateAtlasConceptSets()`):
+
+- Downloads definition JSON files from ATLAS for all cohorts/concept
+  sets with remote changes  
+- Updates JSON files on disk in `json/` directory  
+- For `CohortManifest` only: **automatically cascades stale status** to
+  all downstream derived cohorts that depend on updated base cohorts  
+- Derived cohorts are automatically **re-executed on next
+  [`generateCohorts()`](https://ohdsi.github.io/Picard/reference/generateCohorts.md)
+  run** without user intervention
+
+**Workflow Automation**:
+
+- No need for separate “rebuild derived cohorts” step after ATLAS
+  updates  
+- Dependent cohort execution order is automatically resolved via
+  topological sort  
+- Users can chain checks and updates seamlessly in scripts:
+  `manifest$checkAtlasCohorts()` → review results →
+  `manifest$updateAtlasCohorts()`
+
+### Bug Fixes & Clarifications
+
+- ConceptManifest Updates
+  - bug fix for conceptSetManifest category checkmate (using domain
+    requirements)  
+  - add function to expandManifestTags to help subsetting  
+- Removed non-existent method references (`removeCohort()` for
+  CohortManifest; deletion uses soft delete via
+  `deleteCohort(id, confirm=FALSE)`)  
+- Clarified soft delete behavior for both cohort and concept set
+  manifests with audit trail preservation  
+- instill parity in the methods across the ConceptSetManifest and
+  CohortManifest classes
+
 ## picard 0.0.4
 
 - move login credentials to secrets file

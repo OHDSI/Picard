@@ -14,6 +14,78 @@ and stores their metadata in a SQLite database located at
 inputs/conceptSets/conceptSetManifest.sqlite. Each ConceptSetDef is
 assigned a sequential ID based on its position in the manifest.
 
+**Processing Steps:**
+
+1.  Validates that all concept set IDs exist and are active
+
+2.  Loads each concept set JSON as a Capr object using
+    [`Capr::readConceptSet()`](https://ohdsi.github.io/Capr/reference/readConceptSet.html)
+
+3.  Combines them using set logic (private helper
+    `combine_capr_concept_sets()`)
+
+4.  Exports combined Capr object to JSON in `json/` directory
+
+5.  Registers the new combined concept set in the manifest
+
+6.  Returns the new concept set ID
+
+**Concept Set Combination Logic:**
+
+- Includes: All included concepts across sets
+
+- Descendants: All concepts marked with descendants
+
+- Excludes: All excluded concepts (without descendants)
+
+- Exclude+Descendants: All concepts to exclude with descendants
+
+**Requirements:**
+
+- Capr package must be installed
+
+- All source concept sets must be active and have valid JSON files
+
+This is the detection phase of the ATLAS maintenance workflow. Use this
+to identify which ATLAS concept sets have changed, then optionally call
+`updateAtlasConceptSets()` to apply updates. Changes are detected by
+comparing expression JSON hashes.
+
+This method updates ATLAS concept sets that have changed in the remote
+repository. It:
+
+- Calls checkAtlasConceptSets() to identify changes
+
+- For each changed concept set: fetches current definition, updates JSON
+  file, updates hash in manifest
+
+- Refreshes the in-memory manifest
+
+Use `checkAtlasConceptSets()` first to identify which concept sets have
+changed, then call this method to apply updates.
+
+**Requirements:**
+
+- ExecutionSettings must be initialized with a valid database connection
+
+- ExecutionSettings must have `cdmDatabaseSchema` and optionally
+  `tempEmulationSchema` set
+
+- User must have READ access to OMOP concept and concept_ancestor tables
+
+**Processing:**
+
+1.  Retrieves the concept set definition (CIRCE JSON) by ID
+
+2.  Builds SQL query using
+    [`CirceR::buildConceptSetQuery()`](https://ohdsi.github.io/CirceR/reference/buildConceptSetQuery.html)
+
+3.  Executes query against the OMOP vocabulary schema
+
+4.  Returns results with concept_id and concept_name columns
+
+Extract Source Codes for Concept Sets
+
 **Vocabulary Suggestion by Domain:** The function automatically suggests
 appropriate vocabularies based on concept set domains:
 
@@ -163,6 +235,8 @@ concept set:
 
 - [`ConceptSetManifest$queryConceptSetsByTag()`](#method-ConceptSetManifest-queryConceptSetsByTag)
 
+- [`ConceptSetManifest$queryConceptSetsByTagName()`](#method-ConceptSetManifest-queryConceptSetsByTagName)
+
 - [`ConceptSetManifest$queryConceptSetsByLabel()`](#method-ConceptSetManifest-queryConceptSetsByLabel)
 
 - [`ConceptSetManifest$nConceptSets()`](#method-ConceptSetManifest-nConceptSets)
@@ -179,11 +253,23 @@ concept set:
 
 - [`ConceptSetManifest$deleteConceptSet()`](#method-ConceptSetManifest-deleteConceptSet)
 
-- [`ConceptSetManifest$permanentlyDeleteConceptSet()`](#method-ConceptSetManifest-permanentlyDeleteConceptSet)
+- [`ConceptSetManifest$combineConceptSets()`](#method-ConceptSetManifest-combineConceptSets)
+
+- [`ConceptSetManifest$updateConceptSetLabel()`](#method-ConceptSetManifest-updateConceptSetLabel)
+
+- [`ConceptSetManifest$updateConceptSetCategory()`](#method-ConceptSetManifest-updateConceptSetCategory)
+
+- [`ConceptSetManifest$updateConceptSetTags()`](#method-ConceptSetManifest-updateConceptSetTags)
+
+- [`ConceptSetManifest$checkAtlasConceptSets()`](#method-ConceptSetManifest-checkAtlasConceptSets)
+
+- [`ConceptSetManifest$updateAtlasConceptSets()`](#method-ConceptSetManifest-updateAtlasConceptSets)
 
 - [`ConceptSetManifest$cleanupMissing()`](#method-ConceptSetManifest-cleanupMissing)
 
 - [`ConceptSetManifest$syncManifest()`](#method-ConceptSetManifest-syncManifest)
+
+- [`ConceptSetManifest$grabConceptInfoFromSet()`](#method-ConceptSetManifest-grabConceptInfoFromSet)
 
 - [`ConceptSetManifest$extractSourceCodes()`](#method-ConceptSetManifest-extractSourceCodes)
 
@@ -199,10 +285,7 @@ Initialize a new ConceptSetManifest
 
 #### Usage
 
-    ConceptSetManifest$new(
-      dbPath = "inputs/conceptSets/conceptSetManifest.sqlite",
-      executionSettings = NULL
-    )
+    ConceptSetManifest$new(dbPath = "inputs/conceptSets/conceptSetManifest.sqlite")
 
 #### Arguments
 
@@ -210,14 +293,8 @@ Initialize a new ConceptSetManifest
 
   Character. Path to the SQLite database. Defaults to
   "inputs/conceptSets/conceptSetManifest.sqlite". The directory is
-  created automatically if it does not exist.
-
-- `executionSettings`:
-
-  ExecutionSettings object. (Optional) Execution settings for accessing
-  the vocabulary database. Defaults to NULL. Only required for
-  operations like extractSourceCodes(). Get the manifest as a list of
-  ConceptSetDef objects
+  created automatically if it does not exist. Get the manifest as a list
+  of ConceptSetDef objects
 
 ------------------------------------------------------------------------
 
@@ -229,21 +306,30 @@ Initialize a new ConceptSetManifest
 
 #### Returns
 
-List. A list of ConceptSetDef objects in the manifest. Tabulate the
-manifest as a data frame
+List. A list of ConceptSetDef objects in the manifest.
 
 ------------------------------------------------------------------------
 
 ### Method `tabulateManifest()`
 
+Tabulate the manifest as a tibble
+
 #### Usage
 
-    ConceptSetManifest$tabulateManifest()
+    ConceptSetManifest$tabulateManifest(filter = c("active", "deleted", "all"))
+
+#### Arguments
+
+- `filter`:
+
+  Character. Controls which rows are returned. One of `"active"`
+  (default), `"deleted"`, or `"all"`.
 
 #### Returns
 
-Data frame. Manifest data with columns: id, label, category, tags,
-filePath, hash, timestamp Get the manifest path
+A tibble with columns: id, label, category, tags, file_path, hash,
+source_type, cohort_type, status, created_at, deleted_at Get the
+manifest path
 
 ------------------------------------------------------------------------
 
@@ -353,10 +439,7 @@ Register a local CIRCE JSON file in the manifest
 
 - `category`:
 
-  Character. Category for the concept set. One of `"drug_exposure"`,
-  `"condition_occurrence"`, `"measurement"`, `"procedure"`,
-  `"observation"`, `"device_exposure"`, `"visit_occurrence"`, `"init"`.
-  Defaults to `"init"`.
+  Character. Category for the concept set. Defaults to `"init"`.
 
 - `tags`:
 
@@ -456,21 +539,26 @@ Invisible integer. The assigned concept set ID.
 
 ### Method [`importAtlasConceptSets()`](https://ohdsi.github.io/Picard/reference/importAtlasConceptSets.md)
 
-Batch-import concept sets from ATLAS via a conceptSetsLoad CSV
+Batch-import concept sets from ATLAS via a conceptSetsLoad dataframe
 
-Reads a CSV with columns `atlasId`, `label`, `category` (required) plus
-any additional columns treated as tag key-value pairs. Calls
-`addAtlasConceptSet()` for each row inside a `tryCatch` so a single
-failure does not abort the entire batch.
+Either create a dataframe or read in a csv file with columns `atlasId`,
+`label`, `category` (required) plus any additional columns treated as
+tag key-value pairs for tags. Calls `addAtlasConceptSet()` for each row
+inside a `tryCatch` so a single failure does not abort the entire batch.
 
 #### Usage
 
     ConceptSetManifest$importAtlasConceptSets(
-      atlasConnection = NULL,
-      conceptSetsLoadPath = here::here("inputs/conceptSets/conceptSetsLoad.csv")
+      conceptSetsLoad,
+      atlasConnection = NULL
     )
 
 #### Arguments
+
+- `conceptSetsLoad`:
+
+  a data frame requiring the columns atlasId, label and category used to
+  bulk add cohorts to the manifest
 
 - `atlasConnection`:
 
@@ -478,15 +566,9 @@ failure does not abort the entire batch.
   `getConceptSetDefinition(conceptSetId)` method. If `NULL`, falls back
   to the connection stored via `$setAtlasConnection()`.
 
-- `conceptSetsLoadPath`:
-
-  Character. Path to the CSV file. Defaults to
-  `here::here("inputs/conceptSets/conceptSetsLoad.csv")`.
-
 #### Returns
 
-Invisible tibble with columns `id`, `label`, `status`. Query concept
-sets by IDs
+Invisible tibble imported concept sets. Query concept sets by IDs
 
 ------------------------------------------------------------------------
 
@@ -504,9 +586,8 @@ sets by IDs
 
 #### Returns
 
-Data frame. A subset of the manifest with columns id, label, tags,
-filePath, hash, timestamp for matching concept sets, or NULL if none
-found. Query concept sets by tag
+Tibble with columns: id, label, category, tags, file_path, hash,
+created_at. Query concept sets by tag
 
 ------------------------------------------------------------------------
 
@@ -532,9 +613,27 @@ found. Query concept sets by tag
 
 #### Returns
 
-Data frame. A subset of the manifest with columns id, label, tags,
-filePath, hash, timestamp for matching concept sets, or NULL if none
-found. Query concept sets by label
+Tibble with columns: id, label, category, tags, file_path, hash,
+created_at. Query cohorts by category
+
+------------------------------------------------------------------------
+
+### Method `queryConceptSetsByTagName()`
+
+#### Usage
+
+    ConceptSetManifest$queryConceptSetsByTagName(tagName)
+
+#### Arguments
+
+- `tagName`:
+
+  Character vector. The name of tags to query
+
+#### Returns
+
+Tibble with columns: id, label, category, tags, file_path, hash,
+source_type, created_at. Query concept sets by label
 
 ------------------------------------------------------------------------
 
@@ -562,9 +661,8 @@ found. Query concept sets by label
 
 #### Returns
 
-Data frame. A subset of the manifest with columns id, label, tags,
-filePath, hash, timestamp for matching concept sets, or NULL if none
-found.
+Tibble with columns: id, label, category, tags, file_path, hash,
+created_at.
 
 ------------------------------------------------------------------------
 
@@ -693,7 +791,7 @@ Soft delete a concept set (mark as deleted, preserve record)
 
 #### Usage
 
-    ConceptSetManifest$deleteConceptSet(id, reason = NULL)
+    ConceptSetManifest$deleteConceptSet(id, confirm = FALSE)
 
 #### Arguments
 
@@ -701,9 +799,10 @@ Soft delete a concept set (mark as deleted, preserve record)
 
   Integer. The concept set ID to delete.
 
-- `reason`:
+- `confirm`:
 
-  Character. Optional reason for deletion.
+  Logical. If FALSE (default), prompts for interactive confirmation.
+  Pass TRUE to skip the prompt (suitable for scripts).
 
 #### Returns
 
@@ -711,29 +810,194 @@ Invisibly returns TRUE if successful, FALSE otherwise.
 
 ------------------------------------------------------------------------
 
-### Method `permanentlyDeleteConceptSet()`
+### Method `combineConceptSets()`
 
-Permanently delete a concept set (removes the record from database,
-irreversible)
+Combine multiple concept sets into a single unified concept set
+
+Loads multiple concept sets from the manifest as Capr objects, merges
+them into a unified concept set using set logic (include,
+include+descendants, exclude, exclude+descendants), exports the result
+as JSON, and registers it in the manifest.
 
 #### Usage
 
-    ConceptSetManifest$permanentlyDeleteConceptSet(id, confirm = FALSE)
+    ConceptSetManifest$combineConceptSets(
+      conceptSetIds,
+      combinedLabel,
+      combinedCategory = "combined",
+      combinedTags = list()
+    )
 
 #### Arguments
 
-- `id`:
+- `conceptSetIds`:
 
-  Integer. The concept set ID to permanently remove.
+  Integer vector. IDs of concept sets to combine (minimum 2).
 
-- `confirm`:
+- `combinedLabel`:
 
-  Logical. Must be TRUE to proceed; prevents accidental deletion.
-  Defaults to FALSE.
+  Character. Display name for the combined concept set.
+
+- `combinedCategory`:
+
+  Character. Category for the combined concept set. Defaults to
+  `"combined"`.
+
+- `combinedTags`:
+
+  Named list. Optional metadata tags for the combined set. Defaults to
+  [`list()`](https://rdrr.io/r/base/list.html). A tag
+  `sourceConceptSetIds` is automatically added with comma-separated
+  source IDs.
 
 #### Returns
 
-Invisibly returns TRUE if successful, FALSE otherwise.
+Invisible integer. The ID of the newly created combined concept set.
+
+------------------------------------------------------------------------
+
+### Method `updateConceptSetLabel()`
+
+Update a concept set label
+
+#### Usage
+
+    ConceptSetManifest$updateConceptSetLabel(conceptSetId, newLabel)
+
+#### Arguments
+
+- `conceptSetId`:
+
+  Integer. The concept set ID to update.
+
+- `newLabel`:
+
+  Character. The new label for the concept set.
+
+#### Returns
+
+Invisible NULL.
+
+------------------------------------------------------------------------
+
+### Method `updateConceptSetCategory()`
+
+Update a concept set category
+
+#### Usage
+
+    ConceptSetManifest$updateConceptSetCategory(conceptSetId, newCategory)
+
+#### Arguments
+
+- `conceptSetId`:
+
+  Integer. The concept set ID to update.
+
+- `newCategory`:
+
+  Character. The new category for the concept set.
+
+#### Returns
+
+Invisible NULL.
+
+------------------------------------------------------------------------
+
+### Method `updateConceptSetTags()`
+
+Update concept set tags
+
+#### Usage
+
+    ConceptSetManifest$updateConceptSetTags(conceptSetId, newTags)
+
+#### Arguments
+
+- `conceptSetId`:
+
+  Integer. The concept set ID to update.
+
+- `newTags`:
+
+  Named list. The new tags for the concept set.
+
+#### Returns
+
+Invisible NULL.
+
+------------------------------------------------------------------------
+
+### Method `checkAtlasConceptSets()`
+
+Auto-detect changes to ATLAS concept sets in remote repository
+
+Queries the manifest for all active ATLAS concept sets (identified by
+`atlasId` in tags), fetches their current definitions from ATLAS,
+computes hashes, and compares against the stored local hash. Provides a
+read-only summary of which concept sets have changed in ATLAS since
+import. No modifications are made.
+
+#### Usage
+
+    ConceptSetManifest$checkAtlasConceptSets(atlasConnection = NULL)
+
+#### Arguments
+
+- `atlasConnection`:
+
+  An ATLAS connection object with a method
+  `getConceptSetDefinition(conceptSetId)` that returns a list with an
+  `expression` element (the CIRCE JSON as a string). If `NULL`
+  (default), uses the connection stored via `$setAtlasConnection()`. If
+  no connection is available, raises an error.
+
+#### Returns
+
+Invisible tibble with columns:
+
+- `id`: Concept set ID in the local manifest
+
+- `label`: Concept set label
+
+- `atlasId`: ATLAS concept set ID
+
+- `filePath`: Local path to the JSON file
+
+- `hasChanged`: Logical, TRUE if remote definition differs from local
+  hash
+
+- `localHash`: Hash of the stored JSON file
+
+- `remoteHash`: Hash of the current ATLAS definition
+
+------------------------------------------------------------------------
+
+### Method `updateAtlasConceptSets()`
+
+Update ATLAS concept sets with remote definitions
+
+Fetches current definitions from ATLAS for concept sets that have
+changed and updates the stored JSON files and manifest entries. This is
+the modification phase that applies changes detected by
+checkAtlasConceptSets().
+
+#### Usage
+
+    ConceptSetManifest$updateAtlasConceptSets(atlasConnection = NULL)
+
+#### Arguments
+
+- `atlasConnection`:
+
+  An ATLAS connection object with a method
+  `getConceptSetDefinition(conceptSetId)`. If `NULL` (default), uses the
+  connection stored via `$setAtlasConnection()`.
+
+#### Returns
+
+Invisible tibble of concept sets that were updated, with columns: id,
+label, atlasId, filePath, hasChanged, localHash, remoteHash
 
 ------------------------------------------------------------------------
 
@@ -776,13 +1040,50 @@ in-memory list:
 
 #### Usage
 
-    ConceptSetManifest$syncManifest()
+    ConceptSetManifest$syncManifest(strict_mode = TRUE)
+
+#### Arguments
+
+- `strict_mode`:
+
+  Logical. If TRUE (default), automatically removes orphaned files found
+  on disk. If FALSE, only warns about them without deletion. Default:
+  TRUE.
 
 #### Returns
 
 Data frame with columns: id, label, action (`"added"`, `"hash_updated"`,
-`"missing_flagged"`, or `"unchanged"`). Extract Source Codes for Concept
-Sets
+`"missing_flagged"`, or `"unchanged"`).
+
+------------------------------------------------------------------------
+
+### Method `grabConceptInfoFromSet()`
+
+Retrieve concept information for all concepts in a concept set
+
+Fetches the standard concepts included in a concept set from the OMOP
+vocabulary tables. The concept set definition (stored as CIRCE JSON) is
+used to build a query that retrieves all concept IDs and names matching
+the set definition. Results are returned as a tibble with concept
+identifiers and display names.
+
+#### Usage
+
+    ConceptSetManifest$grabConceptInfoFromSet(conceptSetId)
+
+#### Arguments
+
+- `conceptSetId`:
+
+  Integer. The concept set ID in the manifest.
+
+#### Returns
+
+Tibble with columns:
+
+- `conceptId`: Integer, the OMOP concept identifier
+
+- `conceptName`: Character, the concept name from the vocabulary
 
 ------------------------------------------------------------------------
 

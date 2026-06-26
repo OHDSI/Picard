@@ -41,7 +41,9 @@ identify the generated SQL.
 
 - [`CohortDef$getSql()`](#method-CohortDef-getSql)
 
-- [`CohortDef$getHash()`](#method-CohortDef-getHash)
+- [`CohortDef$getFileHash()`](#method-CohortDef-getFileHash)
+
+- [`CohortDef$getSqlHash()`](#method-CohortDef-getSqlHash)
 
 - [`CohortDef$getId()`](#method-CohortDef-getId)
 
@@ -117,19 +119,32 @@ Character. Relative path to the cohort file. Get the generated SQL
 
 #### Returns
 
-Character. The SQL definition of the cohort. Get the SQL hash
+Character. The SQL definition of the cohort. Get the file hash
 
 ------------------------------------------------------------------------
 
-### Method `getHash()`
+### Method `getFileHash()`
 
 #### Usage
 
-    CohortDef$getHash()
+    CohortDef$getFileHash()
 
 #### Returns
 
-Character. MD5 hash of the current SQL definition. Get the cohort ID
+Character. MD5 hash of the raw file content on disk. Get the SQL hash
+
+------------------------------------------------------------------------
+
+### Method `getSqlHash()`
+
+#### Usage
+
+    CohortDef$getSqlHash()
+
+#### Returns
+
+Character. MD5 hash of the normalized SQL definition (line endings
+standardized). Get the cohort ID
 
 ------------------------------------------------------------------------
 

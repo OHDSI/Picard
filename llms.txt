@@ -190,6 +190,10 @@ Functions for creating objects and structures (make\*)
 
 - [`makeBlock()`](https://ohdsi.github.io/Picard/reference/makeBlock.md)
   : Make a database config block
+- [`makeDisseminationScript()`](https://ohdsi.github.io/Picard/reference/makeDisseminationScript.md)
+  : Create a Dissemination Script Template
+- [`makeInputBuilderScript()`](https://ohdsi.github.io/Picard/reference/makeInputBuilderScript.md)
+  : Create a Pre-Pipeline Builder Script
 - [`makePrintFriendlyFile()`](https://ohdsi.github.io/Picard/reference/makePrintFriendlyFile.md)
   : Generate Print-Friendly Cohort Documentation from JSON
 - [`makeSrcFile()`](https://ohdsi.github.io/Picard/reference/makeSrcFile.md)
@@ -299,6 +303,8 @@ Other utility and helper functions
   : Document Dependencies
 - [`editSecrets()`](https://ohdsi.github.io/Picard/reference/editSecrets.md)
   : Edit the secrets.yml file
+- [`expandManifestTags()`](https://ohdsi.github.io/Picard/reference/expandManifestTags.md)
+  : Expand JSON Tags to Columns
 - [`formatFloats()`](https://ohdsi.github.io/Picard/reference/formatFloats.md)
   : Format Float Columns
 - [`formatPercentages()`](https://ohdsi.github.io/Picard/reference/formatPercentages.md)
@@ -341,6 +347,10 @@ Other utility and helper functions
   : Check if Task Needs to be Rerun
 - [`snapshotEnvironment()`](https://ohdsi.github.io/Picard/reference/snapshotEnvironment.md)
   : Snapshot Current Environment State
+- [`sourceDisseminationScripts()`](https://ohdsi.github.io/Picard/reference/sourceDisseminationScripts.md)
+  : Source Dissemination Scripts
+- [`sourceInputBuilderScripts()`](https://ohdsi.github.io/Picard/reference/sourceInputBuilderScripts.md)
+  : Source Pre-Pipeline Input Builder Scripts
 - [`standardizeDataTypes()`](https://ohdsi.github.io/Picard/reference/standardizeDataTypes.md)
   : Standardize Data Types
 - [`templateAtlasCredentials()`](https://ohdsi.github.io/Picard/reference/templateAtlasCredentials.md)
@@ -349,11 +359,6 @@ Other utility and helper functions
   : Test Study Pipeline
 - [`testStudyTask()`](https://ohdsi.github.io/Picard/reference/testStudyTask.md)
   : Test a Single Study Task
-- [`updateCohortManifest()`](https://ohdsi.github.io/Picard/reference/updateCohortManifest.md)
-  : Update the Label, Category, and/or Tags of an Existing Cohort
-  Manifest
-- [`updateConceptSetManifest()`](https://ohdsi.github.io/Picard/reference/updateConceptSetManifest.md)
-  : Update a Concept Set in the Manifest
 - [`updateStudyVersion()`](https://ohdsi.github.io/Picard/reference/updateStudyVersion.md)
   : Function to update the study version
 - [`validateCohortResults()`](https://ohdsi.github.io/Picard/reference/validateCohortResults.md)
@@ -383,7 +388,7 @@ Other utility and helper functions
   Helpers](https://ohdsi.github.io/Picard/articles/manifest_overview.md):
 - [The Ulysses Standard Repository
   Structure](https://ohdsi.github.io/Picard/articles/picard_repository_structure.md):
-- [Post-Processing
-  Steps](https://ohdsi.github.io/Picard/articles/post_processing.md):
+- [Post-Processing and
+  Dissemination](https://ohdsi.github.io/Picard/articles/post_processing.md):
 - [Running the Pipeline: Production
   Execution](https://ohdsi.github.io/Picard/articles/running_the_pipeline.md):

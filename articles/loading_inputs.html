@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.4</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.5</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -67,85 +67,177 @@
 <p>Before running your study pipeline you need two types of inputs:</p>
 <ul>
 <li>
-<strong>Cohorts</strong> “” study populations, comparators, and
+<strong>Cohorts</strong> — study populations, comparators, and
 outcomes as CIRCE JSON definitions (from ATLAS or Capr) or custom
 SQL</li>
 <li>
-<strong>Concept Sets</strong> “” phenotype definitions for diseases,
+<strong>Concept Sets</strong> — phenotype definitions for diseases,
 exposures, covariates, etc.</li>
 </ul>
-<p>Picard tracks both through <em>manifests</em> “” SQLite databases
-that record every definition’s file path, MD5 hash, metadata, and
-provenance. Each session you load the manifest into memory; the SQLite
-file is the durable source of truth.</p>
-<blockquote>
+<p>Picard tracks both through <em>manifests</em> — SQLite databases that
+record every definition’s file path, MD5 hash, metadata, and provenance.
+Each session you load the manifest into memory; the SQLite file is the
+durable source of truth.</p>
 <p>For a deep-dive into the manifest architecture, derived cohorts,
 mid-cycle changes, and reset options, see the <a href="manifest_overview.html">Manifest: Architecture, Workflows, and
 Helpers</a> vignette.</p>
-</blockquote>
 <hr>
 </div>
 <div class="section level2">
-<h2 id="the-loadinginputs-r-template">The <code>loadingInputs.R</code> Template<a class="anchor" aria-label="anchor" href="#the-loadinginputs-r-template"></a>
+<h2 id="pre-pipeline-builder-scripts">Pre-Pipeline Builder Scripts<a class="anchor" aria-label="anchor" href="#pre-pipeline-builder-scripts"></a>
 </h2>
-<p>Every picard study is generated with a <code>loadingInputs.R</code>
-script in <code>extras/</code>. This script is the canonical place to
-run first-time setup and subsequent-session loading. Open it in RStudio
-and work through the sections in order.</p>
-<p>The template has three top-level sections:</p>
+<p>Every picard study is initialized with a set of <strong>builder
+scripts</strong> in dedicated folders under <code>inputs/</code>:</p>
+<ul>
+<li>
+<strong><code>inputs/conceptSets/R/</code></strong> — Scripts for
+building concept set manifests</li>
+<li>
+<strong><code>inputs/cohorts/R/</code></strong> — Scripts for
+building cohort manifests</li>
+</ul>
+<p>These scripts are <strong>pre-populated</strong> at project
+initialization with templates for six different builder types. You
+choose which builders to use by keeping the scripts you need and
+deleting the ones you don’t.</p>
+<p><strong>When you run <code>main.R</code></strong>, the pipeline
+automatically discovers and sources all remaining builder scripts in a
+<strong>mandatory dependency order</strong>. This ensures concept sets
+load before cohorts:</p>
+<ul>
+<li>✅ No manual <code><a href="https://rdrr.io/r/base/source.html" class="external-link">source()</a></code> calls needed in
+<code>main.R</code>
+</li>
+<li>✅ No <code>main.R</code> edits required when deleting scripts</li>
+<li>✅ Each builder script is self-contained with embedded guidance
+comments</li>
+<li>✅ Mandatory source order prevents dependency conflicts</li>
+<li>⚠️ Builder scripts must go in <code>inputs/cohorts/R/</code> and
+<code>inputs/conceptSets/R/</code> — <strong>NOT</strong> in
+<code>analysis/tasks/</code>
+</li>
+</ul>
+<div class="section level3">
+<h3 id="available-builder-script-types">Available Builder Script Types<a class="anchor" aria-label="anchor" href="#available-builder-script-types"></a>
+</h3>
+<div class="section level4">
+<h4 id="concept-sets">Concept Sets<a class="anchor" aria-label="anchor" href="#concept-sets"></a>
+</h4>
 <table class="table">
 <colgroup>
 <col width="50%">
 <col width="50%">
 </colgroup>
 <thead><tr class="header">
-<th>Section</th>
+<th>Script</th>
 <th>Purpose</th>
 </tr></thead>
 <tbody>
 <tr class="odd">
-<td><strong>A. Concept Sets “” First Time</strong></td>
-<td>
-<code><a href="../reference/initConceptSetManifest.html">initConceptSetManifest()</a></code>, fill CSV, connect ATLAS,
-<code><a href="../reference/importAtlasConceptSets.html">importAtlasConceptSets()</a></code>
-</td>
+<td><code>import_atlas_concept_set.R</code></td>
+<td>Bulk import concept sets from ATLAS via CSV + connection</td>
 </tr>
 <tr class="even">
-<td><strong>B. Cohorts “” First Time</strong></td>
-<td>
-<code><a href="../reference/initCohortManifest.html">initCohortManifest()</a></code>, fill CSV, connect ATLAS,
-<code>importAtlasCohorts()</code>
-</td>
-</tr>
-<tr class="odd">
-<td><strong>C. Subsequent Sessions</strong></td>
-<td>
-<code><a href="../reference/loadConceptSetManifest.html">loadConceptSetManifest()</a></code> +
-<code><a href="../reference/loadCohortManifest.html">loadCohortManifest()</a></code>
-</td>
+<td><code>import_capr_concept_set.R</code></td>
+<td>Build concept sets programmatically using Capr cs() functions</td>
 </tr>
 </tbody>
 </table>
-<p>Run only the section that applies to your current situation.</p>
+</div>
+<div class="section level4">
+<h4 id="cohorts">Cohorts<a class="anchor" aria-label="anchor" href="#cohorts"></a>
+</h4>
+<table class="table">
+<colgroup>
+<col width="50%">
+<col width="50%">
+</colgroup>
+<thead><tr class="header">
+<th>Script</th>
+<th>Purpose</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td><code>import_atlas_cohort.R</code></td>
+<td>Bulk import cohorts from ATLAS via CSV + connection</td>
+</tr>
+<tr class="even">
+<td><code>import_capr_cohort.R</code></td>
+<td>Build cohorts programmatically using Capr library</td>
+</tr>
+<tr class="odd">
+<td><code>import_sql_cohort.R</code></td>
+<td>Load custom SQL-based cohorts</td>
+</tr>
+<tr class="even">
+<td><code>build_dependent_cohorts.R</code></td>
+<td>Create derived cohorts (temporal, union, complement, etc.)</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="section level3">
+<h3 id="typical-workflow">Typical Workflow<a class="anchor" aria-label="anchor" href="#typical-workflow"></a>
+</h3>
+<ol style="list-style-type: decimal">
+<li>
+<strong>Project initializes</strong> with all 6 builder scripts
+pre-created</li>
+<li>
+<strong>Edit the builders you need</strong> — Each script has clear
+guidance comments</li>
+<li>
+<strong>Delete unused builders</strong> — Remove scripts you don’t
+need</li>
+<li>
+<strong>Run <code>main.R</code></strong> —
+<code><a href="../reference/sourceInputBuilderScripts.html">sourceInputBuilderScripts()</a></code> auto-discovers and runs
+remaining scripts in mandatory order</li>
+<li>
+<strong>Manifests load</strong> — Your cohorts and concept sets are
+ready for the pipeline</li>
+</ol>
+<p>Example: If you only use ATLAS for concept sets and Capr for
+cohorts:</p>
+<pre><code>inputs/conceptSets/R/
+  ✓ import_atlas_concept_set.R
+  ✗ import_capr_concept_set.R (deleted)
+
+inputs/cohorts/R/
+  ✗ import_atlas_cohort.R (deleted)
+  ✓ import_capr_cohort.R
+  ✗ import_sql_cohort.R (deleted)
+  ✗ build_dependent_cohorts.R (deleted)</code></pre>
+<p>When <code>main.R</code> runs, only
+<code>import_atlas_concept_set.R</code> and
+<code>import_capr_cohort.R</code> source (in order: concept sets first,
+then cohorts).</p>
 <hr>
 </div>
+</div>
 <div class="section level2">
-<h2 id="concept-sets-first-time">Concept Sets “” First Time<a class="anchor" aria-label="anchor" href="#concept-sets-first-time"></a>
+<h2 id="builder-pattern-1-atlas-import">Builder Pattern 1: ATLAS Import<a class="anchor" aria-label="anchor" href="#builder-pattern-1-atlas-import"></a>
 </h2>
 <div class="section level3">
-<h3 id="step-1-initialise-the-manifest">Step 1: Initialise the manifest<a class="anchor" aria-label="anchor" href="#step-1-initialise-the-manifest"></a>
+<h3 id="importing-concept-sets-from-atlas">Importing Concept Sets from ATLAS<a class="anchor" aria-label="anchor" href="#importing-concept-sets-from-atlas"></a>
 </h3>
-<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
+<p>This pattern uses
+<code>inputs/conceptSets/R/import_atlas_concept_set.R</code>.</p>
+<div class="section level4">
+<h4 id="step-1-initialize-the-manifest">Step 1: Initialize the manifest<a class="anchor" aria-label="anchor" href="#step-1-initialize-the-manifest"></a>
+</h4>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">conceptSetManifest</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/initConceptSetManifest.html">initConceptSetManifest</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p>This creates
 <code>inputs/conceptSets/conceptSetManifest.sqlite</code> if it does not
 already exist and returns a <code>ConceptSetManifest</code> R6
 object.</p>
 </div>
-<div class="section level3">
-<h3 id="step-2-create-and-fill-the-load-file">Step 2: Create and fill the load file<a class="anchor" aria-label="anchor" href="#step-2-create-and-fill-the-load-file"></a>
-</h3>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<div class="section level4">
+<h4 id="step-2-create-and-fill-the-load-file">Step 2: Create and fill the load file<a class="anchor" aria-label="anchor" href="#step-2-create-and-fill-the-load-file"></a>
+</h4>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/createBlankConceptSetsLoadFile.html">createBlankConceptSetsLoadFile</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p>Opens <code>inputs/conceptSets/conceptSetsLoad.csv</code>. Fill in
 one row per concept set:</p>
@@ -175,60 +267,65 @@ one row per concept set:</p>
 <td><code>sourceCode</code></td>
 <td>No</td>
 <td>
-<code>TRUE</code>/<code>FALSE</code> “” whether it uses source
+<code>TRUE</code>/<code>FALSE</code> — whether it uses source
 codes</td>
 </tr>
 </tbody>
 </table>
 <p>Any additional columns are stored as tags.</p>
 </div>
-<div class="section level3">
-<h3 id="step-3-set-up-atlas-credentials">Step 3: Set up ATLAS Credentials<a class="anchor" aria-label="anchor" href="#step-3-set-up-atlas-credentials"></a>
-</h3>
+<div class="section level4">
+<h4 id="step-3-set-up-atlas-credentials">Step 3: Set up ATLAS Credentials<a class="anchor" aria-label="anchor" href="#step-3-set-up-atlas-credentials"></a>
+</h4>
 <p>Before connecting to ATLAS, store your credentials securely in
-<code>~/.picard/secrets.yml</code> using the secrets management
-system:</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code>~/.picard/secrets.yml</code>:</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Interactive setup for Atlas credentials - guides you through keyring storage</span></span>
 <span><span class="fu"><a href="../reference/setupAtlasSecretsKeyring.html">setupAtlasSecretsKeyring</a></span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Or edit the secrets file directly</span></span>
 <span><span class="fu"><a href="../reference/editSecrets.html">editSecrets</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p>This creates/updates <code>~/.picard/secrets.yml</code> with your
-credentials stored securely. The file should contain an
-<code>atlas</code> section:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="fu">atlas</span><span class="kw">:</span></span>
-<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a><span class="at">  </span><span class="fu">baseUrl</span><span class="kw">:</span><span class="at"> </span><span class="st">"https://organization-atlas.com/WebAPI"</span></span>
-<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a><span class="at">  </span><span class="fu">authMethod</span><span class="kw">:</span><span class="at"> </span><span class="st">"ad"</span></span>
-<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a><span class="at">  </span><span class="fu">user</span><span class="kw">:</span><span class="at"> </span><span class="st">"atlas.user@company.com"</span></span>
-<span id="cb4-5"><a href="#cb4-5" tabindex="-1"></a><span class="at">  </span><span class="fu">password</span><span class="kw">:</span><span class="at"> !expr keyring::key_get(service = "picard", username = "atlasPassword")</span></span></code></pre></div>
-<p>You can store credentials three ways: - <strong>Plaintext</strong>
-(not recommended): <code>password: "YourPassword"</code> -
-<strong>Keyring</strong> (recommended):
-<code>password: !expr keyring::key_get(...)</code> - <strong>Environment
-variable</strong>:
-<code>password: !expr Sys.getenv("ATLAS_PASSWORD")</code></p>
+credentials stored securely:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="fu">atlas</span><span class="kw">:</span></span>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a><span class="at">  </span><span class="fu">baseUrl</span><span class="kw">:</span><span class="at"> </span><span class="st">"https://organization-atlas.com/WebAPI"</span></span>
+<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a><span class="at">  </span><span class="fu">authMethod</span><span class="kw">:</span><span class="at"> </span><span class="st">"ad"</span></span>
+<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a><span class="at">  </span><span class="fu">user</span><span class="kw">:</span><span class="at"> </span><span class="st">"atlas.user@company.com"</span></span>
+<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a><span class="at">  </span><span class="fu">password</span><span class="kw">:</span><span class="at"> !expr keyring::key_get(service = "picard", username = "atlasPassword")</span></span></code></pre></div>
+<p>Recommended: Use <strong>Keyring</strong> to store passwords securely
+instead of plaintext.</p>
 </div>
-<div class="section level3">
-<h3 id="step-4-connect-to-atlas-and-import">Step 4: Connect to ATLAS and import<a class="anchor" aria-label="anchor" href="#step-4-connect-to-atlas-and-import"></a>
-</h3>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="section level4">
+<h4 id="step-4-connect-to-atlas-and-import">Step 4: Connect to ATLAS and import<a class="anchor" aria-label="anchor" href="#step-4-connect-to-atlas-and-import"></a>
+</h4>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Credentials are automatically read from ~/.picard/secrets.yml</span></span>
 <span><span class="va">atlasConnection</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/getAtlasConnection.html">getAtlasConnection</a></span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">conceptSetManifest</span><span class="op">$</span><span class="fu">setAtlasConnection</span><span class="op">(</span><span class="va">atlasConnection</span><span class="op">)</span></span>
 <span></span>
+<span><span class="co"># Read the CSV file</span></span>
+<span><span class="va">conceptSetsLoad</span> <span class="op">&lt;-</span> <span class="fu">readr</span><span class="fu">::</span><span class="fu"><a href="https://readr.tidyverse.org/reference/read_delim.html" class="external-link">read_csv</a></span><span class="op">(</span></span>
+<span>  <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/conceptSets/conceptSetsLoad.csv"</span><span class="op">)</span>,</span>
+<span>  show_col_types <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Import</span></span>
 <span><span class="va">conceptSetManifest</span><span class="op">$</span><span class="fu">importAtlasConceptSets</span><span class="op">(</span></span>
-<span>  conceptSetsLoadPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/conceptSets/conceptSetsLoad.csv"</span><span class="op">)</span></span>
+<span>  conceptSetsLoad <span class="op">=</span> <span class="va">conceptSetsLoad</span>,</span>
+<span>  atlasConnection <span class="op">=</span> <span class="va">atlasConnection</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p>This downloads JSON definitions to
 <code>inputs/conceptSets/json/</code> and updates your manifest with
 metadata.</p>
+<p><strong>Tip:</strong> You can also pass the dataframe directly
+without reading from a file, which is useful for programmatic
+workflows.</p>
 </div>
-<div class="section level3">
-<h3 id="step-5-load-and-review">Step 5: Load and review<a class="anchor" aria-label="anchor" href="#step-5-load-and-review"></a>
-</h3>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="section level4">
+<h4 id="step-5-load-and-review">Step 5: Load and review<a class="anchor" aria-label="anchor" href="#step-5-load-and-review"></a>
+</h4>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">conceptSetManifest</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadConceptSetManifest.html">loadConceptSetManifest</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="va">conceptSetManifest</span><span class="op">$</span><span class="fu">tabulateManifest</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p><strong>Auto-discovery:</strong>
@@ -237,22 +334,23 @@ metadata.</p>
 <code>.json</code> files not yet in the database. Drop new concept set
 JSON files there and re-run <code><a href="../reference/loadConceptSetManifest.html">loadConceptSetManifest()</a></code> to
 pick them up without any additional import step.</p>
-<hr>
 </div>
 </div>
-<div class="section level2">
-<h2 id="cohorts-first-time">Cohorts “” First Time<a class="anchor" aria-label="anchor" href="#cohorts-first-time"></a>
-</h2>
 <div class="section level3">
-<h3 id="step-1-initialise-the-manifest-1">Step 1: Initialise the manifest<a class="anchor" aria-label="anchor" href="#step-1-initialise-the-manifest-1"></a>
+<h3 id="importing-cohorts-from-atlas">Importing Cohorts from ATLAS<a class="anchor" aria-label="anchor" href="#importing-cohorts-from-atlas"></a>
 </h3>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<p>This pattern uses
+<code>inputs/cohorts/R/import_atlas_cohort.R</code>.</p>
+<div class="section level4">
+<h4 id="step-1-initialize-the-manifest-1">Step 1: Initialize the manifest<a class="anchor" aria-label="anchor" href="#step-1-initialize-the-manifest-1"></a>
+</h4>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">cohortManifest</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/initCohortManifest.html">initCohortManifest</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 </div>
-<div class="section level3">
-<h3 id="step-2-create-and-fill-the-load-file-1">Step 2: Create and fill the load file<a class="anchor" aria-label="anchor" href="#step-2-create-and-fill-the-load-file-1"></a>
-</h3>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="section level4">
+<h4 id="step-2-create-and-fill-the-load-file-1">Step 2: Create and fill the load file<a class="anchor" aria-label="anchor" href="#step-2-create-and-fill-the-load-file-1"></a>
+</h4>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/createBlankCohortsLoadFile.html">createBlankCohortsLoadFile</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p>Opens <code>inputs/cohorts/cohortsLoad.csv</code>. Fill in one row
 per cohort:</p>
@@ -287,67 +385,274 @@ per cohort:</p>
 </table>
 <p>Any additional columns are stored as tags.</p>
 </div>
-<div class="section level3">
-<h3 id="step-3-set-up-atlas-credentials-1">Step 3: Set up ATLAS Credentials<a class="anchor" aria-label="anchor" href="#step-3-set-up-atlas-credentials-1"></a>
-</h3>
-<p>Before connecting to ATLAS, store your credentials securely in
-<code>~/.picard/secrets.yml</code> using the secrets management
-system:</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Interactive setup for Atlas credentials - guides you through keyring storage</span></span>
-<span><span class="fu"><a href="../reference/setupAtlasSecretsKeyring.html">setupAtlasSecretsKeyring</a></span><span class="op">(</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Or edit the secrets file directly</span></span>
-<span><span class="fu"><a href="../reference/editSecrets.html">editSecrets</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-<p>This creates/updates <code>~/.picard/secrets.yml</code> with your
-credentials stored securely. The file should contain an
-<code>atlas</code> section:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a><span class="fu">atlas</span><span class="kw">:</span></span>
-<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a><span class="at">  </span><span class="fu">baseUrl</span><span class="kw">:</span><span class="at"> </span><span class="st">"https://organization-atlas.com/WebAPI"</span></span>
-<span id="cb10-3"><a href="#cb10-3" tabindex="-1"></a><span class="at">  </span><span class="fu">authMethod</span><span class="kw">:</span><span class="at"> </span><span class="st">"ad"</span></span>
-<span id="cb10-4"><a href="#cb10-4" tabindex="-1"></a><span class="at">  </span><span class="fu">user</span><span class="kw">:</span><span class="at"> </span><span class="st">"atlas.user@company.com"</span></span>
-<span id="cb10-5"><a href="#cb10-5" tabindex="-1"></a><span class="at">  </span><span class="fu">password</span><span class="kw">:</span><span class="at"> !expr keyring::key_get(service = "picard", username = "atlasPassword")</span></span></code></pre></div>
-<p>You can store credentials three ways: - <strong>Plaintext</strong>
-(not recommended): <code>password: "YourPassword"</code> -
-<strong>Keyring</strong> (recommended):
-<code>password: !expr keyring::key_get(...)</code> - <strong>Environment
-variable</strong>:
-<code>password: !expr Sys.getenv("ATLAS_PASSWORD")</code></p>
+<div class="section level4">
+<h4 id="step-3-set-up-atlas-credentials-1">Step 3: Set up ATLAS Credentials<a class="anchor" aria-label="anchor" href="#step-3-set-up-atlas-credentials-1"></a>
+</h4>
+<p>Follow the same process as concept sets above using
+<code><a href="../reference/setupAtlasSecretsKeyring.html">setupAtlasSecretsKeyring()</a></code> or
+<code><a href="../reference/editSecrets.html">editSecrets()</a></code>.</p>
 </div>
-<div class="section level3">
-<h3 id="step-4-connect-to-atlas-and-import-1">Step 4: Connect to ATLAS and import<a class="anchor" aria-label="anchor" href="#step-4-connect-to-atlas-and-import-1"></a>
-</h3>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="section level4">
+<h4 id="step-4-connect-to-atlas-and-import-1">Step 4: Connect to ATLAS and import<a class="anchor" aria-label="anchor" href="#step-4-connect-to-atlas-and-import-1"></a>
+</h4>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Credentials are automatically read from ~/.picard/secrets.yml</span></span>
 <span><span class="va">atlasConnection</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/getAtlasConnection.html">getAtlasConnection</a></span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">setAtlasConnection</span><span class="op">(</span><span class="va">atlasConnection</span><span class="op">)</span></span>
 <span></span>
+<span><span class="co"># Read the CSV file</span></span>
+<span><span class="va">cohortsLoad</span> <span class="op">&lt;-</span> <span class="fu">readr</span><span class="fu">::</span><span class="fu"><a href="https://readr.tidyverse.org/reference/read_delim.html" class="external-link">read_csv</a></span><span class="op">(</span></span>
+<span>  <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts/cohortsLoad.csv"</span><span class="op">)</span>,</span>
+<span>  show_col_types <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Import</span></span>
 <span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">importAtlasCohorts</span><span class="op">(</span></span>
-<span>  cohortsLoadPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts/cohortsLoad.csv"</span><span class="op">)</span></span>
+<span>  cohortsLoad <span class="op">=</span> <span class="va">cohortsLoad</span>,</span>
+<span>  atlasConnection <span class="op">=</span> <span class="va">atlasConnection</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p>Downloads CIRCE JSON definitions to <code>inputs/cohorts/json/</code>
 and records each cohort in SQLite.</p>
+<p><strong>Tip:</strong> You can also pass the dataframe directly
+without reading from a file, which is useful for programmatic
+workflows.</p>
 </div>
-<div class="section level3">
-<h3 id="step-5-load-and-review-1">Step 5: Load and review<a class="anchor" aria-label="anchor" href="#step-5-load-and-review-1"></a>
-</h3>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="section level4">
+<h4 id="step-5-load-and-review-1">Step 5: Load and review<a class="anchor" aria-label="anchor" href="#step-5-load-and-review-1"></a>
+</h4>
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">cohortManifest</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadCohortManifest.html">loadCohortManifest</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">tabulateManifest</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+</div>
+</div>
+<div class="section level3">
+<h3 id="checking-for-atlas-changes-mid-cycle">Checking for ATLAS Changes (Mid-Cycle)<a class="anchor" aria-label="anchor" href="#checking-for-atlas-changes-mid-cycle"></a>
+</h3>
+<p>After the initial import, you can periodically check whether
+definitions in ATLAS have changed. The workflow uses two phases:</p>
+<p><strong>Phase 1: Detection</strong> — Compares remote ATLAS hashes to
+stored local hashes:</p>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># For concept sets</span></span>
+<span><span class="va">conceptSetManifest</span><span class="op">$</span><span class="fu">checkAtlasConceptSets</span><span class="op">(</span><span class="va">atlasConnection</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># For cohorts</span></span>
+<span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">checkAtlasCohorts</span><span class="op">(</span><span class="va">atlasConnection</span><span class="op">)</span></span></code></pre></div>
+<p>Reports which definitions have changed in ATLAS.</p>
+<p><strong>Phase 2: Update</strong> — Downloads updated definitions and
+re-writes JSON files:</p>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># For concept sets</span></span>
+<span><span class="va">conceptSetManifest</span><span class="op">$</span><span class="fu">updateAtlasConceptSets</span><span class="op">(</span><span class="va">atlasConnection</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># For cohorts</span></span>
+<span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">updateAtlasCohorts</span><span class="op">(</span><span class="va">atlasConnection</span><span class="op">)</span></span></code></pre></div>
+<p>Updates the manifest with new hashes and cascades
+<code>'stale'</code> status to any downstream dependent cohorts (for
+cohorts only).</p>
 <hr>
 </div>
 </div>
 <div class="section level2">
+<h2 id="builder-pattern-2-capr-based-building">Builder Pattern 2: Capr-Based Building<a class="anchor" aria-label="anchor" href="#builder-pattern-2-capr-based-building"></a>
+</h2>
+<div class="section level3">
+<h3 id="building-concept-sets-with-capr">Building Concept Sets with Capr<a class="anchor" aria-label="anchor" href="#building-concept-sets-with-capr"></a>
+</h3>
+<p>This pattern uses
+<code>inputs/conceptSets/R/import_capr_concept_set.R</code> and requires
+the Capr package.</p>
+<p>Capr provides an R interface for building OMOP concept sets
+programmatically:</p>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ohdsi.github.io/Capr/" class="external-link">Capr</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">conceptSetManifest</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadConceptSetManifest.html">loadConceptSetManifest</a></span><span class="op">(</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Example 1: Diabetes mellitus concepts</span></span>
+<span><span class="va">diabetesConcepts</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">cs</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">descendants</a></span><span class="op">(</span><span class="fl">201820</span><span class="op">)</span>,  <span class="co"># Type 2 diabetes mellitus</span></span>
+<span>  <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">descendants</a></span><span class="op">(</span><span class="fl">443238</span><span class="op">)</span>   <span class="co"># Insulin-dependent diabetes mellitus</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">conceptSetManifest</span><span class="op">$</span><span class="fu">addCaprConceptSet</span><span class="op">(</span></span>
+<span>  conceptSetName <span class="op">=</span> <span class="st">"Diabetes"</span>,</span>
+<span>  conceptSet <span class="op">=</span> <span class="va">diabetesConcepts</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Example 2: Antidiabetic drugs</span></span>
+<span><span class="va">antidiabeticDrugs</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">cs</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">descendants</a></span><span class="op">(</span><span class="fl">21600960</span><span class="op">)</span>,  <span class="co"># Metformin</span></span>
+<span>  <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">descendants</a></span><span class="op">(</span><span class="fl">21601389</span><span class="op">)</span>,  <span class="co"># Sulfonylureas</span></span>
+<span>  <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">descendants</a></span><span class="op">(</span><span class="fl">21602722</span><span class="op">)</span>,  <span class="co"># SGLT2 inhibitors</span></span>
+<span>  sourceCode <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">conceptSetManifest</span><span class="op">$</span><span class="fu">addCaprConceptSet</span><span class="op">(</span></span>
+<span>  conceptSetName <span class="op">=</span> <span class="st">"AntidiabeticDrugs"</span>,</span>
+<span>  conceptSet <span class="op">=</span> <span class="va">antidiabeticDrugs</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>See the <a href="https://ohdsi.github.io/Capr/" class="external-link">Capr
+documentation</a> for detailed syntax and more complex concept set
+definitions.</p>
+</div>
+<div class="section level3">
+<h3 id="building-cohorts-with-capr">Building Cohorts with Capr<a class="anchor" aria-label="anchor" href="#building-cohorts-with-capr"></a>
+</h3>
+<p>This pattern uses <code>inputs/cohorts/R/import_capr_cohort.R</code>
+and requires the Capr package.</p>
+<p>Capr provides a fluent interface for building cohort definitions in
+R:</p>
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ohdsi.github.io/Capr/" class="external-link">Capr</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">cohortManifest</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadCohortManifest.html">loadCohortManifest</a></span><span class="op">(</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Example: Type 2 Diabetes cohort with washout period</span></span>
+<span><span class="va">t2dCohort</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cohort.html" class="external-link">cohort</a></span><span class="op">(</span></span>
+<span>  entry <span class="op">=</span> <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/entry.html" class="external-link">entry</a></span><span class="op">(</span></span>
+<span>    <span class="fu">condition</span><span class="op">(</span></span>
+<span>      <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">descendants</a></span><span class="op">(</span><span class="fl">201820</span><span class="op">)</span>,  <span class="co"># Type 2 diabetes</span></span>
+<span>      on <span class="op">=</span> <span class="st">"conditionStart"</span></span>
+<span>    <span class="op">)</span> <span class="op">%&gt;%</span></span>
+<span>      <span class="fu"><a href="https://rdrr.io/r/stats/filter.html" class="external-link">filter</a></span><span class="op">(</span></span>
+<span>        <span class="fu">relationshipDomain</span><span class="op">(</span></span>
+<span>          <span class="st">"measurement"</span>,</span>
+<span>          <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">descendants</a></span><span class="op">(</span><span class="fl">3002962</span><span class="op">)</span>  <span class="co"># HbA1c measurement</span></span>
+<span>        <span class="op">)</span>,</span>
+<span>        <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/duringInterval.html" class="external-link">duringInterval</a></span><span class="op">(</span>daysBefore <span class="op">=</span> <span class="fl">365</span>, daysAfter <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
+<span>      <span class="op">)</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/attrition.html" class="external-link">attrition</a></span><span class="op">(</span></span>
+<span>    <span class="st">"No prior T2D"</span>,</span>
+<span>    <span class="op">!</span><span class="fu">condition</span><span class="op">(</span><span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">descendants</a></span><span class="op">(</span><span class="fl">201820</span><span class="op">)</span>, on <span class="op">=</span> <span class="st">"conditionStart"</span><span class="op">)</span> <span class="op">%&gt;%</span></span>
+<span>      <span class="fu">during</span><span class="op">(</span>daysBefore <span class="op">=</span> <span class="fl">365</span><span class="op">)</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">addCaprCohort</span><span class="op">(</span></span>
+<span>  cohortName <span class="op">=</span> <span class="st">"Type2Diabetes_HbA1c"</span>,</span>
+<span>  cohort <span class="op">=</span> <span class="va">t2dCohort</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>See the <a href="https://ohdsi.github.io/Capr/" class="external-link">Capr
+documentation</a> for detailed examples.</p>
+<hr>
+</div>
+</div>
+<div class="section level2">
+<h2 id="builder-pattern-3-custom-sql-cohorts">Builder Pattern 3: Custom SQL Cohorts<a class="anchor" aria-label="anchor" href="#builder-pattern-3-custom-sql-cohorts"></a>
+</h2>
+<p>This pattern uses
+<code>inputs/cohorts/R/import_sql_cohort.R</code>.</p>
+<p>Custom SQL cohorts let you define cohorts using hand-written SQL
+queries. Place your SQL files in <code>inputs/cohorts/sql/</code>:</p>
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">cohortManifest</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadCohortManifest.html">loadCohortManifest</a></span><span class="op">(</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Add a custom SQL cohort</span></span>
+<span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">addSqlCohort</span><span class="op">(</span></span>
+<span>  cohortName <span class="op">=</span> <span class="st">"MyCustomCohort"</span>,</span>
+<span>  sqlPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts/sql/my_custom_cohort.sql"</span><span class="op">)</span>,</span>
+<span>  <span class="co"># SqlRender parameters (will substitute @param in the SQL file)</span></span>
+<span>  targetCohortId <span class="op">=</span> <span class="fl">1001</span>,</span>
+<span>  cdmDatabaseSchema <span class="op">=</span> <span class="st">"cdm"</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>SQL files must follow SqlRender conventions with parameters prefixed
+by <code>@</code>:</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb17-1"><a href="#cb17-1" tabindex="-1"></a><span class="co">-- Cohort: Patients with Type 2 Diabetes</span></span>
+<span id="cb17-2"><a href="#cb17-2" tabindex="-1"></a><span class="kw">DELETE</span> <span class="kw">FROM</span> @target_database_schema.cohort</span>
+<span id="cb17-3"><a href="#cb17-3" tabindex="-1"></a><span class="kw">WHERE</span> cohort_definition_id <span class="op">=</span> @target_cohort_id;</span>
+<span id="cb17-4"><a href="#cb17-4" tabindex="-1"></a></span>
+<span id="cb17-5"><a href="#cb17-5" tabindex="-1"></a><span class="kw">INSERT</span> <span class="kw">INTO</span> @target_database_schema.cohort</span>
+<span id="cb17-6"><a href="#cb17-6" tabindex="-1"></a>  (cohort_definition_id, subject_id, cohort_start_date, cohort_end_date)</span>
+<span id="cb17-7"><a href="#cb17-7" tabindex="-1"></a><span class="kw">SELECT</span></span>
+<span id="cb17-8"><a href="#cb17-8" tabindex="-1"></a>  @target_cohort_id <span class="kw">as</span> cohort_definition_id,</span>
+<span id="cb17-9"><a href="#cb17-9" tabindex="-1"></a>  person_id <span class="kw">as</span> subject_id,</span>
+<span id="cb17-10"><a href="#cb17-10" tabindex="-1"></a>  condition_start_date <span class="kw">as</span> cohort_start_date,</span>
+<span id="cb17-11"><a href="#cb17-11" tabindex="-1"></a>  DATEADD(<span class="dt">day</span>, <span class="dv">365</span>, condition_start_date) <span class="kw">as</span> cohort_end_date</span>
+<span id="cb17-12"><a href="#cb17-12" tabindex="-1"></a><span class="kw">FROM</span> @cdm_database_schema.condition_occurrence</span>
+<span id="cb17-13"><a href="#cb17-13" tabindex="-1"></a><span class="kw">WHERE</span> condition_concept_id <span class="kw">IN</span> (<span class="dv">201820</span>, <span class="dv">443238</span>)</span>
+<span id="cb17-14"><a href="#cb17-14" tabindex="-1"></a>  <span class="kw">AND</span> condition_start_date <span class="op">&gt;=</span> <span class="st">'2015-01-01'</span>;</span></code></pre></div>
+<p>Key SqlRender parameters: - <code>@target_cohort_id</code> — The
+numeric ID for your cohort - <code>@target_database_schema</code> — The
+schema where results will be written - <code>@cdm_database_schema</code>
+— The CDM database schema location -
+<code>@vocabulary_database_schema</code> — The vocabulary schema
+location</p>
+<blockquote>
+<p>Always use <code>DELETE</code> before <code>INSERT</code> to make
+your cohort idempotent (can be re-run without duplication).</p>
+</blockquote>
+<hr>
+</div>
+<div class="section level2">
+<h2 id="builder-pattern-4-derived-cohorts">Builder Pattern 4: Derived Cohorts<a class="anchor" aria-label="anchor" href="#builder-pattern-4-derived-cohorts"></a>
+</h2>
+<p>This pattern uses
+<code>inputs/cohorts/R/build_dependent_cohorts.R</code>.</p>
+<p>Derived cohorts are relationships between existing base cohorts. All
+base cohorts must be imported first (via ATLAS, Capr, or SQL).</p>
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">cohortManifest</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadCohortManifest.html">loadCohortManifest</a></span><span class="op">(</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Ensure base cohorts exist</span></span>
+<span><span class="co"># - CohortId 1: Chronic Kidney Disease</span></span>
+<span><span class="co"># - CohortId 2: Type 2 Diabetes</span></span>
+<span></span>
+<span><span class="co"># Example 1: Temporal - CKD in patients with prior T2D</span></span>
+<span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">buildSubsetCohortTemporal</span><span class="op">(</span></span>
+<span>  baseCohortId <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  subsetParent <span class="op">=</span> <span class="fl">2</span>,</span>
+<span>  temporalType <span class="op">=</span> <span class="st">"prior"</span>,</span>
+<span>  daysBefore <span class="op">=</span> <span class="fl">365</span>,</span>
+<span>  daysAfter <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  newCohortName <span class="op">=</span> <span class="st">"CKD_With_Prior_T2D"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Example 2: Union - CKD or T2D patients</span></span>
+<span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">buildUnionCohort</span><span class="op">(</span></span>
+<span>  cohortIds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">2</span><span class="op">)</span>,</span>
+<span>  newCohortName <span class="op">=</span> <span class="st">"CKD_or_T2D"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Example 3: Complement - CKD without T2D</span></span>
+<span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">buildComplementCohort</span><span class="op">(</span></span>
+<span>  baseCohortId <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  excludeCohortId <span class="op">=</span> <span class="fl">2</span>,</span>
+<span>  newCohortName <span class="op">=</span> <span class="st">"CKD_Without_T2D"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Example 4: O-Prior-T - Outcome prior to treatment</span></span>
+<span><span class="co"># (Outcome cohort excludes those with outcome before/during treatment)</span></span>
+<span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">buildOPriorTCohort</span><span class="op">(</span></span>
+<span>  outcomeCohortId <span class="op">=</span> <span class="fl">3</span>,</span>
+<span>  treatmentCohortId <span class="op">=</span> <span class="fl">2</span>,</span>
+<span>  daysBefore <span class="op">=</span> <span class="fl">30</span>,</span>
+<span>  newCohortName <span class="op">=</span> <span class="st">"Outcome_Prior_to_Treatment"</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>Relationship types: - <strong>Temporal</strong> — Base cohort with
+another cohort before/after - <strong>Union</strong> — Combine multiple
+cohorts - <strong>Complement</strong> — Base cohort excluding another
+cohort - <strong>O-Prior-T</strong> — Outcome before treatment starts -
+<strong>T-Prior-O</strong> — Treatment before outcome -
+<strong>Censor</strong> — Cohort with censoring date</p>
+<p>See <a href="manifest_overview.html">Manifest: Architecture,
+Workflows, and Helpers</a> for comprehensive examples of all derived
+cohort types.</p>
+<hr>
+</div>
+<div class="section level2">
 <h2 id="subsequent-sessions">Subsequent Sessions<a class="anchor" aria-label="anchor" href="#subsequent-sessions"></a>
 </h2>
-<p>After the first-time import, subsequent sessions only need the two
-load calls:</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<p>After the first-time import, subsequent sessions only need the
+manifest load calls:</p>
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">conceptSetManifest</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadConceptSetManifest.html">loadConceptSetManifest</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="va">cohortManifest</span>     <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadCohortManifest.html">loadCohortManifest</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p>Both functions read from SQLite and rebuild the in-memory R6 objects.
 No network connection or CSV file is required.</p>
+<p>These calls are included in the default builder scripts and will run
+automatically when <code>main.R</code> executes
+<code><a href="../reference/sourceInputBuilderScripts.html">sourceInputBuilderScripts()</a></code>.</p>
 <hr>
 </div>
 <div class="section level2">
@@ -364,23 +669,22 @@ No network connection or CSV file is required.</p>
 </tr></thead>
 <tbody>
 <tr class="odd">
-<td>Derived cohorts (union, subset, complement, composite)</td>
-<td><a href="manifest_overview.html">Manifest: Architecture, Workflows,
-and Helpers</a></td>
-</tr>
-<tr class="even">
-<td>Custom SQL cohorts</td>
-<td><a href="manifest_overview.html">Manifest: Architecture, Workflows,
-and Helpers</a></td>
-</tr>
-<tr class="odd">
-<td>Mid-cycle changes, sync, delete, reset</td>
+<td>Advanced manifest features</td>
 <td><a href="manifest_overview.html">Manifest: Architecture, Workflows,
 and Helpers</a></td>
 </tr>
 <tr class="even">
 <td>Running the analysis pipeline</td>
 <td><a href="running_the_pipeline.html">Running the Pipeline</a></td>
+</tr>
+<tr class="odd">
+<td>Pipeline development and testing</td>
+<td><a href="developing_the_pipeline.html">Developing the
+Pipeline</a></td>
+</tr>
+<tr class="even">
+<td>Creating a new study</td>
+<td><a href="launching_a_study.html">Launching a Picard Study</a></td>
 </tr>
 </tbody>
 </table>

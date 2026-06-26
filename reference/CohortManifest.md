@@ -14,6 +14,25 @@ their metadata in a SQLite database located at
 inputs/cohorts/cohortManifest.sqlite. Each CohortDef is assigned a
 sequential ID based on its position in the manifest.
 
+This is the detection phase of the ATLAS maintenance workflow. Use this
+to identify which ATLAS cohorts have changed, then optionally call
+`updateAtlasCohorts()` to apply updates. Changes are detected by
+comparing expression JSON hashes.
+
+This method updates ATLAS cohorts that have changed in the remote
+repository. It:
+
+- Fetches current definitions from ATLAS
+
+- Updates JSON files on disk
+
+- Recomputes and stores hashes
+
+- Updates the manifest database
+
+Use `checkAtlasChanges()` first to identify which cohorts have changed,
+then call this method to apply updates.
+
 Requires that executionSettings has been set and includes:
 
 - A database connection (via getConnection()
@@ -128,6 +147,8 @@ Requires that executionSettings has been set and includes:
 
 - [`CohortManifest$queryCohortsByCategory()`](#method-CohortManifest-queryCohortsByCategory)
 
+- [`CohortManifest$queryCohortsByTagName()`](#method-CohortManifest-queryCohortsByTagName)
+
 - [`CohortManifest$nCohorts()`](#method-CohortManifest-nCohorts)
 
 - [`CohortManifest$getCohortById()`](#method-CohortManifest-getCohortById)
@@ -136,13 +157,19 @@ Requires that executionSettings has been set and includes:
 
 - [`CohortManifest$getCohortsByLabel()`](#method-CohortManifest-getCohortsByLabel)
 
-- [`CohortManifest$updateCohortDef()`](#method-CohortManifest-updateCohortDef)
+- [`CohortManifest$updateCohortLabel()`](#method-CohortManifest-updateCohortLabel)
+
+- [`CohortManifest$updateCohortCategory()`](#method-CohortManifest-updateCohortCategory)
+
+- [`CohortManifest$updateCohortTags()`](#method-CohortManifest-updateCohortTags)
+
+- [`CohortManifest$checkAtlasCohorts()`](#method-CohortManifest-checkAtlasCohorts)
+
+- [`CohortManifest$updateAtlasCohorts()`](#method-CohortManifest-updateAtlasCohorts)
 
 - [`CohortManifest$statusReport()`](#method-CohortManifest-statusReport)
 
 - [`CohortManifest$print()`](#method-CohortManifest-print)
-
-- [`CohortManifest$removeCohort()`](#method-CohortManifest-removeCohort)
 
 - [`CohortManifest$createCohortTables()`](#method-CohortManifest-createCohortTables)
 
@@ -429,30 +456,29 @@ Invisible integer. The assigned cohort ID.
 
 ### Method `importAtlasCohorts()`
 
-Batch import cohorts from ATLAS via cohortsLoad.csv
+Batch-import cohorts from ATLAS via a cohortsLoad dataframe
 
-Reads a CSV file with columns `atlasId`, `label`, `category` (plus
-optional extra columns for tags) and imports each cohort from ATLAS.
+Either create a dataframe or read in a csv file with columns `atlasId`,
+`label`, `category` (required) plus any additional columns treated as
+tag key-value pairs for tags. Calls `addAtlasCohort()` for each row
+inside a `tryCatch` so a single failure does not abort the entire batch.
 
 #### Usage
 
-    CohortManifest$importAtlasCohorts(
-      atlasConnection = NULL,
-      cohortsLoadPath = here::here("inputs/cohorts/cohortsLoad.csv")
-    )
+    CohortManifest$importAtlasCohorts(cohortsLoad, atlasConnection = NULL)
 
 #### Arguments
+
+- `cohortsLoad`:
+
+  a data frame requiring the columns atlasId, label and category used to
+  bulk add cohorts to the manifest
 
 - `atlasConnection`:
 
   An ATLAS connection object with a `getCohortDefinition(cohortId)`
   method. If `NULL`, falls back to the connection stored via
   `$setAtlasConnection()`.
-
-- `cohortsLoadPath`:
-
-  Character. Path to the CSV file. Defaults to
-  `here::here("inputs/cohorts/cohortsLoad.csv")`.
 
 #### Returns
 
@@ -1115,6 +1141,25 @@ source_type, created_at. Query cohorts by category
 #### Returns
 
 Tibble with columns: id, label, category, tags, file_path, hash,
+source_type, created_at. Query cohorts by category
+
+------------------------------------------------------------------------
+
+### Method `queryCohortsByTagName()`
+
+#### Usage
+
+    CohortManifest$queryCohortsByTagName(tagName)
+
+#### Arguments
+
+- `tagName`:
+
+  Character vector. The name of tags to query
+
+#### Returns
+
+Tibble with columns: id, label, category, tags, file_path, hash,
 source_type, created_at.
 
 ------------------------------------------------------------------------
@@ -1204,21 +1249,13 @@ found.
 
 ------------------------------------------------------------------------
 
-### Method `updateCohortDef()`
+### Method `updateCohortLabel()`
 
-Update metadata for an existing cohort
-
-Modifies label, category, or tags for a cohort entry in the manifest.
-The file path remains immutable.
+Update a cohort label
 
 #### Usage
 
-    CohortManifest$updateCohortDef(
-      cohortId,
-      label = NULL,
-      category = NULL,
-      tags = NULL
-    )
+    CohortManifest$updateCohortLabel(cohortId, newLabel)
 
 #### Arguments
 
@@ -1226,21 +1263,129 @@ The file path remains immutable.
 
   Integer. The cohort ID to update.
 
-- `label`:
+- `newLabel`:
 
-  Character. New label. If NULL, keeps existing.
-
-- `category`:
-
-  Character. New category. If NULL, keeps existing.
-
-- `tags`:
-
-  Named list. New tags. If NULL, keeps existing.
+  Character. The new label for the cohort.
 
 #### Returns
 
-Invisible NULL. Updates the manifest.
+Invisible NULL.
+
+------------------------------------------------------------------------
+
+### Method `updateCohortCategory()`
+
+Update a cohort category
+
+#### Usage
+
+    CohortManifest$updateCohortCategory(cohortId, newCategory)
+
+#### Arguments
+
+- `cohortId`:
+
+  Integer. The cohort ID to update.
+
+- `newCategory`:
+
+  Character. The new category for the cohort.
+
+#### Returns
+
+Invisible NULL.
+
+------------------------------------------------------------------------
+
+### Method `updateCohortTags()`
+
+Update cohort tags
+
+#### Usage
+
+    CohortManifest$updateCohortTags(cohortId, newTags)
+
+#### Arguments
+
+- `cohortId`:
+
+  Integer. The cohort ID to update.
+
+- `newTags`:
+
+  Named list. The new tags for the cohort.
+
+#### Returns
+
+Invisible NULL.
+
+------------------------------------------------------------------------
+
+### Method `checkAtlasCohorts()`
+
+Auto-detect changes to ATLAS cohorts in remote repository
+
+Queries the manifest for all active ATLAS cohorts (identified by
+`atlasId` in tags), fetches their current definitions from ATLAS,
+computes hashes, and compares against the stored local hash. Provides a
+read-only summary of which cohorts have changed in ATLAS since import.
+No modifications are made.
+
+#### Usage
+
+    CohortManifest$checkAtlasCohorts(atlasConnection = NULL)
+
+#### Arguments
+
+- `atlasConnection`:
+
+  An ATLAS connection object with a method
+  `getCohortDefinition(cohortId)` that returns a list with an
+  `expression` element. If `NULL` (default), uses the connection stored
+  via `$setAtlasConnection()`. If no connection is available, raises an
+  error.
+
+#### Returns
+
+Invisible tibble with columns:
+
+- `id` - Cohort ID in manifest
+
+- `label` - Cohort label
+
+- `atlasId` - ATLAS cohort definition ID
+
+- `hasChanged` - Logical; TRUE if remote hash differs from local
+
+- `localHash` - Hash of stored JSON
+
+- `remoteHash` - Hash of current ATLAS JSON
+
+------------------------------------------------------------------------
+
+### Method `updateAtlasCohorts()`
+
+Update ATLAS cohorts with remote definitions
+
+Fetches current definitions from ATLAS for specified cohorts and updates
+the stored JSON files and manifest entries. This is the modification
+phase that applies changes detected by checkAtlasChanges().
+
+#### Usage
+
+    CohortManifest$updateAtlasCohorts(atlasConnection = NULL)
+
+#### Arguments
+
+- `atlasConnection`:
+
+  An ATLAS connection object with a method
+  `getCohortDefinition(cohortId)`. If `NULL` (default), uses the
+  connection stored via `$setAtlasConnection()`.
+
+#### Returns
+
+invisible of the tibble of atlas changes to update
 
 ------------------------------------------------------------------------
 
@@ -1267,57 +1412,12 @@ depends_on, status.
 
 Print a friendly view of the CohortManifest
 
-Displays key metadata about the manifest and its contents.
+Displays key metadata about the manifest and its contents. Create cohort
+tables in the database
 
 #### Usage
 
     CohortManifest$print()
-
-------------------------------------------------------------------------
-
-### Method `removeCohort()`
-
-Remove a cohort from the manifest
-
-Permanently removes a cohort from the SQLite manifest and optionally
-deletes its file on disk and/or drops its rows from the DBMS cohort and
-checksum tables. This is a hard, irreversible removal — no soft-delete
-trace is left.
-
-#### Usage
-
-    CohortManifest$removeCohort(
-      id,
-      deleteFile = FALSE,
-      dropFromCohortTable = FALSE,
-      confirm = FALSE
-    )
-
-#### Arguments
-
-- `id`:
-
-  Integer. The cohort ID to remove.
-
-- `deleteFile`:
-
-  Logical. If TRUE, deletes the associated SQL/JSON file on disk.
-  Default: FALSE.
-
-- `dropFromCohortTable`:
-
-  Logical. If TRUE, deletes the cohort's rows from the DBMS cohort table
-  and checksum table. Requires `executionSettings` to be set via
-  `$setExecutionSettings()`. Default: FALSE.
-
-- `confirm`:
-
-  Logical. If FALSE (default), prompts for interactive confirmation.
-  Pass TRUE to skip the prompt (suitable for scripts).
-
-#### Returns
-
-Invisible NULL. Create cohort tables in the database
 
 ------------------------------------------------------------------------
 
@@ -1369,24 +1469,32 @@ Scans the `json/` and `sql/` subdirectories of the cohorts folder,
 reconciles them against the SQLite manifest, and updates both the
 database and the in-memory list:
 
-- New files found on disk are added (new CohortDef + manifest entry).
-
 - Active manifest records whose file no longer exists are soft-deleted.
 
 - Existing files whose SQL hash has changed are updated in the manifest.
+
+- Orphaned files on disk not in manifest are automatically deleted.
 
 Only the `json/` and `sql/` source directories are scanned — derived
 cohorts managed via `build*()` methods are not touched.
 
 #### Usage
 
-    CohortManifest$syncManifest()
+    CohortManifest$syncManifest(strict_mode = TRUE)
+
+#### Arguments
+
+- `strict_mode`:
+
+  Logical. If TRUE (default), automatically removes orphaned files found
+  on disk. If FALSE, only warns about them without deletion. Default:
+  TRUE.
 
 #### Returns
 
-Data frame with columns: id, label, action (`"added"`, `"hash_updated"`,
-`"missing_flagged"`, or `"unchanged"`). Clean cohort data from the DBMS
-for deleted manifest entries
+Data frame with columns: id, label, action (`"hash_updated"`,
+`"missing_flagged"`, `"unchanged"`, `"auto_removed_orphan"`). Clean
+cohort data from the DBMS for deleted manifest entries
 
 ------------------------------------------------------------------------
 
@@ -1511,11 +1619,19 @@ next_available_id
 
 ### Method `deleteCohort()`
 
-Soft delete a cohort (mark as deleted, preserve record)
+Delete a cohort from manifest and file system
+
+Marks a cohort as deleted in the manifest and removes its file from the
+file system (json/ or sql/ directory). The SQLite record is preserved
+with status='deleted' for audit trail purposes.
+
+When a manifest is loaded, only active cohorts are loaded into memory.
+This enforces strict 1:1 correspondence between active manifest entries
+and files on disk.
 
 #### Usage
 
-    CohortManifest$deleteCohort(id, reason = NULL)
+    CohortManifest$deleteCohort(id, confirm = FALSE, dropFromDBMS = FALSE)
 
 #### Arguments
 
@@ -1523,13 +1639,20 @@ Soft delete a cohort (mark as deleted, preserve record)
 
   Integer. The cohort ID to delete.
 
-- `reason`:
+- `confirm`:
 
-  Character. Optional reason for deletion.
+  Logical. If FALSE (default), prompts for interactive confirmation.
+  Pass TRUE to skip the prompt (suitable for scripts).
+
+- `dropFromDBMS`:
+
+  Logical. If TRUE, also deletes the cohort from the DBMS cohort table
+  and checksum table. Requires `executionSettings` to be set. Default:
+  FALSE (filesystem/manifest cleanup only).
 
 #### Returns
 
-Invisibly returns TRUE if successful, FALSE otherwise.
+Invisible NULL.
 
 ------------------------------------------------------------------------
 

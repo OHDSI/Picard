@@ -11,7 +11,7 @@ operations require the user to type "yes" at a confirmation prompt
 
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.4</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.5</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -51,6 +51,7 @@ operations require the user to type <code>"yes"</code> at a confirmation prompt
 <span>  manifest <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  conceptSetsFolderPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/conceptSets"</span><span class="op">)</span>,</span>
 <span>  scope <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"manifest"</span>, <span class="st">"full"</span><span class="op">)</span>,</span>
+<span>  archive <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  confirm <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -75,6 +76,12 @@ Inferred from <code>manifest</code> when provided; otherwise defaults to
 <code>"full"</code>.</p></dd>
 
 
+<dt id="arg-archive">archive<a class="anchor" aria-label="anchor" href="#arg-archive"></a></dt>
+<dd><p>Logical. For <code>scope = "manifest"</code>, if <code>TRUE</code> (default),
+archives JSON files in <code>json/</code> to a timestamped directory instead of
+deleting them. Set to <code>FALSE</code> to delete without archiving.</p></dd>
+
+
 <dt id="arg-confirm">confirm<a class="anchor" aria-label="anchor" href="#arg-confirm"></a></dt>
 <dd><p>Logical. If <code>TRUE</code> (default), the user must type
 <code>"yes"</code> to proceed. Set to <code>FALSE</code> for non-interactive use.</p></dd>
@@ -95,9 +102,9 @@ Inferred from <code>manifest</code> when provided; otherwise defaults to
 
 <dl><dt><code>"manifest"</code> (default)</dt>
 <dd><p>Deletes only the SQLite database.
-JSON files in <code>json/</code> are preserved. On the next call to
-<code><a href="loadConceptSetManifest.html">loadConceptSetManifest()</a></code>, those files are automatically
-re-registered — no manual <code>$add*()</code> calls required.</p></dd>
+JSON files in <code>json/</code> are archived to a timestamped directory
+(unless <code>archive = FALSE</code>) and can be restored after
+<code><a href="initConceptSetManifest.html">initConceptSetManifest()</a></code> using <code>$addConceptSetFile()</code>.</p></dd>
 
 <dt><code>"full"</code></dt>
 <dd><p>Deletes the SQLite database, the <code>json/</code>

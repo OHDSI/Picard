@@ -11,6 +11,7 @@ resetConceptSetManifest(
   manifest = NULL,
   conceptSetsFolderPath = here::here("inputs/conceptSets"),
   scope = c("manifest", "full"),
+  archive = TRUE,
   confirm = TRUE
 )
 ```
@@ -32,6 +33,12 @@ resetConceptSetManifest(
 
   Character. One of `"manifest"` (default) or `"full"`.
 
+- archive:
+
+  Logical. For `scope = "manifest"`, if `TRUE` (default), archives JSON
+  files in `json/` to a timestamped directory instead of deleting them.
+  Set to `FALSE` to delete without archiving.
+
 - confirm:
 
   Logical. If `TRUE` (default), the user must type `"yes"` to proceed.
@@ -50,11 +57,11 @@ sources (nothing is auto-generated), so there is no "derived" tier.
 
 - `"manifest"` (default):
 
-  Deletes only the SQLite database. JSON files in `json/` are preserved.
-  On the next call to
-  [`loadConceptSetManifest()`](https://ohdsi.github.io/Picard/reference/loadConceptSetManifest.md),
-  those files are automatically re-registered — no manual `$add*()`
-  calls required.
+  Deletes only the SQLite database. JSON files in `json/` are archived
+  to a timestamped directory (unless `archive = FALSE`) and can be
+  restored after
+  [`initConceptSetManifest()`](https://ohdsi.github.io/Picard/reference/initConceptSetManifest.md)
+  using `$addConceptSetFile()`.
 
 - `"full"`:
 
