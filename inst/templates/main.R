@@ -79,9 +79,10 @@ results <- runPostProcessing(
 
 ## Prepare dataset for dissemination
 # cli::cli_alert_info("Preparing dissemination package...")
-# dissemination_data <- prepareDisseminationData(
-#   taskResults = taskResults,
-#   includeMetadata = TRUE
+# sourceDisseminationScripts(
+#   pipelineVersion = "1.0.0",
+#   databaseIds = dbIds,
+#   outputPath = here::here("dissemination/pretty")
 # )
 
 # H. Post-Execution: Create Pull Request ──────────────────────────────────────

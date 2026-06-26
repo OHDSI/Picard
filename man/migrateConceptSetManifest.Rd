@@ -22,7 +22,7 @@ Invisible tibble of migrated rows with their assigned categories.
 }
 \description{
 One-time migration utility that converts an existing \code{conceptSetManifest.sqlite}
-(picard <= 0.0.3.1) to the new schema with \code{category}, \code{status}, \code{deleted_at} columns,
+(picard <= 0.0.3.1) to the new schema with \code{category}, \code{status}, \code{created_at}, \code{updated_at}, and \code{deleted_at} columns,
 and converts tags from pipe-delimited string format to JSON.
 }
 \details{
@@ -33,9 +33,23 @@ The migration performs the following steps:
 \item Assigns \code{category} from the tag keywords (e.g., "domain: condition_occurrence" -> "condition_occurrence")
 or defaults to "init" if not found
 \item Converts tags from pipe-delimited string (e.g., "name: value | name: value") to JSON named list
-\item Adds missing columns (category, status, deleted_at) if they don't exist
+\item Adds missing columns (category, status, created_at, updated_at, deleted_at) if they don't exist
 \item Creates new schema with proper structure
-\item Inserts migrated rows
+\item Inserts migrated rows with \code{created_at} and \code{updated_at} set to old \code{timestamp} value
 \item Prints migration summary
+}
+
+New schema columns:
+\itemize{
+\item \code{id}: Auto-incrementing primary key
+\item \code{label}: Concept set display name
+\item \code{category}: OMOP domain or custom category
+\item \code{tags}: JSON object of key-value metadata
+\item \code{file_path}: Absolute or relative path to JSON definition file
+\item \code{hash}: File hash for change detection
+\item \code{status}: 'active' or 'inactive' (soft delete flag)
+\item \code{created_at}: Creation timestamp
+\item \code{updated_at}: Last update timestamp
+\item \code{deleted_at}: Soft delete timestamp (NULL if active)
 }
 }

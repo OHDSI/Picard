@@ -164,6 +164,7 @@ ConceptSetManifest <- R6::R6Class(
     },
 
     # Schema migration: add status and deleted_at columns if they don't exist
+    # TODO remove in more stable version of picard
     migrate_schema = function(conn) {
       # Check if status column exists
       schema_info <- DBI::dbGetQuery(conn, "PRAGMA table_info(concept_set_manifest)")

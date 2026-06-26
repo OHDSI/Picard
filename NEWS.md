@@ -9,7 +9,7 @@
 
 ## Input Builder Scripts
 
-**Pre-Pipeline Input Loading System** (`sourceInputScripts(verbose = TRUE)`):
+**Pre-Pipeline Input Loading System** (`sourceInputBuilderScripts(verbose = TRUE)`):
 - Auto-discovery and sourcing of builder scripts for pre-processing the pipeline
 - Loads concept set definitions from `inputs/conceptSets/R/` directory (sourced first)
 - Loads cohort definitions from `inputs/cohorts/R/` directory (sourced second)
@@ -17,18 +17,45 @@
 
 **Six Template Builder Scripts** (auto-populated in project init):
 1. **Concept Set Builders**:
-   - `importAtlas.R` — bulk import from ATLAS via CSV + WebAPI connection
-   - `importCapr.R` — programmatic definition using Capr functions
+   - `import_atlas_concept_set.R` — bulk import from ATLAS via CSV + WebAPI connection
+   - `import_capr_concept_set.R` — programmatic definition using Capr functions
 2. **Cohort Builders**:
-   - `importAtlas.R` — bulk import from ATLAS via CSV + WebAPI connection
-   - `importCapr.R` — programmatic cohort definitions with Capr
-   - `importSql.R` — register hand-written SQL cohorts from `inputs/cohorts/sql/`
-   - `buildDependentCohorts.R` — create derived cohorts (temporal, union, complement, O-Prior-T, T-Prior-O, censor)
+   - `import_atlas_cohort.R` — bulk import from ATLAS via CSV + WebAPI connection
+   - `import_capr_cohort.R` — programmatic cohort definitions with Capr
+   - `import_sql_cohort.R` — register hand-written SQL cohorts from `inputs/cohorts/sql/`
+   - `build_dependent_cohorts.R` — create derived cohorts (temporal, union, complement, O-Prior-T, T-Prior-O, censor)
 
-**Flexible Design**:
-- Scripts are sourced in alphabetical order; users can delete unused templates without breaking `main.R`
-- Auto-discovery gracefully skips missing directories, enabling project-specific customization
-- All manifest definitions loaded before task execution; enables dependency tracking and change detection
+**Mandatory Source Order** ⚠️:
+- `sourceInputBuilderScripts()` now enforces strict source order to respect dependencies:
+  1. Concept set builders (import_atlas_concept_set → import_capr_concept_set)
+  2. Cohort builders (import_atlas_cohort → import_capr_cohort → import_sql_cohort → build_dependent_cohorts)
+- This ensures concept sets are always loaded before cohorts, and base cohorts before dependent cohorts
+- Missing scripts are gracefully skipped; deletion of unused templates will not break `main.R`
+- Users can delete unused scripts but cannot reorder sources
+
+## Dissemination Script Workflow
+
+**Post-Pipeline Result Processing** (`sourceDisseminationScripts(projectPath, pipelineVersion, databaseIds, outputPath, verbose, warnMissing)`):
+- Auto-discovery and sourcing of post-processing scripts from `dissemination/pretty/R/` directory
+- Called automatically after `runPostProcessing()` completes in `main.R`
+- Scripts are numbered (01_, 02_, etc.) and sourced in alphabetical order
+- Each script receives `disseminationEnv` list with metadata:
+  - `pipelineVersion` — current pipeline version for reproducibility
+  - `databaseIds` — vector of databases included in the analysis
+  - `outputPath` — root output directory for result export
+  - `resultsPath` — merged results file path for post-processing
+
+**Dissemination Script Creation** (`makeDisseminationScript(name = "format_results", projectPath, open = TRUE)`):
+- Template-based generation of new dissemination scripts
+- Auto-numbering: creates 01_name.R, 02_name.R, etc. based on existing files
+- Optional RStudio navigation to newly created file
+
+**Three-Phase Pipeline Integration**:
+- Phase 1: Pre-pipeline (builder scripts in `inputs/*/R/`)
+- Phase 2: Main execution (`execStudyPipeline()` runs analysis tasks)
+- Phase 3: Post-processing with dissemination scripts
+  - `runPostProcessing()` aggregates results
+  - `sourceDisseminationScripts()` runs numbered dissemination scripts for formatting, pivoting, exporting
 
 ## Sync and Update Method Improvements
 

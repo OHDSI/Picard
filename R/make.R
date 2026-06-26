@@ -1056,3 +1056,110 @@ makeInputBuilderScript <- function(type,
   
   invisible(loadScriptTemplate)
 }
+
+
+#' Create a Dissemination Script Template
+#'
+#' Creates a new R script template in the dissemination scripts directory
+#' (\code{dissemination/pretty/R/}) for formatting and preparing merged study results
+#' for dissemination (Excel export, StudyHub, etc.). Multiple dissemination scripts
+#' can be created with automatic numbering (01_, 02_, etc.) to determine execution order.
+#'
+#' @param name Character. Name/description of the dissemination script purpose
+#'   (e.g., "format_results", "excel_export", "studyhub_upload"). Will be converted to snake_case.
+#'   Defaults to "format_results" if not specified.
+#' @param projectPath Character. Path to the project root directory.
+#'   Defaults to \code{here::here()}.
+#' @param open Logical. If TRUE (default), opens the created script in RStudio editor
+#'   for immediate editing.
+#'
+#' @details
+#' The template is created with automatic numbering in \code{dissemination/pretty/R/}
+#' (e.g., 01_format_results.R, 02_excel_export.R, 03_studyhub_upload.R) to determine
+#' execution order when \code{\link{sourceDisseminationScripts}} is called.
+#'
+#' Each template demonstrates:
+#' \itemize{
+#'   \item Loading merged results from postprocessing
+#'   \item Applying standard formatting via \code{\link{prepareDisseminationData}}
+#'   \item Creating formatted outputs (CSV, Excel, etc.)
+#'   \item Pivoting for cross-database comparison
+#'   \item Filtering and subset creation
+#'   \item StudyHub format examples
+#' }
+#'
+#' Users edit each script to customize their specific dissemination needs,
+#' then execute them all via \code{\link{sourceDisseminationScripts}}.
+#'
+#' @return Invisibly returns the template content as a character string.
+#'
+#' @examples
+#' \dontrun{
+#' # Create first dissemination script for basic formatting
+#' makeDisseminationScript(name = "format_results")
+#'
+#' # Create second script for Excel export
+#' makeDisseminationScript(name = "excel_export")
+#'
+#' # Create with default name
+#' makeDisseminationScript()
+#' }
+#'
+#' @export
+makeDisseminationScript <- function(
+    name = "format_results",
+    projectPath = here::here(),
+    open = TRUE) {
+
+  # Create dissemination directory structure
+  diss_folder_path <- fs::path(projectPath, "dissemination/pretty/R")
+  fs::dir_create(diss_folder_path, recurse = TRUE)
+
+  # Count existing files to determine numbering
+  existing_files <- fs::dir_ls(diss_folder_path, glob = "*.R", type = "file")
+  num_files <- length(existing_files) + 1
+  num_lead <- stringr::str_pad(num_files, width = 2, side = "left", pad = "0")
+
+  # Convert name to snake_case
+  script_name <- snakecase::to_snake_case(name)
+  file_name <- glue::glue("{num_lead}_{script_name}")
+
+  # Get study name from config
+  studyName <- config::get("projectName", file = fs::path(projectPath, "config.yml"))
+
+  # Build full file path
+  filePath <- fs::path(diss_folder_path, file_name, ext = "R")
+
+  # Read template
+  templatePath <- fs::path_package("picard", "templates", "disseminationScript_template.R")
+
+  if (!fs::file_exists(templatePath)) {
+    cli::cli_abort("Template not found: {.file {templatePath}}")
+  }
+
+  # Read and populate template
+  disseminationTemplate <- readr::read_file(templatePath) |>
+    glue::glue(study_name = studyName)
+
+  # Display message
+  txt <- glue::glue_col("Create {cyan {file_name}.R} in {yellow {fs::path_rel(diss_folder_path)}}")
+  cli::cat_bullet(
+    txt,
+    bullet = "tick",
+    bullet_col = "green"
+  )
+
+  # Write the file
+  readr::write_file(x = disseminationTemplate, file = filePath)
+
+  if (open) {
+    rstudioapi::navigateToFile(file = filePath)
+    cli::cat_bullet(
+      "Opening dissemination script",
+      bullet = "info",
+      bullet_col = "blue"
+    )
+  }
+
+  invisible(disseminationTemplate)
+}

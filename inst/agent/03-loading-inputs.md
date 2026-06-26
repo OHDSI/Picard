@@ -22,28 +22,28 @@ These scripts are **pre-populated** with templates for six different builder typ
 
 | Script | Purpose |
 |---|---|
-| `importAtlas.R` | Bulk import concept sets from ATLAS via CSV + WebAPI connection |
-| `importCapr.R` | Build concept sets programmatically using Capr cs() functions |
+| `import_atlas_concept_set.R` | Bulk import concept sets from ATLAS via CSV + WebAPI connection |
+| `import_capr_concept_set.R` | Build concept sets programmatically using Capr cs() functions |
 
 ### Cohort Builders
 
 | Script | Purpose |
 |---|---|
-| `importAtlas.R` | Bulk import cohorts from ATLAS via CSV + WebAPI connection |
-| `importCapr.R` | Build cohorts programmatically using Capr library |
-| `importSql.R` | Load custom SQL-based cohorts |
-| `buildDependentCohorts.R` | Create derived cohorts (temporal, union, complement, etc.) |
+| `import_atlas_cohort.R` | Bulk import cohorts from ATLAS via CSV + WebAPI connection |
+| `import_capr_cohort.R` | Build cohorts programmatically using Capr library |
+| `import_sql_cohort.R` | Load custom SQL-based cohorts |
+| `build_dependent_cohorts.R` | Create derived cohorts (temporal, union, complement, etc.) |
 
 ## How Builder Scripts Work
 
 1. **Project initializes** with all 6 builder scripts pre-created in their respective folders
 2. **You choose which builders to use** by editing or deleting scripts:
-   - **Keep scripts** you need (e.g., if using ATLAS only, keep `importAtlas.R`)
-   - **Delete scripts** you don't need (e.g., if not using Capr, delete `importCapr.R`)
-3. **Run `main.R`** which calls `sourceBuilderScripts()`
-4. **Auto-discovery:** Remaining scripts are automatically discovered and sourced in order:
-   - Concept set builders run first (importAtlas, then importCapr)
-   - Cohort builders run second (importAtlas, importCapr, importSql, buildDependentCohorts)
+   - **Keep scripts** you need (e.g., if using ATLAS only, keep `import_atlas_concept_set.R`)
+   - **Delete scripts** you don't need (e.g., if not using Capr, delete `import_capr_concept_set.R`)
+3. **Run `main.R`** which calls `sourceInputBuilderScripts()`
+4. **Mandatory source order:** Remaining scripts are sourced in enforced dependency order:
+   - Concept set builders run first (import_atlas_concept_set, then import_capr_concept_set)
+   - Cohort builders run second (import_atlas_cohort, import_capr_cohort, import_sql_cohort, build_dependent_cohorts)
 5. **Manifests load** — Your cohorts and concept sets are ready for the pipeline
 
 Each builder script is self-contained with embedded guidance comments for its workflow.
@@ -67,7 +67,7 @@ Manifests enable reproducibility and change tracking as your study evolves.
 
 ### Importing Concept Sets from ATLAS
 
-Edit `inputs/conceptSets/R/importAtlas.R`:
+Edit `inputs/conceptSets/R/import_atlas_concept_set.R`:
 
 **Step 1:** Initialize the manifest
 
@@ -149,7 +149,7 @@ conceptSetManifest$tabulateManifest()
 
 ### Importing Cohorts from ATLAS
 
-Edit `inputs/cohorts/R/importAtlas.R`:
+Edit `inputs/cohorts/R/import_atlas_cohort.R`:
 
 **Step 1:** Initialize the manifest
 
@@ -237,7 +237,7 @@ Updates cascade a `'stale'` status to any downstream dependent cohorts so they w
 
 ### Building Concept Sets with Capr
 
-Edit `inputs/conceptSets/R/importCapr.R` (requires `Capr` package installed):
+Edit `inputs/conceptSets/R/import_capr_concept_set.R` (requires `Capr` package installed):
 
 Capr provides an R interface for building OMOP concept sets programmatically:
 
@@ -283,7 +283,7 @@ See the [Capr documentation](https://ohdsi.github.io/Capr/) for detailed syntax,
 
 ### Building Cohorts with Capr
 
-Edit `inputs/cohorts/R/importCapr.R` (requires `Capr` package installed):
+Edit `inputs/cohorts/R/import_capr_cohort.R` (requires `Capr` package installed):
 
 Capr provides a fluent interface for building cohort definitions in R:
 
@@ -346,7 +346,7 @@ See the [Capr documentation](https://ohdsi.github.io/Capr/) for detailed example
 
 ## Builder Pattern 3: Custom SQL Cohorts
 
-Edit `inputs/cohorts/R/importSql.R`:
+Edit `inputs/cohorts/R/import_sql_cohort.R`:
 
 Custom SQL cohorts let you define cohorts using hand-written SQL queries. Place your SQL files in `inputs/cohorts/sql/`:
 
@@ -402,7 +402,7 @@ Key SqlRender parameters:
 
 ## Builder Pattern 4: Dependent Cohorts
 
-Edit `inputs/cohorts/R/buildDependentCohorts.R`:
+Edit `inputs/cohorts/R/build_dependent_cohorts.R`:
 
 Derived cohorts are relationships between existing base cohorts. All base cohorts must be imported first (via ATLAS, Capr, or SQL).
 
@@ -560,10 +560,10 @@ cm$visualizeCohortDependencies(outputPath = here::here("inputs/cohorts"))
 inputs/
 ├── cohorts/
 │   ├── R/                        # Builder scripts (auto-sourced)
-│   │   ├── importAtlas.R
-│   │   ├── importCapr.R
-│   │   ├── importSql.R
-│   │   └── buildDependentCohorts.R
+│   │   ├── import_atlas_cohort.R
+│   │   ├── import_capr_cohort.R
+│   │   ├── import_sql_cohort.R
+│   │   └── build_dependent_cohorts.R
 │   ├── json/                     # ATLAS JSON exports
 │   │   ├── cohort_1.json
 │   │   └── cohort_2.json
@@ -575,8 +575,8 @@ inputs/
 │
 └── conceptSets/
     ├── R/                        # Builder scripts (auto-sourced)
-    │   ├── importAtlas.R
-    │   └── importCapr.R
+    │   ├── import_atlas_concept_set.R
+    │   └── import_capr_concept_set.R
     ├── json/                     # ATLAS JSON exports
     │   ├── concept_set_1.json
     │   └── concept_set_2.json
@@ -594,11 +594,11 @@ inputs/
 
 2. **Delete unused builders**
    - Remove scripts you don't need
-   - Keep only importAtlas.R if only using ATLAS
-   - Keep only importCapr.R if only using Capr
+   - Keep only import_atlas_concept_set.R and import_atlas_cohort.R if only using ATLAS
+   - Keep only import_capr_concept_set.R and import_capr_cohort.R if only using Capr
 
 3. **Run `main.R`**
-   - Calls `sourceBuilderScripts()` which auto-discovers remaining scripts
+   - Calls `sourceInputBuilderScripts()` which enforces mandatory source order
    - Concept set builders run first, cohort builders run second
    - Manifests are populated and ready for analysis
 

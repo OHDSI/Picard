@@ -2,7 +2,7 @@
 #'
 #' @description
 #' One-time migration utility that converts an existing `conceptSetManifest.sqlite`
-#' (picard <= 0.0.3.1) to the new schema with `category`, `status`, `deleted_at` columns,
+#' (picard <= 0.0.3.1) to the new schema with `category`, `status`, `created_at`, `updated_at`, and `deleted_at` columns,
 #' and converts tags from pipe-delimited string format to JSON.
 #'
 #' @details
@@ -12,10 +12,22 @@
 #' 3. Assigns `category` from the tag keywords (e.g., "domain: condition_occurrence" -> "condition_occurrence")
 #'    or defaults to "init" if not found
 #' 4. Converts tags from pipe-delimited string (e.g., "name: value | name: value") to JSON named list
-#' 5. Adds missing columns (category, status, deleted_at) if they don't exist
+#' 5. Adds missing columns (category, status, created_at, updated_at, deleted_at) if they don't exist
 #' 6. Creates new schema with proper structure
-#' 7. Inserts migrated rows
+#' 7. Inserts migrated rows with `created_at` and `updated_at` set to old `timestamp` value
 #' 8. Prints migration summary
+#'
+#' New schema columns:
+#'   - `id`: Auto-incrementing primary key
+#'   - `label`: Concept set display name
+#'   - `category`: OMOP domain or custom category
+#'   - `tags`: JSON object of key-value metadata
+#'   - `file_path`: Absolute or relative path to JSON definition file
+#'   - `hash`: File hash for change detection
+#'   - `status`: 'active' or 'inactive' (soft delete flag)
+#'   - `created_at`: Creation timestamp
+#'   - `updated_at`: Last update timestamp
+#'   - `deleted_at`: Soft delete timestamp (NULL if active)
 #'
 #' @param dbPath Character. Path to the existing `conceptSetManifest.sqlite` file.
 #'   Defaults to `"inputs/conceptSets/conceptSetManifest.sqlite"`.
@@ -80,9 +92,10 @@ migrateConceptSetManifest <- function(dbPath = "inputs/conceptSets/conceptSetMan
       label = row$label,
       category = category,
       tags = tags_json,
-      filePath = row$filePath,
+      file_path = row$filePath,
       hash = row$hash,
-      timestamp = row$timestamp,
+      created_at = row$timestamp,
+      updated_at = row$timestamp,
       status = if (!is.null(row$status) && !is.na(row$status)) row$status else "active",
       deleted_at = if (!is.null(row$deleted_at)) row$deleted_at else NA_character_
     )
@@ -96,16 +109,17 @@ migrateConceptSetManifest <- function(dbPath = "inputs/conceptSets/conceptSetMan
   for (entry in migrated) {
     DBI::dbExecute(
       conn,
-      "INSERT INTO concept_set_manifest (id, label, category, tags, filePath, hash, timestamp, status, deleted_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO concept_set_manifest (id, label, category, tags, file_path, hash, created_at, updated_at, status, deleted_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       list(
         entry$id,
         entry$label,
         entry$category,
         entry$tags,
-        entry$filePath,
+        entry$file_path,
         entry$hash,
-        entry$timestamp,
+        entry$created_at,
+        entry$updated_at,
         entry$status,
         entry$deleted_at
       )
@@ -143,10 +157,11 @@ migrateConceptSetManifest <- function(dbPath = "inputs/conceptSets/conceptSetMan
       label TEXT NOT NULL,
       category TEXT NOT NULL,
       tags TEXT,
-      filePath TEXT NOT NULL,
+      file_path TEXT NOT NULL,
       hash TEXT NOT NULL,
-      timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       status TEXT DEFAULT 'active',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       deleted_at DATETIME DEFAULT NULL
     )"
   )

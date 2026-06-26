@@ -27,15 +27,28 @@ Invisibly returns a list with:
 }
 \description{
 Auto-discovers and sources builder scripts from pre-pipeline directories
-in alphabetical order. Designed to be called from main.R before the production pipeline.
-Concept set scripts are sourced first (they may be dependencies for cohort scripts).
-
-Searches and sources (in order):
+in a MANDATORY dependency order. Designed to be called from main.R before the
+production pipeline. This ensures concept sets are available before cohorts,
+and dependent cohorts can reference already-loaded cohort definitions.
+}
+\details{
+Scripts are sourced in the following FIXED order (skipping any that don't exist):
 \enumerate{
-\item All .R files from inputs/conceptSets/R/ (alphabetically)
-\item All .R files from inputs/cohorts/R/ (alphabetically)
+\item \code{inputs/conceptSets/R/import_atlas_concept_set.R}
+\item \code{inputs/conceptSets/R/import_capr_concept_set.R}
+\item \code{inputs/cohorts/R/import_atlas_cohort.R}
+\item \code{inputs/cohorts/R/import_capr_cohort.R}
+\item \code{inputs/cohorts/R/import_sql_cohort.R}
+\item \code{inputs/cohorts/R/build_dependent_cohorts.R}
 }
 
-Missing directories are skipped gracefully with optional warnings.
-This allows users to delete unused builder scripts without breaking main.R.
+This order is enforced to guarantee dependencies are satisfied:
+\itemize{
+\item Concept sets load first (may be needed by cohort definitions)
+\item Base cohorts load next (may be needed by dependent cohorts)
+\item Dependent cohorts load last (can reference base cohorts)
+}
+
+Use \code{\link{makeInputBuilderScript}} to create scripts with the correct naming convention.
+Missing scripts are silently skipped, allowing flexible configurations.
 }

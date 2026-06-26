@@ -46,12 +46,12 @@ six different builder types. You choose which builders to use by keeping the
 scripts you need and deleting the ones you don't.
 
 **When you run `main.R`**, the pipeline automatically discovers and sources all
-remaining builder scripts (in the correct dependency order: concept sets first,
-then cohorts). This means:
+remaining builder scripts in a **mandatory dependency order**. This ensures concept sets load before cohorts:
 
 - ✅ No manual `source()` calls needed in `main.R`
 - ✅ No `main.R` edits required when deleting scripts
 - ✅ Each builder script is self-contained with embedded guidance comments
+- ✅ Mandatory source order prevents dependency conflicts
 - ⚠️ Builder scripts must go in `inputs/cohorts/R/` and `inputs/conceptSets/R/` — **NOT** in `analysis/tasks/`
 
 ### Available Builder Script Types
@@ -60,41 +60,41 @@ then cohorts). This means:
 
 | Script | Purpose |
 |---|---|
-| `importAtlas.R` | Bulk import concept sets from ATLAS via CSV + connection |
-| `importCapr.R` | Build concept sets programmatically using Capr cs() functions |
+| `import_atlas_concept_set.R` | Bulk import concept sets from ATLAS via CSV + connection |
+| `import_capr_concept_set.R` | Build concept sets programmatically using Capr cs() functions |
 
 #### Cohorts
 
 | Script | Purpose |
 |---|---|
-| `importAtlas.R` | Bulk import cohorts from ATLAS via CSV + connection |
-| `importCapr.R` | Build cohorts programmatically using Capr library |
-| `importSql.R` | Load custom SQL-based cohorts |
-| `buildDependentCohorts.R` | Create derived cohorts (temporal, union, complement, etc.) |
+| `import_atlas_cohort.R` | Bulk import cohorts from ATLAS via CSV + connection |
+| `import_capr_cohort.R` | Build cohorts programmatically using Capr library |
+| `import_sql_cohort.R` | Load custom SQL-based cohorts |
+| `build_dependent_cohorts.R` | Create derived cohorts (temporal, union, complement, etc.) |
 
 ### Typical Workflow
 
 1. **Project initializes** with all 6 builder scripts pre-created
 2. **Edit the builders you need** — Each script has clear guidance comments
 3. **Delete unused builders** — Remove scripts you don't need
-4. **Run `main.R`** — `sourceBuilderScripts()` auto-discovers and runs remaining scripts
+4. **Run `main.R`** — `sourceInputBuilderScripts()` auto-discovers and runs remaining scripts in mandatory order
 5. **Manifests load** — Your cohorts and concept sets are ready for the pipeline
 
 Example: If you only use ATLAS for concept sets and Capr for cohorts:
 
 ```
 inputs/conceptSets/R/
-  ✓ importAtlas.R
-  ✗ importCapr.R (deleted)
+  ✓ import_atlas_concept_set.R
+  ✗ import_capr_concept_set.R (deleted)
 
 inputs/cohorts/R/
-  ✗ importAtlas.R (deleted)
-  ✓ importCapr.R
-  ✗ importSql.R (deleted)
-  ✗ buildDependentCohorts.R (deleted)
+  ✗ import_atlas_cohort.R (deleted)
+  ✓ import_capr_cohort.R
+  ✗ import_sql_cohort.R (deleted)
+  ✗ build_dependent_cohorts.R (deleted)
 ```
 
-When `main.R` runs, only `importAtlas.R` and `importCapr.R` source (concept sets first, then cohorts).
+When `main.R` runs, only `import_atlas_concept_set.R` and `import_capr_cohort.R` source (in order: concept sets first, then cohorts).
 
 ---
 
@@ -102,7 +102,7 @@ When `main.R` runs, only `importAtlas.R` and `importCapr.R` source (concept sets
 
 ### Importing Concept Sets from ATLAS
 
-This pattern uses `inputs/conceptSets/R/importAtlas.R`.
+This pattern uses `inputs/conceptSets/R/import_atlas_concept_set.R`.
 
 #### Step 1: Initialize the manifest
 
@@ -193,7 +193,7 @@ without any additional import step.
 
 ### Importing Cohorts from ATLAS
 
-This pattern uses `inputs/cohorts/R/importAtlas.R`.
+This pattern uses `inputs/cohorts/R/import_atlas_cohort.R`.
 
 #### Step 1: Initialize the manifest
 
@@ -291,7 +291,7 @@ dependent cohorts (for cohorts only).
 
 ### Building Concept Sets with Capr
 
-This pattern uses `inputs/conceptSets/R/importCapr.R` and requires the Capr package.
+This pattern uses `inputs/conceptSets/R/import_capr_concept_set.R` and requires the Capr package.
 
 Capr provides an R interface for building OMOP concept sets programmatically:
 
@@ -328,7 +328,7 @@ and more complex concept set definitions.
 
 ### Building Cohorts with Capr
 
-This pattern uses `inputs/cohorts/R/importCapr.R` and requires the Capr package.
+This pattern uses `inputs/cohorts/R/import_capr_cohort.R` and requires the Capr package.
 
 Capr provides a fluent interface for building cohort definitions in R:
 
@@ -371,7 +371,7 @@ See the [Capr documentation](https://ohdsi.github.io/Capr/) for detailed example
 
 ## Builder Pattern 3: Custom SQL Cohorts
 
-This pattern uses `inputs/cohorts/R/importSql.R`.
+This pattern uses `inputs/cohorts/R/import_sql_cohort.R`.
 
 Custom SQL cohorts let you define cohorts using hand-written SQL queries. Place
 your SQL files in `inputs/cohorts/sql/`:
@@ -421,7 +421,7 @@ Key SqlRender parameters:
 
 ## Builder Pattern 4: Derived Cohorts
 
-This pattern uses `inputs/cohorts/R/buildDependentCohorts.R`.
+This pattern uses `inputs/cohorts/R/build_dependent_cohorts.R`.
 
 Derived cohorts are relationships between existing base cohorts. All base cohorts
 must be imported first (via ATLAS, Capr, or SQL).
@@ -492,7 +492,7 @@ Both functions read from SQLite and rebuild the in-memory R6 objects. No
 network connection or CSV file is required.
 
 These calls are included in the default builder scripts and will run automatically
-when `main.R` executes `sourceBuilderScripts()`.
+when `main.R` executes `sourceInputBuilderScripts()`.
 
 ---
 
