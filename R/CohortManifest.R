@@ -2963,7 +2963,7 @@ CohortManifest <- R6::R6Class(
           )
           results_df <- rbind(results_df, new_row)
           if (cohort_type %in% c("circe", "custom")) {
-            cohort_hashes[[as.character(cohort_id)]] <- cohort$getHash()
+            cohort_hashes[[as.character(cohort_id)]] <- cohort$getSqlHash()
           } else {
             cohort_hashes[[as.character(cohort_id)]] <- compute_dependency_hash(
               private$.dbPath, cohort, cohort_hashes

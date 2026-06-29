@@ -298,7 +298,7 @@ evaluate_cohort_skip_status <- function(
         dependency_status <- "New" 
     }
   } else {
-    current_hash <- cohort$getHash()
+    current_hash <- cohort$getSqlHash()
     if (!is.null(stored_hash) && !is.na(stored_hash) && stored_hash == current_hash) {
       should_skip <- TRUE
     }
@@ -403,7 +403,7 @@ generate_single_cohort <- function(
   }
 
   hash_to_store <- if (cohort_type %in% c("circe", "custom")) {
-    cohort$getHash()
+    cohort$getSqlHash()
   } else {
     compute_dependency_hash(dbPath, cohort, cohort_hashes)
   }
