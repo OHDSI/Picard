@@ -295,23 +295,13 @@ CirceConceptSetsToLoad <- R6::R6Class(
 #' Get Atlas Connection
 #'
 #' @description
-#' Creates a \code{WebApiConnection} object using credentials from:
-#' 1. **secrets.yml** (preferred) — uses the \code{atlas} key in your
-#'    \code{~/.picard/secrets.yml} file (see \code{editSecrets()} and
-#'    \code{setupAtlasSecretsKeyring()}).
-#' 2. \code{.Renviron} — reads \code{atlasBaseUrl}, \code{atlasAuthMethod},
-#'    \code{atlasUser}, \code{atlasPassword} environment variables.
-#' 3. \code{keyring} — retrieves from the OS keyring directly (legacy).
+#' Creates a \code{WebApiConnection} object using credentials from secrets.yml
 #'
-#' @param useKeyring Logical. If TRUE and no secrets.yml atlas key is found,
-#'   retrieves credentials from the keyring package directly (legacy path).
-#'   Default FALSE.
 #' @param secretsFilePath Character. Path to secrets.yml. Default
-#'   \code{"~/.picard/secrets.yml"}. Ignored if the file doesn't exist or
-#'   has no \code{atlas} key.
+#'   \code{"~/.picard/secrets.yml"}. 
 #'
 #' @details
-#' The recommended workflow is to store Atlas credentials in
+#' Store Atlas credentials in
 #' \code{~/.picard/secrets.yml} via \code{setupAtlasSecretsKeyring()} or \code{editSecrets()}.
 #' The secrets.yml approach supports three credential formats:
 #' - Plain strings, \code{!expr keyring::key_get(...)}, or \code{!expr Sys.getenv(...)}.
@@ -319,97 +309,18 @@ CirceConceptSetsToLoad <- R6::R6Class(
 #' @returns An R6 class of WebApiConnection containing the ATLAS WebAPI connection details
 #'
 #' @export
-#'
-#' @examples
-#' \dontrun{
-#'   # Using secrets.yml (recommended)
-#'   atlasCon <- getAtlasConnection()
-#'
-#'   # Using keyring directly (legacy)
-#'   atlasCon <- getAtlasConnection(useKeyring = TRUE)
-#' }
-getAtlasConnection <- function(useKeyring = FALSE,
-                                secretsFilePath = "~/.picard/secrets.yml") {
+getAtlasConnection <- function(secretsFilePath = "~/.picard/secrets.yml") {
 
   # Try secrets.yml first (preferred path)
-  atlasCreds <- tryCatch(
-    getAtlasCredentials(secretsFilePath = secretsFilePath),
-    error = function(e) NULL
-  )
+  atlasCreds <- getAtlasCredentials(secretsFilePath = secretsFilePath)
 
-  if (!is.null(atlasCreds) &&
-      !is.null(atlasCreds$baseUrl) &&
-      !is.null(atlasCreds$user) &&
-      !is.null(atlasCreds$password)) {
-    atlasCon <- WebApiConnection$new(
+  atlasCon <- WebApiConnection$new(
       baseUrl = atlasCreds$baseUrl,
-      authMethod = atlasCreds$authMethod %||% "ad",
+      authMethod = atlasCreds$authMethod,
       user = atlasCreds$user,
       password = atlasCreds$password
     )
     return(atlasCon)
-  }
-
-  # Fallback: useKeyring path (legacy)
-  if (useKeyring) {
-    if (!requireNamespace("keyring", quietly = TRUE)) {
-      cli::cli_abort("keyring package is required. Install with: {.run install.packages('keyring')}")
-    }
-
-    cli::cli_inform("Retrieving Atlas credentials from keyring (service='picard')...")
-
-    tryCatch({
-      baseUrl <- keyring::key_get(service = "picard", username = "atlasBaseUrl")
-      authMethod <- keyring::key_get(service = "picard", username = "atlasAuthMethod")
-      user <- keyring::key_get(service = "picard", username = "atlasUser")
-      password <- keyring::key_get(service = "picard", username = "atlasPassword")
-    }, error = function(e) {
-      cli::cli_abort(c(
-        "Failed to retrieve Atlas credentials from keyring:",
-        "x" = e$message,
-        "i" = "Ensure credentials are stored with:",
-        " " = "keyring::key_set(service = 'picard', username = 'atlasBaseUrl')"
-      ))
-    })
-  } else {
-    # Retrieve from .Renviron
-    baseUrl <- Sys.getenv("atlasBaseUrl")
-    authMethod <- Sys.getenv("atlasAuthMethod")
-    user <- Sys.getenv("atlasUser")
-    password <- Sys.getenv("atlasPassword")
-
-    if (baseUrl == "" || authMethod == "" || user == "" || password == "") {
-      cli::cli_abort(c(
-        "Atlas credentials not found in .Renviron or secrets.yml",
-        "i" = "Set credentials with: {.run editSecrets()}",
-        "i" = "Or use .Renviron: {.run usethis::edit_r_environ()}",
-        "i" = "View template with: {.run templateAtlasCredentials()}"
-      ))
-    }
-  }
-
-  atlasCon <- WebApiConnection$new(
-    baseUrl = baseUrl,
-    authMethod = authMethod,
-    user = user,
-    password = password
-  )
-  return(atlasCon)
-}
-
-#' Set Atlas Connection (Deprecated)
-#'
-#' @description
-#' **Deprecated.** Use [getAtlasConnection()] instead.
-#'
-#' @param useKeyring Logical. Passed to [getAtlasConnection()].
-#'
-#' @return A WebApiConnection object.
-#'
-#' @export
-setAtlasConnection <- function(useKeyring = FALSE) {
-  lifecycle::deprecate_warn("0.0.3", "setAtlasConnection()", "getAtlasConnection()")
-  getAtlasConnection(useKeyring = useKeyring)
 }
 
 pluckConceptSetExpression <- function(conceptSetId, baseUrl, bearerToken) {

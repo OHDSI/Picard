@@ -4,17 +4,16 @@
 \alias{getAtlasCredentials}
 \title{Get Atlas/WebAPI credentials from secrets.yml}
 \usage{
-getAtlasCredentials(secretsFilePath = "secrets.yml")
+getAtlasCredentials(secretsFilePath = "~/.picard/secrets.yml")
 }
 \arguments{
-\item{secretsFilePath}{Character. Path to the secrets.yml file.}
+\item{secretsFilePath}{Character. Path to the secrets.yml file. Default to ~/.picard/secrets.yml}
 }
 \value{
 A named list with \code{baseUrl}, \code{authMethod}, \code{user}, \code{password}, or
 NULL if no \code{atlas} key is present.
 }
 \description{
-Looks up the \code{atlas} top-level key in secrets.yml and resolves the credential
-fields via \code{\link[=resolveSecretValue]{resolveSecretValue()}}.
+Looks up the \code{atlas} top-level key in secrets.yml and retrieves credentials.
 }
 \keyword{internal}

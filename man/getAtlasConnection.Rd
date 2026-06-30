@@ -4,48 +4,23 @@
 \alias{getAtlasConnection}
 \title{Get Atlas Connection}
 \usage{
-getAtlasConnection(
-  useKeyring = FALSE,
-  secretsFilePath = "~/.picard/secrets.yml"
-)
+getAtlasConnection(secretsFilePath = "~/.picard/secrets.yml")
 }
 \arguments{
-\item{useKeyring}{Logical. If TRUE and no secrets.yml atlas key is found,
-retrieves credentials from the keyring package directly (legacy path).
-Default FALSE.}
-
 \item{secretsFilePath}{Character. Path to secrets.yml. Default
-\code{"~/.picard/secrets.yml"}. Ignored if the file doesn't exist or
-has no \code{atlas} key.}
+\code{"~/.picard/secrets.yml"}.}
 }
 \value{
 An R6 class of WebApiConnection containing the ATLAS WebAPI connection details
 }
 \description{
-Creates a \code{WebApiConnection} object using credentials from:
-\enumerate{
-\item \strong{secrets.yml} (preferred) — uses the \code{atlas} key in your
-\code{~/.picard/secrets.yml} file (see \code{editSecrets()} and
-\code{setupAtlasSecretsKeyring()}).
-\item \code{.Renviron} — reads \code{atlasBaseUrl}, \code{atlasAuthMethod},
-\code{atlasUser}, \code{atlasPassword} environment variables.
-\item \code{keyring} — retrieves from the OS keyring directly (legacy).
-}
+Creates a \code{WebApiConnection} object using credentials from secrets.yml
 }
 \details{
-The recommended workflow is to store Atlas credentials in
+Store Atlas credentials in
 \code{~/.picard/secrets.yml} via \code{setupAtlasSecretsKeyring()} or \code{editSecrets()}.
 The secrets.yml approach supports three credential formats:
 \itemize{
 \item Plain strings, \code{!expr keyring::key_get(...)}, or \code{!expr Sys.getenv(...)}.
-}
-}
-\examples{
-\dontrun{
-  # Using secrets.yml (recommended)
-  atlasCon <- getAtlasConnection()
-
-  # Using keyring directly (legacy)
-  atlasCon <- getAtlasConnection(useKeyring = TRUE)
 }
 }
