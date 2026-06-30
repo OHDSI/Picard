@@ -89,7 +89,6 @@ reference:
     contents:
       - getAtlasConnection
       - getTaskRunSummary
-      - setAtlasConnection
       - setContributor
       - setDbConfigBlock
       - setOutputFolder
