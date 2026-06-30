@@ -1,8 +1,6 @@
 # Get credentials for a database server
 
-Looks up a `dbServer` entry in secrets.yml and resolves all its
-credential fields via
-[`resolveSecretValue()`](https://ohdsi.github.io/Picard/reference/resolveSecretValue.md).
+Looks up a `dbServer` entry in secrets.yml and retrieves credentials.
 
 ## Usage
 

@@ -1,20 +1,20 @@
 # Get Atlas/WebAPI credentials from secrets.yml
 
-Looks up the `atlas` top-level key in secrets.yml and resolves the
-credential fields via
-[`resolveSecretValue()`](https://ohdsi.github.io/Picard/reference/resolveSecretValue.md).
+Looks up the `atlas` top-level key in secrets.yml and retrieves
+credentials.
 
 ## Usage
 
 ``` r
-getAtlasCredentials(secretsFilePath = "secrets.yml")
+getAtlasCredentials(secretsFilePath = "~/.picard/secrets.yml")
 ```
 
 ## Arguments
 
 - secretsFilePath:
 
-  Character. Path to the secrets.yml file.
+  Character. Path to the secrets.yml file. Default to
+  ~/.picard/secrets.yml
 
 ## Value
 

@@ -139,7 +139,7 @@
 <code class="sourceCode R"><span><span class="va">cohortManifest</span> <span class="op">&lt;-</span> <span class="va"><a href="reference/CohortManifest.html">CohortManifest</a></span><span class="op">$</span><span class="fu">new</span><span class="op">(</span>dbPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts/manifest.sqlite"</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu">importAtlasCohorts</span><span class="op">(</span></span>
 <span>  manifest <span class="op">=</span> <span class="va">cohortManifest</span>,</span>
-<span>  atlasConnection <span class="op">=</span> <span class="fu"><a href="reference/setAtlasConnection.html">setAtlasConnection</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  atlasConnection <span class="op">=</span> <span class="fu">setAtlasConnection</span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  cohortsLoadPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts/cohortsLoad.csv"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p>For you to set up the atlas connection you need to provide your credentials for logging into webApi. Follow this template to add credentials to .Renviron file:</p>

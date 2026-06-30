@@ -386,7 +386,7 @@ Stores a connection so it does not need to be passed to
 
 ------------------------------------------------------------------------
 
-### Method [`setAtlasConnection()`](https://ohdsi.github.io/Picard/reference/setAtlasConnection.md)
+### Method `setAtlasConnection()`
 
 #### Usage
 

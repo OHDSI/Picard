@@ -10,7 +10,7 @@ its `dbServer` field, then calls
 getBlockCredentials(
   configBlock,
   configFilePath,
-  secretsFilePath = "secrets.yml"
+  secretsFilePath = "~/.picard/secrets.yml"
 )
 ```
 

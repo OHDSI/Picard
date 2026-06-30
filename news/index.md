@@ -297,8 +297,7 @@ the class. The previous functional approach (`manifest_cohorts.R`,
   every call
 - [`getAtlasConnection()`](https://ohdsi.github.io/Picard/reference/getAtlasConnection.md)
   is now an exported standalone function (replaces
-  [`setAtlasConnection()`](https://ohdsi.github.io/Picard/reference/setAtlasConnection.md)
-  which is deprecated)
+  `setAtlasConnection()` which is deprecated)
 
 #### Building Dependent Cohorts
 

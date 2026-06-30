@@ -395,7 +395,7 @@ on every call.
 
 ------------------------------------------------------------------------
 
-### Method [`setAtlasConnection()`](https://ohdsi.github.io/Picard/reference/setAtlasConnection.md)
+### Method `setAtlasConnection()`
 
 #### Usage
 

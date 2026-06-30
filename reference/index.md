@@ -102,8 +102,6 @@ Functions for configuration and setup (set\*)
   : Get Atlas Connection
 - [`getTaskRunSummary()`](https://ohdsi.github.io/Picard/reference/getTaskRunSummary.md)
   : Get Task Run Summary
-- [`setAtlasConnection()`](https://ohdsi.github.io/Picard/reference/setAtlasConnection.md)
-  : Set Atlas Connection (Deprecated)
 - [`setContributor()`](https://ohdsi.github.io/Picard/reference/setContributor.md)
   : Set Ulysses Contributor
 - [`setDbConfigBlock()`](https://ohdsi.github.io/Picard/reference/setDbConfigBlock.md)
