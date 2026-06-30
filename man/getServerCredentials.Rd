@@ -17,7 +17,6 @@ A named list with resolved credential values (\code{dbms}, \code{user},
 Missing optional fields are silently omitted.
 }
 \description{
-Looks up a \code{dbServer} entry in secrets.yml and resolves all its credential
-fields via \code{\link[=resolveSecretValue]{resolveSecretValue()}}.
+Looks up a \code{dbServer} entry in secrets.yml and retrieves credentials.
 }
 \keyword{internal}

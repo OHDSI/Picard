@@ -3,39 +3,6 @@
 # keyring-based credentials. All database credentials live in a user-level
 # secrets.yml (default ~/.picard/secrets.yml) — never in the repo.
 
-# ============================================================================
-# Internal helpers
-# ============================================================================
-
-#' Resolve a single secret value
-#'
-#' If the value is a plain string (no `!expr` prefix), return it as-is.
-#' If it starts with `!expr `, strip the prefix and evaluate the remaining R
-#' expression using `rlang::eval_tidy()`. This supports any valid R expression:
-#' `keyring::key_get(...)`, `Sys.getenv(...)`, custom functions, etc.
-#'
-#' @param value A single value from a parsed secrets YAML file.
-#' @return The resolved value (plain string or evaluated expression result).
-#' @keywords internal
-resolveSecretValue <- function(value) {
-  if (!is.character(value) || length(value) != 1) {
-    return(value)
-  }
-
-  expr_prefix <- "!expr "
-  if (startsWith(value, expr_prefix)) {
-    expr_str <- substr(value, nchar(expr_prefix) + 1, nchar(value))
-    result <- tryCatch(
-      rlang::eval_tidy(rlang::parse_expr(expr_str)),
-      error = function(e) {
-        cli::cli_abort("Failed to evaluate secrets expression: {.val {expr_str}}\nError: {e$message}")
-      }
-    )
-    return(result)
-  }
-
-  value
-}
 
 # ============================================================================
 # Reading and resolving
@@ -49,26 +16,46 @@ resolveSecretValue <- function(value) {
 #' `atlas` key).
 #'
 #' @param secretsFilePath Character. Path to the secrets.yml file.
+#' @param eval Boolean whether to evaluate the expressions. Defaults to FALSE
 #' @return A named list of server credential blocks.
 #' @keywords internal
-readSecrets <- function(secretsFilePath) {
+readSecrets <- function(secretsFilePath, eval = FALSE) {
   
   if (!file.exists(secretsFilePath)) {
     cli::cli_abort("Secrets file not found: {.path {secretsFilePath}}")
   }
 
   tryCatch(
-    yaml::read_yaml(secretsFilePath, eval.expr = FALSE),
+    yaml::read_yaml(secretsFilePath, eval.expr = eval),
     error = function(e) {
       cli::cli_abort("Failed to parse secrets file {.path {secretsFilePath}}: {e$message}")
     }
   )
 }
 
+
+#' Get Atlas/WebAPI credentials from secrets.yml
+#'
+#' Looks up the `atlas` top-level key in secrets.yml and retrieves credentials.
+#'
+#' @param secretsFilePath Character. Path to the secrets.yml file. Default to ~/.picard/secrets.yml
+#' @return A named list with `baseUrl`, `authMethod`, `user`, `password`, or
+#'   NULL if no `atlas` key is present.
+#' @keywords internal
+getAtlasCredentials <- function(secretsFilePath = "~/.picard/secrets.yml") {
+  secretsFilePath <- fs::path_expand(secretsFilePath)
+  secrets <- readSecrets(secretsFilePath, eval = TRUE)
+
+  if (is.null(secrets[["atlas"]])) {
+    cli::cli_abort("Atlas credenitals not found in secrets file {.path {secretsFilePath}}")
+  }
+  atlasEntry <- secrets[["atlas"]]
+  return(atlasEntry)
+}
+
 #' Get credentials for a database server
 #'
-#' Looks up a `dbServer` entry in secrets.yml and resolves all its credential
-#' fields via [resolveSecretValue()].
+#' Looks up a `dbServer` entry in secrets.yml and retrieves credentials.
 #'
 #' @param dbServer Character. The database server name to look up.
 #' @param secretsFilePath Character. Path to the secrets.yml file. Default to ~/.picard/secrets.yml
@@ -77,64 +64,14 @@ readSecrets <- function(secretsFilePath) {
 #'   Missing optional fields are silently omitted.
 #' @keywords internal
 getServerCredentials <- function(dbServer, secretsFilePath = "~/.picard/secrets.yml") {
-  
   secretsFilePath <- fs::path_expand(secretsFilePath)
-  secrets <- readSecrets(secretsFilePath)
+  secrets <- readSecrets(secretsFilePath, eval = TRUE)
 
   if (is.null(secrets[[dbServer]])) {
     cli::cli_abort("Server {.val {dbServer}} not found in secrets file {.path {secretsFilePath}}")
   }
-
-  serverEntry <- secrets[[dbServer]]
-
-  # Fields that may appear in a server entry
-  credentialFields <- c("dbms", "user", "password", "server", "port",
-                        "connectionString", "extraSettings")
-
-  result <- list()
-  for (field in credentialFields) {
-    if (!is.null(serverEntry[[field]])) {
-      result[[field]] <- resolveSecretValue(serverEntry[[field]])
-    }
-  }
-
-  return(result)
-}
-
-#' Get Atlas/WebAPI credentials from secrets.yml
-#'
-#' Looks up the `atlas` top-level key in secrets.yml and resolves the credential
-#' fields via [resolveSecretValue()].
-#'
-#' @param secretsFilePath Character. Path to the secrets.yml file.
-#' @return A named list with `baseUrl`, `authMethod`, `user`, `password`, or
-#'   NULL if no `atlas` key is present.
-#' @keywords internal
-getAtlasCredentials <- function(secretsFilePath = "secrets.yml") {
-  if (!file.exists(secretsFilePath)) {
-    return(NULL)
-  }
-
-  secrets <- tryCatch(
-    yaml::read_yaml(secretsFilePath, eval.expr = FALSE),
-    error = function(e) NULL
-  )
-
-  if (is.null(secrets) || is.null(secrets[["atlas"]])) {
-    return(NULL)
-  }
-
-  atlasEntry <- secrets[["atlas"]]
-  atlasFields <- c("baseUrl", "authMethod", "user", "password")
-
-  result <- list()
-  for (field in atlasFields) {
-    if (!is.null(atlasEntry[[field]])) {
-      result[[field]] <- resolveSecretValue(atlasEntry[[field]])
-    }
-  }
-
-  result
+  dbServerEntry <- secrets[[dbServer]]
+  return(dbServerEntry)
 }
 
 #' Get credentials for a config block
@@ -149,7 +86,7 @@ getAtlasCredentials <- function(secretsFilePath = "secrets.yml") {
 #' @keywords internal
 getBlockCredentials <- function(configBlock,
                                 configFilePath,
-                                secretsFilePath = "secrets.yml") {
+                                secretsFilePath = "~/.picard/secrets.yml") {
   blockConfig <- config::get(config = configBlock, file = configFilePath)
   # if the dbServer is null default to the configBlock 
   if (is.null(blockConfig$dbServer)) {

@@ -4,10 +4,12 @@
 \alias{readSecrets}
 \title{Read a secrets YAML file}
 \usage{
-readSecrets(secretsFilePath)
+readSecrets(secretsFilePath, eval = FALSE)
 }
 \arguments{
 \item{secretsFilePath}{Character. Path to the secrets.yml file.}
+
+\item{eval}{Boolean whether to evaluate the expressions. Defaults to FALSE}
 }
 \value{
 A named list of server credential blocks.
