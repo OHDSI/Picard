@@ -1,3 +1,17 @@
+# picard 0.0.6
+
+## Custom Dependent SQL Cohorts
+
+- Added `$addDependentCustomCohort(filePath, label, category, dependentCohortIdList, tags)` to register hand-written SQL cohorts that depend on one or more existing manifest cohorts.
+- Introduced `custom_derived` as an explicit cohort type for dependency-aware custom SQL, distinct from base `custom` SQL cohorts added with `$addSqlCohort()`.
+- Removed the older `buildCustomDependentCohort()` pathway in favor of a single add-style workflow for dependent custom SQL.
+- `dependentCohortIdList` is now stored as named dependency metadata and reused at execution time, so user-defined SqlRender placeholders such as `@inc_cohort_id`, `@exc_cohort_id`, or any other non-reserved parameter names can be injected from manifest metadata.
+- Dependency-aware custom SQL must preserve the standard Picard cohort write contract by deleting from and inserting into `@target_database_schema.@target_cohort_table` using `@target_cohort_id`.
+- Execution logic now treats `custom_derived` like other derived cohorts for dependency-hash comparison, checksum persistence, and stale-cascade behavior rather than using raw SQL hash logic.
+- Dependent cohort review and generation summaries now include `custom_derived` cohorts explicitly.
+
+
+
 # picard 0.0.5
 
 ## Manifest API Enhancements

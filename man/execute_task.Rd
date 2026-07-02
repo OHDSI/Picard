@@ -9,7 +9,8 @@ execute_task(
   configBlock,
   pipelineVersion = "dev",
   checkStatus = FALSE,
-  env = rlang::caller_env()
+  env = rlang::caller_env(),
+  cohortTableSuffix = NULL
 )
 }
 \arguments{

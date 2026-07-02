@@ -177,7 +177,7 @@ Get the cohort type
 }
 
 \subsection{Returns}{
-Character. One of 'circe', 'custom', 'subset', 'union', 'complement', 'composite'.
+Character. One of 'circe', 'custom', 'custom_derived', 'subset', 'union', 'complement', 'composite', 'oprior', 'tprior', 'censor'.
 Set the cohort type (internal use)
 }
 }
@@ -192,7 +192,7 @@ Set the cohort type (internal use)
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{cohortType}}{Character. One of 'circe', 'custom', 'subset', 'union', 'complement', 'composite'.
+\item{\code{cohortType}}{Character. One of 'circe', 'custom', 'custom_derived', 'subset', 'union', 'complement', 'composite', 'oprior', 'tprior', 'censor'.
 Get the source type}
 }
 \if{html}{\out{</div>}}

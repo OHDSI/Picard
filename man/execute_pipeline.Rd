@@ -10,7 +10,9 @@ execute_pipeline(
   testMode = FALSE,
   skipRenv = FALSE,
   skipConnectivityCheck = TRUE,
-  env = rlang::caller_env()
+  env = rlang::caller_env(),
+  pipelineVersionOverride = NULL,
+  cohortTableSuffix = NULL
 )
 }
 \arguments{
@@ -29,6 +31,12 @@ database connectivity pre-flight check. Set to FALSE to attempt a test
 connection to each config block before execution begins.}
 
 \item{env}{the execution environment}
+
+\item{pipelineVersionOverride}{Character. Optional test-mode override for
+the pipeline version folder label.}
+
+\item{cohortTableSuffix}{Character. Optional test-mode suffix used for
+cohort table names.}
 }
 \value{
 Invisibly returns task results list
