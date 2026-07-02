@@ -224,12 +224,120 @@ CohortManifest <- R6::R6Class(
       }
     },
 
+    register_custom_sql_cohort = function(filePath, label, category, tags = list(),
+                                          stopIfExists = TRUE, dependentCohortIdList = NULL) {
+      checkmate::assert_file_exists(filePath)
+      checkmate::assert_string(label, min.chars = 1)
+      checkmate::assert_string(category, min.chars = 1)
+      checkmate::assert_list(tags, names = "named")
+      checkmate::assert_flag(stopIfExists)
+      checkmate::assert_list(dependentCohortIdList, null.ok = TRUE)
+
+      is_dependent <- !is.null(dependentCohortIdList)
+
+      if (is_dependent) {
+        if (length(dependentCohortIdList) == 0) {
+          cli::cli_abort("dependentCohortIdList must contain at least one named cohort ID")
+        }
+
+        dep_names <- names(dependentCohortIdList)
+        if (is.null(dep_names) || any(is.na(dep_names)) || any(trimws(dep_names) == "")) {
+          cli::cli_abort("dependentCohortIdList must be a named list of SqlRender parameter names to cohort IDs")
+        }
+
+        if (!all(lengths(dependentCohortIdList) == 1L)) {
+          cli::cli_abort("Each dependentCohortIdList entry must contain exactly one cohort ID")
+        }
+      }
+
+      ext <- tolower(tools::file_ext(filePath))
+      if (ext != "sql") {
+        cli::cli_abort("filePath must be a .sql file, got: .{ext}")
+      }
+
+      private$validate_label_unique(label)
+
+      rel_path <- fs::path_rel(filePath)
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      existing_cohort <- DBI::dbGetQuery(
+        conn,
+        "SELECT id FROM cohort_manifest WHERE file_path = ? AND status = 'active'",
+        list(rel_path)
+      )
+
+      if (nrow(existing_cohort) > 0) {
+        if (isTRUE(stopIfExists)) {
+          cli::cli_abort(c(
+            "File path already registered in manifest (cohort {existing_cohort$id[1]})",
+            i = "Set {.arg stopIfExists = FALSE} to replace registration"
+          ))
+        } else {
+          cli::cli_warn("Replacing existing manifest entry for {.file {rel_path}}")
+        }
+      }
+
+      sql_content <- readr::read_file(filePath)
+      .validateCustomSql(sql_content, label)
+
+      if (is_dependent) {
+        dependent_ids <- unlist(dependentCohortIdList, use.names = TRUE)
+        checkmate::assert_integerish(x = dependent_ids, min.len = 1, any.missing = FALSE, unique = TRUE)
+        private$validate_parent_cohorts_exist(as.integer(unname(dependent_ids)))
+
+        has_delete <- grepl(
+          "DELETE\\s+FROM\\s+@target_database_schema\\.@target_cohort_table\\s+WHERE\\s+cohort_definition_id\\s*=\\s*@target_cohort_id",
+          sql_content,
+          ignore.case = TRUE,
+          perl = TRUE
+        )
+        has_insert <- grepl(
+          "INSERT\\s+INTO\\s+@target_database_schema\\.@target_cohort_table\\s*\\(\\s*cohort_definition_id\\s*,\\s*subject_id\\s*,\\s*cohort_start_date\\s*,\\s*cohort_end_date\\s*\\)",
+          sql_content,
+          ignore.case = TRUE,
+          perl = TRUE
+        )
+
+        if (!has_delete || !has_insert) {
+          cli::cli_abort(c(
+            "custom_derived SQL must preserve the standard Picard cohort write contract.",
+            i = "Include a DELETE from {.code @target_database_schema.@target_cohort_table} using {.code @target_cohort_id}.",
+            i = "Include an INSERT into {.code @target_database_schema.@target_cohort_table} with columns {.code (cohort_definition_id, subject_id, cohort_start_date, cohort_end_date)}."
+          ))
+        }
+
+        cohort_type <- "custom_derived"
+        depends_on <- as.integer(unname(dependent_ids))
+        dependency_rule <- list(
+          dependentCohortIdList = stats::setNames(as.integer(unname(dependent_ids)), names(dependent_ids))
+        )
+      } else {
+        cohort_type <- "custom"
+        depends_on <- NULL
+        dependency_rule <- NULL
+      }
+
+      cohort_id <- private$insert_cohort(
+        label = label,
+        category = category,
+        tags = tags,
+        file_path = rel_path,
+        source_type = "sql",
+        cohort_type = cohort_type,
+        depends_on = depends_on,
+        dependency_rule = dependency_rule
+      )
+
+      return(cohort_id)
+    },
+
     # Insert a new cohort into SQLite and refresh in-memory manifest
     # Returns the assigned cohort ID
     insert_cohort = function(label, category, tags, file_path, source_type, cohort_type,
                              depends_on = NULL, dependency_rule = NULL) {
       # Validate cohort_type vs depends_on consistency
-      derived_types <- c("subset", "union", "complement", "composite", "oprior", "tprior", "censor")
+      derived_types <- c("subset", "union", "complement", "composite", "oprior", "tprior", "censor", "custom_derived")
       has_depends <- !is.null(depends_on) && length(depends_on) > 0
 
       if (cohort_type %in% c("circe", "custom") && has_depends) {
@@ -408,17 +516,16 @@ CohortManifest <- R6::R6Class(
     #'
     #' @description
     #' Returns a summary tibble of all active derived cohorts (union, subset, complement,
-    #' composite, oprior, tprior, censor) with parsed dependency information sourced
-    #' directly from SQLite. Useful for quickly auditing what each derived cohort depends
-    #' on and how it was built.
+    #' composite, oprior, tprior, censor, custom_derived) with parsed dependency
+    #' information sourced directly from SQLite. Useful for quickly auditing what
+    #' each derived cohort depends on and how it was built.
     #'
     #' @return A tibble with columns:
     #'   \itemize{
     #'     \item \code{id} - Cohort ID
     #'     \item \code{label} - Cohort label
     #'     \item \code{cohort_type} - One of 'union', 'subset', 'complement', 'composite',
-    #'       'oprior', 'tprior', 'censor'
-    #'     \item \code{category} - User-defined category
+    #'       'oprior', 'tprior', 'censor', 'custom_derived'
     #'     \item \code{parent_cohorts} - Human-readable parent list, e.g. "Label A (1), Label B (2)"
     #'     \item \code{rule_summary} - Compact summary of the dependency rule parameters
     #'     \item \code{created_at} - Timestamp of creation
@@ -525,6 +632,23 @@ CohortManifest <- R6::R6Class(
             ),
             collapse = " | "
           ),
+          custom_derived = {
+            dep_map <- rule$dependentCohortIdList
+            if (is.null(dep_map) || length(dep_map) == 0) {
+              ""
+            } else {
+              dep_values <- unlist(dep_map, use.names = TRUE)
+              parts <- mapply(function(param_name, cohort_id) {
+                cohort_label <- label_map[[as.character(cohort_id)]]
+                if (is.null(cohort_label) || is.na(cohort_label)) {
+                  paste0(param_name, ": ", cohort_id)
+                } else {
+                  paste0(param_name, ": ", cohort_label, " (", cohort_id, ")")
+                }
+              }, names(dep_values), dep_values, USE.NAMES = FALSE)
+              paste(parts, collapse = " | ")
+            }
+          },
           ""
         )
       }
@@ -922,58 +1046,46 @@ CohortManifest <- R6::R6Class(
     #'
     #' @return Invisible integer. The assigned cohort ID.
     addSqlCohort = function(filePath, label, category, tags = list(), stopIfExists = TRUE) {
-      checkmate::assert_file_exists(filePath)
-      checkmate::assert_string(label, min.chars = 1)
-      checkmate::assert_string(category, min.chars = 1)
-      checkmate::assert_list(tags, names = "named")
-      checkmate::assert_flag(stopIfExists)
-
-      # Validate file is SQL
-      ext <- tolower(tools::file_ext(filePath))
-      if (ext != "sql") {
-        cli::cli_abort("filePath must be a .sql file, got: .{ext}")
-      }
-
-      # Validate label uniqueness
-      private$validate_label_unique(label)
-
-      # Check file path: query manifest to see if already registered
-      rel_path <- fs::path_rel(filePath)
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
-      on.exit(DBI::dbDisconnect(conn))
-
-      existing_cohort <- DBI::dbGetQuery(
-        conn,
-        "SELECT id FROM cohort_manifest WHERE file_path = ? AND status = 'active'",
-        list(rel_path)
-      )
-
-      if (nrow(existing_cohort) > 0) {
-        if (isTRUE(stopIfExists)) {
-          cli::cli_abort(c(
-            "File path already registered in manifest (cohort {existing_cohort$id[1]})",
-            i = "Set {.arg stopIfExists = FALSE} to replace registration"
-          ))
-        } else {
-          cli::cli_warn("Replacing existing manifest entry for {.file {rel_path}}")
-        }
-      }
-
-      # Run portability validation
-      sql_content <- readr::read_file(filePath)
-      .validateCustomSql(sql_content, label)
-
-      # Register in manifest
-      cohort_id <- private$insert_cohort(
+      cohort_id <- private$register_custom_sql_cohort(
+        filePath = filePath,
         label = label,
         category = category,
         tags = tags,
-        file_path = rel_path,
-        source_type = "sql",
-        cohort_type = "custom"
+        stopIfExists = stopIfExists,
+        dependentCohortIdList = NULL
       )
 
       cli::cli_alert_success("Added SQL cohort {cohort_id}: {label}")
+      invisible(cohort_id)
+    },
+
+    #' @description Add a dependent custom SQL cohort
+    #'
+    #' Registers an existing SQL file in the manifest as a dependency-aware derived cohort.
+    #' The SQL file must already exist on disk and must preserve the standard Picard
+    #' cohort write contract using \.code{@target_database_schema.@target_cohort_table}
+    #' and \.code{@target_cohort_id}.
+    #'
+    #' @param filePath Character. Path to the SQL file.
+    #' @param label Character. Display name for the cohort.
+    #' @param category Character. Required classification.
+    #' @param dependentCohortIdList Named list. Each name is a SqlRender parameter to expose
+    #'   in the SQL file and each value is the cohort ID to inject at runtime.
+    #'   Example: \.code{list(inc_cohort_id = 10L, exc_cohort_id = 12L)}.
+    #' @param tags Named list. Optional metadata tags.
+    #'
+    #' @return Invisible integer. The assigned cohort ID.
+    addDependentCustomCohort = function(filePath, label, category, dependentCohortIdList, tags = list()) {
+      cohort_id <- private$register_custom_sql_cohort(
+        filePath = filePath,
+        label = label,
+        category = category,
+        tags = tags,
+        stopIfExists = TRUE,
+        dependentCohortIdList = dependentCohortIdList
+      )
+
+      cli::cli_alert_success("Added dependent custom cohort {cohort_id}: {label}")
       invisible(cohort_id)
     },
 
@@ -1288,72 +1400,6 @@ CohortManifest <- R6::R6Class(
       )
 
       cli::cli_alert_success("Built complement cohort {cohort_id}: {label}")
-      invisible(cohort_id)
-    },
-
-    #' @description Build a custom dependent cohort from a user-supplied SQL file
-    #'
-    #' Registers an existing `.sql` file as a derived cohort with explicit
-    #' dependencies on manifest cohorts. Unlike `addSqlCohort()` (which treats
-    #' the file as a base cohort), this method copies the SQL into the
-    #' `derived/` directory and sets `depends_on`, so the skip-logic
-    #' uses dependency-aware hashing (see Phase 1.1).
-    #'
-    #' @param filePath Character. Path to the user's `.sql` file.
-    #'   The file is **copied** into the `derived/` directory — the original
-    #'   is not referenced after registration.
-    #' @param label Character. Display name (must be unique in manifest).
-    #' @param category Character. Required classification.
-    #' @param cohortIds Integer vector (min. 1). Parent cohort IDs this SQL
-    #'   depends on. All must exist in the manifest.
-    #' @param tags Named list. Optional metadata tags.
-    #'
-    #' @return Invisible integer. The assigned cohort ID.
-    buildCustomDependentCohort = function(filePath, label, category, cohortIds, tags = list()) {
-      checkmate::assert_file_exists(filePath)
-      checkmate::assert_string(label, min.chars = 1)
-      checkmate::assert_string(category, min.chars = 1)
-      checkmate::assert_integerish(cohortIds, min.len = 1, unique = TRUE)
-      checkmate::assert_list(tags, names = "named")
-
-      # Validate file is SQL
-      ext <- tolower(tools::file_ext(filePath))
-      if (ext != "sql") {
-        cli::cli_abort("filePath must be a .sql file, got: .{ext}")
-      }
-
-      # Validate label uniqueness
-      private$validate_label_unique(label)
-
-      # Validate parent cohorts exist
-      private$validate_parent_cohorts_exist(cohortIds)
-
-      # Run portability validation
-      sql_content <- readr::read_file(filePath)
-      .validateCustomSql(sql_content, label)
-
-      # Copy SQL to derived/ directory
-      derived_dir <- make_derived_folder(dirname(private$.dbPath))
-      safe_label <- gsub("[^a-zA-Z0-9_-]", "_", label)
-      dest_path <- fs::path(derived_dir, paste0(safe_label, ".sql"))
-      fs::file_copy(filePath, dest_path, overwrite = TRUE)
-
-      # Register in manifest
-      # Uses cohort_type = "custom" with depends_on — Phase 1.1 skip-logic
-      # handles this via length(parent_ids) > 0
-      cohort_id <- private$insert_cohort(
-        label = label,
-        category = category,
-        tags = tags,
-        file_path = fs::path_rel(dest_path),
-        source_type = "custom",
-        cohort_type = "custom",
-        depends_on = as.integer(cohortIds)
-      )
-
-      cli::cli_alert_success(
-        "Built custom dependent cohort {cohort_id}: {label} (depends on: {paste(cohortIds, collapse = ', ')})"
-      )
       invisible(cohort_id)
     },
 
@@ -2562,7 +2608,7 @@ CohortManifest <- R6::R6Class(
         conn,
         "SELECT id, label, category, tags, file_path, hash, source_type, cohort_type, status
          FROM cohort_manifest
-         WHERE cohort_type IN ('circe', 'custom')"
+        WHERE cohort_type IN ('circe', 'custom', 'custom_derived')"
       )
 
       results <- data.frame(
@@ -2962,12 +3008,13 @@ CohortManifest <- R6::R6Class(
             stringsAsFactors = FALSE
           )
           results_df <- rbind(results_df, new_row)
-          if (cohort_type %in% c("circe", "custom")) {
-            cohort_hashes[[as.character(cohort_id)]] <- cohort$getSqlHash()
-          } else {
+          dependency_hash_types <- c("subset", "union", "complement", "composite", "oprior", "tprior", "censor", "custom_derived")
+          if (cohort_type %in% dependency_hash_types) {
             cohort_hashes[[as.character(cohort_id)]] <- compute_dependency_hash(
               private$.dbPath, cohort, cohort_hashes
             )
+          } else {
+            cohort_hashes[[as.character(cohort_id)]] <- cohort$getSqlHash()
           }
           next
         }
