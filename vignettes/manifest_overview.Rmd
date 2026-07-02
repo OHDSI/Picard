@@ -53,7 +53,7 @@ from SQLite at startup.
 | `id` | Auto-assigned integer ID |
 | `label` | User-defined display name (unique among active records) |
 | `category` | User classification (e.g., "Disease Populations") |
-| `cohort_type` | `circe`, `custom`, `union`, `subset`, `complement`, `composite`, `oprior`, `tprior`, `censor` |
+| `cohort_type` | `circe`, `custom`, `custom_derived`, `union`, `subset`, `complement`, `composite`, `oprior`, `tprior`, `censor` |
 | `source_type` | `circe`, `sql`, `derived` |
 | `file_path` | Relative path to the SQL/JSON file on disk |
 | `hash` | MD5 of the file — used by `generateCohorts()` to skip unchanged cohorts |
@@ -160,7 +160,7 @@ manifest$addCirceCohort(
 
 ## 3. Derived Cohorts
 
-Derived cohorts are built from existing manifest cohorts using one of four R6
+Derived cohorts are built from existing manifest cohorts using dedicated R6
 builder methods. They write rendered SQL to `derived/` and record all
 dependency metadata directly in SQLite — no sidecar files needed.
 
@@ -221,18 +221,35 @@ manifest$buildComplementCohort(
 
 ### Custom dependent cohort
 
-Registers a user-supplied `.sql` file as a derived cohort with explicit
-dependencies on existing manifest cohorts. The SQL is copied to `derived/`
-and the skip-logic handles dependency-aware hashing automatically.
+Registers a user-supplied `.sql` file as a dependency-aware derived cohort
+(`custom_derived`) with explicit dependencies on existing manifest cohorts.
+Dependency mappings are stored in `dependency_rule` and dependency-aware hash
+logic is applied automatically.
 
 ```{r}
-manifest$buildCustomDependentCohort(
-  filePath  = here::here("extras/my_custom_logic.sql"),
-  label     = "Custom Outcome Definition",
-  category  = "Outcomes",
-  cohortIds = c(1L, 3L)
+manifest$addDependentCustomCohort(
+  filePath = here::here("inputs/cohorts/sql/my_custom_logic.sql"),
+  label = "Custom Outcome Definition",
+  category = "Outcomes",
+  dependentCohortIdList = list(
+    inc_cohort_id = 1L,
+    exc_cohort_id = 3L
+  )
 )
 ```
+
+Rules for `dependentCohortIdList`:
+
+- It must be a named mapping of SqlRender parameter name to cohort ID.
+- Parameter names are flexible and are injected into SQL at runtime.
+- All referenced cohort IDs must already exist in the manifest.
+
+Required SQL write contract for `custom_derived`:
+
+- Must `DELETE` from `@target_database_schema.@target_cohort_table` using
+  `@target_cohort_id`.
+- Must `INSERT` into `@target_database_schema.@target_cohort_table` with columns
+  `(cohort_definition_id, subject_id, cohort_start_date, cohort_end_date)`.
 
 ### Composite cohort
 
