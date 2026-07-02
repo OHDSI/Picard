@@ -1,10 +1,14 @@
-# Running the Pipeline: Production Execution
+<!-- AUTO-GENERATED FILE. DO NOT EDIT DIRECTLY. -->
+<!-- Source: vignettes/running_the_pipeline.Rmd -->
+
+
+> **Note:** This vignette is currently in development and subject to change.
 
 ## Introduction
 
-This document covers **production mode execution** in Picard—running your pipeline for official analysis results.
+This vignette covers **production mode execution** in Picard—running your pipeline for official analysis results.
 
-Development and testing workflows are covered in "Developing the Pipeline". Production mode adds rigorous validation, semantic versioning, and audit trails to ensure results are reproducible and suitable for publications or regulatory submissions.
+Development and testing workflows are covered in [Developing the Pipeline](developing_the_pipeline.html). Production mode adds rigorous validation, semantic versioning, and audit trails to ensure results are reproducible and suitable for publications or regulatory submissions.
 
 ## The Production Pipeline
 
@@ -17,7 +21,7 @@ The official execution script is `main.R` in your project root. It:
 - Generates PR metadata for code review
 - Saves production-quality results in a versioned folder
 
-```r
+```{r eval = FALSE}
 # Run production pipeline
 source("main.R")
 ```
@@ -33,6 +37,39 @@ Run `main.R` for:
 
 Production mode places versioned results in `exec/results/[database]/[version]/` (e.g., `1.0.0/`).
 
+## Test Mode Namespaces (Avoiding Multi-User `dev` Conflicts)
+
+When multiple users run test mode at the same time, sharing the default `dev`
+namespace can cause collisions in both result folders and cohort table names.
+
+Use `testStudyPipeline(testLabel = ...)` to isolate your test run:
+
+```{r eval = FALSE}
+# Default test namespace (legacy behavior)
+testStudyPipeline(configBlock = "primaryDB")
+
+# Custom namespace for your branch or feature
+testStudyPipeline(
+  configBlock = "primaryDB",
+  testLabel = "feature_ml_test"
+)
+```
+
+What `testLabel` controls:
+
+- **Results path namespace** under `exec/results/[database]/[testLabel]/...`
+- **Cohort table suffix** in execution settings (for example `_feature_ml_test`)
+
+Normalization rules for `testLabel`:
+
+- converted to lowercase
+- non-alphanumeric characters converted to `_`
+- repeated/edge underscores trimmed
+- truncated to 24 characters
+
+This behavior is **test mode only**. Production execution remains strict and
+uses semantic versioning with no custom suffix overrides.
+
 ## Running Production Mode
 
 ### Prerequisites
@@ -43,11 +80,15 @@ Before running production mode:
 2. **Be on develop branch (or feature branch):** `git checkout develop`
 3. **Pull latest changes:** `git pull`
 4. **Verify configuration:** Check config.yml for correctness
-5. **Verify manifests:** Ensure inputs/cohorts and inputs/conceptSets are up to date
+5. **Prepare builder scripts:** Edit and finalize scripts in `inputs/cohorts/R/` and `inputs/conceptSets/R/`
+   - Delete unused builders; keep only the ones you need
+   - See [Loading Inputs](loading_inputs.html) for detailed guidance on each builder type
+
+You can also do this by using the `saveWork()` function which we describe in [Developing the Pipeline](developing_the_pipeline.html) to save your work and prepare for production.
 
 ### Basic Usage
 
-```r
+```{r eval = FALSE}
 # Navigate to study repository
 setwd("~/studies/myStudy")
 
@@ -61,7 +102,7 @@ source("main.R")
 
 ### Programmatic Production Execution
 
-```r
+```{r eval = FALSE}
 library(picard)
 
 # Run production pipeline directly
@@ -81,15 +122,20 @@ Choose the appropriate semantic version increment:
 
 ## Understanding the Pipeline Workflow
 
-Production execution follows four main phases:
+Production execution follows five main phases:
 
-1. **Setup:** Validate configuration, load execution settings, create output directories
+1. **Pre-Pipeline:** Auto-discover and source builder scripts from `inputs/conceptSets/R/` and `inputs/cohorts/R/`
+   - Concept set builders run first (importAtlas, importCapr, or custom)
+   - Cohort builders run second (importAtlas, importCapr, importSql, buildDependentCohorts)
+   - Manifests are loaded and populated with all definitions
 
-2. **Generate Cohorts:** Load cohort and concept set manifests, validate all definitions exist, generate cohorts in database, retrieve cohort counts
+2. **Setup:** Validate configuration, load execution settings, create output directories
 
-3. **Run Analysis Tasks:** For each task in `analysis/tasks/`, load configuration, execute task code, check for errors, record results
+3. **Generate Cohorts:** Instantiate all cohort definitions in the database, validate cohort counts
 
-4. **Post-Processing:** Generate version logs, create PR metadata, save PENDING_PR.md
+4. **Run Analysis Tasks:** For each task in `analysis/tasks/`, load configuration, execute task code, check for errors, record results
+
+5. **Post-Processing:** Generate version logs, create PR metadata, save PENDING_PR.md
 
 ## Handling Errors and Failures
 
@@ -102,25 +148,17 @@ Production mode validates code state strictly. Common issues:
 - Solution: Commit all changes: `git add .` and `git commit -m "..."`
 
 **"Cohort manifest not found"**
-- Solution: See "Loading Inputs" guide
-
-**"Task execution failed"**
-- Check log files in `exec/logs/`
-- Review task code in `analysis/tasks/`
-- Run `testStudyTask()` to debug in isolation
+- Solution: See [Loading Inputs](loading_inputs.html)
 
 ## Reviewing Results
 
 After production mode, results are organized in versioned folders:
 
 ```
-exec/results/[database]/1.1.0/
+exec/results/[database]/1.1.0/       # Version 1.1.0
 ├── 00_buildCohorts/
-│   └── cohortCounts.csv
-├── 01_descriptiveStats/
-│   └── results.csv
-├── 02_primaryAnalysis/
-│   └── results.csv
+├── 01_firstAnalysisTask/
+├── 02_secondAnalysisTask/
 └── picard_log_1.1.0_*.txt
 ```
 
@@ -128,7 +166,7 @@ Plus additional files for code review:
 
 ```
 PENDING_PR.md                       # PR details for manual review
-NEWS.md                             # Updated with version info
+NEWS.md                              # Updated with version info
 ```
 
 ## Code Review Workflow
@@ -154,15 +192,19 @@ Production mode:
 4. Expects manual PR creation and merge
 
 ```
-main ← PR from release/1.1.0 ← release/1.1.0
-                                    ↑
-                        Production run here
-                        (all commits included)
+main ←──── PR from release/1.1.0 ─── release/1.1.0
+  ↑                                        ↑
+  │                                        └─ Production run here
+  │                                          (all commits included)
+  └────────────────────────────────────────── Merged after review
 ```
 
-After PR is merged to main, create a git tag for the version:
+### Version Tags
 
-```bash
+After merging to main, create a git tag for the version:
+
+```{r eval = FALSE}
+# After PR is merged to main
 git tag -a v1.1.0 -m "Release version 1.1.0"
 git push origin v1.1.0
 ```
@@ -187,7 +229,7 @@ Review logs to understand which tasks ran, their duration, and any warnings:
 
 ### Cohort Counts
 
-After any pipeline run, check `exec/results/[database]/[version]/00_buildCohorts/cohortCounts.csv` to verify cohorts were generated:
+After any pipeline run, check `00_buildCohorts/cohortCounts.csv` to verify cohorts were generated:
 
 ```
 id,label,cohort_entries,cohort_subjects
@@ -203,7 +245,7 @@ id,label,cohort_entries,cohort_subjects
 Picard runs tasks in alphabetical order. Ensure file names have numeric prefixes:
 
 ```
-01_buildCohorts.R          ✓ Runs first
+01_table1.R          ✓ Runs first
 02_descriptiveAnalysis.R   ✓ Runs second
 03_primaryAnalysis.R       ✓ Runs third
 analysis_task.R            ✗ Runs last (no prefix)
@@ -213,7 +255,8 @@ analysis_task.R            ✗ Runs last (no prefix)
 
 Manually create output folder:
 
-```r
+```{r eval = FALSE}
+# Ensure output structure exists
 exec_path <- fs::path(here::here(), "exec/results/primary_db/1.0.0")
 fs::dir_create(exec_path, recurse = TRUE)
 ```
@@ -222,14 +265,23 @@ fs::dir_create(exec_path, recurse = TRUE)
 
 Results are organized by version in `exec/results/[database]/[version]/`. Check different version folders:
 
-```r
+```{r eval = FALSE}
+# List all version folders
 list.dirs("exec/results/primary_db", recursive = FALSE)
 ```
 
 ## Next Steps
 
-1. **Develop and test:** Use "Developing the Pipeline" workflows
+1. **Develop and test:** Use [Developing the Pipeline](developing_the_pipeline.html) workflows
 2. **Verify code quality:** Ensure all tasks run successfully and produce expected results
 3. **Run production:** When ready for official results, use `main.R`
 4. **Review and merge:** Follow code review workflow before accepting to main branch
-5. **Disseminate results:** Use "Post-Processing" workflows with results after execution
+5. **Archive results:** Use `zipAndArchive()` to preserve important results
+
+## See Also
+
+- [Developing the Pipeline](developing_the_pipeline.html) - Testing and iteration during development
+- [The Picard Repository Structure](picard_repository_structure.html) - Where results are organized
+- [Launching a Study](launching_a_study.html) - Initial setup
+- [Loading Inputs](loading_inputs.html) - Cohort and concept set setup
+- [Post-Processing Steps](post_processing.html) - Working with results after execution
