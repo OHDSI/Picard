@@ -315,6 +315,67 @@ evaluate_cohort_skip_status <- function(
   return(skip_status)
 }
 
+get_custom_derived_sql_params <- function(sqlite_conn, cohort_id) {
+  dep_row <- DBI::dbGetQuery(
+    sqlite_conn,
+    "SELECT dependency_rule FROM cohort_manifest WHERE id = ? AND status IN ('active', 'stale')",
+    list(cohort_id)
+  )
+
+  if (nrow(dep_row) == 0 || is.na(dep_row$dependency_rule[1]) || nchar(dep_row$dependency_rule[1]) == 0) {
+    cli::cli_abort("custom_derived cohort {cohort_id} is missing dependency_rule metadata")
+  }
+
+  dep_rule <- tryCatch(
+    jsonlite::fromJSON(dep_row$dependency_rule[1], simplifyVector = FALSE),
+    error = function(e) {
+      cli::cli_abort("Failed to parse dependency_rule for custom_derived cohort {cohort_id}: {e$message}")
+    }
+  )
+
+  custom_params <- dep_rule$dependentCohortIdList
+  if (is.null(custom_params) || length(custom_params) == 0) {
+    cli::cli_abort("custom_derived cohort {cohort_id} is missing dependentCohortIdList metadata")
+  }
+
+  param_names <- names(custom_params)
+  if (is.null(param_names) || any(is.na(param_names)) || any(trimws(param_names) == "")) {
+    cli::cli_abort("custom_derived cohort {cohort_id} has unnamed dependent SqlRender parameters")
+  }
+
+  reserved_names <- c(
+    "sql",
+    "cdm_database_schema",
+    "vocabulary_database_schema",
+    "target_database_schema",
+    "target_cohort_table",
+    "target_cohort_id",
+    "output_cohort_id",
+    "output_table",
+    "base_cohort_table",
+    "results_database_schema.cohort_inclusion",
+    "results_database_schema.cohort_inclusion_result",
+    "results_database_schema.cohort_inclusion_stats",
+    "results_database_schema.cohort_summary_stats",
+    "results_database_schema.cohort_censor_stats",
+    "warnOnMissingParameters"
+  )
+
+  colliding_names <- intersect(param_names, reserved_names)
+  if (length(colliding_names) > 0) {
+    cli::cli_abort(c(
+      "custom_derived cohort {cohort_id} uses reserved SqlRender parameter name(s).",
+      i = "Reserved names: {paste(colliding_names, collapse = ', ')}"
+    ))
+  }
+
+  custom_params <- lapply(custom_params, function(value) {
+    as.integer(value)
+  })
+
+  return(custom_params)
+}
+
 generate_single_cohort <- function(
     cohort, 
     cohort_id, 
@@ -361,6 +422,11 @@ generate_single_cohort <- function(
     sql_params$base_cohort_table <- output_table_name
   }
 
+  if (cohort_type == "custom_derived") {
+    custom_sql_params <- get_custom_derived_sql_params(sqlite_conn, cohort_id)
+    sql_params <- c(sql_params, custom_sql_params)
+  }
+
   render_result <- try(do.call(SqlRender::render, c(list(sql = cohort_sql), sql_params)), silent = TRUE)
   if (inherits(render_result, "try-error")) {
     ee <- error_result_row(cohort_id, cohort_label, cohort_type, as.character(render_result), cohort_hashes)
@@ -402,10 +468,12 @@ generate_single_cohort <- function(
     return(ee)
   }
 
-  hash_to_store <- if (cohort_type %in% c("circe", "custom")) {
-    cohort$getSqlHash()
-  } else {
+  dependency_hash_types <- c("subset", "union", "complement", "composite", "oprior", "tprior", "censor", "custom_derived")
+
+  hash_to_store <- if (cohort_type %in% dependency_hash_types) {
     compute_dependency_hash(dbPath, cohort, cohort_hashes)
+  } else {
+    cohort$getSqlHash()
   }
 
   if (is.null(stored_hash)) {
@@ -501,7 +569,7 @@ report_cohort_results <- function(results_df) {
   if ("cohort_type" %in% names(results_df)) {
     circe_count <- sum(results_df$cohort_type == "circe", na.rm = TRUE)
     custom_count <- sum(results_df$cohort_type == "custom", na.rm = TRUE)
-    dependent_count <- sum(results_df$cohort_type %in% c("subset", "union", "complement", "composite", "oprior", "tprior", "censor"), na.rm = TRUE)
+    dependent_count <- sum(results_df$cohort_type %in% c("subset", "union", "complement", "composite", "oprior", "tprior", "censor", "custom_derived"), na.rm = TRUE)
     cli::cli_alert_info("Cohort types: {circe_count} circe + {custom_count} custom + {dependent_count} dependent")
   }
 

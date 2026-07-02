@@ -1,11 +1,21 @@
-# The Manifest: Architecture, Workflows, and Helpers
+<!-- AUTO-GENERATED FILE. DO NOT EDIT DIRECTLY. -->
+<!-- Source: vignettes/manifest_overview.Rmd -->
 
-This document covers the manifest system in depth — how it works under the hood,
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+This vignette covers the manifest system in depth — how it works under the hood,
 how to handle non-trivial situations mid-cycle, and the review helpers available
 for both cohort and concept set manifests.
 
 If you are setting up a study for the first time, start with the
-[Loading Inputs: Getting Started](03-loading-inputs.md) guide instead.
+[Loading Inputs: Getting Started](loading_inputs.html) vignette instead.
 
 ---
 
@@ -38,7 +48,7 @@ from SQLite at startup.
 | `id` | Auto-assigned integer ID |
 | `label` | User-defined display name (unique among active records) |
 | `category` | User classification (e.g., "Disease Populations") |
-| `cohort_type` | `circe`, `custom`, `union`, `subset`, `complement`, `composite`, `oprior`, `tprior`, `censor` |
+| `cohort_type` | `circe`, `custom`, `custom_derived`, `union`, `subset`, `complement`, `composite`, `oprior`, `tprior`, `censor` |
 | `source_type` | `circe`, `sql`, `derived` |
 | `file_path` | Relative path to the SQL/JSON file on disk |
 | `hash` | MD5 of the file — used by `generateCohorts()` to skip unchanged cohorts |
@@ -66,9 +76,6 @@ manifest <- loadCohortManifest(autoSync = TRUE, verbose = TRUE)
 
 # Skip auto-sync if you know the manifest is up-to-date
 manifest <- loadCohortManifest(autoSync = FALSE)
-
-# Concept set manifest
-csm <- loadConceptSetManifest(autoSync = TRUE, verbose = TRUE)
 ```
 
 ### Hash-based skip logic
@@ -91,7 +98,7 @@ import. Each method validates uniqueness and writes to SQLite immediately.
 
 ### From ATLAS (CIRCE JSON)
 
-```r
+```{r}
 atlasConn <- getAtlasConnection()
 manifest$setAtlasConnection(atlasConn)
 
@@ -104,7 +111,7 @@ manifest$addAtlasCohort(
 
 ### From Capr
 
-```r
+```{r}
 library(Capr)
 
 t2dm <- cs(descendants(201826), name = "Type 2 Diabetes")
@@ -121,7 +128,7 @@ manifest$addCaprCohort(
 
 Place your `.sql` file in `inputs/cohorts/sql/`, then register it:
 
-```r
+```{r}
 manifest$addSqlCohort(
   filePath = here::here("inputs/cohorts/sql/my_cohort.sql"),
   label    = "My Custom Cohort",
@@ -136,7 +143,7 @@ parameter names (`@target_cohort_id`, `@target_database_schema`, etc.).
 
 If you have a Circe-compatible `.json` file on disk, register it with:
 
-```r
+```{r}
 manifest$addCirceCohort(
   filePath = here::here("inputs/cohorts/json/my_cohort.json"),
   label    = "My Circe Cohort",
@@ -148,9 +155,9 @@ manifest$addCirceCohort(
 
 ## 3. Derived Cohorts
 
-Derived cohorts are built from existing manifest cohorts using builder methods. 
-They write rendered SQL to `derived/` and record all dependency metadata directly 
-in SQLite — no sidecar files needed.
+Derived cohorts are built from existing manifest cohorts using dedicated R6
+builder methods. They write rendered SQL to `derived/` and record all
+dependency metadata directly in SQLite — no sidecar files needed.
 
 > **Dependency order is handled automatically.** `generateCohorts()` runs a
 > topological sort before execution, ensuring parents always run before
@@ -160,7 +167,8 @@ in SQLite — no sidecar files needed.
 
 Combines the observation periods of two or more cohorts into a single cohort.
 
-```r
+```{r}
+# Assume IDs 1 and 2 are already in the manifest
 manifest$buildUnionCohort(
   label     = "T2DM or HF - Any",
   cohortIds = c(1L, 2L),
@@ -174,7 +182,7 @@ manifest$buildUnionCohort(
 Subsets a base cohort to members who also appear in a filter cohort within a
 specified time window.
 
-```r
+```{r}
 library(picard)
 
 start_window <- createSubsetStartWindow(
@@ -197,10 +205,10 @@ manifest$buildSubsetCohortTemporal(
 
 Members of a population cohort who are **not** in a base cohort.
 
-```r
+```{r}
 manifest$buildComplementCohort(
   label              = "No T2DM - General Population",
-  excludeCohortIds   = 1L,
+  excludeCohortIds       = 1L,
   populationCohortId = 5L,
   category           = "Comparators"
 )
@@ -208,23 +216,41 @@ manifest$buildComplementCohort(
 
 ### Custom dependent cohort
 
-Registers a user-supplied `.sql` file as a derived cohort with explicit
-dependencies on existing manifest cohorts.
+Registers a user-supplied `.sql` file as a dependency-aware derived cohort
+(`custom_derived`) with explicit dependencies on existing manifest cohorts.
+Dependency mappings are stored in `dependency_rule` and dependency-aware hash
+logic is applied automatically.
 
-```r
-manifest$buildCustomDependentCohort(
-  filePath  = here::here("extras/my_custom_logic.sql"),
-  label     = "Custom Outcome Definition",
-  category  = "Outcomes",
-  cohortIds = c(1L, 3L)
+```{r}
+manifest$addDependentCustomCohort(
+  filePath = here::here("inputs/cohorts/sql/my_custom_logic.sql"),
+  label = "Custom Outcome Definition",
+  category = "Outcomes",
+  dependentCohortIdList = list(
+    inc_cohort_id = 1L,
+    exc_cohort_id = 3L
+  )
 )
 ```
+
+Rules for `dependentCohortIdList`:
+
+- It must be a named mapping of SqlRender parameter name to cohort ID.
+- Parameter names are flexible and are injected into SQL at runtime.
+- All referenced cohort IDs must already exist in the manifest.
+
+Required SQL write contract for `custom_derived`:
+
+- Must `DELETE` from `@target_database_schema.@target_cohort_table` using
+  `@target_cohort_id`.
+- Must `INSERT` into `@target_database_schema.@target_cohort_table` with columns
+  `(cohort_definition_id, subject_id, cohort_start_date, cohort_end_date)`.
 
 ### Composite cohort
 
 Requires membership in a minimum number of component cohorts.
 
-```r
+```{r}
 manifest$buildCompositeCohort(
   label      = "T2DM + HF + CKD",
   cohortIds  = c(1L, 2L, 4L),
@@ -233,25 +259,31 @@ manifest$buildCompositeCohort(
 )
 ```
 
-### Temporal operators: O-Prior-T and T-Prior-O
+### Outcome-Prior-Target cohort
 
-**O-Prior-T:** Outcome events where a prior target (exposure) event exists
+Filters an outcome cohort based on whether a prior target (exposure) event exists.
+Optionally restricts the lookback to a time window.
 
-```r
+```{r}
+# GI bleed events where the patient had prior NSAID use within 365 days
 manifest$buildOPriorT(
   label              = "GI Bleed - Prior NSAID",
   outcomeCohortId    = 1L,
   targetCohortId     = 2L,
   category           = "Outcomes",
-  mode               = "prior",
-  priorTimeWindowDays = 365L,
-  subsetLimit        = "Last"
+  mode               = "prior",           # "prior" or "no_prior"
+  priorTimeWindowDays = 365L,             # NULL = all time
+  subsetLimit        = "Last"             # "First", "Last", or "All"
 )
 ```
 
-**T-Prior-O:** Target events with prior outcome
+### Target-Prior-Outcome cohort
 
-```r
+Reverse direction — filters a target cohort based on whether a prior outcome
+event exists.
+
+```{r}
+# NSAID initiations where the patient had a prior GI bleed
 manifest$buildTPriorO(
   label              = "NSAID - Prior GI Bleed",
   targetCohortId     = 2L,
@@ -265,9 +297,11 @@ manifest$buildTPriorO(
 
 ### Censor cohort
 
-Truncates cohort end dates to the earliest censoring event (e.g., death).
+Truncates cohort end dates to the earliest censoring event (e.g., death,
+exacerbation, procedure).
 
-```r
+```{r}
+# Censor NSAID exposure at date of death
 manifest$buildCensorCohort(
   label          = "NSAID - Censored at Death",
   targetCohortId = 2L,
@@ -278,7 +312,7 @@ manifest$buildCensorCohort(
 
 ### Reviewing derived cohorts
 
-```r
+```{r}
 # Tabular summary with parent labels and rule parameters
 manifest$reviewDependentCohorts()
 
@@ -293,10 +327,10 @@ plotCohortGraph(manifest)
 ### Sync manifest against disk files
 
 If SQL or JSON files have been edited outside picard, `$syncManifest()` updates
-stored hashes, reports unregistered files on disk, and **cascades a `stale` flag 
-to all derived cohorts that depend on any changed file**.
+stored hashes, reports unregistered files on disk, and — crucially — **cascades
+a `stale` flag to all derived cohorts that depend on any changed file**.
 
-```r
+```{r}
 manifest$syncManifest()
 ```
 
@@ -312,12 +346,12 @@ time `generateCohorts()` runs (the hash-skip is bypassed for stale cohorts).
 
 ### Checking for ATLAS updates (mid-cycle)
 
-After the initial import, check if definitions in ATLAS have been updated. This 
-is done in two phases:
+After the initial import, you can periodically check whether definitions in ATLAS
+have been updated. This is done in two phases:
 
 **Phase 1: Detection** — Compare remote ATLAS hashes to stored local hashes:
 
-```r
+```{r}
 # For cohorts
 manifest$checkAtlasCohorts(atlasConnection)
 
@@ -329,7 +363,7 @@ This returns a report of which definitions have changed in ATLAS.
 
 **Phase 2: Update** — Download updated definitions and re-write JSON files:
 
-```r
+```{r}
 # For cohorts
 manifest$updateAtlasCohorts(atlasConnection)
 
@@ -345,7 +379,7 @@ When ATLAS definitions are updated:
 
 ### Review stale cohorts
 
-```r
+```{r}
 # See which derived cohorts are waiting for re-execution
 manifest$reviewStaleCohorts()
 ```
@@ -353,9 +387,10 @@ manifest$reviewStaleCohorts()
 ### Rebuilding the derived pipeline
 
 If you need to change a build parameter (e.g. adjust `gapDays` on a union
-cohort), the derived cohort SQL needs to be re-rendered:
+cohort, or change demographic filters), the derived cohort SQL needs to be
+re-rendered — not just re-executed. The workflow is:
 
-```r
+```{r}
 # 1. Clear all derived cohorts (keeps base cohort registrations)
 resetCohortManifest(manifest = manifest, scope = "derived")
 
@@ -366,6 +401,7 @@ manifest$buildUnionCohort(
   category  = "Composite Populations",
   gapDays   = 7L   # corrected value
 )
+# ... other build calls ...
 
 # 3. Generate
 generateCohorts(executionSettings = execSettings, pipelineVersion = pipelineVersion)
@@ -373,7 +409,7 @@ generateCohorts(executionSettings = execSettings, pipelineVersion = pipelineVers
 
 ### Update label, category, or tags
 
-```r
+```{r}
 # Update label
 manifest$updateCohortLabel(cohortId = 3L, newLabel = "Metformin Initiators (revised)")
 
@@ -384,40 +420,34 @@ manifest$updateCohortCategory(cohortId = 3L, newCategory = "Exposure")
 manifest$updateCohortTags(cohortId = 3L, newTags = list(subCategory = "Antidiabetics"))
 ```
 
-### Delete a cohort or concept set
+### Delete a cohort
 
-Marks the item as `deleted` in SQLite with a deletion timestamp (soft delete). The
-item is excluded from generation but the record is preserved for audit trail.
+Marks the cohort as `deleted` in SQLite with a deletion timestamp (soft delete). The
+cohort is excluded from generation but the record is preserved for audit trail.
 
-```r
-# Soft delete cohort (default)
+```{r}
+# Soft delete (default)
 manifest$deleteCohort(id = 3L, confirm = TRUE)
 
-# Delete cohort and also remove from DBMS cohort table (requires executionSettings)
+# Delete and also remove from DBMS cohort table (requires executionSettings)
 manifest$deleteCohort(id = 3L, dropFromDBMS = TRUE, confirm = TRUE)
-
-# Delete concept set
-csm <- loadConceptSetManifest()
-csm$deleteConceptSet(id = 5, confirm = TRUE)
 ```
 
-When `dropFromDBMS = TRUE` for cohorts:
+When `dropFromDBMS = TRUE`:
 - Deletes the cohort file from disk
 - Marks the manifest record as `deleted`
 - Removes rows from the DBMS cohort table and checksum table (if it exists)
 - Requires `executionSettings` to be attached to the manifest
 
-**Note:** All deletions are soft deletes — records are preserved with a `deleted_at`
-timestamp for audit purposes. Deleted items are excluded from all manifest operations.
+**Note:** Deletion is soft (records are preserved). For permanent hard deletion from
+SQLite, use administrative database tools directly.
 
 ---
 
 ## 5. Reset
 
-Use `resetCohortManifest()` or `resetConceptSetManifest()` when you need to clear data. 
-Choose the scope based on what you want to preserve:
-
-### Cohort Reset Scopes
+Use `resetCohortManifest()` when you need to clear cohort data. Choose the
+scope based on what you want to preserve:
 
 | Scope | SQLite | `derived/` | `json/` + `sql/` | OMOP tables |
 |---|---|---|---|---|
@@ -428,15 +458,15 @@ Choose the scope based on what you want to preserve:
 ### Which scope do I need?
 
 - **Rebuilding derived pipeline with new parameters** → `"derived"`. Your base
-  cohort registrations and ATLAS imports are preserved.
+  cohort registrations and ATLAS imports are preserved; just re-run the
+  `$build*()` calls.
 - **Corrupt or restructured database** → `"manifest"`. Source files are kept;
-  call `initCohortManifest()` then re-register via `$add*()` or `$importAtlasCohorts()`.
+  call `initCohortManifest()` then re-register via `$add*()` or
+  `$importAtlasCohorts()`.
 - **Complete restart** → `"full"`. Requires `executionSettings` to drop OMOP
   tables. Use with caution.
 
-### Cohort Manifest Reset
-
-```r
+```{r}
 # Rebuild derived pipeline only (keeps base cohorts)
 resetCohortManifest(manifest = manifest, scope = "derived")
 
@@ -444,7 +474,7 @@ resetCohortManifest(manifest = manifest, scope = "derived")
 # With archive: creates timestamped backup before deletion
 resetCohortManifest(cohortsFolderPath = here::here("inputs/cohorts"),
                     scope = "manifest",
-                    archive = TRUE)  # creates backup at inputs/cohorts/.archive/
+                    archive = TRUE)  # create backup at inputs/cohorts/.archive/
 
 # Full nuclear reset (also drops OMOP cohort tables)
 resetCohortManifest(manifest          = manifest,
@@ -458,9 +488,9 @@ All scopes prompt for confirmation. Pass `confirm = FALSE` to skip in scripts.
 When `archive = TRUE`, the SQLite database is backed up to `.archive/` with a
 timestamp before being deleted, allowing recovery if needed.
 
-### Concept Set Manifest Reset
+### Concept set manifest reset
 
-```r
+```{r}
 # Delete only the SQLite DB; json/ files are preserved and auto-re-registered
 # on the next loadConceptSetManifest() call
 resetConceptSetManifest(scope = "manifest")
@@ -479,9 +509,9 @@ csm <- loadConceptSetManifest(autoSync = TRUE, verbose = TRUE)
 
 ## 6. Review and Helpers
 
-### Cohort Manifest
+### Cohort manifest
 
-```r
+```{r}
 # Full tabular view (all active cohorts)
 manifest$tabulateManifest()
 
@@ -496,17 +526,11 @@ manifest$reviewDependentCohorts()
 
 # Mermaid dependency graph
 plotCohortGraph(manifest)
-
-# Validate manifest health
-manifest$validateManifest()
-
-# Get manifest status summary
-manifest$getManifestStatus()
 ```
 
-### Concept Set Manifest
+### Concept set manifest
 
-```r
+```{r}
 csm <- loadConceptSetManifest(autoSync = TRUE, verbose = TRUE)
 
 # Tabular view of all concept sets
@@ -528,7 +552,7 @@ csm$extractSourceCodes(
 `extractSourceCodes()` requires `executionSettings` to be attached to the
 manifest (it queries the vocabulary tables in your CDM):
 
-```r
+```{r}
 csm$setExecutionSettings(execSettings)
 csm$extractSourceCodes(conceptSetIds = c(1L, 2L), sourceVocabs = "ICD10CM")
 ```

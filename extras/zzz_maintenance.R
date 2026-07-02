@@ -465,3 +465,186 @@ package_maintenance_report <- function() {
 
   invisible(NULL)
 }
+
+get_agent_vignette_map <- function() {
+  data.frame(
+    vignette = c(
+      "picard_repository_structure.Rmd",
+      "launching_a_study.Rmd",
+      "loading_inputs.Rmd",
+      "developing_the_pipeline.Rmd",
+      "manifest_overview.Rmd",
+      "running_the_pipeline.Rmd",
+      "post_processing.Rmd",
+      "evidence_generation_plan.Rmd"
+    ),
+    agent = c(
+      "01-repository-structure.md",
+      "02-launching-study.md",
+      "03-loading-inputs.md",
+      "04-developing-pipeline.md",
+      "04a-manifest-overview.md",
+      "05-running-pipeline.md",
+      "06-post-processing.md",
+      "07-evidence-generation-plan.md"
+    ),
+    stringsAsFactors = FALSE
+  )
+}
+
+strip_rmd_yaml_front_matter <- function(lines) {
+  if (length(lines) < 3) {
+    return(lines)
+  }
+
+  if (trimws(lines[1]) != "---") {
+    return(lines)
+  }
+
+  closing <- which(trimws(lines[-1]) == "---")
+  if (length(closing) == 0) {
+    return(lines)
+  }
+
+  lines[-seq_len(closing[1] + 1)]
+}
+
+render_agent_doc_from_vignette <- function(sourceFile, sourceLabel = NULL) {
+  if (is.null(sourceLabel)) {
+    sourceLabel <- fs::path_file(sourceFile)
+  }
+
+  raw <- readLines(sourceFile, warn = FALSE, encoding = "UTF-8")
+  body <- strip_rmd_yaml_front_matter(raw)
+
+  header <- c(
+    "<!-- AUTO-GENERATED FILE. DO NOT EDIT DIRECTLY. -->",
+    glue::glue("<!-- Source: vignettes/{sourceLabel} -->"),
+    ""
+  )
+
+  c(header, body)
+}
+
+sync_agent_docs_from_vignettes <- function(
+    projectPath = here::here(),
+    dryRun = TRUE,
+    checkOnly = FALSE,
+    verbose = TRUE) {
+
+  checkmate::assert_string(projectPath, min.chars = 1)
+  checkmate::assert_logical(dryRun, len = 1)
+  checkmate::assert_logical(checkOnly, len = 1)
+  checkmate::assert_logical(verbose, len = 1)
+
+  if (checkOnly) {
+    dryRun <- TRUE
+  }
+
+  vignettesDir <- fs::path(projectPath, "vignettes")
+  agentDir <- fs::path(projectPath, "inst/agent")
+
+  if (!fs::dir_exists(vignettesDir)) {
+    stop("Vignettes directory not found: ", fs::path_rel(vignettesDir))
+  }
+
+  if (!fs::dir_exists(agentDir)) {
+    stop("Agent docs directory not found: ", fs::path_rel(agentDir))
+  }
+
+  mapping <- get_agent_vignette_map()
+
+  if (verbose) {
+    cli::cli_h2("Sync Agent Docs from Vignettes")
+    cli::cli_bullets(c(
+      "i" = "Project: {.path {projectPath}}",
+      "i" = "Dry run: {.val {dryRun}}",
+      "i" = "Check only: {.val {checkOnly}}"
+    ))
+  }
+
+  rows <- vector("list", nrow(mapping))
+  missing_sources <- character(0)
+
+  for (i in seq_len(nrow(mapping))) {
+    sourceFile <- fs::path(vignettesDir, mapping$vignette[i])
+    targetFile <- fs::path(agentDir, mapping$agent[i])
+
+    if (!fs::file_exists(sourceFile)) {
+      rows[[i]] <- data.frame(
+        vignette = mapping$vignette[i],
+        agent = mapping$agent[i],
+        status = "missing_source",
+        stringsAsFactors = FALSE
+      )
+      missing_sources <- c(missing_sources, mapping$vignette[i])
+      next
+    }
+
+    targetLines <- render_agent_doc_from_vignette(sourceFile, mapping$vignette[i])
+    targetText <- paste0(targetLines, collapse = "\n")
+
+    existsTarget <- fs::file_exists(targetFile)
+    if (existsTarget) {
+      currentLines <- readLines(targetFile, warn = FALSE, encoding = "UTF-8")
+      currentText <- paste0(currentLines, collapse = "\n")
+      isSame <- identical(targetText, currentText)
+    } else {
+      isSame <- FALSE
+    }
+
+    if (existsTarget && isSame) {
+      status <- "unchanged"
+    } else if (existsTarget && !isSame) {
+      status <- "updated"
+    } else {
+      status <- "created"
+    }
+
+    if (!dryRun && status %in% c("updated", "created")) {
+      writeLines(targetLines, con = targetFile, useBytes = TRUE)
+    }
+
+    rows[[i]] <- data.frame(
+      vignette = mapping$vignette[i],
+      agent = mapping$agent[i],
+      status = status,
+      stringsAsFactors = FALSE
+    )
+  }
+
+  summary <- do.call(rbind, rows)
+
+  if (verbose) {
+    cli::cli_rule()
+    print(summary)
+    cli::cli_rule()
+    cli::cli_bullets(c(
+      "v" = "Created: {sum(summary$status == 'created')}",
+      "v" = "Updated: {sum(summary$status == 'updated')}",
+      "v" = "Unchanged: {sum(summary$status == 'unchanged')}",
+      "!" = "Missing sources: {sum(summary$status == 'missing_source')}"
+    ))
+  }
+
+  hasDrift <- any(summary$status %in% c("created", "updated", "missing_source"))
+
+  if (checkOnly && hasDrift) {
+    stop("Agent docs are out of sync with vignettes. Run sync_agent_docs_from_vignettes(dryRun = FALSE).")
+  }
+
+  invisible(list(
+    summary = summary,
+    hasDrift = hasDrift,
+    missingSources = missing_sources
+  ))
+}
+
+check_agent_docs_sync <- function(projectPath = here::here(), verbose = TRUE) {
+  sync_agent_docs_from_vignettes(
+    projectPath = projectPath,
+    dryRun = TRUE,
+    checkOnly = TRUE,
+    verbose = verbose
+  )
+}

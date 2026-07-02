@@ -91,11 +91,11 @@ Requires that executionSettings has been set and includes:
 \item \href{#method-CohortManifest-importAtlasCohorts}{\code{CohortManifest$importAtlasCohorts()}}
 \item \href{#method-CohortManifest-addCaprCohort}{\code{CohortManifest$addCaprCohort()}}
 \item \href{#method-CohortManifest-addSqlCohort}{\code{CohortManifest$addSqlCohort()}}
+\item \href{#method-CohortManifest-addDependentCustomCohort}{\code{CohortManifest$addDependentCustomCohort()}}
 \item \href{#method-CohortManifest-addCirceCohort}{\code{CohortManifest$addCirceCohort()}}
 \item \href{#method-CohortManifest-buildUnionCohort}{\code{CohortManifest$buildUnionCohort()}}
 \item \href{#method-CohortManifest-buildSubsetCohortTemporal}{\code{CohortManifest$buildSubsetCohortTemporal()}}
 \item \href{#method-CohortManifest-buildComplementCohort}{\code{CohortManifest$buildComplementCohort()}}
-\item \href{#method-CohortManifest-buildCustomDependentCohort}{\code{CohortManifest$buildCustomDependentCohort()}}
 \item \href{#method-CohortManifest-buildCompositeCohort}{\code{CohortManifest$buildCompositeCohort()}}
 \item \href{#method-CohortManifest-buildDemographicCohort}{\code{CohortManifest$buildDemographicCohort()}}
 \item \href{#method-CohortManifest-buildStratifiedCohorts}{\code{CohortManifest$buildStratifiedCohorts()}}
@@ -168,9 +168,9 @@ Review dependent cohorts and their dependency metadata
 \if{latex}{\out{\hypertarget{method-CohortManifest-reviewDependentCohorts}{}}}
 \subsection{Method \code{reviewDependentCohorts()}}{
 Returns a summary tibble of all active derived cohorts (union, subset, complement,
-composite, oprior, tprior, censor) with parsed dependency information sourced
-directly from SQLite. Useful for quickly auditing what each derived cohort depends
-on and how it was built.
+composite, oprior, tprior, censor, custom_derived) with parsed dependency
+information sourced directly from SQLite. Useful for quickly auditing what
+each derived cohort depends on and how it was built.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$reviewDependentCohorts()}\if{html}{\out{</div>}}
 }
@@ -181,8 +181,7 @@ A tibble with columns:
 \item \code{id} - Cohort ID
 \item \code{label} - Cohort label
 \item \code{cohort_type} - One of 'union', 'subset', 'complement', 'composite',
-'oprior', 'tprior', 'censor'
-\item \code{category} - User-defined category
+'oprior', 'tprior', 'censor', 'custom_derived'
 \item \code{parent_cohorts} - Human-readable parent list, e.g. "Label A (1), Label B (2)"
 \item \code{rule_summary} - Compact summary of the dependency rule parameters
 \item \code{created_at} - Timestamp of creation
@@ -464,6 +463,47 @@ Invisible integer. The assigned cohort ID.
 }
 }
 \if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-addDependentCustomCohort"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-addDependentCustomCohort}{}}}
+\subsection{Method \code{addDependentCustomCohort()}}{
+Add a dependent custom SQL cohort
+
+Registers an existing SQL file in the manifest as a dependency-aware derived cohort.
+The SQL file must already exist on disk and must preserve the standard Picard
+cohort write contract using \.code{@target_database_schema.@target_cohort_table}
+and \.code{@target_cohort_id}.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$addDependentCustomCohort(
+  filePath,
+  label,
+  category,
+  dependentCohortIdList,
+  tags = list()
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{filePath}}{Character. Path to the SQL file.}
+
+\item{\code{label}}{Character. Display name for the cohort.}
+
+\item{\code{category}}{Character. Required classification.}
+
+\item{\code{dependentCohortIdList}}{Named list. Each name is a SqlRender parameter to expose
+in the SQL file and each value is the cohort ID to inject at runtime.
+Example: \.code{list(inc_cohort_id = 10L, exc_cohort_id = 12L)}.}
+
+\item{\code{tags}}{Named list. Optional metadata tags.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible integer. The assigned cohort ID.
+}
+}
+\if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-addCirceCohort"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-addCirceCohort}{}}}
 \subsection{Method \code{addCirceCohort()}}{
@@ -642,49 +682,6 @@ subjects should be excluded from the population.}
 \code{"exclude_all"}. \code{"exclude_any"} removes subjects present in ANY
 exclude cohort; \code{"exclude_all"} removes subjects only if they appear
 in ALL exclude cohorts.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible integer. The assigned cohort ID.
-}
-}
-\if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-CohortManifest-buildCustomDependentCohort"></a>}}
-\if{latex}{\out{\hypertarget{method-CohortManifest-buildCustomDependentCohort}{}}}
-\subsection{Method \code{buildCustomDependentCohort()}}{
-Build a custom dependent cohort from a user-supplied SQL file
-
-Registers an existing \code{.sql} file as a derived cohort with explicit
-dependencies on manifest cohorts. Unlike \code{addSqlCohort()} (which treats
-the file as a base cohort), this method copies the SQL into the
-\verb{derived/} directory and sets \code{depends_on}, so the skip-logic
-uses dependency-aware hashing (see Phase 1.1).
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildCustomDependentCohort(
-  filePath,
-  label,
-  category,
-  cohortIds,
-  tags = list()
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{filePath}}{Character. Path to the user's \code{.sql} file.
-The file is \strong{copied} into the \verb{derived/} directory — the original
-is not referenced after registration.}
-
-\item{\code{label}}{Character. Display name (must be unique in manifest).}
-
-\item{\code{category}}{Character. Required classification.}
-
-\item{\code{cohortIds}}{Integer vector (min. 1). Parent cohort IDs this SQL
-depends on. All must exist in the manifest.}
-
-\item{\code{tags}}{Named list. Optional metadata tags.}
 }
 \if{html}{\out{</div>}}
 }

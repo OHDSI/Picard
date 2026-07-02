@@ -151,16 +151,16 @@ CohortDef <- R6::R6Class(
 
     #' Get the cohort type
     #'
-    #' @return Character. One of 'circe', 'custom', 'subset', 'union', 'complement', 'composite'.
+    #' @return Character. One of 'circe', 'custom', 'custom_derived', 'subset', 'union', 'complement', 'composite', 'oprior', 'tprior', 'censor'.
     getCohortType = function() {
       private$.cohortType
     },
 
     #' Set the cohort type (internal use)
     #'
-    #' @param cohortType Character. One of 'circe', 'custom', 'subset', 'union', 'complement', 'composite'.
+    #' @param cohortType Character. One of 'circe', 'custom', 'custom_derived', 'subset', 'union', 'complement', 'composite', 'oprior', 'tprior', 'censor'.
     setCohortType = function(cohortType) {
-      checkmate::assert_choice(x = cohortType, choices = c("circe", "custom", "subset", "union", "complement", "composite"))
+      checkmate::assert_choice(x = cohortType, choices = c("circe", "custom", "custom_derived", "subset", "union", "complement", "composite", "oprior", "tprior", "censor"))
       private$.cohortType <- cohortType
     },
 
