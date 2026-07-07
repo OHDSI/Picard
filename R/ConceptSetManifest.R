@@ -565,6 +565,9 @@ ConceptSetManifest <- R6::R6Class(
       checkmate::assert_string(category, min.chars = 1)
       checkmate::assert_list(tags, names = "named")
 
+      # Ensure atlasId is always stored in tags for idempotent import matching
+      tags$atlasId <- as.integer(atlasId)
+
       # Fetch concept set JSON from ATLAS
       cs_def <- tryCatch(
         atlasConnection$getConceptSetDefinition(conceptSetId = atlasId),

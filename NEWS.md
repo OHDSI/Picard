@@ -10,7 +10,9 @@
 - Execution logic now treats `custom_derived` like other derived cohorts for dependency-hash comparison, checksum persistence, and stale-cascade behavior rather than using raw SQL hash logic.
 - Dependent cohort review and generation summaries now include `custom_derived` cohorts explicitly.
 
+## Bug Fixes
 
+- In concept set manifest, check atlasId tag for existing entry in manifest. `$addAtlasConceptSet()` missing addition of atlasId tag
 
 # picard 0.0.5
 
