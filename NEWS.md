@@ -9,6 +9,7 @@
 - Dependency-aware custom SQL must preserve the standard Picard cohort write contract by deleting from and inserting into `@target_database_schema.@target_cohort_table` using `@target_cohort_id`.
 - Execution logic now treats `custom_derived` like other derived cohorts for dependency-hash comparison, checksum persistence, and stale-cascade behavior rather than using raw SQL hash logic.
 - Dependent cohort review and generation summaries now include `custom_derived` cohorts explicitly.
+- bug fix to deal with named list of dependent cohort ids
 
 ## Bug Fixes
 

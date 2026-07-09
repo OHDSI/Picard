@@ -310,7 +310,7 @@ CohortManifest <- R6::R6Class(
         cohort_type <- "custom_derived"
         depends_on <- as.integer(unname(dependent_ids))
         dependency_rule <- list(
-          dependentCohortIdList = stats::setNames(as.integer(unname(dependent_ids)), names(dependent_ids))
+          dependentCohortIdList = as.list(dependentCohortIdList) # use a named list
         )
       } else {
         cohort_type <- "custom"
@@ -2329,11 +2329,181 @@ CohortManifest <- R6::R6Class(
       invisible(self)
     },
 
+    #' Check cohort tables in the database
+    #'
+    #' @description
+    #' Checks if necessary tables have been created for execution
+    #'
+    #' @details
+    #' Requires that executionSettings has been set and includes:
+    #' - A database connection (via getConnection()
+    #' - workDatabaseSchema for the target schema
+    #' - cohortTable with the desired table name
+    #'
+    #' @return tibble with cohort tables and there exist status
+    checkCohortTables = function() {
+      # Validate execution settings are available
+      private$validateExecutionSettings()
+
+      # Get execution parameters
+      settings <- private$.executionSettings
+      conn <- settings$getConnection()
+      if (is.null(conn)) {
+        settings$connect()
+        conn <- settings$getConnection()
+      }
+      on.exit(settings$disconnect())
+      
+      schema <- settings$workDatabaseSchema
+      if (is.null(schema) || is.na(schema)) {
+        stop("workDatabaseSchema must be set in execution settings")
+      }
+
+      cohort_table <- settings$cohortTable
+      if (is.null(cohort_table) || is.na(cohort_table)) {
+        stop("cohortTable must be set in execution settings")
+      }
+
+      dbms <- settings$getDbms()
+
+      # Get cohort table names
+      table_names <- getCohortTableNames(
+        cohortTable = cohort_table,
+        cohortSampleTable = cohort_table,
+        cohortInclusionTable = paste0(cohort_table, "_inclusion"),
+        cohortInclusionResultTable = paste0(cohort_table, "_inclusion_result"),
+        cohortInclusionStatsTable = paste0(cohort_table, "_inclusion_stats"),
+        cohortSummaryStatsTable = paste0(cohort_table, "_summary_stats"),
+        cohortCensorStatsTable = paste0(cohort_table, "_censor_stats")
+      )
+
+      cli::cli_rule("Checking Cohort Tables")
+      cli::cli_alert_info("Database: {settings$databaseName}")
+      cli::cli_alert_info("Schema: {schema}")
+      cli::cli_alert_info("Main table: {cohort_table}")
+
+      tables_to_check <- tibble::tibble(
+        cg_type = names(table_names),
+        name = purrr::map_chr(table_names, ~.x),
+        check =  NA_character_
+      ) |>
+        dplyr::filter(
+          !(cg_type %in% c("cohortSampleTable", "cohortSubsetAttritionTable"))
+        )
+      tables_to_check$type <- c("main", "inclusion", "inclusion_result", "inclusion_stats",
+                                "summary_stats", "censor_stats", "checksum")
+
+
+      for (i in seq_len(nrow(tables_to_check))) {
+        table_name <- tables_to_check$name[i]
+        check_results <- picard:::tableExists(conn, schema, table_name, dbms)
+        tables_to_check$check[i] <- ifelse(check_results, "exists", "missing")
+      }
+      
+      tables_to_check <- tables_to_check |>
+        dplyr::select(type, name, check)
+
+      return(tables_to_check)
+    },
+
+    #' Create a single cohort table in the database
+    #'
+    #' @description
+    #' Creates one required cohort table by type using the current execution settings.
+    #'
+    #' @param type Character. One of "main", "inclusion", "inclusion_result",
+    #'   "inclusion_stats", "summary_stats", "censor_stats", or "checksum".
+    #' @param tableName Character. Optional explicit table name. If NULL, defaults to
+    #'   the name derived from execution settings for the selected type.
+    #'
+    #' @return Invisible NULL.
+    createCohortTable = function(type, tableName = NULL) {
+      # Validate execution settings are available
+      private$validateExecutionSettings()
+
+      # Get execution parameters
+      settings <- private$.executionSettings
+      conn <- settings$getConnection()
+      if (is.null(conn)) {
+        settings$connect()
+        conn <- settings$getConnection()
+      }
+      on.exit(settings$disconnect())
+      
+      schema <- settings$workDatabaseSchema
+      if (is.null(schema) || is.na(schema)) {
+        stop("workDatabaseSchema must be set in execution settings")
+      }
+
+      cohort_table <- settings$cohortTable
+      if (is.null(cohort_table) || is.na(cohort_table)) {
+        stop("cohortTable must be set in execution settings")
+      }
+
+      temp_schema <- settings$tempEmulationSchema
+      dbms <- settings$getDbms()
+
+      checkmate::assert_choice(
+        x = type,
+        choices = c("main", "inclusion", "inclusion_result", "inclusion_stats", "summary_stats", "censor_stats", "checksum")
+      )
+
+      table_names <- getCohortTableNames(
+        cohortTable = cohort_table,
+        cohortSampleTable = cohort_table,
+        cohortInclusionTable = paste0(cohort_table, "_inclusion"),
+        cohortInclusionResultTable = paste0(cohort_table, "_inclusion_result"),
+        cohortInclusionStatsTable = paste0(cohort_table, "_inclusion_stats"),
+        cohortSummaryStatsTable = paste0(cohort_table, "_summary_stats"),
+        cohortCensorStatsTable = paste0(cohort_table, "_censor_stats")
+      )
+
+      default_table_name <- switch(
+        type,
+        main = cohort_table,
+        inclusion = table_names$cohortInclusionTable,
+        inclusion_result = table_names$cohortInclusionResultTable,
+        inclusion_stats = table_names$cohortInclusionStatsTable,
+        summary_stats = table_names$cohortSummaryStatsTable,
+        censor_stats = table_names$cohortCensorStatsTable,
+        checksum = table_names$cohortChecksumTable
+      )
+
+      if (is.null(tableName)) {
+        tableName <- default_table_name
+      }
+      checkmate::assert_string(tableName, min.chars = 1)
+
+      if (tableExists(conn, schema, tableName, dbms)) {
+        cli::cli_alert_warning("{type} table already exists: {tableName}")
+        return(invisible(NULL))
+      }
+
+      sql <- create_cohort_table_sql(
+        type = type,
+        schema = schema,
+        tableName = tableName,
+        dbms = dbms,
+        tempEmulationSchema = temp_schema
+      )
+
+      tryCatch({
+        DatabaseConnector::executeSql(conn, sql, progressBar = FALSE, reportOverallTime = FALSE)
+        cli::cli_alert_success("Created {type} table: {tableName}")
+      }, error = function(e) {
+        cli::cli_alert_danger("Failed to create {type} table {tableName}: {e$message}")
+      })
+
+      invisible(NULL)
+    },
+
     #' Create cohort tables in the database
     #'
     #' @description
     #' Creates the necessary cohort tables in the target database using the execution settings.
     #' First checks if tables already exist before attempting creation.
+    #' This is an advanced/manual setup function. Most users should run
+    #' `executeCohortGeneration()` and let it create missing tables automatically.
     #'
     #' @details
     #' Requires that executionSettings has been set and includes:
@@ -2343,7 +2513,7 @@ CohortManifest <- R6::R6Class(
     #' - tempEmulationSchema if needed for the database platform
     #'
     #' @return Invisible NULL. Creates tables in the database and prints status messages.
-    createCohortTables = function() {
+    createAllCohortTables = function() {
       # Validate execution settings are available
       private$validateExecutionSettings()
 
@@ -2400,39 +2570,27 @@ CohortManifest <- R6::R6Class(
         table_name <- table_info$name
         table_type <- table_info$type
 
-        # Check if table exists
-        if (tableExists(conn, schema, table_name, dbms)) {
-          cli::cli_alert_warning("{table_type} table already exists: {table_name}")
-        } else {
-          # Create the table
-          if (table_type == "main") {
-            sql <- createMainCohortTableSql(schema, table_name, dbms, temp_schema)
-          } else if (table_type == "inclusion") {
-            sql <- createInclusionTableSql(schema, table_name, dbms)
-          } else if (table_type == "inclusion_result") {
-            sql <- createInclusionResultTableSql(schema, table_name, dbms)
-          } else if (table_type == "inclusion_stats") {
-            sql <- createInclusionStatsTableSql(schema, table_name, dbms)
-          } else if (table_type == "summary_stats") {
-            sql <- createSummaryStatsTableSql(schema, table_name, dbms)
-          } else if (table_type == "censor_stats") {
-            sql <- createCensorStatsTableSql(schema, table_name, dbms)
-          } else if (table_type == "checksum") {
-            sql <- createChecksumTableSql(schema, table_name, dbms)
-          }
-
-          tryCatch({
-            DatabaseConnector::executeSql(conn, sql, progressBar = FALSE, reportOverallTime = FALSE)
-            cli::cli_alert_success("Created {table_type} table: {table_name}")
-          }, error = function(e) {
-            cli::cli_alert_danger("Failed to create {table_type} table {table_name}: {e$message}")
-          })
-        }
+        self$createCohortTable(type = table_type, tableName = table_name)
       }
 
       cli::cli_rule()
       cli::cli_alert_success("Cohort tables setup complete")
 
+      invisible(NULL)
+    },
+
+    #' @description Deprecated alias for createAllCohortTables
+    #'
+    #' @details
+    #' Use `createAllCohortTables()` instead. This alias is kept for
+    #' backward compatibility.
+    #'
+    #' @return Invisible NULL.
+    createCohortTables = function() {
+      cli::cli_alert_warning(
+        "`createCohortTables()` is deprecated. Use `createAllCohortTables()` instead."
+      )
+      self$createAllCohortTables()
       invisible(NULL)
     },
 
@@ -2894,7 +3052,11 @@ CohortManifest <- R6::R6Class(
     #' - workDatabaseSchema (where cohort results are written)
     #' - cohortTable (destination table name)
     #' - tempEmulationSchema if needed for the database platform
-    #'
+    #' @param autoCreateCohortTables Logical. If TRUE, creates missing cohort tables
+    #'   before generation.
+    #' @param confirm Logical. If TRUE and interactive, asks for confirmation before
+    #'   creating missing tables. Ignored in non-interactive sessions.
+    #' 
     #' @return Data frame with execution results including:
     #'   - cohort_id: ID of the generated cohort
     #'   - label: Label of the cohort
@@ -2903,7 +3065,7 @@ CohortManifest <- R6::R6Class(
     #'   - execution_time_min: Time taken to generate (0 for skipped)
     #'   - status: 'Success', 'Skipped - already generated', 'Dependency skipped', or error message
     #'   - dependency_status: 'Not applicable' for circe, 'Parent changed' or 'Unchanged' for dependent
-    executeCohortGeneration = function() {
+    executeCohortGeneration = function(autoCreateCohortTables = FALSE, confirm = TRUE) {
 
       # ==== Prep Execution Settings ===== #
       # Validate execution settings are available
@@ -2918,8 +3080,61 @@ CohortManifest <- R6::R6Class(
       }
       on.exit(settings$disconnect())
 
-      # get dbms
-      dbms <- settings$getDbms()
+      checkmate::assert_flag(autoCreateCohortTables)
+      checkmate::assert_flag(confirm)
+
+      # ===== Check Cohort Tables =======#
+      check_tables <- self$checkCohortTables()
+      n_missing <- sum(check_tables$check == "missing")
+      which_missing <- which(check_tables$check == "missing")
+
+      if (n_missing == 0) {
+        cli::cli_alert_info("All Cohort Tables have already been created. Good to go!")
+      } else {
+        missing_tbl <- check_tables[which_missing, c("type", "name")]
+
+        cli::cli_alert_warning("Found {n_missing} missing cohort table(s).")
+        for (i in seq_len(nrow(missing_tbl))) {
+          cli::cli_bullets(c("!" = "{missing_tbl$type[i]}: {missing_tbl$name[i]}"))
+        }
+
+        if (!autoCreateCohortTables) {
+          cli::cli_abort(c(
+            "Required cohort tables are missing.",
+            i = "Call {.code $createAllCohortTables()} first, or rerun with {.code autoCreateCohortTables = TRUE}."
+          ))
+        }
+
+        should_prompt <- interactive() && isTRUE(confirm)
+        if (should_prompt) {
+          answer <- readline("Missing cohort tables detected. Create now? (yes/no): ")
+          if (!identical(trimws(tolower(answer)), "yes")) {
+            cli::cli_abort(c(
+              "Cohort generation cancelled.",
+              i = "Missing cohort tables must be created before generation can continue."
+            ))
+          }
+        } else if (!interactive()) {
+          cli::cli_alert_info("Non-interactive session detected: creating missing tables automatically.")
+        }
+
+        for (i in which_missing) {
+          row <- check_tables[i, ]
+          self$createCohortTable(type = row$type, tableName = row$name)
+        }
+
+        recheck_tables <- self$checkCohortTables()
+        remaining_missing <- sum(recheck_tables$check == "missing")
+        if (remaining_missing > 0) {
+          cli::cli_abort(c(
+            "Some cohort tables are still missing after attempted creation.",
+            i = "Review DB permissions/schema settings and rerun {.code $checkCohortTables()}."
+          ))
+        }
+
+        cli::cli_alert_success("All required cohort tables are available.")
+      }
+
 
       # Get checksum table name
       table_names <- getCohortTableNames(cohortTable = settings$cohortTable)

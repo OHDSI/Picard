@@ -36,6 +36,13 @@ Requires that executionSettings has been set and includes:
 \item A database connection (via getConnection()
 \item workDatabaseSchema for the target schema
 \item cohortTable with the desired table name
+}
+
+Requires that executionSettings has been set and includes:
+\itemize{
+\item A database connection (via getConnection()
+\item workDatabaseSchema for the target schema
+\item cohortTable with the desired table name
 \item tempEmulationSchema if needed for the database platform
 }
 
@@ -115,6 +122,8 @@ Requires that executionSettings has been set and includes:
 \item \href{#method-CohortManifest-updateAtlasCohorts}{\code{CohortManifest$updateAtlasCohorts()}}
 \item \href{#method-CohortManifest-statusReport}{\code{CohortManifest$statusReport()}}
 \item \href{#method-CohortManifest-print}{\code{CohortManifest$print()}}
+\item \href{#method-CohortManifest-checkCohortTables}{\code{CohortManifest$checkCohortTables()}}
+\item \href{#method-CohortManifest-createCohortTable}{\code{CohortManifest$createCohortTable()}}
 \item \href{#method-CohortManifest-createCohortTables}{\code{CohortManifest$createCohortTables()}}
 \item \href{#method-CohortManifest-dropCohortTables}{\code{CohortManifest$dropCohortTables()}}
 \item \href{#method-CohortManifest-syncManifest}{\code{CohortManifest$syncManifest()}}
@@ -1179,11 +1188,50 @@ Invisible tibble with columns: id, label, category, source_type, depends_on, sta
 Print a friendly view of the CohortManifest
 
 Displays key metadata about the manifest and its contents.
-Create cohort tables in the database
+Check cohort tables in the database
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$print()}\if{html}{\out{</div>}}
 }
 
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-checkCohortTables"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-checkCohortTables}{}}}
+\subsection{Method \code{checkCohortTables()}}{
+Checks if necessary tables have been created for execution
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$checkCohortTables()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+tibble with cohort tables and there exist status
+Create a single cohort table in the database
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-createCohortTable"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-createCohortTable}{}}}
+\subsection{Method \code{createCohortTable()}}{
+Creates one required cohort table by type using the current execution settings.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$createCohortTable(type, tableName = NULL)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{type}}{Character. One of "main", "inclusion", "inclusion_result",
+"inclusion_stats", "summary_stats", "censor_stats", or "checksum".}
+
+\item{\code{tableName}}{Character. Optional explicit table name. If NULL, defaults to
+the name derived from execution settings for the selected type.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible NULL.
+Create cohort tables in the database
+}
 }
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-createCohortTables"></a>}}
@@ -1281,9 +1329,23 @@ Checks the hash of each cohort definition and skips generation if the hash match
 already stored in the cohort_checksum table. If hashes differ or the cohort is not yet in
 the checksum table, regenerates and updates the hash.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$executeCohortGeneration()}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$executeCohortGeneration(
+  autoCreateCohortTables = FALSE,
+  confirm = TRUE
+)}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{autoCreateCohortTables}}{Logical. If TRUE, creates missing cohort tables
+before generation.}
+
+\item{\code{confirm}}{Logical. If TRUE and interactive, asks for confirmation before
+creating missing tables. Ignored in non-interactive sessions.}
+}
+\if{html}{\out{</div>}}
+}
 \subsection{Returns}{
 Data frame with execution results including:
 \itemize{

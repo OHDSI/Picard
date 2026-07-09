@@ -340,7 +340,7 @@ generateCohorts <- function(executionSettings, pipelineVersion, override = FALSE
   cli::cli_alert_info("Starting cohort generation...")
   
   tryCatch({
-    cm$createCohortTables()
+    cm$createAllCohortTables()
     cm$executeCohortGeneration()
     counts <- cm$retrieveCohortCounts()
     

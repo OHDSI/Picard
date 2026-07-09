@@ -53,13 +53,13 @@ All subsequent work will be done here and tested before any production execution
 
 Before writing analysis code, you need to define the populations and phenotypes. This happens in the `inputs/` folder:
 
-**For Cohorts:** Use the interactive editor to add your study populations:
+**For Cohorts:** Edit cohort metadata files directly in your project:
 
 ```{r eval = FALSE}
-launchCohortsLoadEditor(cohortsFolderPath = here::here("inputs/cohorts"))
+file.edit(here::here("inputs/cohorts/load.csv"))
 ```
 
-This opens a Shiny app where you can add cohort metadata without editing CSV files directly.
+This opens the cohort manifest CSV so you can define study populations.
 
 **For Concept Sets:** Similarly, define your phenotypes:
 
@@ -435,7 +435,7 @@ Once your analysis is tested and validated on `develop`, see [Running the Pipeli
 
 | Phase | Function | Purpose |
 |-------|----------|---------|
-| **Setup** | `launchCohortsLoadEditor()` | Interactive cohort metadata editor |
+| **Setup** | Edit `inputs/cohorts/load.csv` | Define cohort metadata |
 | **Setup** | `launchConceptSetsLoadEditor()` | Interactive concept set editor |
 | **Development** | `makeTaskFile()` | Create new analysis task |
 | **Development** | `makeSrcFile()` | (optional) Create utility/helper function file |
