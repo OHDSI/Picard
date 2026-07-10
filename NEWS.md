@@ -14,6 +14,7 @@
 ## Bug Fixes
 
 - In concept set manifest, check atlasId tag for existing entry in manifest. `$addAtlasConceptSet()` missing addition of atlasId tag
+- Flag which cohort tables are missing for cohort generation. Interactive mode to build cohort tables within `$executeCohortGeneration()`
 
 # picard 0.0.5
 

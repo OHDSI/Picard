@@ -2347,12 +2347,18 @@ CohortManifest <- R6::R6Class(
 
       # Get execution parameters
       settings <- private$.executionSettings
+      did_connect <- FALSE
       conn <- settings$getConnection()
       if (is.null(conn)) {
         settings$connect()
         conn <- settings$getConnection()
+        did_connect <- TRUE
       }
-      on.exit(settings$disconnect())
+      on.exit({
+        if (did_connect) {
+          settings$disconnect()
+        }
+      }, add = TRUE)
       
       schema <- settings$workDatabaseSchema
       if (is.null(schema) || is.na(schema)) {
@@ -2423,12 +2429,18 @@ CohortManifest <- R6::R6Class(
 
       # Get execution parameters
       settings <- private$.executionSettings
+      did_connect <- FALSE
       conn <- settings$getConnection()
       if (is.null(conn)) {
         settings$connect()
         conn <- settings$getConnection()
+        did_connect <- TRUE
       }
-      on.exit(settings$disconnect())
+      on.exit({
+        if (did_connect) {
+          settings$disconnect()
+        }
+      }, add = TRUE)
       
       schema <- settings$workDatabaseSchema
       if (is.null(schema) || is.na(schema)) {
@@ -2519,12 +2531,18 @@ CohortManifest <- R6::R6Class(
 
       # Get execution parameters
       settings <- private$.executionSettings
+      did_connect <- FALSE
       conn <- settings$getConnection()
       if (is.null(conn)) {
         settings$connect()
         conn <- settings$getConnection()
+        did_connect <- TRUE
       }
-      on.exit(settings$disconnect())
+      on.exit({
+        if (did_connect) {
+          settings$disconnect()
+        }
+      }, add = TRUE)
       
       schema <- settings$workDatabaseSchema
       if (is.null(schema) || is.na(schema)) {
@@ -2619,12 +2637,18 @@ CohortManifest <- R6::R6Class(
       }
 
       # Get execution parameters
+      did_connect <- FALSE
       conn <- settings$getConnection()
       if (is.null(conn)) {
         settings$connect()
         conn <- settings$getConnection()
+        did_connect <- TRUE
       }
-      on.exit(settings$disconnect())
+      on.exit({
+        if (did_connect) {
+          settings$disconnect()
+        }
+      }, add = TRUE)
 
       schema <- settings$workDatabaseSchema
       if (is.null(schema) || is.na(schema)) {
@@ -2914,12 +2938,18 @@ CohortManifest <- R6::R6Class(
       private$validateExecutionSettings()
 
       settings <- private$.executionSettings
+      did_connect <- FALSE
       conn_db <- settings$getConnection()
       if (is.null(conn_db)) {
         settings$connect()
         conn_db <- settings$getConnection()
+        did_connect <- TRUE
       }
-      on.exit(settings$disconnect())
+      on.exit({
+        if (did_connect) {
+          settings$disconnect()
+        }
+      }, add = TRUE)
 
       cohort_schema <- settings$workDatabaseSchema
       if (is.null(cohort_schema) || is.na(cohort_schema)) {
@@ -3052,10 +3082,9 @@ CohortManifest <- R6::R6Class(
     #' - workDatabaseSchema (where cohort results are written)
     #' - cohortTable (destination table name)
     #' - tempEmulationSchema if needed for the database platform
-    #' @param autoCreateCohortTables Logical. If TRUE, creates missing cohort tables
-    #'   before generation.
     #' @param confirm Logical. If TRUE and interactive, asks for confirmation before
-    #'   creating missing tables. Ignored in non-interactive sessions.
+    #'   creating missing tables. If FALSE, missing tables are created without prompting.
+    #'   In non-interactive sessions, missing tables are not created automatically.
     #' 
     #' @return Data frame with execution results including:
     #'   - cohort_id: ID of the generated cohort
@@ -3065,7 +3094,7 @@ CohortManifest <- R6::R6Class(
     #'   - execution_time_min: Time taken to generate (0 for skipped)
     #'   - status: 'Success', 'Skipped - already generated', 'Dependency skipped', or error message
     #'   - dependency_status: 'Not applicable' for circe, 'Parent changed' or 'Unchanged' for dependent
-    executeCohortGeneration = function(autoCreateCohortTables = FALSE, confirm = TRUE) {
+    executeCohortGeneration = function(confirm = TRUE) {
 
       # ==== Prep Execution Settings ===== #
       # Validate execution settings are available
@@ -3073,14 +3102,19 @@ CohortManifest <- R6::R6Class(
 
       # Get connection
       settings <- private$.executionSettings
+      did_connect <- FALSE
       conn <- settings$getConnection()
       if (is.null(conn)) {
         settings$connect()
         conn <- settings$getConnection()
+        did_connect <- TRUE
       }
-      on.exit(settings$disconnect())
+      on.exit({
+        if (did_connect) {
+          settings$disconnect()
+        }
+      }, add = TRUE)
 
-      checkmate::assert_flag(autoCreateCohortTables)
       checkmate::assert_flag(confirm)
 
       # ===== Check Cohort Tables =======#
@@ -3098,14 +3132,14 @@ CohortManifest <- R6::R6Class(
           cli::cli_bullets(c("!" = "{missing_tbl$type[i]}: {missing_tbl$name[i]}"))
         }
 
-        if (!autoCreateCohortTables) {
+        if (!interactive()) {
           cli::cli_abort(c(
             "Required cohort tables are missing.",
-            i = "Call {.code $createAllCohortTables()} first, or rerun with {.code autoCreateCohortTables = TRUE}."
+            i = "Non-interactive session detected. Create tables first with {.code $createAllCohortTables()} and rerun."
           ))
         }
 
-        should_prompt <- interactive() && isTRUE(confirm)
+        should_prompt <- isTRUE(confirm)
         if (should_prompt) {
           answer <- readline("Missing cohort tables detected. Create now? (yes/no): ")
           if (!identical(trimws(tolower(answer)), "yes")) {
@@ -3114,8 +3148,6 @@ CohortManifest <- R6::R6Class(
               i = "Missing cohort tables must be created before generation can continue."
             ))
           }
-        } else if (!interactive()) {
-          cli::cli_alert_info("Non-interactive session detected: creating missing tables automatically.")
         }
 
         for (i in which_missing) {
@@ -3300,12 +3332,18 @@ CohortManifest <- R6::R6Class(
 
       # Get connection
       settings <- private$.executionSettings
+      did_connect <- FALSE
       conn <- settings$getConnection()
       if (is.null(conn)) {
         settings$connect()
         conn <- settings$getConnection()
+        did_connect <- TRUE
       }
-      on.exit(settings$disconnect())
+      on.exit({
+        if (did_connect) {
+          settings$disconnect()
+        }
+      }, add = TRUE)
 
       # Get execution parameters
       cohort_schema <- settings$workDatabaseSchema

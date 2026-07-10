@@ -46,6 +46,9 @@ Requires that executionSettings has been set and includes:
 \item tempEmulationSchema if needed for the database platform
 }
 
+Use \code{createAllCohortTables()} instead. This alias is kept for
+backward compatibility.
+
 Requires that executionSettings has been set and includes:
 \itemize{
 \item A database connection (via getConnection()
@@ -124,6 +127,7 @@ Requires that executionSettings has been set and includes:
 \item \href{#method-CohortManifest-print}{\code{CohortManifest$print()}}
 \item \href{#method-CohortManifest-checkCohortTables}{\code{CohortManifest$checkCohortTables()}}
 \item \href{#method-CohortManifest-createCohortTable}{\code{CohortManifest$createCohortTable()}}
+\item \href{#method-CohortManifest-createAllCohortTables}{\code{CohortManifest$createAllCohortTables()}}
 \item \href{#method-CohortManifest-createCohortTables}{\code{CohortManifest$createCohortTables()}}
 \item \href{#method-CohortManifest-dropCohortTables}{\code{CohortManifest$dropCohortTables()}}
 \item \href{#method-CohortManifest-syncManifest}{\code{CohortManifest$syncManifest()}}
@@ -1234,17 +1238,32 @@ Create cohort tables in the database
 }
 }
 \if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-createAllCohortTables"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-createAllCohortTables}{}}}
+\subsection{Method \code{createAllCohortTables()}}{
+Creates the necessary cohort tables in the target database using the execution settings.
+First checks if tables already exist before attempting creation.
+This is an advanced/manual setup function. Most users should run
+\code{executeCohortGeneration()} and let it create missing tables automatically.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$createAllCohortTables()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Invisible NULL. Creates tables in the database and prints status messages.
+}
+}
+\if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-createCohortTables"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-createCohortTables}{}}}
 \subsection{Method \code{createCohortTables()}}{
-Creates the necessary cohort tables in the target database using the execution settings.
-First checks if tables already exist before attempting creation.
+Deprecated alias for createAllCohortTables
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$createCohortTables()}\if{html}{\out{</div>}}
 }
 
 \subsection{Returns}{
-Invisible NULL. Creates tables in the database and prints status messages.
+Invisible NULL.
 Drop cohort tables from the database
 }
 }
@@ -1329,20 +1348,15 @@ Checks the hash of each cohort definition and skips generation if the hash match
 already stored in the cohort_checksum table. If hashes differ or the cohort is not yet in
 the checksum table, regenerates and updates the hash.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$executeCohortGeneration(
-  autoCreateCohortTables = FALSE,
-  confirm = TRUE
-)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$executeCohortGeneration(confirm = TRUE)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{autoCreateCohortTables}}{Logical. If TRUE, creates missing cohort tables
-before generation.}
-
 \item{\code{confirm}}{Logical. If TRUE and interactive, asks for confirmation before
-creating missing tables. Ignored in non-interactive sessions.}
+creating missing tables. If FALSE, missing tables are created without prompting.
+In non-interactive sessions, missing tables are not created automatically.}
 }
 \if{html}{\out{</div>}}
 }
