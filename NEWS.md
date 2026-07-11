@@ -1,6 +1,8 @@
 # picard 0.0.6
 
-## Custom Dependent SQL Cohorts
+## New Features
+
+### Custom Dependent SQL Cohorts
 
 - Added `$addDependentCustomCohort(filePath, label, category, dependentCohortIdList, tags)` to register hand-written SQL cohorts that depend on one or more existing manifest cohorts.
 - Introduced `custom_derived` as an explicit cohort type for dependency-aware custom SQL, distinct from base `custom` SQL cohorts added with `$addSqlCohort()`.
@@ -15,6 +17,8 @@
 
 - In concept set manifest, check atlasId tag for existing entry in manifest. `$addAtlasConceptSet()` missing addition of atlasId tag
 - Flag which cohort tables are missing for cohort generation. Interactive mode to build cohort tables within `$executeCohortGeneration()`
+- change agent mode to correct github copilot format (i.e `/.github`)
+- Clean vignettes and documentation to reflect current state of API
 
 # picard 0.0.5
 

@@ -29,13 +29,8 @@ definition's file path, MD5 hash, metadata, and provenance. Each session you
 load the manifest into memory; the SQLite file is the durable source of truth.
 
 This guide focuses on **loading and registering inputs** for day-to-day pipeline
-use. For manifest internals (SQLite schema, dependency hashing, stale cascade,
-mid-cycle repair, and reset operations), use the
-[Manifest: Architecture, Workflows, and Helpers](manifest_overview.html)
-vignette.
-
-For a deep-dive into the manifest architecture, derived cohorts, mid-cycle
-changes, and reset options, see the [Manifest: Architecture, Workflows, and Helpers](manifest_overview.html) vignette.
+use. For mid-cycle operations such as check, update, delete, and reset, use the
+[Manifest Management](manifest_management.html) vignette.
 
 ---
 
@@ -49,7 +44,7 @@ folders under `inputs/`:
 
 These scripts are **pre-populated** at project initialization with templates for
 six different builder types. You choose which builders to use by keeping the
-scripts you need and deleting the ones you don't.
+scripts you need and deleting the ones you do not.
 
 **When you run `main.R`**, the pipeline automatically discovers and sources all
 remaining builder scripts in a **mandatory dependency order**. This ensures concept sets load before cohorts:
@@ -81,10 +76,10 @@ remaining builder scripts in a **mandatory dependency order**. This ensures conc
 ### Typical Workflow
 
 1. **Project initializes** with all 6 builder scripts pre-created
-2. **Edit the builders you need** — Each script has clear guidance comments
-3. **Delete unused builders** — Remove scripts you don't need
-4. **Run `main.R`** — `sourceInputBuilderScripts()` auto-discovers and runs remaining scripts in mandatory order
-5. **Manifests load** — Your cohorts and concept sets are ready for the pipeline
+2. **Edit the builders you need** - Each script has clear guidance comments
+3. **Delete unused builders** - Remove scripts you do not need
+4. **Run `main.R`** - `sourceInputBuilderScripts()` auto-discovers and runs remaining scripts in mandatory order
+5. **Manifests load** - Your cohorts and concept sets are ready for the pipeline
 
 Example: If you only use ATLAS for concept sets and Capr for cohorts:
 
@@ -110,57 +105,10 @@ When `main.R` runs, only `import_atlas_concept_set.R` and `import_capr_cohort.R`
 
 This pattern uses `inputs/conceptSets/R/import_atlas_concept_set.R`.
 
-#### Step 1: Initialize the manifest
+Prerequisite setup for manifests, load files, and credentials is covered in
+[Setup Picard](setup_picard.html).
 
-```{r}
-conceptSetManifest <- initConceptSetManifest()
-```
-
-This creates `inputs/conceptSets/conceptSetManifest.sqlite` if it does not
-already exist and returns a `ConceptSetManifest` R6 object.
-
-#### Step 2: Create and fill the load file
-
-```{r}
-createBlankConceptSetsLoadFile()
-```
-
-Opens `inputs/conceptSets/conceptSetsLoad.csv`. Fill in one row per concept set:
-
-| Column | Required | Notes |
-|---|---|---|
-| `atlasId` | Yes | ATLAS concept set ID |
-| `label` | Yes | Display name |
-| `domain` | Yes | OMOP domain (e.g., `drug_exposure`) |
-| `sourceCode` | No | `TRUE`/`FALSE` — whether it uses source codes |
-
-Any additional columns are stored as tags.
-
-#### Step 3: Set up ATLAS Credentials
-
-Before connecting to ATLAS, store your credentials securely in `~/.picard/secrets.yml`:
-
-```{r}
-# Interactive setup for Atlas credentials - guides you through keyring storage
-setupAtlasSecretsKeyring()
-
-# Or edit the secrets file directly
-editSecrets()
-```
-
-This creates/updates `~/.picard/secrets.yml` with your credentials stored securely:
-
-```yaml
-atlas:
-  baseUrl: "https://organization-atlas.com/WebAPI"
-  authMethod: "ad"
-  user: "atlas.user@company.com"
-  password: !expr keyring::key_get(service = "picard", username = "atlasPassword")
-```
-
-Recommended: Use **Keyring** to store passwords securely instead of plaintext.
-
-#### Step 4: Connect to ATLAS and import
+#### Step 1: Connect to ATLAS and import
 
 ```{r}
 # Credentials are automatically read from ~/.picard/secrets.yml
@@ -185,7 +133,7 @@ This downloads JSON definitions to `inputs/conceptSets/json/` and updates your m
 
 **Tip:** You can also pass the dataframe directly without reading from a file, which is useful for programmatic workflows.
 
-#### Step 5: Load and review
+#### Step 2: Load and review
 
 ```{r}
 conceptSetManifest <- loadConceptSetManifest()
@@ -201,34 +149,10 @@ without any additional import step.
 
 This pattern uses `inputs/cohorts/R/import_atlas_cohort.R`.
 
-#### Step 1: Initialize the manifest
+Prerequisite setup for manifests, load files, and credentials is covered in
+[Setup Picard](setup_picard.html).
 
-```{r}
-cohortManifest <- initCohortManifest()
-```
-
-#### Step 2: Create and fill the load file
-
-```{r}
-createBlankCohortsLoadFile()
-```
-
-Opens `inputs/cohorts/cohortsLoad.csv`. Fill in one row per cohort:
-
-| Column | Required | Notes |
-|---|---|---|
-| `atlasId` | Yes | ATLAS cohort definition ID |
-| `label` | Yes | Display name |
-| `category` | Yes | Broad grouping (e.g., `"Disease Populations"`) |
-| `subCategory` | No | Optional sub-grouping |
-
-Any additional columns are stored as tags.
-
-#### Step 3: Set up ATLAS Credentials
-
-Follow the same process as concept sets above using `setupAtlasSecretsKeyring()` or `editSecrets()`.
-
-#### Step 4: Connect to ATLAS and import
+#### Step 1: Connect to ATLAS and import
 
 ```{r}
 # Credentials are automatically read from ~/.picard/secrets.yml
@@ -254,42 +178,12 @@ cohort in SQLite.
 
 **Tip:** You can also pass the dataframe directly without reading from a file, which is useful for programmatic workflows.
 
-#### Step 5: Load and review
+#### Step 2: Load and review
 
 ```{r}
 cohortManifest <- loadCohortManifest()
 cohortManifest$tabulateManifest()
 ```
-
-### Checking for ATLAS Changes (Mid-Cycle)
-
-After the initial import, you can periodically check whether definitions in ATLAS
-have changed. The workflow uses two phases:
-
-**Phase 1: Detection** — Compares remote ATLAS hashes to stored local hashes:
-
-```{r}
-# For concept sets
-conceptSetManifest$checkAtlasConceptSets(atlasConnection)
-
-# For cohorts
-cohortManifest$checkAtlasCohorts(atlasConnection)
-```
-
-Reports which definitions have changed in ATLAS.
-
-**Phase 2: Update** — Downloads updated definitions and re-writes JSON files:
-
-```{r}
-# For concept sets
-conceptSetManifest$updateAtlasConceptSets(atlasConnection)
-
-# For cohorts
-cohortManifest$updateAtlasCohorts(atlasConnection)
-```
-
-Updates the manifest with new hashes and cascades `'stale'` status to any downstream
-dependent cohorts (for cohorts only).
 
 ---
 
@@ -490,7 +384,7 @@ cohorts in manifest review and pipeline execution.
 
 For dependency internals (dependency graph ordering, `dependency_rule` storage,
 and stale/hash behavior), see
-[Manifest: Architecture, Workflows, and Helpers](manifest_overview.html).
+[Manifest Management](manifest_management.html).
 
 ---
 
@@ -501,55 +395,169 @@ This pattern uses `inputs/cohorts/R/build_dependent_cohorts.R`.
 Derived cohorts are relationships between existing base cohorts. All base cohorts
 must be imported first (via ATLAS, Capr, or SQL).
 
-```{r}
+Start by loading the cohort manifest.
+
+```{r derived_setup}
 cohortManifest <- loadCohortManifest()
+```
 
-# Ensure base cohorts exist
-# - CohortId 1: Chronic Kidney Disease
-# - CohortId 2: Type 2 Diabetes
+Assume these base cohorts already exist in your manifest:
 
-# Example 1: Temporal - CKD in patients with prior T2D
+- CohortId 1: Chronic Kidney Disease
+- CohortId 2: Type 2 Diabetes
+- CohortId 3: Major Bleeding Outcome
+- CohortId 4: All-Cause Death
+
+### Example 1: Temporal Subset
+
+Build a cohort of CKD patients with a T2D event in a start-date window from 365 days before to 0 days after the base cohort start date.
+
+```{r derived_temporal_subset}
+startWindow <- createSubsetStartWindow(
+  subsetCohortWindowAnchor = "cohort_start_date",
+  startDays = -365,
+  endDays = 0,
+  baseCohortWindowAnchor = "cohort_start_date"
+)
+
 cohortManifest$buildSubsetCohortTemporal(
+  label = "CKD_With_Prior_T2D",
+  category = "Derived Cohorts",
   baseCohortId = 1,
-  subsetParent = 2,
-  temporalType = "prior",
-  daysBefore = 365,
-  daysAfter = 0,
-  newCohortName = "CKD_With_Prior_T2D"
-)
-
-# Example 2: Union - CKD or T2D patients
-cohortManifest$buildUnionCohort(
-  cohortIds = c(1, 2),
-  newCohortName = "CKD_or_T2D"
-)
-
-# Example 3: Complement - CKD without T2D
-cohortManifest$buildComplementCohort(
-  baseCohortId = 1,
-  excludeCohortId = 2,
-  newCohortName = "CKD_Without_T2D"
-)
-
-# Example 4: O-Prior-T - Outcome prior to treatment
-# (Outcome cohort excludes those with outcome before/during treatment)
-cohortManifest$buildOPriorTCohort(
-  outcomeCohortId = 3,
-  treatmentCohortId = 2,
-  daysBefore = 30,
-  newCohortName = "Outcome_Prior_to_Treatment"
+  filterCohortId = 2,
+  startWindow = startWindow
 )
 ```
 
-Relationship types:
-- **Temporal** — Base cohort with another cohort before/after
-- **Union** — Combine multiple cohorts
-- **Complement** — Base cohort excluding another cohort
-- **O-Prior-T** — Outcome before treatment starts
-- **T-Prior-O** — Treatment before outcome
-- **Censor** — Cohort with censoring date
+### Example 2: Union Cohort
 
-See [Manifest: Architecture, Workflows, and Helpers](manifest_overview.html)
+Build a cohort that includes anyone in either CKD or T2D.
+
+```{r derived_union}
+cohortManifest$buildUnionCohort(
+  label = "CKD_or_T2D",
+  category = "Derived Cohorts",
+  cohortIds = c(1, 2),
+  gapDays = 0L
+)
+```
+
+### Example 3: Complement Cohort
+
+Build a CKD cohort that excludes patients in T2D.
+
+```{r derived_complement}
+cohortManifest$buildComplementCohort(
+  label = "CKD_Without_T2D",
+  category = "Derived Cohorts",
+  populationCohortId = 1,
+  excludeCohortIds = c(2)
+)
+```
+
+### Example 4: Composite Cohort
+
+Build a cohort requiring membership in multiple component cohorts (intersection style criteria).
+
+```{r derived_composite}
+cohortManifest$buildCompositeCohort(
+  label = "CKD_and_T2D_Composite",
+  category = "Derived Cohorts",
+  criteriaCohortIds = c(1, 2),
+  minEventCount = 2L,
+  eventSelection = "First"
+)
+```
+
+### Example 5: Demographic Subset Cohort
+
+Build a demographic subset of CKD patients (for example, age and sex criteria).
+
+```{r derived_demographic}
+cohortManifest$buildDemographicCohort(
+  label = "CKD_Males_40_to_75",
+  baseCohortId = 1,
+  category = "Derived Cohorts",
+  minAge = 40L,
+  maxAge = 75L,
+  genderConceptIds = c(8507)
+)
+```
+
+### Example 6: Stratified Cohorts
+
+Split one base cohort into multiple strata plus an automatic Unclassified cohort.
+
+```{r derived_stratified}
+strata <- list(
+  "Female" = list(genderConceptIds = c(8532)),
+  "Male" = list(genderConceptIds = c(8507)),
+  "Age_65_plus" = list(minAge = 65L)
+)
+
+cohortManifest$buildStratifiedCohorts(
+  baseCohortId = 1,
+  strata = strata,
+  labelPrefix = "CKD",
+  category = "Derived Cohorts"
+)
+```
+
+### Example 7: O-Prior-T Cohort
+
+Filter outcome events to those with prior target exposure in a 30-day lookback window.
+
+```{r derived_opriort}
+cohortManifest$buildOPriorT(
+  label = "Outcome_Prior_Target",
+  category = "Derived Cohorts",
+  outcomeCohortId = 3,
+  targetCohortId = 2,
+  mode = "prior",
+  priorTimeWindowDays = 30L
+)
+```
+
+### Example 8: T-Prior-O Cohort
+
+Filter target events to those with prior outcome occurrence in a 30-day lookback window.
+
+```{r derived_tprioro}
+cohortManifest$buildTPriorO(
+  label = "Target_Prior_Outcome",
+  category = "Derived Cohorts",
+  targetCohortId = 2,
+  outcomeCohortId = 3,
+  mode = "prior",
+  priorTimeWindowDays = 30L
+)
+```
+
+### Example 9: Censor Cohort
+
+Create a censored version of a target cohort using a censoring event cohort.
+
+```{r derived_censor}
+cohortManifest$buildCensorCohort(
+  label = "T2D_Censored_At_Death",
+  category = "Derived Cohorts",
+  targetCohortId = 2,
+  censorCohortId = 4
+)
+```
+
+Build methods shown above:
+- `buildSubsetCohortTemporal()`
+- `buildUnionCohort()`
+- `buildComplementCohort()`
+- `buildCompositeCohort()`
+- `buildDemographicCohort()`
+- `buildStratifiedCohorts()`
+- `buildOPriorT()`
+- `buildTPriorO()`
+- `buildCensorCohort()`
+
+See [Manifest Management](manifest_management.html)
 for comprehensive examples of all derived cohort types.
 
 ---
@@ -575,7 +583,8 @@ when `main.R` executes `sourceInputBuilderScripts()`.
 
 | Task | Where to go |
 |---|---|
-| Advanced manifest features | [Manifest: Architecture, Workflows, and Helpers](manifest_overview.html) |
+| Study setup and editable inputs | [Setup Picard](setup_picard.html) |
+| Manifest checks, updates, delete, and reset | [Manifest Management](manifest_management.html) |
 | Running the analysis pipeline | [Running the Pipeline](running_the_pipeline.html) |
 | Pipeline development and testing | [Developing the Pipeline](developing_the_pipeline.html) |
 | Creating a new study | [Launching a Picard Study](launching_a_study.html) |

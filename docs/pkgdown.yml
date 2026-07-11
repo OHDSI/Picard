@@ -6,7 +6,7 @@ articles:
   evidence_generation_plan: evidence_generation_plan.html
   launching_a_study: launching_a_study.html
   loading_inputs: loading_inputs.html
-  manifest_overview: manifest_overview.html
+  manifest_management: manifest_management.html
   picard_repository_structure: picard_repository_structure.html
   post_processing: post_processing.html
   running_the_pipeline: running_the_pipeline.html

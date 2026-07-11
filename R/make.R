@@ -792,9 +792,9 @@ makePrintFriendlyFile <- function(cohorts_dir = "inputs/cohorts",
 #'
 #' @details
 #' Agent mode setup consists of:
-#' - `.agent/` folder with reference documentation
+#' - `.github/` folder with reference documentation
 #' - `copilot-instructions.md` at workspace root (auto-loaded by VS Code Copilot)
-#' - `.agent/copilot-instructions.md` (backup/reference)
+#' - `.github/copilot-instructions.md` (backup/reference)
 #'
 #' Study metadata is extracted from existing repo files:
 #' - Study title and project name from README.md
@@ -817,7 +817,7 @@ initAgentMode <- function(projectPath = here::here(), verbose = TRUE) {
   if (verbose) cli::cli_h2("Initializing Agent Mode Configuration")
 
   # Check if agent mode already exists
-  agent_folder <- fs::path(repoPath, ".agent")
+  agent_folder <- fs::path(repoPath, ".github")
   root_instructions <- fs::path(repoPath, "copilot-instructions.md")
   reference_docs_folder <- fs::path(agent_folder, "reference-docs")
 
@@ -903,7 +903,7 @@ initAgentMode <- function(projectPath = here::here(), verbose = TRUE) {
       ))
     }
 
-    # Create .agent folder
+    # Create .github folder
     fs::dir_create(agent_folder)
 
     # Read and substitute copilot-instructions.md template
@@ -913,7 +913,7 @@ initAgentMode <- function(projectPath = here::here(), verbose = TRUE) {
 
     instructions_content <- glue::glue(instructions_template, .open = "{{", .close = "}}")
 
-    # Write to .agent folder for reference
+    # Write to .github folder for reference
     instructions_file <- fs::path(agent_folder, "copilot-instructions.md")
     readr::write_file(x = instructions_content, file = instructions_file)
     cli::cli_alert_success("Created {.file {fs::path_rel(instructions_file)}}")
@@ -952,8 +952,8 @@ initAgentMode <- function(projectPath = here::here(), verbose = TRUE) {
 
     files_created <- c(
       "copilot-instructions.md",
-      ".agent/copilot-instructions.md",
-      paste0(".agent/reference-docs/", fs::path_file(reference_files))
+      ".github/copilot-instructions.md",
+      paste0(".github/reference-docs/", fs::path_file(reference_files))
     )
 
     invisible(list(

@@ -164,7 +164,7 @@ UlyssesStudy <- R6::R6Class(
         
         usethis::use_git_ignore(
           c(".Rproj.user", ".Ruserdata", ".Rhistory", ".RData",
-            ".Renviron", "errorReportSql.txt", ".agent/", "copilot-instructions.md", "exec/")
+            ".Renviron", "errorReportSql.txt", ".github/", "copilot-instructions.md", "exec/")
         )
       }, error = function(e) {
         cli::cli_abort("Failed to initialize R project: {e$message}")
@@ -326,8 +326,8 @@ UlyssesStudy <- R6::R6Class(
     .initAgent = function() {
       repoPath <- private$.getRepoPath()
       tryCatch({
-        # Create .agent folder
-        agent_folder <- fs::path(repoPath, ".agent")
+        # Create .github folder
+        agent_folder <- fs::path(repoPath, ".github")
         fs::dir_create(agent_folder)
         
         # Prepare template substitutions for the study
@@ -348,7 +348,7 @@ UlyssesStudy <- R6::R6Class(
         
         instructions_content <- glue::glue(instructions_template, .open = "{{", .close = "}}")
         
-        # Write to .agent folder for reference
+        # Write to .github folder for reference
         instructions_file <- fs::path(agent_folder, "copilot-instructions.md")
         readr::write_file(x = instructions_content, file = instructions_file)
         cli::cli_alert_success("Created {.file {fs::path_rel(instructions_file)}}")
