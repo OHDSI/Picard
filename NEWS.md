@@ -19,6 +19,7 @@
 - Flag which cohort tables are missing for cohort generation. Interactive mode to build cohort tables within `$executeCohortGeneration()`
 - change agent mode to correct github copilot format (i.e `/.github`)
 - Clean vignettes and documentation to reflect current state of API
+- Add option that `createBlank...` will open the file
 
 # picard 0.0.5
 

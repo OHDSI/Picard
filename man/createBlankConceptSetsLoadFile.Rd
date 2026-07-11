@@ -5,12 +5,16 @@
 \title{Create Blank Concept Sets Load File}
 \usage{
 createBlankConceptSetsLoadFile(
-  conceptSetsFolderPath = here::here("inputs/conceptSets")
+  conceptSetsFolderPath = here::here("inputs/conceptSets"),
+  openFile = TRUE
 )
 }
 \arguments{
 \item{conceptSetsFolderPath}{Character. Path to the conceptSets folder.
 Defaults to \code{here::here("inputs/conceptSets")}.}
+
+\item{openFile}{Logical. If TRUE, opens the created file in the editor.
+Defaults to TRUE.}
 }
 \value{
 Invisibly returns the file path.

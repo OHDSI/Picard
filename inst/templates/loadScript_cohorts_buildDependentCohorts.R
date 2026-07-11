@@ -14,9 +14,13 @@
 #   - Temporal: "CKD in patients with prior Diabetes"
 #   - Union: "Diabetes OR Hypertension"
 #   - Complement: "All patients NOT with CKD"
+#   - Composite: "Patients in multiple cohorts"
+#   - Demographic: "Subset by age/sex/race/ethnicity"
+#   - Stratified: "Split base cohort into strata"
 #   - O-Prior-T: "Outcome after prior target exposure"
 #   - T-Prior-O: "Target exposure after prior outcome"
 #   - Censor: "Target exposure censored at death"
+#   - Custom dependent SQL: "Dependency-aware SQL cohort"
 
 library(picard)
 
@@ -40,15 +44,21 @@ cohortManifest$tabulateManifest()
 
 
 # ---- Example: Temporal Relationship ----
-# Build "CKD given prior diabetes" by finding CKD events in patients with prior diabetes
+# Build "CKD given prior diabetes" using a start-window definition.
 
+# startWindow <- createSubsetStartWindow(
+#   subsetCohortWindowAnchor = "cohort_start_date",
+#   startDays = -365,
+#   endDays = 0,
+#   baseCohortWindowAnchor = "cohort_start_date"
+# )
+#
 # cohortManifest$buildSubsetCohortTemporal(
 #   label = "CKD given prior T2D",
+#   category = "Derived Cohorts",
 #   baseCohortId = 1L,                  # CKD cohort ID
 #   filterCohortId = 2L,                # T2D cohort ID
-#   temporalOperator = "before",
-#   temporalStartOffset = 365,          # 1 year before CKD
-#   temporalEndOffset = 0               # Up to CKD start
+#   startWindow = startWindow
 # )
 
 
@@ -57,18 +67,62 @@ cohortManifest$tabulateManifest()
 
 # cohortManifest$buildUnionCohort(
 #   label = "Diabetes or Hypertension",
+#   category = "Disease Populations",
 #   cohortIds = c(1L, 3L),
-#   category = "Disease Populations"
+#   gapDays = 0L
 # )
 
 
 # ---- Example: Complement ----
-# All patients NOT in the target cohort (within the database time span)
+# All patients in a population cohort excluding one or more comparator cohorts.
 
 # cohortManifest$buildComplementCohort(
 #   label = "No CKD",
-#   cohortId = 1L,
-#   category = "Control Populations"
+#   category = "Control Populations",
+#   populationCohortId = 1L,
+#   excludeCohortIds = c(2L),
+#   complementType = "exclude_any"
+# )
+
+
+# ---- Example: Composite ----
+# Build a cohort requiring membership across multiple source cohorts.
+
+# cohortManifest$buildCompositeCohort(
+#   label = "CKD and T2D Composite",
+#   category = "Derived Cohorts",
+#   criteriaCohortIds = c(1L, 2L),
+#   minEventCount = 2L,
+#   eventSelection = "First"
+# )
+
+
+# ---- Example: Demographic Subset ----
+# Subset a base cohort by age, gender, race, or ethnicity.
+
+# cohortManifest$buildDemographicCohort(
+#   label = "CKD in Males Aged 65+",
+#   baseCohortId = 1L,
+#   category = "Disease Populations",
+#   minAge = 65L,
+#   genderConceptIds = c(8507L)  # Male
+# )
+
+
+# ---- Example: Stratified Cohorts ----
+# Split one base cohort into multiple named strata.
+
+# strata <- list(
+#   "Female" = list(genderConceptIds = c(8532L)),
+#   "Male" = list(genderConceptIds = c(8507L)),
+#   "Age_65_plus" = list(minAge = 65L)
+# )
+#
+# cohortManifest$buildStratifiedCohorts(
+#   baseCohortId = 1L,
+#   strata = strata,
+#   labelPrefix = "CKD",
+#   category = "Derived Cohorts"
 # )
 
 
@@ -78,9 +132,9 @@ cohortManifest$tabulateManifest()
 
 # cohortManifest$buildOPriorT(
 #   label = "GI Bleed - Prior NSAID",
+#   category = "Outcomes",
 #   outcomeCohortId = 1L,
 #   targetCohortId = 2L,
-#   category = "Outcomes",
 #   mode = "prior",
 #   priorTimeWindowDays = 365,
 #   subsetLimit = "First"
@@ -93,9 +147,9 @@ cohortManifest$tabulateManifest()
 
 # cohortManifest$buildTPriorO(
 #   label = "NSAID - Prior GI Bleed",
+#   category = "Exposures",
 #   targetCohortId = 2L,
 #   outcomeCohortId = 1L,
-#   category = "Exposures",
 #   mode = "prior",
 #   priorTimeWindowDays = NULL,
 #   subsetLimit = "First"
@@ -108,24 +162,37 @@ cohortManifest$tabulateManifest()
 
 # cohortManifest$buildCensorCohort(
 #   label = "NSAID - Censored at Death",
+#   category = "Exposures",
 #   targetCohortId = 2L,
 #   censorCohortId = 3L,
-#   category = "Exposures",
 #   tags = list(censored = TRUE)
 # )
 
 
-# ---- Example: Demographic Subset ----
-# Subset a base cohort by age, gender, or other demographics
-# (Use manifest methods specific to your version for demographic filtering)
+# ---- Example: Custom Dependent SQL Cohort ----
+# Register a dependency-aware custom SQL cohort that references existing cohorts
+# via SqlRender parameters in the SQL file.
 
-# cohortManifest$buildDemographicSubset(
-#   label = "CKD in Males Aged 65+",
-#   baseCohortId = 1L,
-#   ageMin = 65,
-#   genderConceptIds = 8507L,  # Male
-#   category = "Disease Populations"
+# cohortManifest$addDependentCustomCohort(
+#   filePath = here::here("inputs/cohorts/sql/my_custom_dependent.sql"),
+#   label = "Eligible_With_Exclusions",
+#   category = "Derived Cohorts",
+#   dependentCohortIdList = list(
+#     inc_cohort_id = 1001L,
+#     exc_cohort_id = 1002L
+#   ),
+#   tags = list(owner = "epi_team", source = "custom_sql")
 # )
+
+# SQL contract reminder for my_custom_dependent.sql:
+#   - Use @inc_cohort_id and @exc_cohort_id placeholders (or your own named keys)
+#   - DELETE from @target_database_schema.@target_cohort_table by @target_cohort_id
+#   - INSERT into @target_database_schema.@target_cohort_table
+#       (cohort_definition_id, subject_id, cohort_start_date, cohort_end_date)
+
+# Note that users can build dependent sql cohorts with templates via R functions. Any
+# code should be saved in inputs/cohorts/R/src. add another folder called /sql in here
+# for the templates! 
 
 
 # ================================================================================

@@ -397,12 +397,16 @@ resetCohortManifest <- function(manifest = NULL,
 #'
 #' @param cohortsFolderPath Character. Path where the blank file will be created.
 #'   Defaults to `here::here("inputs/cohorts")`. Creates the folder if it doesn't exist.
+#' @param openFile Logical. If TRUE, opens the created file in the editor.
+#'   Defaults to TRUE.
 #'
 #' @return Invisibly returns the file path.
 #'
 #' @export
-createBlankCohortsLoadFile <- function(cohortsFolderPath = here::here("inputs/cohorts")) {
+createBlankCohortsLoadFile <- function(cohortsFolderPath = here::here("inputs/cohorts"),
+                                       openFile = TRUE) {
   checkmate::assert_string(cohortsFolderPath)
+  checkmate::assert_logical(openFile, len = 1)
 
   fs::dir_create(cohortsFolderPath)
 
@@ -448,6 +452,15 @@ createBlankCohortsLoadFile <- function(cohortsFolderPath = here::here("inputs/co
     "Use {.code importAtlasCohorts()} to import JSON definitions from ATLAS",
     "Use {.code loadCohortManifest()} to load into your study"
   ))
+
+  if (openFile) {
+    rstudioapi::navigateToFile(file = file_path)
+    cli::cat_bullet(
+      "Navigating to new cohorts load file",
+      bullet = "info",
+      bullet_col = "blue"
+    )
+  }
 
   invisible(file_path)
 }
@@ -839,12 +852,16 @@ resetConceptSetManifest <- function(manifest = NULL,
 #'
 #' @param conceptSetsFolderPath Character. Path to the conceptSets folder.
 #'   Defaults to `here::here("inputs/conceptSets")`.
+#' @param openFile Logical. If TRUE, opens the created file in the editor.
+#'   Defaults to TRUE.
 #'
 #' @return Invisibly returns the file path.
 #'
 #' @export
-createBlankConceptSetsLoadFile <- function(conceptSetsFolderPath = here::here("inputs/conceptSets")) {
+createBlankConceptSetsLoadFile <- function(conceptSetsFolderPath = here::here("inputs/conceptSets"),
+                                           openFile = TRUE) {
   checkmate::assert_string(conceptSetsFolderPath)
+  checkmate::assert_logical(openFile, len = 1)
 
   fs::dir_create(conceptSetsFolderPath)
 
@@ -895,6 +912,15 @@ createBlankConceptSetsLoadFile <- function(conceptSetsFolderPath = here::here("i
     "Use {.code importAtlasConceptSets()} to import JSON definitions from ATLAS",
     "Use {.code loadConceptSetManifest()} to load into your study"
   ))
+
+  if (openFile) {
+    rstudioapi::navigateToFile(file = file_path)
+    cli::cat_bullet(
+      "Navigating to new concept sets load file",
+      bullet = "info",
+      bullet_col = "blue"
+    )
+  }
 
   invisible(file_path)
 }
