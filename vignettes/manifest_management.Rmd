@@ -22,7 +22,7 @@ resetting manifests safely.
 If you are setting up a study for the first time, start with the
 [Loading Inputs: Getting Started](loading_inputs.html) vignette instead.
 
-For keyring and credential setup, use [Setup Picard](setup_picard.html).
+For keyring and credential setup, use [Launching a Picard Study](launching_a_study.html).
 
 ---
 

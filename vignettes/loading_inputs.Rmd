@@ -99,14 +99,14 @@ When `main.R` runs, only `import_atlas_concept_set.R` and `import_capr_cohort.R`
 
 ---
 
-## Builder Pattern 1: ATLAS Import
+## Concept Set Import
 
 ### Importing Concept Sets from ATLAS
 
 This pattern uses `inputs/conceptSets/R/import_atlas_concept_set.R`.
 
 Prerequisite setup for manifests, load files, and credentials is covered in
-[Setup Picard](setup_picard.html).
+[Launching a Picard Study](launching_a_study.html).
 
 #### Step 1: Connect to ATLAS and import
 
@@ -145,12 +145,62 @@ and auto-registers any `.json` files not yet in the database. Drop new concept
 set JSON files there and re-run `loadConceptSetManifest()` to pick them up
 without any additional import step.
 
+### Other import patterns for Concept Sets
+
+Use this pattern when you want to supplement ATLAS-imported concept sets with
+programmatic Capr definitions, then combine them into one manifest entry.
+
+```{r}
+library(Capr)
+
+conceptSetManifest <- loadConceptSetManifest()
+
+# Add Capr concept set example 1
+metforminCs <- cs(descendants(1503297), name = "metformin")
+
+conceptSetManifest$addCaprConceptSet(
+  caprConceptSet = metforminCs,
+  label = "Metformin",
+  category = "Diabetes Treatments",
+  tags = list(source = "capr")
+)
+
+# Add Capr concept set example 2
+empagliflozinCs <- cs(
+  descendants(45774751), # empagliflozin
+  name  = "empagliflozin"
+)
+
+conceptSetManifest$addCaprConceptSet(
+  caprConceptSet = empagliflozinCs,
+  label = "Empagliflozin",
+  category = "Diabetes Treatments",
+  tags = list(source = "capr")
+)
+
+# get the ids
+metforminId <- conceptSetManifest$queryConceptSetsByLabel("Metformin")$id
+empagliflozinId <- conceptSetManifest$queryConceptSetsByLabel("Empagliflozin")$id
+
+# Combine concept sets (works for IDs from ATLAS, Capr, or mixed sources)
+conceptSetManifest$combineConceptSets(
+  conceptSetIds = c(metforminId, empagliflozinId),
+  combinedLabel = "Diabetes Treatments",
+  combinedCategory = "Treatment Group",
+  combinedTags = list(owner = "epi_team")
+)
+
+conceptSetManifest$tabulateManifest()
+```
+
+## Cohort Import
+
 ### Importing Cohorts from ATLAS
 
 This pattern uses `inputs/cohorts/R/import_atlas_cohort.R`.
 
 Prerequisite setup for manifests, load files, and credentials is covered in
-[Setup Picard](setup_picard.html).
+[Launching a Picard Study](launching_a_study.html).
 
 #### Step 1: Connect to ATLAS and import
 
@@ -317,12 +367,12 @@ Key SqlRender parameters:
 > Always use `DELETE` before `INSERT` to make your cohort idempotent
 > (can be re-run without duplication).
 
-### Custom Dependent SQL Cohorts (new)
+### Custom Dependent SQL Cohorts 
 
 Use this pattern when a custom SQL cohort depends on one or more previously
 defined cohorts (for example inclusion/exclusion cohorts). This registers the
 cohort as a dependency-aware derived type (`custom_derived`) so execution order,
-stale detection, and dependency hashing are handled automatically.
+stale detection, and dependency hashing are handled automatically. 
 
 ```{r}
 cohortManifest <- loadCohortManifest()
@@ -583,7 +633,7 @@ when `main.R` executes `sourceInputBuilderScripts()`.
 
 | Task | Where to go |
 |---|---|
-| Study setup and editable inputs | [Setup Picard](setup_picard.html) |
+| Study setup and editable inputs | [Launching a Picard Study](launching_a_study.html) |
 | Manifest checks, updates, delete, and reset | [Manifest Management](manifest_management.html) |
 | Running the analysis pipeline | [Running the Pipeline](running_the_pipeline.html) |
 | Pipeline development and testing | [Developing the Pipeline](developing_the_pipeline.html) |
