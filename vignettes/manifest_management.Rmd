@@ -98,6 +98,50 @@ execution. See [Section 4](#mid-cycle-changes) for how cohorts become stale.
 
 ---
 
+## Manual Cohort Execution from CohortManifest
+
+In most studies, cohort execution is triggered by running the study pipeline
+(`main.R`) end-to-end. That is the preferred path for routine runs.
+
+For debugging and validation, you can also execute directly from
+`CohortManifest` to verify table setup and check cohort enumeration.
+
+### Typical manual sequence
+
+```{r}
+# Load manifest and attach execution settings
+manifest <- loadCohortManifest()
+manifest$setExecutionSettings(execSettings)
+
+# 1) Check required cohort tables in the target schema
+manifest$checkCohortTables()
+
+# 2) Create all required cohort tables (advanced/manual path)
+manifest$createAllCohortTables()
+
+# 3) Optionally create one table type explicitly
+# Valid types: main, inclusion, inclusion_result, inclusion_stats,
+# summary_stats, censor_stats, checksum
+manifest$createCohortTable(type = "checksum")
+
+# 4) Execute cohort generation from the manifest
+manifest$executeCohortGeneration(confirm = TRUE)
+
+# 5) Retrieve counts to verify cohort enumeration
+manifest$retrieveCohortCounts()
+```
+
+Notes:
+
+- `executeCohortGeneration()` checks required tables before running and can
+  create missing tables in interactive sessions.
+- `retrieveCohortCounts()` is useful for quick validation that expected cohorts
+  were generated and populated.
+- For production workflows, keep execution in the standard study pipeline path
+  so all tasks run in the intended order.
+
+---
+
 
 ## Mid-Cycle Changes
 
@@ -180,8 +224,6 @@ manifest$buildUnionCohort(
 )
 # ... other build calls ...
 
-# 3. Generate
-generateCohorts(executionSettings = execSettings, pipelineVersion = pipelineVersion)
 ```
 
 ### Update label, category, or tags
