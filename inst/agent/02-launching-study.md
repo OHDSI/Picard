@@ -364,6 +364,46 @@ my_cdm:
   password: !expr keyring::key_get("picard", "my_cdm_password")
 ```
 
+### Setting Up ATLAS Credentials
+
+If you plan to use ATLAS import builder scripts for cohorts or concept sets,
+configure ATLAS credentials in `~/.picard/secrets.yml`.
+
+```{r eval = FALSE}
+# Interactive setup for ATLAS credentials (stores secrets in keyring)
+picard::setupAtlasSecretsKeyring()
+
+# Open secrets file for manual review/edits
+picard::editSecrets()
+```
+
+**Example ATLAS entry in secrets.yml:**
+
+```yaml
+atlas:
+  baseUrl: "https://organization-atlas.com/WebAPI"
+  authMethod: "ad"
+  user: "atlas.user@company.com"
+  password: !expr keyring::key_get(service = "picard", username = "atlasPassword")
+```
+
+Recommended: use Keyring-backed values rather than plaintext passwords.
+
+### Credential Management Helpers
+
+Use these helpers to inspect and maintain credential configuration over time.
+
+```{r eval = FALSE}
+# Optional template helper for ATLAS credential structure
+picard::templateAtlasCredentials()
+
+# Review available keyring-backed credentials
+picard::reviewKeyringCredentials()
+```
+
+When credentials rotate, rerun `setupDbSecretsKeyring()` or
+`setupAtlasSecretsKeyring()`, or update values via `editSecrets()`.
+
 ## Complete Example
 
 Here's the full workflow combining all steps:

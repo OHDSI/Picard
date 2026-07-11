@@ -1,5 +1,5 @@
 <!-- AUTO-GENERATED FILE. DO NOT EDIT DIRECTLY. -->
-<!-- Source: vignettes/manifest_overview.Rmd -->
+<!-- Source: vignettes/manifest_management.Rmd -->
 
 
 ```{r setup, include = FALSE}
@@ -10,16 +10,18 @@ knitr::opts_chunk$set(
 )
 ```
 
-This vignette covers the manifest system in depth — how it works under the hood,
-how to handle non-trivial situations mid-cycle, and the review helpers available
-for both cohort and concept set manifests.
+This vignette focuses on mid-cycle manifest management: checking for updates,
+syncing and reviewing stale records, updating metadata, deleting records, and
+resetting manifests safely.
 
 If you are setting up a study for the first time, start with the
 [Loading Inputs: Getting Started](loading_inputs.html) vignette instead.
 
+For keyring and credential setup, use [Launching a Picard Study](launching_a_study.html).
+
 ---
 
-## 1. Architecture
+## Manifest Architecture Primer
 
 ### SQLite as the source of truth
 
@@ -91,238 +93,8 @@ execution. See [Section 4](#mid-cycle-changes) for how cohorts become stale.
 
 ---
 
-## 2. Adding Cohorts Mid-Cycle
 
-Use the `$add*()` R6 methods to register individual cohorts without a bulk CSV
-import. Each method validates uniqueness and writes to SQLite immediately.
-
-### From ATLAS (CIRCE JSON)
-
-```{r}
-atlasConn <- getAtlasConnection()
-manifest$setAtlasConnection(atlasConn)
-
-manifest$addAtlasCohort(
-  atlasId   = 1234L,
-  label     = "Type 2 Diabetes - Incident",
-  category  = "Disease Populations"
-)
-```
-
-### From Capr
-
-```{r}
-library(Capr)
-
-t2dm <- cs(descendants(201826), name = "Type 2 Diabetes")
-cohort_def <- cohort(entry = entry(conditionOccurrence(t2dm)))
-
-manifest$addCaprCohort(
-  caprCohort = cohort_def,
-  label      = "Type 2 Diabetes - Capr",
-  category   = "Disease Populations"
-)
-```
-
-### Custom SQL
-
-Place your `.sql` file in `inputs/cohorts/sql/`, then register it:
-
-```{r}
-manifest$addSqlCohort(
-  filePath = here::here("inputs/cohorts/sql/my_cohort.sql"),
-  label    = "My Custom Cohort",
-  category = "Exposure"
-)
-```
-
-The SQL must use SqlRender parameters — see `?CohortManifest` for required
-parameter names (`@target_cohort_id`, `@target_database_schema`, etc.).
-
-### From a Local CIRCE JSON file
-
-If you have a Circe-compatible `.json` file on disk, register it with:
-
-```{r}
-manifest$addCirceCohort(
-  filePath = here::here("inputs/cohorts/json/my_cohort.json"),
-  label    = "My Circe Cohort",
-  category = "Disease Populations"
-)
-```
-
----
-
-## 3. Derived Cohorts
-
-Derived cohorts are built from existing manifest cohorts using dedicated R6
-builder methods. They write rendered SQL to `derived/` and record all
-dependency metadata directly in SQLite — no sidecar files needed.
-
-> **Dependency order is handled automatically.** `generateCohorts()` runs a
-> topological sort before execution, ensuring parents always run before
-> dependents.
-
-### Union cohort
-
-Combines the observation periods of two or more cohorts into a single cohort.
-
-```{r}
-# Assume IDs 1 and 2 are already in the manifest
-manifest$buildUnionCohort(
-  label     = "T2DM or HF - Any",
-  cohortIds = c(1L, 2L),
-  category  = "Composite Populations",
-  gapDays   = 30L          # merge eras within 30 days
-)
-```
-
-### Subset cohort (temporal)
-
-Subsets a base cohort to members who also appear in a filter cohort within a
-specified time window.
-
-```{r}
-library(picard)
-
-start_window <- createSubsetStartWindow(
-  subsetCohortWindowAnchor = "cohort_start_date",
-  startDays = -365L,
-  endDays   = 0L,
-  baseCohortWindowAnchor = "cohort_start_date"
-)
-
-manifest$buildSubsetCohortTemporal(
-  label          = "T2DM with Prior Metformin",
-  baseCohortId   = 1L,
-  filterCohortId = 3L,
-  category       = "Disease Populations",
-  startWindow    = start_window
-)
-```
-
-### Complement cohort
-
-Members of a population cohort who are **not** in a base cohort.
-
-```{r}
-manifest$buildComplementCohort(
-  label              = "No T2DM - General Population",
-  excludeCohortIds       = 1L,
-  populationCohortId = 5L,
-  category           = "Comparators"
-)
-```
-
-### Custom dependent cohort
-
-Registers a user-supplied `.sql` file as a dependency-aware derived cohort
-(`custom_derived`) with explicit dependencies on existing manifest cohorts.
-Dependency mappings are stored in `dependency_rule` and dependency-aware hash
-logic is applied automatically.
-
-```{r}
-manifest$addDependentCustomCohort(
-  filePath = here::here("inputs/cohorts/sql/my_custom_logic.sql"),
-  label = "Custom Outcome Definition",
-  category = "Outcomes",
-  dependentCohortIdList = list(
-    inc_cohort_id = 1L,
-    exc_cohort_id = 3L
-  )
-)
-```
-
-Rules for `dependentCohortIdList`:
-
-- It must be a named mapping of SqlRender parameter name to cohort ID.
-- Parameter names are flexible and are injected into SQL at runtime.
-- All referenced cohort IDs must already exist in the manifest.
-
-Required SQL write contract for `custom_derived`:
-
-- Must `DELETE` from `@target_database_schema.@target_cohort_table` using
-  `@target_cohort_id`.
-- Must `INSERT` into `@target_database_schema.@target_cohort_table` with columns
-  `(cohort_definition_id, subject_id, cohort_start_date, cohort_end_date)`.
-
-### Composite cohort
-
-Requires membership in a minimum number of component cohorts.
-
-```{r}
-manifest$buildCompositeCohort(
-  label      = "T2DM + HF + CKD",
-  cohortIds  = c(1L, 2L, 4L),
-  category   = "Complex Populations",
-  minCohorts = 2L          # must appear in at least 2 of 3
-)
-```
-
-### Outcome-Prior-Target cohort
-
-Filters an outcome cohort based on whether a prior target (exposure) event exists.
-Optionally restricts the lookback to a time window.
-
-```{r}
-# GI bleed events where the patient had prior NSAID use within 365 days
-manifest$buildOPriorT(
-  label              = "GI Bleed - Prior NSAID",
-  outcomeCohortId    = 1L,
-  targetCohortId     = 2L,
-  category           = "Outcomes",
-  mode               = "prior",           # "prior" or "no_prior"
-  priorTimeWindowDays = 365L,             # NULL = all time
-  subsetLimit        = "Last"             # "First", "Last", or "All"
-)
-```
-
-### Target-Prior-Outcome cohort
-
-Reverse direction — filters a target cohort based on whether a prior outcome
-event exists.
-
-```{r}
-# NSAID initiations where the patient had a prior GI bleed
-manifest$buildTPriorO(
-  label              = "NSAID - Prior GI Bleed",
-  targetCohortId     = 2L,
-  outcomeCohortId    = 1L,
-  category           = "Exposures",
-  mode               = "prior",
-  priorTimeWindowDays = NULL,
-  subsetLimit        = "First"
-)
-```
-
-### Censor cohort
-
-Truncates cohort end dates to the earliest censoring event (e.g., death,
-exacerbation, procedure).
-
-```{r}
-# Censor NSAID exposure at date of death
-manifest$buildCensorCohort(
-  label          = "NSAID - Censored at Death",
-  targetCohortId = 2L,
-  censorCohortId = 3L,
-  category       = "Exposures"
-)
-```
-
-### Reviewing derived cohorts
-
-```{r}
-# Tabular summary with parent labels and rule parameters
-manifest$reviewDependentCohorts()
-
-# Mermaid dependency graph (renders in RStudio / Quarto / GitHub)
-plotCohortGraph(manifest)
-```
-
----
-
-## 4. Mid-Cycle Changes
+## Mid-Cycle Changes
 
 ### Sync manifest against disk files
 
@@ -444,7 +216,7 @@ SQLite, use administrative database tools directly.
 
 ---
 
-## 5. Reset
+## Reset
 
 Use `resetCohortManifest()` when you need to clear cohort data. Choose the
 scope based on what you want to preserve:
@@ -507,7 +279,7 @@ csm <- loadConceptSetManifest(autoSync = TRUE, verbose = TRUE)
 
 ---
 
-## 6. Review and Helpers
+## Review and Helpers
 
 ### Cohort manifest
 

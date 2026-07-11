@@ -1,7 +1,7 @@
 get_package_exports <- function() {
   # Get exported names using the official method
   exports <- getNamespaceExports("picard")
-  
+
   # Load package namespace
   ns <- getNamespace("picard")
 
@@ -93,7 +93,7 @@ validate_documentation <- function(show_missing = TRUE) {
 #' Update pkgdown Reference in _pkgdown.yml
 #'
 #' Analyzes current package exports and updates the reference section in _pkgdown.yml
-#' based on function/class categories. Overwrites the existing reference section while 
+#' based on function/class categories. Overwrites the existing reference section while
 #' preserving other sections.
 #'
 #' @return Invisibly returns the path to the updated file.
@@ -246,10 +246,10 @@ update_pkgdown_reference <- function() {
 
   if (file.exists(pkgdown_path)) {
     existing_lines <- readLines(pkgdown_path)
-    
+
     # Find the line where "reference:" starts
     ref_start <- grep("^reference:", existing_lines)
-    
+
     if (length(ref_start) > 0) {
       # Keep everything before "reference:"
       content_before_reference <- existing_lines[1:(ref_start[1] - 1)]
@@ -263,7 +263,7 @@ update_pkgdown_reference <- function() {
 
   # Combine - remove trailing empty lines and add new reference
   final_lines <- c(content_before_reference, reference_lines)
-  
+
   # Remove excessive trailing empty lines
   while (length(final_lines) > 0 && final_lines[length(final_lines)] == "") {
     final_lines <- final_lines[-length(final_lines)]
@@ -471,9 +471,9 @@ get_agent_vignette_map <- function() {
     vignette = c(
       "picard_repository_structure.Rmd",
       "launching_a_study.Rmd",
-      "loading_inputs.Rmd",
       "developing_the_pipeline.Rmd",
-      "manifest_overview.Rmd",
+      "loading_inputs.Rmd",
+      "manifest_management.Rmd",
       "running_the_pipeline.Rmd",
       "post_processing.Rmd",
       "evidence_generation_plan.Rmd"
@@ -481,12 +481,12 @@ get_agent_vignette_map <- function() {
     agent = c(
       "01-repository-structure.md",
       "02-launching-study.md",
-      "03-loading-inputs.md",
-      "04-developing-pipeline.md",
-      "04a-manifest-overview.md",
-      "05-running-pipeline.md",
-      "06-post-processing.md",
-      "07-evidence-generation-plan.md"
+      "03-developing-pipeline.md",
+      "04-loading-inputs.md",
+      "05-manifest-management.md",
+      "06-running-pipeline.md",
+      "07-post-processing.md",
+      "08-evidence-generation-plan.md"
     ),
     stringsAsFactors = FALSE
   )

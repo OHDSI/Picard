@@ -46,23 +46,71 @@ All subsequent work will be done here and tested before any production execution
 
 ## Step 3: Define Your Inputs (Cohorts and Concept Sets)
 
-Before writing analysis code, you need to define the populations and phenotypes. This happens in the `inputs/` folder:
+Before writing analysis code, you need to define the populations and phenotypes. This happens in the `inputs/` folder. There are two types of inputs cohorts and concept sets. Picard helps you organize all the inputs in a file called the manifest. This is a sqlite file on disk that tracks the meta data of the inputs per type.
 
-**For Cohorts:** Use the interactive editor to add your study populations:
+For full examples follow the `loding_inputs` and `manifest_overview` vignettes. 
+
+We start by initializing the manifest, this creates the sqlite file to track our assets. In this example we show how to load cohorts from atlas. We create a blank load file that we need to fill out to pull cohorts from atlas.
+The blank csv file with columns for:   
+
+- atlasId: ATLAS cohort definition IDs (required)
+- label: Display name for your cohort (required)
+- category: Broad category like "Disease Populations", "Treatment Groups" (required)
+- subCategory: Optional sub-grouping within category
+
+Once these have been filled out connect to WebApi and pull the cohorts into your repo. The code below gives an example workflow. The process for inputing concept sets is similar. There are also other ways to add inputs to the manifest such as:
+
+- cohorts
+  - Atlas Cohorts:
+    - Individual `$addAtlasCohort()` - Downloads a cohort from ATLAS by ID, writes JSON to disk, and registers it in the manifest.
+    - Bulk Import `$importAtlasCohorts()` - Imports multiple ATLAS cohorts from a load dataframe (atlasId/label/category + optional tags).
+  - Circe cohorts from file `$addCirceCohort()` - Register a circe-compatible JSON on disk into the manifest.
+  - Capr Cohorts `$addCaprCohort()` - Registers a Capr cohort object by exporting it to JSON and adding it to the manifest.
+  - Sql Cohorts `$addSqlCohort()` - Registers a hand-written SQL cohort file as a base cohort in the manifest.
+  - Templated Dependent Cohorts: 
+    - `$buildCensorCohort()` - Censors a target cohort at a censoring event cohort.
+    - `$buildCompositeCohort()` - Creates a cohort requiring membership across multiple parent cohorts.
+    - `$buildComplementCohort()` - Creates a cohort from a population cohort excluding selected cohorts.
+    - `$buildUnionCohort()` - Unions multiple parent cohorts into a single derived cohort.
+    - `$buildSubsetCohortTemporal()` - Subsets a base cohort using temporal rules relative to a filter cohort.
+    - `$buildTPriorO()` - Builds target events with prior outcome logic.
+    - `$buildOPriorT()` - Builds outcome events with prior target logic.
+    - `$buildDemographicCohort()` - Subsets a base cohort by demographic criteria (age/sex/race/ethnicity).
+  - Custom Dependent Cohorts: `$addDependentCustomCohort()` - Registers dependency-aware custom SQL with named parent cohort parameters.
+- concept sets
+  - ATLAS Concept Sets:
+    - Individual `$addAtlasConceptSet()` - Downloads a concept set from ATLAS by ID, writes JSON to disk, and registers it in the manifest.
+    - Bulk Import `$importAtlasConceptSets()` - Imports multiple ATLAS concept sets from a load dataframe (atlasId/label/category + optional tags).
+  - Capr Concept Sets `$addCaprConceptSet()` - Converts a Capr concept set object to JSON and registers it in the manifest.
+  - Combine Concept Sets `$combineConceptSets()` - Combine concept sets existing in the manifest to make a new concept set
+
 
 ```{r eval = FALSE}
-launchCohortsLoadEditor(cohortsFolderPath = here::here("inputs/cohorts"))
+# create a new manifest
+cohortManifest <- initCohortManifest()
+
+# make a load file and input atlas cohorts
+createBlankCohortsLoadFile()
+
+# ATLAS credentials must be configured in your .Renviron file before connecting.
+# Typical env vars: ATLAS_BASE_URL, ATLAS_API_TOKEN, ATLAS_SOURCE_ID, etc.
+# See ?getAtlasConnection for details on required environment variables
+atlasConnection <- getAtlasConnection()
+cohortManifest$setAtlasConnection(atlasConnection)
+
+# Reads cohortsLoad.csv and downloads CIRCE JSON definitions from ATLAS
+# Place your cohortsLoad.csv in inputs/cohorts/ before running this
+cohortsLoad <- readr::read_csv(
+    here::here("inputs/cohorts/cohortsLoad.csv"), 
+    show_col_types = FALSE
+)
+
+cohortManifest$importAtlasCohorts(cohortsLoad = cohortsLoad)
+
+# Display a table of all cohorts in the manifest
+cohortManifest$tabulateManifest()
+
 ```
-
-This opens a Shiny app where you can add cohort metadata without editing CSV files directly.
-
-**For Concept Sets:** Similarly, define your phenotypes:
-
-```{r eval = FALSE}
-launchConceptSetsLoadEditor(conceptSetsFolderPath = here::here("inputs/conceptSets"))
-```
-
-See [Loading Inputs](loading_inputs.html) for detailed guidance on importing from ATLAS and managing manifests.
 
 ## Step 4: Create Analysis Tasks and Supporting Code
 
@@ -430,7 +478,7 @@ Once your analysis is tested and validated on `develop`, see [Running the Pipeli
 
 | Phase | Function | Purpose |
 |-------|----------|---------|
-| **Setup** | `launchCohortsLoadEditor()` | Interactive cohort metadata editor |
+| **Setup** | Edit `inputs/cohorts/load.csv` | Define cohort metadata |
 | **Setup** | `launchConceptSetsLoadEditor()` | Interactive concept set editor |
 | **Development** | `makeTaskFile()` | Create new analysis task |
 | **Development** | `makeSrcFile()` | (optional) Create utility/helper function file |
