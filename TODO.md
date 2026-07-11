@@ -1,8 +1,9 @@
-## better egp integration to pipeline
+## better study hub integration to pipeline
 
-- examples of how to write one
+- egp examples of how to write one
 - adding cohort def logic write up
 - add concept lists
+- better site map for study hub with options
 
 
 ## execute study pipeline refinement and testing
