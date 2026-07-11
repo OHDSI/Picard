@@ -1,16 +1,4 @@
-## better study hub integration to pipeline
-
-- egp examples of how to write one
-- adding cohort def logic write up
-- add concept lists
-- better site map for study hub with options
-
-
-## execute study pipeline refinement and testing
-
-- end to end tests and fixes for runStudyPipeline off of main.R
-- ensure branch integrity is maintained
-- get to a point where can run a full run on the main.R file (inputs, exec, postProcess, egp)
+# High Priority 
 
 ## add good unit tests for
 
@@ -27,6 +15,24 @@
 - instead of taking an id, the function should take a manifest row (id, label, category, path)
 - even though the sql needs only the id, this will enforce the pattern of subsetting the manifest instead of relying on ids
 - want users to use manifest entries and not ids. 
+
+# Medium Priority
+
+## better study hub integration to pipeline
+
+- egp examples of how to write one
+- adding cohort def logic write up
+- add concept lists
+- better site map for study hub with options
+
+
+## execute study pipeline refinement and testing
+
+- end to end tests and fixes for runStudyPipeline off of main.R
+- ensure branch integrity is maintained
+- get to a point where can run a full run on the main.R file (inputs, exec, postProcess, egp)
+
+
 
 ## Consider adding python entry points
 
