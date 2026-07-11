@@ -25,7 +25,6 @@
 - add concept lists
 - better site map for study hub with options
 
-
 ## execute study pipeline refinement and testing
 
 - end to end tests and fixes for runStudyPipeline off of main.R
