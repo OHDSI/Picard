@@ -13,6 +13,15 @@
 - Dependent cohort review and generation summaries now include `custom_derived` cohorts explicitly.
 - bug fix to deal with named list of dependent cohort ids
 
+### Derived Cohort Builder API (Entry-First)
+
+- **API CHANGE**: derived cohort builders in `build_dependent_cohorts.R` now support entry-row inputs (from `queryCohortsByLabel()` and similar query methods) as the preferred interface instead of raw cohort IDs.
+- Updated builders include: `$buildSubsetCohortTemporal()`, `$buildUnionCohort()`, `$buildComplementCohort()`, `$buildCompositeCohort()`, `$buildDemographicCohort()`, `$buildStratifiedCohorts()`, `$buildOPriorT()`, `$buildTPriorO()`, and `$buildCensorCohort()`.
+- Legacy ID-based arguments remain supported for backward compatibility, with migration guidance warnings when using ID routes.
+- Added input-route validation to enforce mutually exclusive usage of ID arguments vs entry arguments within each build call.
+
+
+
 ## Bug Fixes
 
 - In concept set manifest, check atlasId tag for existing entry in manifest. `$addAtlasConceptSet()` missing addition of atlasId tag
