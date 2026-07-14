@@ -367,7 +367,7 @@ Assume these base cohorts already exist in your manifest:
 - CohortId 3: Major Bleeding Outcome
 - CohortId 4: All-Cause Death
 
-For Phase 1 derived builders, prefer passing manifest query rows (entries)
+For derived builders, prefer passing manifest query rows (entries)
 instead of raw IDs.
 
 ```{r derived_entry_lookup}
@@ -417,13 +417,11 @@ cohortManifest$buildSubsetCohortTemporal(
 
 Build a cohort that includes anyone in either CKD or T2D.
 
-This is shown as a legacy compatibility example using ID inputs. Note a warning will appear encouraging the user to use entries instead of ids. 
-
 ```{r derived_union}
 cohortManifest$buildUnionCohort(
   label = "CKD_or_T2D",
   category = "Derived Cohorts",
-  cohortIds = c(1, 2),
+  cohortEntries = dplyr::bind_rows(ckdEntry, t2dEntry),
   gapDays = 0L
 )
 ```
@@ -462,7 +460,7 @@ Build a demographic subset of CKD patients (for example, age and sex criteria).
 ```{r derived_demographic}
 cohortManifest$buildDemographicCohort(
   label = "CKD_Males_40_to_75",
-  baseCohortId = 1,
+  baseCohortEntry = ckdEntry,
   category = "Derived Cohorts",
   minAge = 40L,
   maxAge = 75L,
@@ -482,7 +480,7 @@ strata <- list(
 )
 
 cohortManifest$buildStratifiedCohorts(
-  baseCohortId = 1,
+  baseCohortEntry = ckdEntry,
   strata = strata,
   labelPrefix = "CKD",
   category = "Derived Cohorts"
@@ -497,8 +495,8 @@ Filter outcome events to those with prior target exposure in a 30-day lookback w
 cohortManifest$buildOPriorT(
   label = "Outcome_Prior_Target",
   category = "Derived Cohorts",
-  outcomeCohortId = 3,
-  targetCohortId = 2,
+  outcomeCohortEntry = bleedEntry,
+  targetCohortEntry = t2dEntry,
   mode = "prior",
   priorTimeWindowDays = 30L
 )
@@ -512,8 +510,8 @@ Filter target events to those with prior outcome occurrence in a 30-day lookback
 cohortManifest$buildTPriorO(
   label = "Target_Prior_Outcome",
   category = "Derived Cohorts",
-  targetCohortId = 2,
-  outcomeCohortId = 3,
+  targetCohortEntry = t2dEntry,
+  outcomeCohortEntry = bleedEntry,
   mode = "prior",
   priorTimeWindowDays = 30L
 )
@@ -527,10 +525,13 @@ Create a censored version of a target cohort using a censoring event cohort.
 cohortManifest$buildCensorCohort(
   label = "T2D_Censored_At_Death",
   category = "Derived Cohorts",
-  targetCohortId = 2,
-  censorCohortId = 4
+  targetCohortEntry = t2dEntry,
+  censorCohortEntry = deathEntry
 )
 ```
+
+Legacy ID inputs remain supported for backward compatibility, but entry-based
+inputs are recommended for new code.
 
 Build methods shown above:
 - `buildSubsetCohortTemporal()`
