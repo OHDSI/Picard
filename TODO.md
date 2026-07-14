@@ -10,11 +10,6 @@
 - relax strictness of cohort builder scripts. Instead of strict list, user can add any file and set the order of the build
 - also on the source input build, add option to reset the manifest so it kills and rebuilds
 
-## Api change for build dependents 
-
-- instead of taking an id, the function should take a manifest row (id, label, category, path)
-- even though the sql needs only the id, this will enforce the pattern of subsetting the manifest instead of relying on ids
-- want users to use manifest entries and not ids. 
 
 # Medium Priority
 

@@ -11,13 +11,19 @@ which prior target event anchors the match via @subset_limit.
 
 Parameters:
   outcome_cohort_id   The cohort definition ID for the outcome (e.g., GI bleed)
+  outcome_cohort_name The cohort label for the outcome cohort (header metadata)
   target_cohort_id    The cohort definition ID for the target (e.g., NSAID use)
+  target_cohort_name  The cohort label for the target cohort (header metadata)
   mode                'prior' or 'no_prior'
   prior_time_window_days  NULL/0 = all time; integer (e.g. 365) = lookback window
   subset_limit        'First' (earliest prior), 'Last' (most recent prior), or 'All'
   output_cohort_id    The new cohort definition ID for the output
   output_table        Schema.table to insert results into
   base_cohort_table   Schema.table containing the cohort definitions
+
+Cohort mapping
+  outcome cohort: id @outcome_cohort_id, name @outcome_cohort_name
+  target cohort: id @target_cohort_id, name @target_cohort_name
 */
 {DEFAULT @mode = 'prior'}
 {DEFAULT @subset_limit = 'First'}

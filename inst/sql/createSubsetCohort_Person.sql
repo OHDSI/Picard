@@ -2,8 +2,12 @@
 Creates a subset of a base cohort by filtering on person-level demographic attributes
 Example Patients with CKD who are male, age 40-75, and non-Hispanic White
 
+Cohort mapping
+  base cohort: id @base_cohort_id, name @base_cohort_name
+
 Parameters-
   base_cohort_id The cohort definition ID to subset
+  base_cohort_name The cohort label for the base cohort (header metadata)
   min_age Minimum age (calculated at cohort_start_date). NULL = no minimum
   max_age Maximum age (calculated at cohort_start_date). NULL = no maximum
   gender_concept_ids Comma-separated list of gender concept IDs to include. NULL = include all genders

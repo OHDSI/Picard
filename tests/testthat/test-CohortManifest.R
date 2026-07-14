@@ -617,7 +617,7 @@ test_that("tabulateManifest returns correct schema columns", {
   tab <- manifest$tabulateManifest()
 
   # Check for new schema columns
-  expected_cols <- c("id", "label", "category", "source_type", "file_path", "hash")
+  expected_cols <- c("id", "label", "category", "source_type", "file_path", "hash", "depends_on")
   for (col in expected_cols) {
     expect_true(col %in% names(tab), info = paste("Missing column:", col))
   }
