@@ -672,7 +672,7 @@ CohortManifest <- R6::R6Class(
     #'   \code{"active"} (default), \code{"deleted"}, or \code{"all"}.
     #'
     #' @return A tibble with columns: id, label, category, tags, file_path, hash,
-    #'   source_type, cohort_type, status, created_at, deleted_at
+    #'   source_type, cohort_type, status, depends_on, created_at, deleted_at
     tabulateManifest = function(filter = c("active", "deleted", "stale", "all")) {
       filter <- match.arg(filter)
 
@@ -688,7 +688,7 @@ CohortManifest <- R6::R6Class(
       on.exit(DBI::dbDisconnect(conn))
 
       sql <- paste(
-        "SELECT id, label, category, tags, file_path, hash, source_type, cohort_type, status, created_at, deleted_at",
+        "SELECT id, label, category, tags, file_path, hash, source_type, cohort_type, status, depends_on, created_at, deleted_at",
         "FROM cohort_manifest",
         where_clause,
         "ORDER BY id"
