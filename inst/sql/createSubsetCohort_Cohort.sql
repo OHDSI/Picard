@@ -3,9 +3,15 @@ Subset Cohort  Temporal Filtering Based on Second Cohort
 Creates a subset of a base cohort by filtering with temporal logic against another cohort
 Example Patients with CKD who had a T2D diagnosis in the prior year
 
+Cohort mapping
+  base_cohort: id @base_cohort_id, name @base_cohort_name
+  filter_cohort: id @filter_cohort_id, name @filter_cohort_name
+
 Parameters
   base_cohort_id The cohort definition ID to subset (e.g., CKD)
+  base_cohort_name The cohort label for the base cohort (for header metadata)
   filter_cohort_id The cohort definition ID to use for temporal filtering (e.g., T2D)
+  filter_cohort_name The cohort label for the filter cohort (for header metadata)
   start_window SQL snippet defining the temporal relationship between base cohort event and filter cohort event for cohort_start_date
   end_window SQL snippet defining the temporal relationship between base cohort event and filter cohort event for cohort_end_date (optional)
   end_date_type Whether to use the base cohort end date or filter cohort end date as the cohort end date in the output subset cohort. Allowed values are 'base' or 'filter'. Default is 'base'.

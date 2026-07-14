@@ -2,8 +2,12 @@
 Combines multiple cohorts into a single cohort, merging overlapping or adjacent eras
 into continuous periods using a gaps-and-islands algorithm.
 
+Cohort mapping
+  source cohorts: @cohort_id_name_mapping
+
 Parameters-
   cohort_ids                  Comma-separated list of source cohort definition IDs
+  cohort_id_name_mapping      Source cohort mapping in the form: id N, name Label
   output_cohort_id            Output cohort definition ID
   output_table                Schema.table to insert results into
   base_cohort_table           Schema.table containing the source cohorts
