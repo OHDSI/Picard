@@ -20,8 +20,6 @@
 - Legacy ID-based arguments remain supported for backward compatibility, with migration guidance warnings when using ID routes.
 - Added input-route validation to enforce mutually exclusive usage of ID arguments vs entry arguments within each build call.
 
-
-
 ## Bug Fixes
 
 - In concept set manifest, check atlasId tag for existing entry in manifest. `$addAtlasConceptSet()` missing addition of atlasId tag
@@ -29,6 +27,10 @@
 - change agent mode to correct github copilot format (i.e `/.github`)
 - Clean vignettes and documentation to reflect current state of API
 - Add option that `createBlank...` will open the file
+
+### Unit Tests
+
+- Rebuild unit tests for cohort manifest. Split tests by series of functions
 
 # picard 0.0.5
 
