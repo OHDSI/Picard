@@ -1,47 +1,53 @@
+# Purpose: Create an isolated temporary inputs/cohorts directory tree and sqlite path for a test run.
 cm_test_make_manifest_paths <- function(test_name = "cohortmanifest") {
-  root <- tempfile(pattern = paste0("picard-", test_name, "-"))
-  dir.create(root, recursive = TRUE, showWarnings = FALSE)
+  root <- fs::file_temp(pattern = paste0("picard-", test_name, "-"))
+  fs::dir_create(root)
 
-  inputs_dir <- file.path(root, "inputs")
-  cohorts_dir <- file.path(inputs_dir, "cohorts")
-  sql_dir <- file.path(cohorts_dir, "sql")
-  json_dir <- file.path(cohorts_dir, "json")
+  inputs_dir <- fs::path(root, "inputs")
+  cohorts_dir <- fs::path(inputs_dir, "cohorts")
+  sql_dir <- fs::path(cohorts_dir, "sql")
+  json_dir <- fs::path(cohorts_dir, "json")
 
-  dir.create(inputs_dir, recursive = TRUE, showWarnings = FALSE)
-  dir.create(cohorts_dir, recursive = TRUE, showWarnings = FALSE)
-  dir.create(sql_dir, recursive = TRUE, showWarnings = FALSE)
-  dir.create(json_dir, recursive = TRUE, showWarnings = FALSE)
+  fs::dir_create(inputs_dir)
+  fs::dir_create(cohorts_dir)
+  fs::dir_create(sql_dir)
+  fs::dir_create(json_dir)
 
-  list(
+  ll <- list(
     root = root,
     inputs_dir = inputs_dir,
     cohorts_dir = cohorts_dir,
     sql_dir = sql_dir,
     json_dir = json_dir,
-    db_path = file.path(cohorts_dir, "cohortManifest.sqlite")
+    db_path = fs::path(cohorts_dir, "cohortManifest.sqlite")
   )
+  return(ll)
 }
 
+# Purpose: Instantiate a fresh CohortManifest bound to the temporary sqlite path.
 cm_test_new_manifest <- function(test_name = "cohortmanifest") {
   paths <- cm_test_make_manifest_paths(test_name)
   manifest <- CohortManifest$new(dbPath = paths$db_path)
 
-  list(
+  ll <- list(
     manifest = manifest,
     paths = paths
   )
+  return(ll)
 }
 
+# Purpose: Resolve a SQL fixture path from tests/testthat/test_files and skip if missing.
 cm_test_sql_fixture_path <- function(fixture_name = "my_custom_cohort.sql") {
   sql_path <- testthat::test_path("test_files", fixture_name)
   testthat::skip_if_not(
-    file.exists(sql_path),
+    fs::file_exists(sql_path),
     message = paste("Missing SQL test fixture:", fixture_name)
   )
 
-  sql_path
+  return(sql_path)
 }
 
+# Purpose: Add a custom SQL cohort to the manifest using a fixture SQL file.
 cm_test_add_sql_cohort <- function(manifest, paths, label, category = "Test", tags = list(), fixture_name = "my_custom_cohort.sql") {
   sql_path <- cm_test_sql_fixture_path(fixture_name = fixture_name)
 
@@ -53,10 +59,11 @@ cm_test_add_sql_cohort <- function(manifest, paths, label, category = "Test", ta
   )
 }
 
+# Purpose: Add a CIRCE cohort to the manifest using a fixture JSON file.
 cm_test_add_circe_cohort <- function(manifest, paths, label, category = "Test", tags = list(), fixture_name = "ckd.json") {
   circe_path <- testthat::test_path("test_files", fixture_name)
   testthat::skip_if_not(
-    file.exists(circe_path),
+    fs::file_exists(circe_path),
     message = paste("Missing CIRCE test fixture:", fixture_name)
   )
 
@@ -68,6 +75,7 @@ cm_test_add_circe_cohort <- function(manifest, paths, label, category = "Test", 
   )
 }
 
+# Purpose: Build a minimal Capr cohort object for tests; skip when Capr is unavailable.
 cm_test_make_minimal_capr_cohort <- function() {
   testthat::skip_if_not_installed("Capr")
 
@@ -102,9 +110,10 @@ cm_test_make_minimal_capr_cohort <- function() {
     }
   )
 
-  cohort_obj
+  return(cohort_obj)
 }
 
+# Purpose: Add a Capr cohort to the manifest using the minimal Capr test cohort object.
 cm_test_add_capr_cohort <- function(manifest, label, category = "Test", tags = list()) {
   capr_cohort <- cm_test_make_minimal_capr_cohort()
 
@@ -116,6 +125,7 @@ cm_test_add_capr_cohort <- function(manifest, label, category = "Test", tags = l
   )
 }
 
+# Purpose: Assert that a cohort exists in the manifest with optional source/cohort type checks.
 cm_test_assert_cohort_registered <- function(manifest, label, expected_source_type = NULL, expected_cohort_type = NULL) {
   rows <- manifest$queryCohortsByLabel(labels = label, matchType = "exact")
 
@@ -130,9 +140,10 @@ cm_test_assert_cohort_registered <- function(manifest, label, expected_source_ty
     testthat::expect_equal(rows$cohort_type[[1]], expected_cohort_type)
   }
 
-  testthat::expect_true(file.exists(rows$file_path[[1]]))
+  testthat::expect_true(fs::file_exists(rows$file_path[[1]]))
 }
 
+# Purpose: Seed a baseline manifest for query/retrieval tests with fixture cohorts.
 cm_test_seed_manifest_for_queries <- function(test_name = "cohortmanifest-query") {
   setup <- cm_test_new_manifest(test_name = test_name)
   manifest <- setup$manifest
@@ -165,26 +176,36 @@ cm_test_seed_manifest_for_queries <- function(test_name = "cohortmanifest-query"
     fixture_name = "my_custom_cohort.sql"
   )
 
-  list(
+  cm_test_add_circe_cohort(
+    manifest = manifest,
+    paths = paths,
+    label = "Major Bleeding Outcome",
+    category = "Outcome",
+    tags = list(domain = "bleed", group = "base"),
+    fixture_name = "gi_bleed.json"
+  )
+
+  cm_test_add_circe_cohort(
+    manifest = manifest,
+    paths = paths,
+    label = "All-Cause Death",
+    category = "Outcome",
+    tags = list(domain = "mortality", group = "base"),
+    fixture_name = "death.json"
+  )
+
+  ll <- list(
     manifest = manifest,
     paths = paths,
     cohorts = manifest$tabulateManifest(filter = "active")
   )
+  return(ll)
 }
 
+# Purpose: Seed a builder-ready manifest and register one dependent custom cohort.
 cm_test_seed_manifest_for_builders <- function(test_name = "cohortmanifest-builders") {
   setup <- cm_test_seed_manifest_for_queries(test_name = test_name)
   manifest <- setup$manifest
-
-  # Add one more base SQL cohort so builder tests can exercise >=2 parent logic easily.
-  cm_test_add_sql_cohort(
-    manifest = manifest,
-    paths = setup$paths,
-    label = "Major Bleeding Outcome",
-    category = "Outcome",
-    tags = list(route = "custom_sql", group = "base"),
-    fixture_name = "my_custom_cohort.sql"
-  )
 
   # Add a dependent custom cohort from vignette fixture using existing manifest IDs.
   base_rows <- manifest$tabulateManifest(filter = "active")
@@ -203,9 +224,10 @@ cm_test_seed_manifest_for_builders <- function(test_name = "cohortmanifest-build
     tags = list(owner = "epi_team", source = "custom_sql")
   )
 
-  list(
+  ll <- list(
     manifest = manifest,
     paths = setup$paths,
     cohorts = manifest$tabulateManifest(filter = "active")
   )
+  return(ll)
 }
