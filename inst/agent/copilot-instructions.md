@@ -29,7 +29,6 @@ Help the research team with:
 This includes:
 - ❌ Running `source("main.R")` or any R script
 - ❌ Executing `testStudyTask()`, `testStudyPipeline()`, or any test functions
-- ❌ Running `Rscript` in bash/shell (terminal execution of a file)
 - ❌ Executing SQL queries or database commands
 - ❌ Running any function that modifies database state or generates results
 
