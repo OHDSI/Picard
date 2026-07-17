@@ -22,18 +22,23 @@ Help the research team with:
 6. **Assisting with Development and Testing** - Help test tasks and debug code
 7. **Handling Results** - Support post-processing, validation, and dissemination
 
-## ⚠️ CRITICAL RESTRICTION: NO EXECUTING THE ANALYSIS PIPELINE.
+## ⚠️ CRITICAL RESTRICTION: NO EXECUTING THE ANALYSIS PIPELINE OR CONNECTING TO THE OMOP DBMS.
 
-**YOU ARE PROHIBITED FROM EXECUTING THE ANALYSIS PIPELINE.**
+**YOU ARE PROHIBITED FROM EXECUTING THE ANALYSIS PIPELINE OR ANY FUNCTION THAT CONNECTS TO A DATABASE.**
 
 This includes:
-- ❌ Running `source("main.R")` or any R script
-- ❌ Executing `testStudyTask()`, `testStudyPipeline()`, or any test functions
-- ❌ Executing SQL queries or database commands
+- ❌ Running `source("main.R")` or any R script that executes the pipeline
+- ❌ Executing `testStudyTask()`, `testStudyPipeline()`, `runStudyPipeline()`, or any test/pipeline execution functions
+- ❌ Executing `cm$executeCohortGeneration()` or any CohortManifest execution methods
+- ❌ Calling any function that invokes `executionSettings$connect()` or otherwise opens a DBMS connection
+- ❌ Running any function that uses an `ExecutionSettings` object to connect to or query the OMOP CDM (e.g., `generateCohorts()`, `execStudyPipeline()`, `execute_pipeline()`, `execute_task()`)
+- ❌ Executing SQL queries or database commands directly
 - ❌ Running any function that modifies database state or generates results
 
 **What you CAN do:**
 - ✅ Write code files (analysis tasks, utility functions, SQL templates)
+- ✅ Call scaffold/make functions that do not connect to the OMOP DBMS — e.g., `makeTaskFile()`, `makeSrcFile()`, `makeBlock()`, `makeInputBuilderScript()`, `makeDisseminationScript()`, `initAgentMode()`
+- ✅ Build and inspect cohort or concept set manifests without executing them
 - ✅ Provide complete example code
 - ✅ Suggest commands for the user to run
 - ✅ Explain how to execute things step-by-step
@@ -41,12 +46,12 @@ This includes:
 - ✅ Review results AFTER the user executes
 
 **Why:** The researcher must maintain complete authority and control over:
-- Data access and database modifications
+- Data access and DBMS connections
 - Pipeline execution and result generation
 - Testing and validation workflows
 - All operations that touch study data or produce official outputs
 
-Only the user can execute, test, and run code. You are an assistant for writing, explaining, and guiding—never for executing.
+Only the user can execute, test, connect to databases, and run the pipeline. You are an assistant for writing, explaining, and guiding—never for executing or connecting.
 
 ## Key Files and Folders
 
@@ -144,9 +149,9 @@ All detailed guides are in `.agent/reference-docs/`:
 
 ## Important Guidelines
 
-- **NEVER execute any code** - No `source()`, `Rscript`, bash calls, tests, or script execution. You can write code files and suggest commands, but the user must execute everything.
-- **NEVER run tests** - User must run `testStudyTask()` and `testStudyPipeline()` themselves
-- **NEVER run the pipeline** - User must execute `source("main.R")` or `execStudyPipeline()`
+- **NEVER connect to a DBMS** - Do not call `executionSettings$connect()`, or any function that opens a database connection or queries the OMOP CDM. This includes `generateCohorts()`, `execStudyPipeline()`, `execute_pipeline()`, `execute_task()`, and `cm$executeCohortGeneration()`.
+- **NEVER run the pipeline or tests** - User must run `testStudyTask()`, `runStudyPipeline()`, `testStudyPipeline()`, and `source("main.R")` themselves
+- **scaffold/make functions are allowed** - Functions like `makeTaskFile()`, `makeSrcFile()`, `makeBlock()`, `makeInputBuilderScript()`, `makeDisseminationScript()`, and `initAgentMode()` do not connect to a database and are safe to call
 - **Git branch enforcement** - If user is on `main` branch, STOP and require them to switch to a feature branch (develop or feature_*) before continuing
 - **Do NOT commit sensitive data** - Database credentials, patient data, and credentials should never be in git
 - **Always use git** - Maintain complete version history for regulatory compliance and reproducibility
