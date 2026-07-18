@@ -26,7 +26,7 @@
     
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.5</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.6</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -137,6 +137,46 @@ acceptance</li>
 <code>1.0.0/</code>).</p>
 </div>
 <div class="section level2">
+<h2 id="test-mode-namespaces-avoiding-multi-user-dev-conflicts">Test Mode Namespaces (Avoiding Multi-User <code>dev</code>
+Conflicts)<a class="anchor" aria-label="anchor" href="#test-mode-namespaces-avoiding-multi-user-dev-conflicts"></a>
+</h2>
+<p>When multiple users run test mode at the same time, sharing the
+default <code>dev</code> namespace can cause collisions in both result
+folders and cohort table names.</p>
+<p>Use <code>testStudyPipeline(testLabel = ...)</code> to isolate your
+test run:</p>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Default test namespace (legacy behavior)</span></span>
+<span><span class="fu"><a href="../reference/testStudyPipeline.html">testStudyPipeline</a></span><span class="op">(</span>configBlock <span class="op">=</span> <span class="st">"primaryDB"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Custom namespace for your branch or feature</span></span>
+<span><span class="fu"><a href="../reference/testStudyPipeline.html">testStudyPipeline</a></span><span class="op">(</span></span>
+<span>  configBlock <span class="op">=</span> <span class="st">"primaryDB"</span>,</span>
+<span>  testLabel <span class="op">=</span> <span class="st">"feature_ml_test"</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>What <code>testLabel</code> controls:</p>
+<ul>
+<li>
+<strong>Results path namespace</strong> under
+<code>exec/results/[database]/[testLabel]/...</code>
+</li>
+<li>
+<strong>Cohort table suffix</strong> in execution settings (for
+example <code>_feature_ml_test</code>)</li>
+</ul>
+<p>Normalization rules for <code>testLabel</code>:</p>
+<ul>
+<li>converted to lowercase</li>
+<li>non-alphanumeric characters converted to <code>_</code>
+</li>
+<li>repeated/edge underscores trimmed</li>
+<li>truncated to 24 characters</li>
+</ul>
+<p>This behavior is <strong>test mode only</strong>. Production
+execution remains strict and uses semantic versioning with no custom
+suffix overrides.</p>
+</div>
+<div class="section level2">
 <h2 id="running-production-mode">Running Production Mode<a class="anchor" aria-label="anchor" href="#running-production-mode"></a>
 </h2>
 <div class="section level3">
@@ -175,7 +215,7 @@ the Pipeline</a> to save your work and prepare for production.</p>
 <div class="section level3">
 <h3 id="basic-usage">Basic Usage<a class="anchor" aria-label="anchor" href="#basic-usage"></a>
 </h3>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Navigate to study repository</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/getwd.html" class="external-link">setwd</a></span><span class="op">(</span><span class="st">"~/studies/myStudy"</span><span class="op">)</span></span>
 <span></span>
@@ -189,7 +229,7 @@ the Pipeline</a> to save your work and prepare for production.</p>
 <div class="section level3">
 <h3 id="programmatic-production-execution">Programmatic Production Execution<a class="anchor" aria-label="anchor" href="#programmatic-production-execution"></a>
 </h3>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ohdsi.github.io/Picard/">picard</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Run production pipeline directly</span></span>
@@ -318,9 +358,9 @@ remove metadata file</li>
 <h3 id="version-tags">Version Tags<a class="anchor" aria-label="anchor" href="#version-tags"></a>
 </h3>
 <p>After merging to main, create a git tag for the version:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="co"># After PR is merged to main</span></span>
-<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a>git tag <span class="sc">-</span>a v1.<span class="fl">1.0</span> <span class="sc">-</span>m <span class="st">"Release version 1.1.0"</span></span>
-<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a>git push origin v1.<span class="fl">1.0</span></span></code></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="co"># After PR is merged to main</span></span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a>git tag <span class="sc">-</span>a v1.<span class="fl">1.0</span> <span class="sc">-</span>m <span class="st">"Release version 1.1.0"</span></span>
+<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a>git push origin v1.<span class="fl">1.0</span></span></code></pre></div>
 </div>
 </div>
 <div class="section level2">
@@ -365,7 +405,7 @@ generated:</p>
 </h3>
 <p>Picard runs tasks in alphabetical order. Ensure file names have
 numeric prefixes:</p>
-<pre><code>01_buildCohorts.R          ✓ Runs first
+<pre><code>01_table1.R          ✓ Runs first
 02_descriptiveAnalysis.R   ✓ Runs second
 03_primaryAnalysis.R       ✓ Runs third
 analysis_task.R            ✗ Runs last (no prefix)</code></pre>
@@ -374,7 +414,7 @@ analysis_task.R            ✗ Runs last (no prefix)</code></pre>
 <h3 id="results-folder-not-created">“Results folder not created”<a class="anchor" aria-label="anchor" href="#results-folder-not-created"></a>
 </h3>
 <p>Manually create output folder:</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Ensure output structure exists</span></span>
 <span><span class="va">exec_path</span> <span class="op">&lt;-</span> <span class="fu">fs</span><span class="fu">::</span><span class="fu"><a href="https://fs.r-lib.org/reference/path.html" class="external-link">path</a></span><span class="op">(</span><span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="op">)</span>, <span class="st">"exec/results/primary_db/1.0.0"</span><span class="op">)</span></span>
 <span><span class="fu">fs</span><span class="fu">::</span><span class="fu"><a href="https://fs.r-lib.org/reference/create.html" class="external-link">dir_create</a></span><span class="op">(</span><span class="va">exec_path</span>, recurse <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
@@ -385,7 +425,7 @@ analysis_task.R            ✗ Runs last (no prefix)</code></pre>
 <p>Results are organized by version in
 <code>exec/results/[database]/[version]/</code>. Check different version
 folders:</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># List all version folders</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/list.files.html" class="external-link">list.dirs</a></span><span class="op">(</span><span class="st">"exec/results/primary_db"</span>, recursive <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
 </div>

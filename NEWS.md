@@ -20,6 +20,34 @@
 - Legacy ID-based arguments remain supported for backward compatibility, with migration guidance warnings when using ID routes.
 - Added input-route validation to enforce mutually exclusive usage of ID arguments vs entry arguments within each build call.
 
+### Comprehensive Tag Management API for CohortManifest and ConceptSetManifest
+
+#### New Tag Manipulation Functions (Both Manifests)
+
+- `$addCohortTag(cohortId, tagName, tagValue)` / `$addConceptSetTag()` - Add a single tag non-destructively
+- `$removeConceptSetTag(conceptSetId, tagName)` / `$removeCohortTag()` - Remove a specific tag from a cohort/concept set
+- `$modifyCohortTagValue(cohortId, tagName, newValue)` / `$modifyConceptSetTagValue()` - Update an existing tag value
+- `$getCohortTags(cohortId)` / `$getConceptSetTags()` - Retrieve all tags for a manifest entry as a named list
+- `$mergeTagsIntoCohort(cohortId, newTags)` / `$mergeTagsIntoConceptSet()` - Additive tag merge (preserves existing unspecified tags)
+- `$listAllUniqueTags()` - Discover all unique tag names in use across the manifest
+- `$getTagValue(cohortId, tagName)` / `$getTagValue()` - Convenience function for single tag retrieval
+- `$renameTagKey(oldTagName, newTagName, cohortIds = NULL)` / `$renameTagKey()` - Batch rename tag key across specified or all manifest entries
+- `$bulkModifyTagValue(tagName, oldValue, newValue)` / `$bulkModifyTagValue()` - Batch update all tags matching a name/value pair
+
+#### New Tag Query Functions (Both Manifests)
+
+- `$queryCohortsMissingTag(tagName)` / `$queryConceptSetsMissingTag()` - Quality audit: find manifest entries lacking a specific tag
+- `$queryCohortsWithTagValues(tagValueMapping)` / `$queryConceptSetsWithTagValues()` - Clean multi-tag AND-logic queries using named list syntax (e.g., `list(status = "approved", owner = "alice")`)
+- `$getTagValuesSummary(tagName)` - Audit tag value frequency and distribution across the manifest
+
+#### Benefits
+
+- **Non-destructive operations**: Additive functions like `addCohortTag()` and `mergeTagsIntoCohort()` preserve existing tags
+- **Batch operations**: Rename and bulk-modify functions streamline large-scale tag updates
+- **Quality workflows**: Missing-tag queries and summaries enable data quality and QA audits
+- **Clean query syntax**: Named list interface replaces manual "name: value" string construction
+- **Consistent API**: Identical method names and signatures across CohortManifest and ConceptSetManifest
+
 ## Bug Fixes
 
 - In concept set manifest, check atlasId tag for existing entry in manifest. `$addAtlasConceptSet()` missing addition of atlasId tag
@@ -28,9 +56,6 @@
 - Clean vignettes and documentation to reflect current state of API
 - Add option that `createBlank...` will open the file
 
-### Unit Tests
-
-- Rebuild unit tests for cohort manifest. Split tests by series of functions
 
 # picard 0.0.5
 

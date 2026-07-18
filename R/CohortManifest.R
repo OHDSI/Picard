@@ -2709,6 +2709,83 @@ CohortManifest <- R6::R6Class(
       return(tcm)
     },
 
+    #' @description Query cohorts missing a specific tag
+    #'
+    #' @param tagName Character. The name of the tag to check for absence.
+    #'
+    #' @return Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
+    #'   Returns NULL if all cohorts have the tag.
+    queryCohortsMissingTag = function(tagName) {
+      checkmate::assert_character(x = tagName, len = 1, min.chars = 1)
+
+      tcm <- self$tabulateManifest() |>
+        dplyr::mutate(
+          tags_list = purrr::map(tags, ~jsonlite::fromJSON(.x))
+        ) |>
+        dplyr::filter(
+          !purrr::map_lgl(tags_list, ~tagName %in% names(.))
+        ) |>
+        dplyr::select(-c(tags_list))
+
+      if (nrow(tcm) == 0) {
+        cli::cli_alert_warning("No cohorts missing tag '{tagName}' — all have it.")
+        return(NULL)
+      }
+
+      return(tcm)
+    },
+
+    #' @description Query cohorts by tag value mapping
+    #'
+    #' @param tagValueMapping Named list. Keys are tag names, values are tag values to match.
+    #'   Example: \code{list(status = "approved", type = "primary")} requires both conditions (AND logic).
+    #'
+    #' @return Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
+    #'   Returns NULL if no cohorts match all tag conditions.
+    queryCohortsWithTagValues = function(tagValueMapping) {
+      checkmate::assert_list(tagValueMapping, names = "named", min.len = 1)
+
+      # Convert to tagStrings format for existing query method
+      tagStrings <- paste0(names(tagValueMapping), ": ", unlist(tagValueMapping))
+
+      # Use existing queryCohortsByTag with match = "all"
+      result <- self$queryCohortsByTag(tagStrings = tagStrings, match = "all")
+
+      return(result)
+    },
+
+    #' @description Get a summary of all unique values for a specific tag
+    #'
+    #' @param tagName Character. The name of the tag to summarize.
+    #'
+    #' @return Tibble with columns: value, count, cohorts (comma-separated IDs).
+    #'   Returns NULL if no cohorts have the tag.
+    getTagValuesSummary = function(tagName) {
+      checkmate::assert_character(x = tagName, len = 1, min.chars = 1)
+
+      tcm <- self$tabulateManifest() |>
+        dplyr::mutate(
+          tags_list = purrr::map(tags, ~jsonlite::fromJSON(.x)),
+          tag_value = purrr::map_chr(tags_list, ~.x[[tagName]] %||% NA_character_)
+        ) |>
+        dplyr::filter(!is.na(tag_value)) |>
+        dplyr::group_by(tag_value) |>
+        dplyr::summarise(
+          count = dplyr::n(),
+          cohorts = paste0(id, collapse = ", "),
+          .groups = "drop"
+        ) |>
+        dplyr::rename(value = tag_value) |>
+        dplyr::arrange(dplyr::desc(count))
+
+      if (nrow(tcm) == 0) {
+        cli::cli_alert_warning("Tag '{tagName}' not found in any cohorts.")
+        return(NULL)
+      }
+
+      return(tcm)
+    },
+
     #' @description Get number of cohorts in manifest
     #'
     #' @return Integer. The number of cohorts.
@@ -2862,6 +2939,348 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_list(newTags, names = "named")
       private$update_cohort_def(cohortId = cohortId, tags = newTags)
       invisible(NULL)
+    },
+
+    #' @description Remove a specific tag from a cohort
+    #'
+    #' @param cohortId Integer. The cohort ID to update.
+    #' @param tagName Character. The name of the tag to remove.
+    #'
+    #' @return Invisible NULL. Emits success message if tag was removed, warning if tag was not found.
+    removeCohortTag = function(cohortId, tagName) {
+      checkmate::assert_int(cohortId, lower = 1)
+      checkmate::assert_string(tagName, min.chars = 1)
+
+      # Get current tags
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      current_tags_json <- DBI::dbGetQuery(
+        conn,
+        paste0("SELECT tags FROM cohort_manifest WHERE id = ", cohortId, " AND status = 'active'")
+      )
+
+      if (nrow(current_tags_json) == 0) {
+        cli::cli_abort("Cohort {cohortId} not found or is not active")
+      }
+
+      # Parse tags
+      current_tags <- jsonlite::fromJSON(current_tags_json$tags[1])
+
+      # Check if tag exists
+      if (!tagName %in% names(current_tags)) {
+        cli::cli_alert_warning("Tag '{tagName}' not found in cohort {cohortId}")
+        invisible(NULL)
+      }
+
+      # Remove tag
+      current_tags[[tagName]] <- NULL
+
+      # Update using existing method
+      self$updateCohortTags(cohortId = cohortId, newTags = current_tags)
+
+      cli::cli_alert_success("Removed tag '{tagName}' from cohort {cohortId}")
+      invisible(NULL)
+    },
+
+    #' @description Modify the value of an existing tag
+    #'
+    #' @param cohortId Integer. The cohort ID to update.
+    #' @param tagName Character. The name of the tag to modify.
+    #' @param newValue Character. The new value for the tag.
+    #'
+    #' @return Invisible NULL. Emits success message if tag was modified, error if tag does not exist.
+    modifyCohortTagValue = function(cohortId, tagName, newValue) {
+      checkmate::assert_int(cohortId, lower = 1)
+      checkmate::assert_string(tagName, min.chars = 1)
+      checkmate::assert_string(newValue, min.chars = 1)
+
+      # Get current tags
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      current_tags_json <- DBI::dbGetQuery(
+        conn,
+        paste0("SELECT tags FROM cohort_manifest WHERE id = ", cohortId, " AND status = 'active'")
+      )
+
+      if (nrow(current_tags_json) == 0) {
+        cli::cli_abort("Cohort {cohortId} not found or is not active")
+      }
+
+      # Parse tags
+      current_tags <- jsonlite::fromJSON(current_tags_json$tags[1])
+
+      # Check if tag exists
+      if (!tagName %in% names(current_tags)) {
+        cli::cli_abort("Tag '{tagName}' does not exist in cohort {cohortId}")
+      }
+
+      # Get old value for logging
+      old_value <- current_tags[[tagName]]
+
+      # Update tag value
+      current_tags[[tagName]] <- newValue
+
+      # Update using existing method
+      self$updateCohortTags(cohortId = cohortId, newTags = current_tags)
+
+      cli::cli_alert_success("Modified tag '{tagName}' in cohort {cohortId}: {old_value} → {newValue}")
+      invisible(NULL)
+    },
+
+    #' @description Add a single tag to a cohort (non-destructive)
+    #'
+    #' @param cohortId Integer. The cohort ID to update.
+    #' @param tagName Character. The name of the tag to add.
+    #' @param tagValue Character. The value for the new tag.
+    #'
+    #' @return Invisible NULL. Emits success message if tag was added.
+    addCohortTag = function(cohortId, tagName, tagValue) {
+      checkmate::assert_int(cohortId, lower = 1)
+      checkmate::assert_string(tagName, min.chars = 1)
+      checkmate::assert_string(tagValue, min.chars = 1)
+
+      # Get current tags
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      current_tags_json <- DBI::dbGetQuery(
+        conn,
+        paste0("SELECT tags FROM cohort_manifest WHERE id = ", cohortId, " AND status = 'active'")
+      )
+
+      if (nrow(current_tags_json) == 0) {
+        cli::cli_abort("Cohort {cohortId} not found or is not active")
+      }
+
+      # Parse existing tags
+      current_tags <- jsonlite::fromJSON(current_tags_json$tags[1])
+
+      # Add new tag (overwrites if already exists)
+      current_tags[[tagName]] <- tagValue
+
+      # Update using existing method
+      self$updateCohortTags(cohortId = cohortId, newTags = current_tags)
+
+      cli::cli_alert_success("Added tag '{tagName}' to cohort {cohortId}")
+      invisible(NULL)
+    },
+
+    #' @description Get all tags for a specific cohort
+    #'
+    #' @param cohortId Integer. The cohort ID to query.
+    #'
+    #' @return Named list of tags, or NULL if cohort not found.
+    getCohortTags = function(cohortId) {
+      checkmate::assert_int(cohortId, lower = 1)
+
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      current_tags_json <- DBI::dbGetQuery(
+        conn,
+        paste0("SELECT tags FROM cohort_manifest WHERE id = ", cohortId, " AND status = 'active'")
+      )
+
+      if (nrow(current_tags_json) == 0) {
+        cli::cli_alert_warning("Cohort {cohortId} not found or is not active")
+        return(NULL)
+      }
+
+      jsonlite::fromJSON(current_tags_json$tags[1])
+    },
+
+    #' @description Merge multiple tags into a cohort (non-destructive, additive)
+    #'
+    #' @param cohortId Integer. The cohort ID to update.
+    #' @param newTags Named list. The tags to add/merge (overwrites existing keys with same name).
+    #'
+    #' @return Invisible NULL. Emits success message.
+    mergeTagsIntoCohort = function(cohortId, newTags) {
+      checkmate::assert_int(cohortId, lower = 1)
+      checkmate::assert_list(newTags, names = "named")
+
+      # Get current tags
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      current_tags_json <- DBI::dbGetQuery(
+        conn,
+        paste0("SELECT tags FROM cohort_manifest WHERE id = ", cohortId, " AND status = 'active'")
+      )
+
+      if (nrow(current_tags_json) == 0) {
+        cli::cli_abort("Cohort {cohortId} not found or is not active")
+      }
+
+      # Parse and merge
+      current_tags <- jsonlite::fromJSON(current_tags_json$tags[1])
+      merged_tags <- c(current_tags, newTags)  # Vector merge adds/overwrites
+
+      # Update using existing method
+      self$updateCohortTags(cohortId = cohortId, newTags = merged_tags)
+
+      cli::cli_alert_success("Merged {length(newTags)} tag(s) into cohort {cohortId}")
+      invisible(NULL)
+    },
+
+    #' @description Get all unique tag names used across the manifest
+    #'
+    #' @return Character vector of unique tag names, sorted alphabetically.
+    listAllUniqueTags = function() {
+      manifest_tbl <- self$tabulateManifest()
+
+      if (is.null(manifest_tbl) || nrow(manifest_tbl) == 0) {
+        cli::cli_alert_info("No cohorts in manifest")
+        return(character(0))
+      }
+
+      # Extract all unique tag names
+      all_tag_names <- manifest_tbl |>
+        dplyr::mutate(tags_list = purrr::map(tags, ~jsonlite::fromJSON(.x))) |>
+        dplyr::pull(tags_list) |>
+        purrr::map(names) |>
+        unlist() |>
+        unique() |>
+        sort()
+
+      all_tag_names
+    },
+
+    #' @description Get value of a single tag for a cohort
+    #'
+    #' @param cohortId Integer. The cohort ID to query.
+    #' @param tagName Character. The name of the tag to retrieve.
+    #'
+    #' @return Character. The tag value, or NULL if tag or cohort not found.
+    getTagValue = function(cohortId, tagName) {
+      checkmate::assert_int(cohortId, lower = 1)
+      checkmate::assert_string(tagName, min.chars = 1)
+
+      tags <- self$getCohortTags(cohortId)
+
+      if (is.null(tags)) {
+        return(NULL)
+      }
+
+      if (!tagName %in% names(tags)) {
+        cli::cli_alert_warning("Tag '{tagName}' not found in cohort {cohortId}")
+        return(NULL)
+      }
+
+      tags[[tagName]]
+    },
+
+    #' @description Rename a tag key across specified cohorts (or all cohorts)
+    #'
+    #' @param oldTagName Character. The current tag name to rename.
+    #' @param newTagName Character. The new tag name.
+    #' @param cohortIds Integer vector or NULL. If NULL, renames across all cohorts that have this tag.
+    #'
+    #' @return Invisible tibble with id, label, old_value showing what was renamed.
+    renameTagKey = function(oldTagName, newTagName, cohortIds = NULL) {
+      checkmate::assert_string(oldTagName, min.chars = 1)
+      checkmate::assert_string(newTagName, min.chars = 1)
+      checkmate::assert_integerish(cohortIds, null.ok = TRUE)
+
+      # If cohortIds not provided, find all cohorts with this tag
+      if (is.null(cohortIds)) {
+        cohort_entries <- self$queryCohortsByTagName(oldTagName)
+        if (is.null(cohort_entries)) {
+          cli::cli_alert_info("No cohorts found with tag '{oldTagName}'")
+          return(invisible(tibble::tibble()))
+        }
+        cohortIds <- cohort_entries$id
+      }
+
+      cohortIds <- as.integer(cohortIds)
+      result <- list()
+
+      cli::cli_rule("Renaming tag '{oldTagName}' → '{newTagName}'")
+
+      for (cid in cohortIds) {
+        tags <- self$getCohortTags(cid)
+
+        if (!is.null(tags) && oldTagName %in% names(tags)) {
+          old_value <- tags[[oldTagName]]
+
+          # Remove old key and add new key with same value
+          tags[[oldTagName]] <- NULL
+          tags[[newTagName]] <- old_value
+
+          # Update manifest
+          self$updateCohortTags(cohortId = cid, newTags = tags)
+
+          result[[length(result) + 1]] <- list(id = cid, old_value = old_value)
+          cli::cli_alert_success("Cohort {cid}: renamed {oldTagName} → {newTagName}")
+        }
+      }
+
+      # Build result tibble
+      if (length(result) > 0) {
+        result_tbl <- tibble::tibble(
+          id = sapply(result, function(x) x$id),
+          old_value = sapply(result, function(x) x$old_value)
+        )
+      } else {
+        result_tbl <- tibble::tibble()
+      }
+
+      cli::cli_rule("Done — renamed tag in {length(result)} cohort(s)")
+      invisible(result_tbl)
+    },
+
+    #' @description Bulk modify a tag value across cohorts matching an old value
+    #'
+    #' @param tagName Character. The name of the tag to modify.
+    #' @param oldValue Character. The current value to match and replace.
+    #' @param newValue Character. The new value to set.
+    #'
+    #' @return Invisible tibble with id, label showing what was modified.
+    bulkModifyTagValue = function(tagName, oldValue, newValue) {
+      checkmate::assert_string(tagName, min.chars = 1)
+      checkmate::assert_string(oldValue, min.chars = 1)
+      checkmate::assert_string(newValue, min.chars = 1)
+
+      # Find all cohorts with this tag and value
+      cohort_entries <- self$queryCohortsByTagName(tagName)
+      if (is.null(cohort_entries)) {
+        cli::cli_alert_info("No cohorts found with tag '{tagName}'")
+        return(invisible(tibble::tibble()))
+      }
+
+      result <- list()
+
+      cli::cli_rule("Bulk modifying tag '{tagName}': '{oldValue}' → '{newValue}'")
+
+      for (i in seq_len(nrow(cohort_entries))) {
+        cid <- cohort_entries$id[i]
+        clabel <- cohort_entries$label[i]
+        tags <- self$getCohortTags(cid)
+
+        if (!is.null(tags) && tagName %in% names(tags) && tags[[tagName]] == oldValue) {
+          # Update the tag value
+          tags[[tagName]] <- newValue
+          self$updateCohortTags(cohortId = cid, newTags = tags)
+
+          result[[length(result) + 1]] <- list(id = cid, label = clabel)
+          cli::cli_alert_success("Cohort {cid} ({clabel}): updated")
+        }
+      }
+
+      # Build result tibble
+      if (length(result) > 0) {
+        result_tbl <- tibble::tibble(
+          id = sapply(result, function(x) x$id),
+          label = sapply(result, function(x) x$label)
+        )
+      } else {
+        result_tbl <- tibble::tibble()
+      }
+
+      cli::cli_rule("Done — modified tag in {length(result)} cohort(s)")
+      invisible(result_tbl)
     },
 
     #' @description Auto-detect changes to ATLAS cohorts in remote repository

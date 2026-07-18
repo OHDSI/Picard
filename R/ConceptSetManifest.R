@@ -1068,6 +1068,83 @@ ConceptSetManifest <- R6::R6Class(
       return(tcm)
     },
 
+    #' @description Query concept sets missing a specific tag
+    #'
+    #' @param tagName Character. The name of the tag to check for absence.
+    #'
+    #' @return Tibble with columns: id, label, category, tags, file_path, hash, created_at.
+    #'   Returns NULL if all concept sets have the tag.
+    queryConceptSetsMissingTag = function(tagName) {
+      checkmate::assert_character(x = tagName, len = 1, min.chars = 1)
+
+      tcm <- self$tabulateManifest() |>
+        dplyr::mutate(
+          tags_list = purrr::map(tags, ~jsonlite::fromJSON(.x))
+        ) |>
+        dplyr::filter(
+          !purrr::map_lgl(tags_list, ~tagName %in% names(.))
+        ) |>
+        dplyr::select(-c(tags_list))
+
+      if (nrow(tcm) == 0) {
+        cli::cli_alert_warning("No concept sets missing tag '{tagName}' — all have it.")
+        return(NULL)
+      }
+
+      return(tcm)
+    },
+
+    #' @description Query concept sets by tag value mapping
+    #'
+    #' @param tagValueMapping Named list. Keys are tag names, values are tag values to match.
+    #'   Example: \code{list(status = "approved", type = "primary")} requires both conditions (AND logic).
+    #'
+    #' @return Tibble with columns: id, label, category, tags, file_path, hash, created_at.
+    #'   Returns NULL if no concept sets match all tag conditions.
+    queryConceptSetsWithTagValues = function(tagValueMapping) {
+      checkmate::assert_list(tagValueMapping, names = "named", min.len = 1)
+
+      # Convert to tagStrings format for existing query method
+      tagStrings <- paste0(names(tagValueMapping), ": ", unlist(tagValueMapping))
+
+      # Use existing queryConceptSetsByTag with match = "all"
+      result <- self$queryConceptSetsByTag(tagStrings = tagStrings, match = "all")
+
+      return(result)
+    },
+
+    #' @description Get a summary of all unique values for a specific tag
+    #'
+    #' @param tagName Character. The name of the tag to summarize.
+    #'
+    #' @return Tibble with columns: value, count, concept_sets (comma-separated IDs).
+    #'   Returns NULL if no concept sets have the tag.
+    getTagValuesSummary = function(tagName) {
+      checkmate::assert_character(x = tagName, len = 1, min.chars = 1)
+
+      tcm <- self$tabulateManifest() |>
+        dplyr::mutate(
+          tags_list = purrr::map(tags, ~jsonlite::fromJSON(.x)),
+          tag_value = purrr::map_chr(tags_list, ~.x[[tagName]] %||% NA_character_)
+        ) |>
+        dplyr::filter(!is.na(tag_value)) |>
+        dplyr::group_by(tag_value) |>
+        dplyr::summarise(
+          count = dplyr::n(),
+          concept_sets = paste0(id, collapse = ", "),
+          .groups = "drop"
+        ) |>
+        dplyr::rename(value = tag_value) |>
+        dplyr::arrange(dplyr::desc(count))
+
+      if (nrow(tcm) == 0) {
+        cli::cli_alert_warning("Tag '{tagName}' not found in any concept sets.")
+        return(NULL)
+      }
+
+      return(tcm)
+    },
+
     #' Query concept sets by label
     #'
     #' @param labels Character vector. One or more labels to search for.
@@ -1544,6 +1621,348 @@ ConceptSetManifest <- R6::R6Class(
       checkmate::assert_list(newTags, names = "named")
       private$update_concept_set_def(conceptSetId = conceptSetId, tags = newTags)
       invisible(NULL)
+    },
+
+    #' @description Remove a specific tag from a concept set
+    #'
+    #' @param conceptSetId Integer. The concept set ID to update.
+    #' @param tagName Character. The name of the tag to remove.
+    #'
+    #' @return Invisible NULL. Emits success message if tag was removed, warning if tag was not found.
+    removeConceptSetTag = function(conceptSetId, tagName) {
+      checkmate::assert_int(conceptSetId, lower = 1)
+      checkmate::assert_string(tagName, min.chars = 1)
+
+      # Get current tags
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      current_tags_json <- DBI::dbGetQuery(
+        conn,
+        paste0("SELECT tags FROM concept_set_manifest WHERE id = ", conceptSetId, " AND status = 'active'")
+      )
+
+      if (nrow(current_tags_json) == 0) {
+        cli::cli_abort("Concept set {conceptSetId} not found or is not active")
+      }
+
+      # Parse tags
+      current_tags <- jsonlite::fromJSON(current_tags_json$tags[1])
+
+      # Check if tag exists
+      if (!tagName %in% names(current_tags)) {
+        cli::cli_alert_warning("Tag '{tagName}' not found in concept set {conceptSetId}")
+        invisible(NULL)
+      }
+
+      # Remove tag
+      current_tags[[tagName]] <- NULL
+
+      # Update using existing method
+      self$updateConceptSetTags(conceptSetId = conceptSetId, newTags = current_tags)
+
+      cli::cli_alert_success("Removed tag '{tagName}' from concept set {conceptSetId}")
+      invisible(NULL)
+    },
+
+    #' @description Modify the value of an existing tag
+    #'
+    #' @param conceptSetId Integer. The concept set ID to update.
+    #' @param tagName Character. The name of the tag to modify.
+    #' @param newValue Character. The new value for the tag.
+    #'
+    #' @return Invisible NULL. Emits success message if tag was modified, error if tag does not exist.
+    modifyConceptSetTagValue = function(conceptSetId, tagName, newValue) {
+      checkmate::assert_int(conceptSetId, lower = 1)
+      checkmate::assert_string(tagName, min.chars = 1)
+      checkmate::assert_string(newValue, min.chars = 1)
+
+      # Get current tags
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      current_tags_json <- DBI::dbGetQuery(
+        conn,
+        paste0("SELECT tags FROM concept_set_manifest WHERE id = ", conceptSetId, " AND status = 'active'")
+      )
+
+      if (nrow(current_tags_json) == 0) {
+        cli::cli_abort("Concept set {conceptSetId} not found or is not active")
+      }
+
+      # Parse tags
+      current_tags <- jsonlite::fromJSON(current_tags_json$tags[1])
+
+      # Check if tag exists
+      if (!tagName %in% names(current_tags)) {
+        cli::cli_abort("Tag '{tagName}' does not exist in concept set {conceptSetId}")
+      }
+
+      # Get old value for logging
+      old_value <- current_tags[[tagName]]
+
+      # Update tag value
+      current_tags[[tagName]] <- newValue
+
+      # Update using existing method
+      self$updateConceptSetTags(conceptSetId = conceptSetId, newTags = current_tags)
+
+      cli::cli_alert_success("Modified tag '{tagName}' in concept set {conceptSetId}: {old_value} → {newValue}")
+      invisible(NULL)
+    },
+
+    #' @description Add a single tag to a concept set (non-destructive)
+    #'
+    #' @param conceptSetId Integer. The concept set ID to update.
+    #' @param tagName Character. The name of the tag to add.
+    #' @param tagValue Character. The value for the new tag.
+    #'
+    #' @return Invisible NULL. Emits success message if tag was added.
+    addConceptSetTag = function(conceptSetId, tagName, tagValue) {
+      checkmate::assert_int(conceptSetId, lower = 1)
+      checkmate::assert_string(tagName, min.chars = 1)
+      checkmate::assert_string(tagValue, min.chars = 1)
+
+      # Get current tags
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      current_tags_json <- DBI::dbGetQuery(
+        conn,
+        paste0("SELECT tags FROM concept_set_manifest WHERE id = ", conceptSetId, " AND status = 'active'")
+      )
+
+      if (nrow(current_tags_json) == 0) {
+        cli::cli_abort("Concept set {conceptSetId} not found or is not active")
+      }
+
+      # Parse existing tags
+      current_tags <- jsonlite::fromJSON(current_tags_json$tags[1])
+
+      # Add new tag (overwrites if already exists)
+      current_tags[[tagName]] <- tagValue
+
+      # Update using existing method
+      self$updateConceptSetTags(conceptSetId = conceptSetId, newTags = current_tags)
+
+      cli::cli_alert_success("Added tag '{tagName}' to concept set {conceptSetId}")
+      invisible(NULL)
+    },
+
+    #' @description Get all tags for a specific concept set
+    #'
+    #' @param conceptSetId Integer. The concept set ID to query.
+    #'
+    #' @return Named list of tags, or NULL if concept set not found.
+    getConceptSetTags = function(conceptSetId) {
+      checkmate::assert_int(conceptSetId, lower = 1)
+
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      current_tags_json <- DBI::dbGetQuery(
+        conn,
+        paste0("SELECT tags FROM concept_set_manifest WHERE id = ", conceptSetId, " AND status = 'active'")
+      )
+
+      if (nrow(current_tags_json) == 0) {
+        cli::cli_alert_warning("Concept set {conceptSetId} not found or is not active")
+        return(NULL)
+      }
+
+      jsonlite::fromJSON(current_tags_json$tags[1])
+    },
+
+    #' @description Merge multiple tags into a concept set (non-destructive, additive)
+    #'
+    #' @param conceptSetId Integer. The concept set ID to update.
+    #' @param newTags Named list. The tags to add/merge (overwrites existing keys with same name).
+    #'
+    #' @return Invisible NULL. Emits success message.
+    mergeTagsIntoConceptSet = function(conceptSetId, newTags) {
+      checkmate::assert_int(conceptSetId, lower = 1)
+      checkmate::assert_list(newTags, names = "named")
+
+      # Get current tags
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      current_tags_json <- DBI::dbGetQuery(
+        conn,
+        paste0("SELECT tags FROM concept_set_manifest WHERE id = ", conceptSetId, " AND status = 'active'")
+      )
+
+      if (nrow(current_tags_json) == 0) {
+        cli::cli_abort("Concept set {conceptSetId} not found or is not active")
+      }
+
+      # Parse and merge
+      current_tags <- jsonlite::fromJSON(current_tags_json$tags[1])
+      merged_tags <- c(current_tags, newTags)  # Vector merge adds/overwrites
+
+      # Update using existing method
+      self$updateConceptSetTags(conceptSetId = conceptSetId, newTags = merged_tags)
+
+      cli::cli_alert_success("Merged {length(newTags)} tag(s) into concept set {conceptSetId}")
+      invisible(NULL)
+    },
+
+    #' @description Get all unique tag names used across the concept set manifest
+    #'
+    #' @return Character vector of unique tag names, sorted alphabetically.
+    listAllUniqueTags = function() {
+      manifest_tbl <- self$tabulateManifest()
+
+      if (is.null(manifest_tbl) || nrow(manifest_tbl) == 0) {
+        cli::cli_alert_info("No concept sets in manifest")
+        return(character(0))
+      }
+
+      # Extract all unique tag names
+      all_tag_names <- manifest_tbl |>
+        dplyr::mutate(tags_list = purrr::map(tags, ~jsonlite::fromJSON(.x))) |>
+        dplyr::pull(tags_list) |>
+        purrr::map(names) |>
+        unlist() |>
+        unique() |>
+        sort()
+
+      all_tag_names
+    },
+
+    #' @description Get value of a single tag for a concept set
+    #'
+    #' @param conceptSetId Integer. The concept set ID to query.
+    #' @param tagName Character. The name of the tag to retrieve.
+    #'
+    #' @return Character. The tag value, or NULL if tag or concept set not found.
+    getTagValue = function(conceptSetId, tagName) {
+      checkmate::assert_int(conceptSetId, lower = 1)
+      checkmate::assert_string(tagName, min.chars = 1)
+
+      tags <- self$getConceptSetTags(conceptSetId)
+
+      if (is.null(tags)) {
+        return(NULL)
+      }
+
+      if (!tagName %in% names(tags)) {
+        cli::cli_alert_warning("Tag '{tagName}' not found in concept set {conceptSetId}")
+        return(NULL)
+      }
+
+      tags[[tagName]]
+    },
+
+    #' @description Rename a tag key across specified concept sets (or all concept sets)
+    #'
+    #' @param oldTagName Character. The current tag name to rename.
+    #' @param newTagName Character. The new tag name.
+    #' @param conceptSetIds Integer vector or NULL. If NULL, renames across all concept sets that have this tag.
+    #'
+    #' @return Invisible tibble with id, old_value showing what was renamed.
+    renameTagKey = function(oldTagName, newTagName, conceptSetIds = NULL) {
+      checkmate::assert_string(oldTagName, min.chars = 1)
+      checkmate::assert_string(newTagName, min.chars = 1)
+      checkmate::assert_integerish(conceptSetIds, null.ok = TRUE)
+
+      # If conceptSetIds not provided, find all concept sets with this tag
+      if (is.null(conceptSetIds)) {
+        cs_entries <- self$queryConceptSetsByTagName(oldTagName)
+        if (is.null(cs_entries)) {
+          cli::cli_alert_info("No concept sets found with tag '{oldTagName}'")
+          return(invisible(tibble::tibble()))
+        }
+        conceptSetIds <- cs_entries$id
+      }
+
+      conceptSetIds <- as.integer(conceptSetIds)
+      result <- list()
+
+      cli::cli_rule("Renaming tag '{oldTagName}' → '{newTagName}'")
+
+      for (csid in conceptSetIds) {
+        tags <- self$getConceptSetTags(csid)
+
+        if (!is.null(tags) && oldTagName %in% names(tags)) {
+          old_value <- tags[[oldTagName]]
+
+          # Remove old key and add new key with same value
+          tags[[oldTagName]] <- NULL
+          tags[[newTagName]] <- old_value
+
+          # Update manifest
+          self$updateConceptSetTags(conceptSetId = csid, newTags = tags)
+
+          result[[length(result) + 1]] <- list(id = csid, old_value = old_value)
+          cli::cli_alert_success("Concept set {csid}: renamed {oldTagName} → {newTagName}")
+        }
+      }
+
+      # Build result tibble
+      if (length(result) > 0) {
+        result_tbl <- tibble::tibble(
+          id = sapply(result, function(x) x$id),
+          old_value = sapply(result, function(x) x$old_value)
+        )
+      } else {
+        result_tbl <- tibble::tibble()
+      }
+
+      cli::cli_rule("Done — renamed tag in {length(result)} concept set(s)")
+      invisible(result_tbl)
+    },
+
+    #' @description Bulk modify a tag value across concept sets matching an old value
+    #'
+    #' @param tagName Character. The name of the tag to modify.
+    #' @param oldValue Character. The current value to match and replace.
+    #' @param newValue Character. The new value to set.
+    #'
+    #' @return Invisible tibble with id, label showing what was modified.
+    bulkModifyTagValue = function(tagName, oldValue, newValue) {
+      checkmate::assert_string(tagName, min.chars = 1)
+      checkmate::assert_string(oldValue, min.chars = 1)
+      checkmate::assert_string(newValue, min.chars = 1)
+
+      # Find all concept sets with this tag and value
+      cs_entries <- self$queryConceptSetsByTagName(tagName)
+      if (is.null(cs_entries)) {
+        cli::cli_alert_info("No concept sets found with tag '{tagName}'")
+        return(invisible(tibble::tibble()))
+      }
+
+      result <- list()
+
+      cli::cli_rule("Bulk modifying tag '{tagName}': '{oldValue}' → '{newValue}'")
+
+      for (i in seq_len(nrow(cs_entries))) {
+        csid <- cs_entries$id[i]
+        cslabel <- cs_entries$label[i]
+        tags <- self$getConceptSetTags(csid)
+
+        if (!is.null(tags) && tagName %in% names(tags) && tags[[tagName]] == oldValue) {
+          # Update the tag value
+          tags[[tagName]] <- newValue
+          self$updateConceptSetTags(conceptSetId = csid, newTags = tags)
+
+          result[[length(result) + 1]] <- list(id = csid, label = cslabel)
+          cli::cli_alert_success("Concept set {csid} ({cslabel}): updated")
+        }
+      }
+
+      # Build result tibble
+      if (length(result) > 0) {
+        result_tbl <- tibble::tibble(
+          id = sapply(result, function(x) x$id),
+          label = sapply(result, function(x) x$label)
+        )
+      } else {
+        result_tbl <- tibble::tibble()
+      }
+
+      cli::cli_rule("Done — modified tag in {length(result)} concept set(s)")
+      invisible(result_tbl)
     },
 
     # ========== ATLAS MAINTENANCE METHODS ==========

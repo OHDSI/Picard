@@ -26,7 +26,7 @@
     
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.5</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.6</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -392,8 +392,8 @@ a <code>databaseId</code> column to identify the source.</p>
 </h2>
 <ol style="list-style-type: decimal">
 <li>
-<strong>Run orchestration:</strong> Call
-<code>orchestratePipelineExport()</code> after production pipeline
+<strong>Run post process merge:</strong> Call
+<code><a href="../reference/runPostProcessing.html">runPostProcessing()</a></code> after production pipeline
 completes</li>
 <li>
 <strong>Review QC reports:</strong> Check qc_cohortValidation.csv
