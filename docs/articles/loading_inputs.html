@@ -26,7 +26,7 @@
     
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.5</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.6</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -100,9 +100,9 @@ exposures, covariates, etc.</li>
 record every definition’s file path, MD5 hash, metadata, and provenance.
 Each session you load the manifest into memory; the SQLite file is the
 durable source of truth.</p>
-<p>For a deep-dive into the manifest architecture, derived cohorts,
-mid-cycle changes, and reset options, see the <a href="manifest_overview.html">Manifest: Architecture, Workflows, and
-Helpers</a> vignette.</p>
+<p>This guide focuses on <strong>loading and registering inputs</strong>
+for day-to-day pipeline use. For mid-cycle operations such as check,
+update, delete, and reset, use the <a href="manifest_management.html">Manifest Management</a> vignette.</p>
 <hr>
 </div>
 <div class="section level2">
@@ -121,7 +121,7 @@ building cohort manifests</li>
 <p>These scripts are <strong>pre-populated</strong> at project
 initialization with templates for six different builder types. You
 choose which builders to use by keeping the scripts you need and
-deleting the ones you don’t.</p>
+deleting the ones you do not.</p>
 <p><strong>When you run <code>main.R</code></strong>, the pipeline
 automatically discovers and sources all remaining builder scripts in a
 <strong>mandatory dependency order</strong>. This ensures concept sets
@@ -207,17 +207,17 @@ comments</li>
 <strong>Project initializes</strong> with all 6 builder scripts
 pre-created</li>
 <li>
-<strong>Edit the builders you need</strong> — Each script has clear
+<strong>Edit the builders you need</strong> - Each script has clear
 guidance comments</li>
 <li>
-<strong>Delete unused builders</strong> — Remove scripts you don’t
+<strong>Delete unused builders</strong> - Remove scripts you do not
 need</li>
 <li>
-<strong>Run <code>main.R</code></strong> —
+<strong>Run <code>main.R</code></strong> -
 <code><a href="../reference/sourceInputBuilderScripts.html">sourceInputBuilderScripts()</a></code> auto-discovers and runs
 remaining scripts in mandatory order</li>
 <li>
-<strong>Manifests load</strong> — Your cohorts and concept sets are
+<strong>Manifests load</strong> - Your cohorts and concept sets are
 ready for the pipeline</li>
 </ol>
 <p>Example: If you only use ATLAS for concept sets and Capr for
@@ -239,88 +239,20 @@ then cohorts).</p>
 </div>
 </div>
 <div class="section level2">
-<h2 id="builder-pattern-1-atlas-import">Builder Pattern 1: ATLAS Import<a class="anchor" aria-label="anchor" href="#builder-pattern-1-atlas-import"></a>
+<h2 id="concept-set-import">Concept Set Import<a class="anchor" aria-label="anchor" href="#concept-set-import"></a>
 </h2>
 <div class="section level3">
 <h3 id="importing-concept-sets-from-atlas">Importing Concept Sets from ATLAS<a class="anchor" aria-label="anchor" href="#importing-concept-sets-from-atlas"></a>
 </h3>
 <p>This pattern uses
 <code>inputs/conceptSets/R/import_atlas_concept_set.R</code>.</p>
+<p>Prerequisite setup for manifests, load files, and credentials is
+covered in <a href="launching_a_study.html">Launching a Picard
+Study</a>.</p>
 <div class="section level4">
-<h4 id="step-1-initialize-the-manifest">Step 1: Initialize the manifest<a class="anchor" aria-label="anchor" href="#step-1-initialize-the-manifest"></a>
+<h4 id="step-1-connect-to-atlas-and-import">Step 1: Connect to ATLAS and import<a class="anchor" aria-label="anchor" href="#step-1-connect-to-atlas-and-import"></a>
 </h4>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">conceptSetManifest</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/initConceptSetManifest.html">initConceptSetManifest</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-<p>This creates
-<code>inputs/conceptSets/conceptSetManifest.sqlite</code> if it does not
-already exist and returns a <code>ConceptSetManifest</code> R6
-object.</p>
-</div>
-<div class="section level4">
-<h4 id="step-2-create-and-fill-the-load-file">Step 2: Create and fill the load file<a class="anchor" aria-label="anchor" href="#step-2-create-and-fill-the-load-file"></a>
-</h4>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/createBlankConceptSetsLoadFile.html">createBlankConceptSetsLoadFile</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-<p>Opens <code>inputs/conceptSets/conceptSetsLoad.csv</code>. Fill in
-one row per concept set:</p>
-<table class="table">
-<thead><tr class="header">
-<th>Column</th>
-<th>Required</th>
-<th>Notes</th>
-</tr></thead>
-<tbody>
-<tr class="odd">
-<td><code>atlasId</code></td>
-<td>Yes</td>
-<td>ATLAS concept set ID</td>
-</tr>
-<tr class="even">
-<td><code>label</code></td>
-<td>Yes</td>
-<td>Display name</td>
-</tr>
-<tr class="odd">
-<td><code>domain</code></td>
-<td>Yes</td>
-<td>OMOP domain (e.g., <code>drug_exposure</code>)</td>
-</tr>
-<tr class="even">
-<td><code>sourceCode</code></td>
-<td>No</td>
-<td>
-<code>TRUE</code>/<code>FALSE</code> — whether it uses source
-codes</td>
-</tr>
-</tbody>
-</table>
-<p>Any additional columns are stored as tags.</p>
-</div>
-<div class="section level4">
-<h4 id="step-3-set-up-atlas-credentials">Step 3: Set up ATLAS Credentials<a class="anchor" aria-label="anchor" href="#step-3-set-up-atlas-credentials"></a>
-</h4>
-<p>Before connecting to ATLAS, store your credentials securely in
-<code>~/.picard/secrets.yml</code>:</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Interactive setup for Atlas credentials - guides you through keyring storage</span></span>
-<span><span class="fu"><a href="../reference/setupAtlasSecretsKeyring.html">setupAtlasSecretsKeyring</a></span><span class="op">(</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Or edit the secrets file directly</span></span>
-<span><span class="fu"><a href="../reference/editSecrets.html">editSecrets</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-<p>This creates/updates <code>~/.picard/secrets.yml</code> with your
-credentials stored securely:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="fu">atlas</span><span class="kw">:</span></span>
-<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a><span class="at">  </span><span class="fu">baseUrl</span><span class="kw">:</span><span class="at"> </span><span class="st">"https://organization-atlas.com/WebAPI"</span></span>
-<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a><span class="at">  </span><span class="fu">authMethod</span><span class="kw">:</span><span class="at"> </span><span class="st">"ad"</span></span>
-<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a><span class="at">  </span><span class="fu">user</span><span class="kw">:</span><span class="at"> </span><span class="st">"atlas.user@company.com"</span></span>
-<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a><span class="at">  </span><span class="fu">password</span><span class="kw">:</span><span class="at"> !expr keyring::key_get(service = "picard", username = "atlasPassword")</span></span></code></pre></div>
-<p>Recommended: Use <strong>Keyring</strong> to store passwords securely
-instead of plaintext.</p>
-</div>
-<div class="section level4">
-<h4 id="step-4-connect-to-atlas-and-import">Step 4: Connect to ATLAS and import<a class="anchor" aria-label="anchor" href="#step-4-connect-to-atlas-and-import"></a>
-</h4>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Credentials are automatically read from ~/.picard/secrets.yml</span></span>
 <span><span class="va">atlasConnection</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/getAtlasConnection.html">getAtlasConnection</a></span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
@@ -345,9 +277,9 @@ without reading from a file, which is useful for programmatic
 workflows.</p>
 </div>
 <div class="section level4">
-<h4 id="step-5-load-and-review">Step 5: Load and review<a class="anchor" aria-label="anchor" href="#step-5-load-and-review"></a>
+<h4 id="step-2-load-and-review">Step 2: Load and review<a class="anchor" aria-label="anchor" href="#step-2-load-and-review"></a>
 </h4>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">conceptSetManifest</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadConceptSetManifest.html">loadConceptSetManifest</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="va">conceptSetManifest</span><span class="op">$</span><span class="fu">tabulateManifest</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p><strong>Auto-discovery:</strong>
@@ -359,65 +291,69 @@ pick them up without any additional import step.</p>
 </div>
 </div>
 <div class="section level3">
-<h3 id="importing-cohorts-from-atlas">Importing Cohorts from ATLAS<a class="anchor" aria-label="anchor" href="#importing-cohorts-from-atlas"></a>
+<h3 id="other-import-patterns-for-concept-sets">Other import patterns for Concept Sets<a class="anchor" aria-label="anchor" href="#other-import-patterns-for-concept-sets"></a>
+</h3>
+<p>Use this pattern when you want to supplement ATLAS-imported concept
+sets with programmatic Capr definitions, then combine them into one
+manifest entry.</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ohdsi.github.io/Capr/" class="external-link">Capr</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">conceptSetManifest</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadConceptSetManifest.html">loadConceptSetManifest</a></span><span class="op">(</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Add Capr concept set example 1</span></span>
+<span><span class="va">metforminCs</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">cs</a></span><span class="op">(</span><span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">descendants</a></span><span class="op">(</span><span class="fl">1503297</span><span class="op">)</span>, name <span class="op">=</span> <span class="st">"metformin"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">conceptSetManifest</span><span class="op">$</span><span class="fu">addCaprConceptSet</span><span class="op">(</span></span>
+<span>  caprConceptSet <span class="op">=</span> <span class="va">metforminCs</span>,</span>
+<span>  label <span class="op">=</span> <span class="st">"Metformin"</span>,</span>
+<span>  category <span class="op">=</span> <span class="st">"Diabetes Treatments"</span>,</span>
+<span>  tags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>source <span class="op">=</span> <span class="st">"capr"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Add Capr concept set example 2</span></span>
+<span><span class="va">empagliflozinCs</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">cs</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">descendants</a></span><span class="op">(</span><span class="fl">45774751</span><span class="op">)</span>, <span class="co"># empagliflozin</span></span>
+<span>  name  <span class="op">=</span> <span class="st">"empagliflozin"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">conceptSetManifest</span><span class="op">$</span><span class="fu">addCaprConceptSet</span><span class="op">(</span></span>
+<span>  caprConceptSet <span class="op">=</span> <span class="va">empagliflozinCs</span>,</span>
+<span>  label <span class="op">=</span> <span class="st">"Empagliflozin"</span>,</span>
+<span>  category <span class="op">=</span> <span class="st">"Diabetes Treatments"</span>,</span>
+<span>  tags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>source <span class="op">=</span> <span class="st">"capr"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># get the ids</span></span>
+<span><span class="va">metforminId</span> <span class="op">&lt;-</span> <span class="va">conceptSetManifest</span><span class="op">$</span><span class="fu">queryConceptSetsByLabel</span><span class="op">(</span><span class="st">"Metformin"</span><span class="op">)</span><span class="op">$</span><span class="va">id</span></span>
+<span><span class="va">empagliflozinId</span> <span class="op">&lt;-</span> <span class="va">conceptSetManifest</span><span class="op">$</span><span class="fu">queryConceptSetsByLabel</span><span class="op">(</span><span class="st">"Empagliflozin"</span><span class="op">)</span><span class="op">$</span><span class="va">id</span></span>
+<span></span>
+<span><span class="co"># Combine concept sets (works for IDs from ATLAS, Capr, or mixed sources)</span></span>
+<span><span class="va">conceptSetManifest</span><span class="op">$</span><span class="fu">combineConceptSets</span><span class="op">(</span></span>
+<span>  conceptSetIds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">metforminId</span>, <span class="va">empagliflozinId</span><span class="op">)</span>,</span>
+<span>  combinedLabel <span class="op">=</span> <span class="st">"Diabetes Treatments"</span>,</span>
+<span>  combinedCategory <span class="op">=</span> <span class="st">"Treatment Group"</span>,</span>
+<span>  combinedTags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>owner <span class="op">=</span> <span class="st">"epi_team"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">conceptSetManifest</span><span class="op">$</span><span class="fu">tabulateManifest</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+</div>
+</div>
+<div class="section level2">
+<h2 id="cohort-import">Cohort Import<a class="anchor" aria-label="anchor" href="#cohort-import"></a>
+</h2>
+<div class="section level3">
+<h3 id="builder-pattern-1-importing-cohorts-from-atlas">Builder Pattern 1: Importing Cohorts from ATLAS<a class="anchor" aria-label="anchor" href="#builder-pattern-1-importing-cohorts-from-atlas"></a>
 </h3>
 <p>This pattern uses
 <code>inputs/cohorts/R/import_atlas_cohort.R</code>.</p>
+<p>Prerequisite setup for manifests, load files, and credentials is
+covered in <a href="launching_a_study.html">Launching a Picard
+Study</a>.</p>
 <div class="section level4">
-<h4 id="step-1-initialize-the-manifest-1">Step 1: Initialize the manifest<a class="anchor" aria-label="anchor" href="#step-1-initialize-the-manifest-1"></a>
+<h4 id="step-1-connect-to-atlas-and-import-1">Step 1: Connect to ATLAS and import<a class="anchor" aria-label="anchor" href="#step-1-connect-to-atlas-and-import-1"></a>
 </h4>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">cohortManifest</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/initCohortManifest.html">initCohortManifest</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level4">
-<h4 id="step-2-create-and-fill-the-load-file-1">Step 2: Create and fill the load file<a class="anchor" aria-label="anchor" href="#step-2-create-and-fill-the-load-file-1"></a>
-</h4>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/createBlankCohortsLoadFile.html">createBlankCohortsLoadFile</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-<p>Opens <code>inputs/cohorts/cohortsLoad.csv</code>. Fill in one row
-per cohort:</p>
-<table class="table">
-<thead><tr class="header">
-<th>Column</th>
-<th>Required</th>
-<th>Notes</th>
-</tr></thead>
-<tbody>
-<tr class="odd">
-<td><code>atlasId</code></td>
-<td>Yes</td>
-<td>ATLAS cohort definition ID</td>
-</tr>
-<tr class="even">
-<td><code>label</code></td>
-<td>Yes</td>
-<td>Display name</td>
-</tr>
-<tr class="odd">
-<td><code>category</code></td>
-<td>Yes</td>
-<td>Broad grouping (e.g., <code>"Disease Populations"</code>)</td>
-</tr>
-<tr class="even">
-<td><code>subCategory</code></td>
-<td>No</td>
-<td>Optional sub-grouping</td>
-</tr>
-</tbody>
-</table>
-<p>Any additional columns are stored as tags.</p>
-</div>
-<div class="section level4">
-<h4 id="step-3-set-up-atlas-credentials-1">Step 3: Set up ATLAS Credentials<a class="anchor" aria-label="anchor" href="#step-3-set-up-atlas-credentials-1"></a>
-</h4>
-<p>Follow the same process as concept sets above using
-<code><a href="../reference/setupAtlasSecretsKeyring.html">setupAtlasSecretsKeyring()</a></code> or
-<code><a href="../reference/editSecrets.html">editSecrets()</a></code>.</p>
-</div>
-<div class="section level4">
-<h4 id="step-4-connect-to-atlas-and-import-1">Step 4: Connect to ATLAS and import<a class="anchor" aria-label="anchor" href="#step-4-connect-to-atlas-and-import-1"></a>
-</h4>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Credentials are automatically read from ~/.picard/secrets.yml</span></span>
 <span><span class="va">atlasConnection</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/getAtlasConnection.html">getAtlasConnection</a></span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
@@ -441,133 +377,79 @@ without reading from a file, which is useful for programmatic
 workflows.</p>
 </div>
 <div class="section level4">
-<h4 id="step-5-load-and-review-1">Step 5: Load and review<a class="anchor" aria-label="anchor" href="#step-5-load-and-review-1"></a>
+<h4 id="step-2-load-and-review-1">Step 2: Load and review<a class="anchor" aria-label="anchor" href="#step-2-load-and-review-1"></a>
 </h4>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">cohortManifest</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadCohortManifest.html">loadCohortManifest</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">tabulateManifest</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-</div>
-</div>
-<div class="section level3">
-<h3 id="checking-for-atlas-changes-mid-cycle">Checking for ATLAS Changes (Mid-Cycle)<a class="anchor" aria-label="anchor" href="#checking-for-atlas-changes-mid-cycle"></a>
-</h3>
-<p>After the initial import, you can periodically check whether
-definitions in ATLAS have changed. The workflow uses two phases:</p>
-<p><strong>Phase 1: Detection</strong> — Compares remote ATLAS hashes to
-stored local hashes:</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># For concept sets</span></span>
-<span><span class="va">conceptSetManifest</span><span class="op">$</span><span class="fu">checkAtlasConceptSets</span><span class="op">(</span><span class="va">atlasConnection</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># For cohorts</span></span>
-<span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">checkAtlasCohorts</span><span class="op">(</span><span class="va">atlasConnection</span><span class="op">)</span></span></code></pre></div>
-<p>Reports which definitions have changed in ATLAS.</p>
-<p><strong>Phase 2: Update</strong> — Downloads updated definitions and
-re-writes JSON files:</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># For concept sets</span></span>
-<span><span class="va">conceptSetManifest</span><span class="op">$</span><span class="fu">updateAtlasConceptSets</span><span class="op">(</span><span class="va">atlasConnection</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># For cohorts</span></span>
-<span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">updateAtlasCohorts</span><span class="op">(</span><span class="va">atlasConnection</span><span class="op">)</span></span></code></pre></div>
-<p>Updates the manifest with new hashes and cascades
-<code>'stale'</code> status to any downstream dependent cohorts (for
-cohorts only).</p>
 <hr>
 </div>
 </div>
-<div class="section level2">
-<h2 id="builder-pattern-2-capr-based-building">Builder Pattern 2: Capr-Based Building<a class="anchor" aria-label="anchor" href="#builder-pattern-2-capr-based-building"></a>
-</h2>
 <div class="section level3">
-<h3 id="building-concept-sets-with-capr">Building Concept Sets with Capr<a class="anchor" aria-label="anchor" href="#building-concept-sets-with-capr"></a>
-</h3>
-<p>This pattern uses
-<code>inputs/conceptSets/R/import_capr_concept_set.R</code> and requires
-the Capr package.</p>
-<p>Capr provides an R interface for building OMOP concept sets
-programmatically:</p>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ohdsi.github.io/Capr/" class="external-link">Capr</a></span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">conceptSetManifest</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadConceptSetManifest.html">loadConceptSetManifest</a></span><span class="op">(</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Example 1: Diabetes mellitus concepts</span></span>
-<span><span class="va">diabetesConcepts</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">cs</a></span><span class="op">(</span></span>
-<span>  <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">descendants</a></span><span class="op">(</span><span class="fl">201820</span><span class="op">)</span>,  <span class="co"># Type 2 diabetes mellitus</span></span>
-<span>  <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">descendants</a></span><span class="op">(</span><span class="fl">443238</span><span class="op">)</span>   <span class="co"># Insulin-dependent diabetes mellitus</span></span>
-<span><span class="op">)</span></span>
-<span><span class="va">conceptSetManifest</span><span class="op">$</span><span class="fu">addCaprConceptSet</span><span class="op">(</span></span>
-<span>  conceptSetName <span class="op">=</span> <span class="st">"Diabetes"</span>,</span>
-<span>  conceptSet <span class="op">=</span> <span class="va">diabetesConcepts</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Example 2: Antidiabetic drugs</span></span>
-<span><span class="va">antidiabeticDrugs</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">cs</a></span><span class="op">(</span></span>
-<span>  <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">descendants</a></span><span class="op">(</span><span class="fl">21600960</span><span class="op">)</span>,  <span class="co"># Metformin</span></span>
-<span>  <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">descendants</a></span><span class="op">(</span><span class="fl">21601389</span><span class="op">)</span>,  <span class="co"># Sulfonylureas</span></span>
-<span>  <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">descendants</a></span><span class="op">(</span><span class="fl">21602722</span><span class="op">)</span>,  <span class="co"># SGLT2 inhibitors</span></span>
-<span>  sourceCode <span class="op">=</span> <span class="cn">TRUE</span></span>
-<span><span class="op">)</span></span>
-<span><span class="va">conceptSetManifest</span><span class="op">$</span><span class="fu">addCaprConceptSet</span><span class="op">(</span></span>
-<span>  conceptSetName <span class="op">=</span> <span class="st">"AntidiabeticDrugs"</span>,</span>
-<span>  conceptSet <span class="op">=</span> <span class="va">antidiabeticDrugs</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-<p>See the <a href="https://ohdsi.github.io/Capr/" class="external-link">Capr
-documentation</a> for detailed syntax and more complex concept set
-definitions.</p>
-</div>
-<div class="section level3">
-<h3 id="building-cohorts-with-capr">Building Cohorts with Capr<a class="anchor" aria-label="anchor" href="#building-cohorts-with-capr"></a>
+<h3 id="builder-pattern-2-capr-based-building">Builder Pattern 2: Capr-Based Building<a class="anchor" aria-label="anchor" href="#builder-pattern-2-capr-based-building"></a>
 </h3>
 <p>This pattern uses <code>inputs/cohorts/R/import_capr_cohort.R</code>
 and requires the Capr package.</p>
 <p>Capr provides a fluent interface for building cohort definitions in
 R:</p>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ohdsi.github.io/Capr/" class="external-link">Capr</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">cohortManifest</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadCohortManifest.html">loadCohortManifest</a></span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># Example: Type 2 Diabetes cohort with washout period</span></span>
-<span><span class="va">t2dCohort</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cohort.html" class="external-link">cohort</a></span><span class="op">(</span></span>
+<span><span class="co"># ckd concept set </span></span>
+<span><span class="va">ckdCs</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">cs</a></span><span class="op">(</span><span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">descendants</a></span><span class="op">(</span><span class="fl">46271022</span><span class="op">)</span>,  name <span class="op">=</span> <span class="st">"Chronic Kidney Disease"</span><span class="op">)</span></span>
+<span><span class="va">t2dCs</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">cs</a></span><span class="op">(</span><span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">descendants</a></span><span class="op">(</span><span class="fl">201826</span><span class="op">)</span>,  name <span class="op">=</span> <span class="st">"Type 2 diabetes"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Example: Chronic Kidney Disease with no prior Type 2 Diabetes cohort</span></span>
+<span><span class="co"># 2 CKD codes 365d apart no prior T2D</span></span>
+<span><span class="va">ckdCohort</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cohort.html" class="external-link">cohort</a></span><span class="op">(</span></span>
 <span>  entry <span class="op">=</span> <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/entry.html" class="external-link">entry</a></span><span class="op">(</span></span>
-<span>    <span class="fu">condition</span><span class="op">(</span></span>
-<span>      <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">descendants</a></span><span class="op">(</span><span class="fl">201820</span><span class="op">)</span>,  <span class="co"># Type 2 diabetes</span></span>
-<span>      on <span class="op">=</span> <span class="st">"conditionStart"</span></span>
-<span>    <span class="op">)</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
-<span>      <span class="fu"><a href="https://dplyr.tidyverse.org/reference/filter.html" class="external-link">filter</a></span><span class="op">(</span></span>
-<span>        <span class="fu">relationshipDomain</span><span class="op">(</span></span>
-<span>          <span class="st">"measurement"</span>,</span>
-<span>          <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">descendants</a></span><span class="op">(</span><span class="fl">3002962</span><span class="op">)</span>  <span class="co"># HbA1c measurement</span></span>
-<span>        <span class="op">)</span>,</span>
-<span>        <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/duringInterval.html" class="external-link">duringInterval</a></span><span class="op">(</span>daysBefore <span class="op">=</span> <span class="fl">365</span>, daysAfter <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
-<span>      <span class="op">)</span></span>
+<span>    <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/conditionOccurrence.html" class="external-link">conditionOccurrence</a></span><span class="op">(</span><span class="va">ckdCs</span>,</span>
+<span>      <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/nestedWithAll.html" class="external-link">nestedWithAll</a></span><span class="op">(</span></span>
+<span>                    <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/atLeast.html" class="external-link">atLeast</a></span><span class="op">(</span></span>
+<span>                        <span class="fl">1L</span>,</span>
+<span>                        <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/conditionOccurrence.html" class="external-link">conditionOccurrence</a></span><span class="op">(</span><span class="va">ckdCs</span><span class="op">)</span>,</span>
+<span>                        aperture <span class="op">=</span> <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/duringInterval.html" class="external-link">duringInterval</a></span><span class="op">(</span><span class="fu"><a href="https://ohdsi.github.io/Capr/reference/eventStarts.html" class="external-link">eventStarts</a></span><span class="op">(</span><span class="op">-</span><span class="fl">365</span>, <span class="op">-</span><span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
+<span>                    <span class="op">)</span></span>
+<span>                <span class="op">)</span></span>
+<span>    <span class="op">)</span>,</span>
+<span>            observationWindow <span class="op">=</span> <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/continuousObservation.html" class="external-link">continuousObservation</a></span><span class="op">(</span>priorDays <span class="op">=</span> <span class="fl">0L</span>, postDays <span class="op">=</span> <span class="fl">0L</span><span class="op">)</span>,</span>
+<span>            primaryCriteriaLimit <span class="op">=</span> <span class="st">"First"</span></span>
 <span>  <span class="op">)</span>,</span>
-<span>  <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/attrition.html" class="external-link">attrition</a></span><span class="op">(</span></span>
-<span>    <span class="st">"No prior T2D"</span>,</span>
-<span>    <span class="op">!</span><span class="fu">condition</span><span class="op">(</span><span class="fu"><a href="https://ohdsi.github.io/Capr/reference/cs.html" class="external-link">descendants</a></span><span class="op">(</span><span class="fl">201820</span><span class="op">)</span>, on <span class="op">=</span> <span class="st">"conditionStart"</span><span class="op">)</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
-<span>      <span class="fu">during</span><span class="op">(</span>daysBefore <span class="op">=</span> <span class="fl">365</span><span class="op">)</span></span>
-<span>  <span class="op">)</span></span>
+<span>    attrition <span class="op">=</span> <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/attrition.html" class="external-link">attrition</a></span><span class="op">(</span></span>
+<span>            <span class="st">"No T2D on or before index"</span> <span class="op">=</span> <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/withAll.html" class="external-link">withAll</a></span><span class="op">(</span></span>
+<span>                <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/exactly.html" class="external-link">exactly</a></span><span class="op">(</span></span>
+<span>                    <span class="fl">0L</span>,</span>
+<span>                    <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/conditionOccurrence.html" class="external-link">conditionOccurrence</a></span><span class="op">(</span><span class="va">t2dCs</span><span class="op">)</span>,</span>
+<span>                    aperture <span class="op">=</span> <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/duringInterval.html" class="external-link">duringInterval</a></span><span class="op">(</span><span class="fu"><a href="https://ohdsi.github.io/Capr/reference/eventStarts.html" class="external-link">eventStarts</a></span><span class="op">(</span><span class="op">-</span><span class="cn">Inf</span>, <span class="fl">0</span><span class="op">)</span><span class="op">)</span></span>
+<span>                <span class="op">)</span></span>
+<span>            <span class="op">)</span>,</span>
+<span>            expressionLimit <span class="op">=</span> <span class="st">"First"</span></span>
+<span>        <span class="op">)</span>,</span>
+<span>        exit <span class="op">=</span> <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/exit.html" class="external-link">exit</a></span><span class="op">(</span></span>
+<span>            endStrategy <span class="op">=</span> <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/observationExit.html" class="external-link">observationExit</a></span><span class="op">(</span><span class="op">)</span></span>
+<span>        <span class="op">)</span>,</span>
+<span>        era <span class="op">=</span> <span class="fu"><a href="https://ohdsi.github.io/Capr/reference/era.html" class="external-link">era</a></span><span class="op">(</span>eraDays <span class="op">=</span> <span class="fl">0L</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">addCaprCohort</span><span class="op">(</span></span>
-<span>  cohortName <span class="op">=</span> <span class="st">"Type2Diabetes_HbA1c"</span>,</span>
-<span>  cohort <span class="op">=</span> <span class="va">t2dCohort</span></span>
+<span>  caprCohort <span class="op">=</span> <span class="va">ckdCohort</span>,</span>
+<span>  label <span class="op">=</span> <span class="st">"Chronic Kidney Disease"</span>,</span>
+<span>  category <span class="op">=</span> <span class="st">"Target"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p>See the <a href="https://ohdsi.github.io/Capr/" class="external-link">Capr
 documentation</a> for detailed examples.</p>
 <hr>
 </div>
-</div>
-<div class="section level2">
-<h2 id="builder-pattern-3-custom-sql-cohorts">Builder Pattern 3: Custom SQL Cohorts<a class="anchor" aria-label="anchor" href="#builder-pattern-3-custom-sql-cohorts"></a>
-</h2>
+<div class="section level3">
+<h3 id="builder-pattern-3-custom-sql-cohorts">Builder Pattern 3: Custom SQL Cohorts<a class="anchor" aria-label="anchor" href="#builder-pattern-3-custom-sql-cohorts"></a>
+</h3>
 <p>This pattern uses
 <code>inputs/cohorts/R/import_sql_cohort.R</code>.</p>
 <p>Custom SQL cohorts let you define cohorts using hand-written SQL
 queries. Place your SQL files in <code>inputs/cohorts/sql/</code>:</p>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">cohortManifest</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadCohortManifest.html">loadCohortManifest</a></span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Add a custom SQL cohort</span></span>
@@ -580,20 +462,20 @@ queries. Place your SQL files in <code>inputs/cohorts/sql/</code>:</p>
 <span><span class="op">)</span></span></code></pre></div>
 <p>SQL files must follow SqlRender conventions with parameters prefixed
 by <code>@</code>:</p>
-<div class="sourceCode" id="cb17"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb17-1"><a href="#cb17-1" tabindex="-1"></a><span class="co">-- Cohort: Patients with Type 2 Diabetes</span></span>
-<span id="cb17-2"><a href="#cb17-2" tabindex="-1"></a><span class="kw">DELETE</span> <span class="kw">FROM</span> @target_database_schema.cohort</span>
-<span id="cb17-3"><a href="#cb17-3" tabindex="-1"></a><span class="kw">WHERE</span> cohort_definition_id <span class="op">=</span> @target_cohort_id;</span>
-<span id="cb17-4"><a href="#cb17-4" tabindex="-1"></a></span>
-<span id="cb17-5"><a href="#cb17-5" tabindex="-1"></a><span class="kw">INSERT</span> <span class="kw">INTO</span> @target_database_schema.cohort</span>
-<span id="cb17-6"><a href="#cb17-6" tabindex="-1"></a>  (cohort_definition_id, subject_id, cohort_start_date, cohort_end_date)</span>
-<span id="cb17-7"><a href="#cb17-7" tabindex="-1"></a><span class="kw">SELECT</span></span>
-<span id="cb17-8"><a href="#cb17-8" tabindex="-1"></a>  @target_cohort_id <span class="kw">as</span> cohort_definition_id,</span>
-<span id="cb17-9"><a href="#cb17-9" tabindex="-1"></a>  person_id <span class="kw">as</span> subject_id,</span>
-<span id="cb17-10"><a href="#cb17-10" tabindex="-1"></a>  condition_start_date <span class="kw">as</span> cohort_start_date,</span>
-<span id="cb17-11"><a href="#cb17-11" tabindex="-1"></a>  DATEADD(<span class="dt">day</span>, <span class="dv">365</span>, condition_start_date) <span class="kw">as</span> cohort_end_date</span>
-<span id="cb17-12"><a href="#cb17-12" tabindex="-1"></a><span class="kw">FROM</span> @cdm_database_schema.condition_occurrence</span>
-<span id="cb17-13"><a href="#cb17-13" tabindex="-1"></a><span class="kw">WHERE</span> condition_concept_id <span class="kw">IN</span> (<span class="dv">201820</span>, <span class="dv">443238</span>)</span>
-<span id="cb17-14"><a href="#cb17-14" tabindex="-1"></a>  <span class="kw">AND</span> condition_start_date <span class="op">&gt;=</span> <span class="st">'2015-01-01'</span>;</span></code></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="co">-- Cohort: Patients with Type 2 Diabetes</span></span>
+<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a><span class="kw">DELETE</span> <span class="kw">FROM</span> @target_database_schema.cohort</span>
+<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a><span class="kw">WHERE</span> cohort_definition_id <span class="op">=</span> @target_cohort_id;</span>
+<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a></span>
+<span id="cb9-5"><a href="#cb9-5" tabindex="-1"></a><span class="kw">INSERT</span> <span class="kw">INTO</span> @target_database_schema.cohort</span>
+<span id="cb9-6"><a href="#cb9-6" tabindex="-1"></a>  (cohort_definition_id, subject_id, cohort_start_date, cohort_end_date)</span>
+<span id="cb9-7"><a href="#cb9-7" tabindex="-1"></a><span class="kw">SELECT</span></span>
+<span id="cb9-8"><a href="#cb9-8" tabindex="-1"></a>  @target_cohort_id <span class="kw">as</span> cohort_definition_id,</span>
+<span id="cb9-9"><a href="#cb9-9" tabindex="-1"></a>  person_id <span class="kw">as</span> subject_id,</span>
+<span id="cb9-10"><a href="#cb9-10" tabindex="-1"></a>  condition_start_date <span class="kw">as</span> cohort_start_date,</span>
+<span id="cb9-11"><a href="#cb9-11" tabindex="-1"></a>  DATEADD(<span class="dt">day</span>, <span class="dv">365</span>, condition_start_date) <span class="kw">as</span> cohort_end_date</span>
+<span id="cb9-12"><a href="#cb9-12" tabindex="-1"></a><span class="kw">FROM</span> @cdm_database_schema.condition_occurrence</span>
+<span id="cb9-13"><a href="#cb9-13" tabindex="-1"></a><span class="kw">WHERE</span> condition_concept_id <span class="kw">IN</span> (<span class="dv">201820</span>, <span class="dv">443238</span>)</span>
+<span id="cb9-14"><a href="#cb9-14" tabindex="-1"></a>  <span class="kw">AND</span> condition_start_date <span class="op">&gt;=</span> <span class="st">'2015-01-01'</span>;</span></code></pre></div>
 <p>Key SqlRender parameters: - <code>@target_cohort_id</code> — The
 numeric ID for your cohort - <code>@target_database_schema</code> — The
 schema where results will be written - <code>@cdm_database_schema</code>
@@ -606,68 +488,404 @@ your cohort idempotent (can be re-run without duplication).</p>
 </blockquote>
 <hr>
 </div>
-<div class="section level2">
-<h2 id="builder-pattern-4-derived-cohorts">Builder Pattern 4: Derived Cohorts<a class="anchor" aria-label="anchor" href="#builder-pattern-4-derived-cohorts"></a>
-</h2>
+<div class="section level3">
+<h3 id="builder-pattern-4-derived-cohorts">Builder Pattern 4: Derived Cohorts<a class="anchor" aria-label="anchor" href="#builder-pattern-4-derived-cohorts"></a>
+</h3>
 <p>This pattern uses
 <code>inputs/cohorts/R/build_dependent_cohorts.R</code>.</p>
 <p>Derived cohorts are relationships between existing base cohorts. All
 base cohorts must be imported first (via ATLAS, Capr, or SQL).</p>
+<p>Start by loading the cohort manifest.</p>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">cohortManifest</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadCohortManifest.html">loadCohortManifest</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<p>Assume these base cohorts already exist in your manifest:</p>
+<ul>
+<li>CohortId 1: Chronic Kidney Disease</li>
+<li>CohortId 2: Type 2 Diabetes</li>
+<li>CohortId 3: Major Bleeding Outcome</li>
+<li>CohortId 4: All-Cause Death</li>
+</ul>
+<p>For derived builders, prefer passing manifest query rows (entries)
+instead of raw IDs.</p>
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">ckdEntry</span> <span class="op">&lt;-</span> <span class="va">cohortManifest</span><span class="op">$</span><span class="fu">queryCohortsByLabel</span><span class="op">(</span></span>
+<span>  labels <span class="op">=</span> <span class="st">"Chronic Kidney Disease"</span>,</span>
+<span>  matchType <span class="op">=</span> <span class="st">"exact"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">t2dEntry</span> <span class="op">&lt;-</span> <span class="va">cohortManifest</span><span class="op">$</span><span class="fu">queryCohortsByLabel</span><span class="op">(</span></span>
+<span>  labels <span class="op">=</span> <span class="st">"Type 2 Diabetes"</span>,</span>
+<span>  matchType <span class="op">=</span> <span class="st">"exact"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">bleedEntry</span> <span class="op">&lt;-</span> <span class="va">cohortManifest</span><span class="op">$</span><span class="fu">queryCohortsByLabel</span><span class="op">(</span></span>
+<span>  labels <span class="op">=</span> <span class="st">"Major Bleeding Outcome"</span>,</span>
+<span>  matchType <span class="op">=</span> <span class="st">"exact"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">deathEntry</span> <span class="op">&lt;-</span> <span class="va">cohortManifest</span><span class="op">$</span><span class="fu">queryCohortsByLabel</span><span class="op">(</span></span>
+<span>  labels <span class="op">=</span> <span class="st">"All-Cause Death"</span>,</span>
+<span>  matchType <span class="op">=</span> <span class="st">"exact"</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<div class="section level4">
+<h4 id="example-1-temporal-subset">Example 1: Temporal Subset<a class="anchor" aria-label="anchor" href="#example-1-temporal-subset"></a>
+</h4>
+<p>Build a cohort of CKD patients with a T2D event in a start-date
+window from 365 days before to 0 days after the base cohort start
+date.</p>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">startWindow</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/createSubsetStartWindow.html">createSubsetStartWindow</a></span><span class="op">(</span></span>
+<span>  subsetCohortWindowAnchor <span class="op">=</span> <span class="st">"cohort_start_date"</span>,</span>
+<span>  startDays <span class="op">=</span> <span class="op">-</span><span class="fl">365</span>,</span>
+<span>  endDays <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  baseCohortWindowAnchor <span class="op">=</span> <span class="st">"cohort_start_date"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">buildSubsetCohortTemporal</span><span class="op">(</span></span>
+<span>  label <span class="op">=</span> <span class="st">"CKD_With_Prior_T2D"</span>,</span>
+<span>  category <span class="op">=</span> <span class="st">"Derived Cohorts"</span>,</span>
+<span>  baseCohortEntry <span class="op">=</span> <span class="va">ckdEntry</span>,</span>
+<span>  filterCohortEntry <span class="op">=</span> <span class="va">t2dEntry</span>,</span>
+<span>  startWindow <span class="op">=</span> <span class="va">startWindow</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level4">
+<h4 id="example-2-union-cohort">Example 2: Union Cohort<a class="anchor" aria-label="anchor" href="#example-2-union-cohort"></a>
+</h4>
+<p>Build a cohort that includes anyone in either CKD or T2D.</p>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">buildUnionCohort</span><span class="op">(</span></span>
+<span>  label <span class="op">=</span> <span class="st">"CKD_or_T2D"</span>,</span>
+<span>  category <span class="op">=</span> <span class="st">"Derived Cohorts"</span>,</span>
+<span>  cohortEntries <span class="op">=</span> <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/bind_rows.html" class="external-link">bind_rows</a></span><span class="op">(</span><span class="va">ckdEntry</span>, <span class="va">t2dEntry</span><span class="op">)</span>,</span>
+<span>  gapDays <span class="op">=</span> <span class="fl">0L</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level4">
+<h4 id="example-3-complement-cohort">Example 3: Complement Cohort<a class="anchor" aria-label="anchor" href="#example-3-complement-cohort"></a>
+</h4>
+<p>Build a CKD cohort that excludes patients in T2D.</p>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">buildComplementCohort</span><span class="op">(</span></span>
+<span>  label <span class="op">=</span> <span class="st">"CKD_Without_T2D"</span>,</span>
+<span>  category <span class="op">=</span> <span class="st">"Derived Cohorts"</span>,</span>
+<span>  populationCohortEntry <span class="op">=</span> <span class="va">ckdEntry</span>,</span>
+<span>  excludeCohortEntries <span class="op">=</span> <span class="va">t2dEntry</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level4">
+<h4 id="example-4-composite-cohort">Example 4: Composite Cohort<a class="anchor" aria-label="anchor" href="#example-4-composite-cohort"></a>
+</h4>
+<p>Build a cohort requiring membership in multiple component cohorts
+(intersection style criteria).</p>
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">buildCompositeCohort</span><span class="op">(</span></span>
+<span>  label <span class="op">=</span> <span class="st">"CKD_and_T2D_Composite"</span>,</span>
+<span>  category <span class="op">=</span> <span class="st">"Derived Cohorts"</span>,</span>
+<span>  criteriaCohortEntries <span class="op">=</span> <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/bind_rows.html" class="external-link">bind_rows</a></span><span class="op">(</span><span class="va">ckdEntry</span>, <span class="va">t2dEntry</span><span class="op">)</span>,</span>
+<span>  minEventCount <span class="op">=</span> <span class="fl">2L</span>,</span>
+<span>  eventSelection <span class="op">=</span> <span class="st">"First"</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level4">
+<h4 id="example-5-demographic-subset-cohort">Example 5: Demographic Subset Cohort<a class="anchor" aria-label="anchor" href="#example-5-demographic-subset-cohort"></a>
+</h4>
+<p>Build a demographic subset of CKD patients (for example, age and sex
+criteria).</p>
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">buildDemographicCohort</span><span class="op">(</span></span>
+<span>  label <span class="op">=</span> <span class="st">"CKD_Males_40_to_75"</span>,</span>
+<span>  baseCohortEntry <span class="op">=</span> <span class="va">ckdEntry</span>,</span>
+<span>  category <span class="op">=</span> <span class="st">"Derived Cohorts"</span>,</span>
+<span>  minAge <span class="op">=</span> <span class="fl">40L</span>,</span>
+<span>  maxAge <span class="op">=</span> <span class="fl">75L</span>,</span>
+<span>  genderConceptIds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">8507</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level4">
+<h4 id="example-6-stratified-cohorts">Example 6: Stratified Cohorts<a class="anchor" aria-label="anchor" href="#example-6-stratified-cohorts"></a>
+</h4>
+<p>Split one base cohort into multiple strata plus an automatic
+Unclassified cohort.</p>
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">strata</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>  <span class="st">"Female"</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>genderConceptIds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">8532</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  <span class="st">"Male"</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>genderConceptIds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">8507</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  <span class="st">"Age_65_plus"</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>minAge <span class="op">=</span> <span class="fl">65L</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">buildStratifiedCohorts</span><span class="op">(</span></span>
+<span>  baseCohortEntry <span class="op">=</span> <span class="va">ckdEntry</span>,</span>
+<span>  strata <span class="op">=</span> <span class="va">strata</span>,</span>
+<span>  labelPrefix <span class="op">=</span> <span class="st">"CKD"</span>,</span>
+<span>  category <span class="op">=</span> <span class="st">"Derived Cohorts"</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level4">
+<h4 id="example-7-o-prior-t-cohort">Example 7: O-Prior-T Cohort<a class="anchor" aria-label="anchor" href="#example-7-o-prior-t-cohort"></a>
+</h4>
+<p>Filter outcome events to those with prior target exposure in a 30-day
+lookback window.</p>
 <div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">buildOPriorT</span><span class="op">(</span></span>
+<span>  label <span class="op">=</span> <span class="st">"Outcome_Prior_Target"</span>,</span>
+<span>  category <span class="op">=</span> <span class="st">"Derived Cohorts"</span>,</span>
+<span>  outcomeCohortEntry <span class="op">=</span> <span class="va">bleedEntry</span>,</span>
+<span>  targetCohortEntry <span class="op">=</span> <span class="va">t2dEntry</span>,</span>
+<span>  mode <span class="op">=</span> <span class="st">"prior"</span>,</span>
+<span>  priorTimeWindowDays <span class="op">=</span> <span class="fl">30L</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level4">
+<h4 id="example-8-t-prior-o-cohort">Example 8: T-Prior-O Cohort<a class="anchor" aria-label="anchor" href="#example-8-t-prior-o-cohort"></a>
+</h4>
+<p>Filter target events to those with prior outcome occurrence in a
+30-day lookback window.</p>
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">buildTPriorO</span><span class="op">(</span></span>
+<span>  label <span class="op">=</span> <span class="st">"Target_Prior_Outcome"</span>,</span>
+<span>  category <span class="op">=</span> <span class="st">"Derived Cohorts"</span>,</span>
+<span>  targetCohortEntry <span class="op">=</span> <span class="va">t2dEntry</span>,</span>
+<span>  outcomeCohortEntry <span class="op">=</span> <span class="va">bleedEntry</span>,</span>
+<span>  mode <span class="op">=</span> <span class="st">"prior"</span>,</span>
+<span>  priorTimeWindowDays <span class="op">=</span> <span class="fl">30L</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level4">
+<h4 id="example-9-censor-cohort">Example 9: Censor Cohort<a class="anchor" aria-label="anchor" href="#example-9-censor-cohort"></a>
+</h4>
+<p>Create a censored version of a target cohort using a censoring event
+cohort.</p>
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">buildCensorCohort</span><span class="op">(</span></span>
+<span>  label <span class="op">=</span> <span class="st">"T2D_Censored_At_Death"</span>,</span>
+<span>  category <span class="op">=</span> <span class="st">"Derived Cohorts"</span>,</span>
+<span>  targetCohortEntry <span class="op">=</span> <span class="va">t2dEntry</span>,</span>
+<span>  censorCohortEntry <span class="op">=</span> <span class="va">deathEntry</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>Legacy ID inputs remain supported for backward compatibility, but
+entry-based inputs are recommended for new code.</p>
+<p>Build methods shown above: - <code>buildSubsetCohortTemporal()</code>
+- <code>buildUnionCohort()</code> - <code>buildComplementCohort()</code>
+- <code>buildCompositeCohort()</code> -
+<code>buildDemographicCohort()</code> -
+<code>buildStratifiedCohorts()</code> - <code>buildOPriorT()</code> -
+<code>buildTPriorO()</code> - <code>buildCensorCohort()</code></p>
+<p>See <a href="manifest_management.html">Manifest Management</a> for
+comprehensive examples of all derived cohort types.</p>
+</div>
+</div>
+<div class="section level3">
+<h3 id="build-pattern-5-custom-dependent-sql-cohorts">Build Pattern 5: Custom Dependent SQL Cohorts<a class="anchor" aria-label="anchor" href="#build-pattern-5-custom-dependent-sql-cohorts"></a>
+</h3>
+<p>Use this pattern when a custom SQL cohort depends on one or more
+previously defined cohorts (for example inclusion/exclusion cohorts).
+This registers the cohort as a dependency-aware derived type
+(<code>custom_derived</code>) so execution order, stale detection, and
+dependency hashing are handled automatically.</p>
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">cohortManifest</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadCohortManifest.html">loadCohortManifest</a></span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># Ensure base cohorts exist</span></span>
-<span><span class="co"># - CohortId 1: Chronic Kidney Disease</span></span>
-<span><span class="co"># - CohortId 2: Type 2 Diabetes</span></span>
+<span><span class="co"># Example dependencies already in the manifest:</span></span>
+<span><span class="co"># - 1001 = Inclusion cohort</span></span>
+<span><span class="co"># - 1002 = Exclusion cohort</span></span>
 <span></span>
-<span><span class="co"># Example 1: Temporal - CKD in patients with prior T2D</span></span>
-<span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">buildSubsetCohortTemporal</span><span class="op">(</span></span>
-<span>  baseCohortId <span class="op">=</span> <span class="fl">1</span>,</span>
-<span>  subsetParent <span class="op">=</span> <span class="fl">2</span>,</span>
-<span>  temporalType <span class="op">=</span> <span class="st">"prior"</span>,</span>
-<span>  daysBefore <span class="op">=</span> <span class="fl">365</span>,</span>
-<span>  daysAfter <span class="op">=</span> <span class="fl">0</span>,</span>
-<span>  newCohortName <span class="op">=</span> <span class="st">"CKD_With_Prior_T2D"</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Example 2: Union - CKD or T2D patients</span></span>
-<span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">buildUnionCohort</span><span class="op">(</span></span>
-<span>  cohortIds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">2</span><span class="op">)</span>,</span>
-<span>  newCohortName <span class="op">=</span> <span class="st">"CKD_or_T2D"</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Example 3: Complement - CKD without T2D</span></span>
-<span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">buildComplementCohort</span><span class="op">(</span></span>
-<span>  baseCohortId <span class="op">=</span> <span class="fl">1</span>,</span>
-<span>  excludeCohortId <span class="op">=</span> <span class="fl">2</span>,</span>
-<span>  newCohortName <span class="op">=</span> <span class="st">"CKD_Without_T2D"</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Example 4: O-Prior-T - Outcome prior to treatment</span></span>
-<span><span class="co"># (Outcome cohort excludes those with outcome before/during treatment)</span></span>
-<span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">buildOPriorTCohort</span><span class="op">(</span></span>
-<span>  outcomeCohortId <span class="op">=</span> <span class="fl">3</span>,</span>
-<span>  treatmentCohortId <span class="op">=</span> <span class="fl">2</span>,</span>
-<span>  daysBefore <span class="op">=</span> <span class="fl">30</span>,</span>
-<span>  newCohortName <span class="op">=</span> <span class="st">"Outcome_Prior_to_Treatment"</span></span>
+<span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">addDependentCustomCohort</span><span class="op">(</span></span>
+<span>  filePath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts/sql/my_custom_dependent.sql"</span><span class="op">)</span>,</span>
+<span>  label <span class="op">=</span> <span class="st">"Eligible_With_Exclusions"</span>,</span>
+<span>  category <span class="op">=</span> <span class="st">"Derived Cohorts"</span>,</span>
+<span>  dependentCohortIdList <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>    inc_cohort_id <span class="op">=</span> <span class="fl">1001L</span>,</span>
+<span>    exc_cohort_id <span class="op">=</span> <span class="fl">1002L</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  tags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>owner <span class="op">=</span> <span class="st">"epi_team"</span>, source <span class="op">=</span> <span class="st">"custom_sql"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<p>Relationship types: - <strong>Temporal</strong> — Base cohort with
-another cohort before/after - <strong>Union</strong> — Combine multiple
-cohorts - <strong>Complement</strong> — Base cohort excluding another
-cohort - <strong>O-Prior-T</strong> — Outcome before treatment starts -
-<strong>T-Prior-O</strong> — Treatment before outcome -
-<strong>Censor</strong> — Cohort with censoring date</p>
-<p>See <a href="manifest_overview.html">Manifest: Architecture,
-Workflows, and Helpers</a> for comprehensive examples of all derived
-cohort types.</p>
+<p>How it works:</p>
+<ul>
+<li>
+<code>dependentCohortIdList</code> is a <strong>named
+mapping</strong> of SqlRender parameter name to cohort ID.</li>
+<li>Parameter names are flexible (for example
+<code>inc_cohort_id</code>, <code>exc_cohort_id</code>,
+<code>baseline_cohort_id</code>) and are injected at runtime.</li>
+<li>All mapped cohort IDs must already exist in the manifest.</li>
+</ul>
+<p>Your SQL file should reference the mapped placeholders:</p>
+<div class="sourceCode" id="cb22"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb22-1"><a href="#cb22-1" tabindex="-1"></a><span class="kw">DELETE</span> <span class="kw">FROM</span> @target_database_schema.@target_cohort_table</span>
+<span id="cb22-2"><a href="#cb22-2" tabindex="-1"></a><span class="kw">WHERE</span> cohort_definition_id <span class="op">=</span> @target_cohort_id;</span>
+<span id="cb22-3"><a href="#cb22-3" tabindex="-1"></a></span>
+<span id="cb22-4"><a href="#cb22-4" tabindex="-1"></a><span class="kw">INSERT</span> <span class="kw">INTO</span> @target_database_schema.@target_cohort_table</span>
+<span id="cb22-5"><a href="#cb22-5" tabindex="-1"></a>  (cohort_definition_id, subject_id, cohort_start_date, cohort_end_date)</span>
+<span id="cb22-6"><a href="#cb22-6" tabindex="-1"></a><span class="kw">SELECT</span></span>
+<span id="cb22-7"><a href="#cb22-7" tabindex="-1"></a>  @target_cohort_id,</span>
+<span id="cb22-8"><a href="#cb22-8" tabindex="-1"></a>  i.subject_id,</span>
+<span id="cb22-9"><a href="#cb22-9" tabindex="-1"></a>  i.cohort_start_date,</span>
+<span id="cb22-10"><a href="#cb22-10" tabindex="-1"></a>  i.cohort_end_date</span>
+<span id="cb22-11"><a href="#cb22-11" tabindex="-1"></a><span class="kw">FROM</span> @target_database_schema.@target_cohort_table i</span>
+<span id="cb22-12"><a href="#cb22-12" tabindex="-1"></a><span class="kw">LEFT</span> <span class="kw">JOIN</span> @target_database_schema.@target_cohort_table e</span>
+<span id="cb22-13"><a href="#cb22-13" tabindex="-1"></a>  <span class="kw">ON</span> i.subject_id <span class="op">=</span> e.subject_id</span>
+<span id="cb22-14"><a href="#cb22-14" tabindex="-1"></a>  <span class="kw">AND</span> e.cohort_definition_id <span class="op">=</span> @exc_cohort_id</span>
+<span id="cb22-15"><a href="#cb22-15" tabindex="-1"></a><span class="kw">WHERE</span> i.cohort_definition_id <span class="op">=</span> @inc_cohort_id</span>
+<span id="cb22-16"><a href="#cb22-16" tabindex="-1"></a>  <span class="kw">AND</span> e.subject_id <span class="kw">IS</span> <span class="kw">NULL</span>;</span></code></pre></div>
+<p>Required contract for dependent custom SQL:</p>
+<ul>
+<li>Must <code>DELETE</code> from
+<code>@target_database_schema.@target_cohort_table</code> using
+<code>@target_cohort_id</code>.</li>
+<li>Must <code>INSERT</code> into
+<code>@target_database_schema.@target_cohort_table</code> with columns
+<code>(cohort_definition_id, subject_id, cohort_start_date, cohort_end_date)</code>.</li>
+</ul>
+<p>This ensures custom dependent SQL cohorts behave consistently with
+other derived cohorts in manifest review and pipeline execution.</p>
+<p>For dependency internals (dependency graph ordering,
+<code>dependency_rule</code> storage, and stale/hash behavior), see <a href="manifest_management.html">Manifest Management</a>.</p>
+<div class="section level4">
+<h4 id="templating-strategies">Templating Strategies<a class="anchor" aria-label="anchor" href="#templating-strategies"></a>
+</h4>
+<p>A common workflow for custom cohorts is to template the sql file and
+build multiple variations of a custom cohort with the template. When
+doing this the user needs to make two folders:</p>
+<ul>
+<li>
+<code>inputs/cohorts/R/src</code> - folder holding R functions to
+put templates together</li>
+<li>
+<code>inputs/cohorts/R/src/sql</code> - folder holding the sql
+templates to render in the R function.</li>
+</ul>
+<p>Here is an example. In a study I needed to create a derived custom
+cohort called a censored complement. First I provide the custom sql I
+need and place it in the <code>inputs/cohorts/R/src/sql</code>
+folder.</p>
+<div class="sourceCode" id="cb23"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb23-1"><a href="#cb23-1" tabindex="-1"></a><span class="co">/*</span></span>
+<span id="cb23-2"><a href="#cb23-2" tabindex="-1"></a><span class="co">Make a censored complement. This means find all persons who do not have the exclusion ever or</span></span>
+<span id="cb23-3"><a href="#cb23-3" tabindex="-1"></a><span class="co">track them until the day before the exculsion criteria occurs.</span></span>
+<span id="cb23-4"><a href="#cb23-4" tabindex="-1"></a></span>
+<span id="cb23-5"><a href="#cb23-5" tabindex="-1"></a><span class="co">For example I want exclude anyone with CKD prior to T2D. But include T2D persons who had CKD after index date</span></span>
+<span id="cb23-6"><a href="#cb23-6" tabindex="-1"></a><span class="co">up till the day before CKD index. </span></span>
+<span id="cb23-7"><a href="#cb23-7" tabindex="-1"></a><span class="co">*/</span></span>
+<span id="cb23-8"><a href="#cb23-8" tabindex="-1"></a></span>
+<span id="cb23-9"><a href="#cb23-9" tabindex="-1"></a><span class="kw">DELETE</span> <span class="kw">FROM</span> @target_database_schema.@target_cohort_table <span class="kw">WHERE</span> cohort_definition_id <span class="op">=</span> @target_cohort_id;</span>
+<span id="cb23-10"><a href="#cb23-10" tabindex="-1"></a></span>
+<span id="cb23-11"><a href="#cb23-11" tabindex="-1"></a><span class="kw">INSERT</span> <span class="kw">INTO</span> @target_database_schema.@target_cohort_table (cohort_definition_id, subject_id, cohort_start_date, cohort_end_date)</span>
+<span id="cb23-12"><a href="#cb23-12" tabindex="-1"></a></span>
+<span id="cb23-13"><a href="#cb23-13" tabindex="-1"></a><span class="kw">WITH</span> T1 <span class="kw">AS</span> (</span>
+<span id="cb23-14"><a href="#cb23-14" tabindex="-1"></a><span class="co">/*</span></span>
+<span id="cb23-15"><a href="#cb23-15" tabindex="-1"></a><span class="co">Find the persons where the exclusion is after the inclusion start date</span></span>
+<span id="cb23-16"><a href="#cb23-16" tabindex="-1"></a><span class="co">Adjust the end date to the day before the combination of three occurs</span></span>
+<span id="cb23-17"><a href="#cb23-17" tabindex="-1"></a><span class="co">*/</span></span>
+<span id="cb23-18"><a href="#cb23-18" tabindex="-1"></a><span class="kw">SELECT</span></span>
+<span id="cb23-19"><a href="#cb23-19" tabindex="-1"></a>    a.subject_id,</span>
+<span id="cb23-20"><a href="#cb23-20" tabindex="-1"></a>    a.inc_cohort_start_date <span class="kw">AS</span> cohort_start_date,</span>
+<span id="cb23-21"><a href="#cb23-21" tabindex="-1"></a>    a.exc_cohort_start_date <span class="op">-</span> <span class="dv">1</span> <span class="kw">AS</span> cohort_end_date</span>
+<span id="cb23-22"><a href="#cb23-22" tabindex="-1"></a><span class="kw">FROM</span> (</span>
+<span id="cb23-23"><a href="#cb23-23" tabindex="-1"></a>  <span class="kw">SELECT</span></span>
+<span id="cb23-24"><a href="#cb23-24" tabindex="-1"></a>    inc.subject_id,</span>
+<span id="cb23-25"><a href="#cb23-25" tabindex="-1"></a>    inc.cohort_start_date <span class="kw">AS</span> inc_cohort_start_date,</span>
+<span id="cb23-26"><a href="#cb23-26" tabindex="-1"></a>    inc.cohort_end_date <span class="kw">AS</span> inc_cohort_end_date,</span>
+<span id="cb23-27"><a href="#cb23-27" tabindex="-1"></a>    exc.cohort_start_date <span class="kw">AS</span> exc_cohort_start_date,</span>
+<span id="cb23-28"><a href="#cb23-28" tabindex="-1"></a>    exc.cohort_end_date <span class="kw">AS</span> exc_cohort_end_date,</span>
+<span id="cb23-29"><a href="#cb23-29" tabindex="-1"></a>    <span class="fu">ROW_NUMBER</span>() <span class="kw">OVER</span> (<span class="kw">PARTITION</span> <span class="kw">BY</span> inc.subject_id <span class="kw">ORDER</span> <span class="kw">BY</span> inc.cohort_start_date) <span class="kw">AS</span> rn</span>
+<span id="cb23-30"><a href="#cb23-30" tabindex="-1"></a>  <span class="kw">FROM</span> @target_database_schema.@target_cohort_table inc</span>
+<span id="cb23-31"><a href="#cb23-31" tabindex="-1"></a>  <span class="kw">INNER</span> <span class="kw">JOIN</span> @target_database_schema.@target_cohort_table exc</span>
+<span id="cb23-32"><a href="#cb23-32" tabindex="-1"></a>    <span class="kw">ON</span> inc.subject_id <span class="op">=</span> exc.subject_id <span class="kw">AND</span> exc.cohort_definition_id <span class="op">=</span> @inc_cohort_id</span>
+<span id="cb23-33"><a href="#cb23-33" tabindex="-1"></a>  <span class="kw">WHERE</span> inc.cohort_definition_id <span class="op">=</span> @exc_cohort_id</span>
+<span id="cb23-34"><a href="#cb23-34" tabindex="-1"></a>    <span class="kw">AND</span> exc.cohort_start_date <span class="op">&gt;=</span> inc.cohort_start_date</span>
+<span id="cb23-35"><a href="#cb23-35" tabindex="-1"></a>) a</span>
+<span id="cb23-36"><a href="#cb23-36" tabindex="-1"></a></span>
+<span id="cb23-37"><a href="#cb23-37" tabindex="-1"></a><span class="kw">UNION</span> <span class="kw">ALL</span></span>
+<span id="cb23-38"><a href="#cb23-38" tabindex="-1"></a></span>
+<span id="cb23-39"><a href="#cb23-39" tabindex="-1"></a><span class="co">/*</span></span>
+<span id="cb23-40"><a href="#cb23-40" tabindex="-1"></a><span class="co">Find the persons where the exclusion never occurs to those with the inclusion</span></span>
+<span id="cb23-41"><a href="#cb23-41" tabindex="-1"></a><span class="co">*/</span></span>
+<span id="cb23-42"><a href="#cb23-42" tabindex="-1"></a><span class="kw">SELECT</span></span>
+<span id="cb23-43"><a href="#cb23-43" tabindex="-1"></a>  pop.subject_id,</span>
+<span id="cb23-44"><a href="#cb23-44" tabindex="-1"></a>  pop.cohort_start_date,</span>
+<span id="cb23-45"><a href="#cb23-45" tabindex="-1"></a>  pop.cohort_end_date</span>
+<span id="cb23-46"><a href="#cb23-46" tabindex="-1"></a><span class="kw">FROM</span> @target_database_schema.@target_cohort_table pop</span>
+<span id="cb23-47"><a href="#cb23-47" tabindex="-1"></a><span class="kw">LEFT</span> <span class="kw">JOIN</span> (</span>
+<span id="cb23-48"><a href="#cb23-48" tabindex="-1"></a>  <span class="kw">SELECT</span></span>
+<span id="cb23-49"><a href="#cb23-49" tabindex="-1"></a>    subject_id</span>
+<span id="cb23-50"><a href="#cb23-50" tabindex="-1"></a>  <span class="kw">FROM</span> @target_database_schema.@target_cohort_table</span>
+<span id="cb23-51"><a href="#cb23-51" tabindex="-1"></a>  <span class="kw">WHERE</span> cohort_definition_id <span class="kw">IN</span> (@exc_cohort_id)</span>
+<span id="cb23-52"><a href="#cb23-52" tabindex="-1"></a>  <span class="kw">GROUP</span> <span class="kw">BY</span> subject_id</span>
+<span id="cb23-53"><a href="#cb23-53" tabindex="-1"></a>  <span class="kw">HAVING</span> <span class="fu">COUNT</span>(<span class="kw">DISTINCT</span> cohort_definition_id) <span class="op">&gt;=</span> <span class="dv">1</span></span>
+<span id="cb23-54"><a href="#cb23-54" tabindex="-1"></a>) excluded</span>
+<span id="cb23-55"><a href="#cb23-55" tabindex="-1"></a>  <span class="kw">ON</span> pop.subject_id <span class="op">=</span> excluded.subject_id</span>
+<span id="cb23-56"><a href="#cb23-56" tabindex="-1"></a><span class="kw">WHERE</span> pop.cohort_definition_id <span class="op">=</span> @inc_cohort_id</span>
+<span id="cb23-57"><a href="#cb23-57" tabindex="-1"></a>  <span class="kw">AND</span> excluded.subject_id <span class="kw">IS</span> <span class="kw">NULL</span></span>
+<span id="cb23-58"><a href="#cb23-58" tabindex="-1"></a>)</span>
+<span id="cb23-59"><a href="#cb23-59" tabindex="-1"></a><span class="kw">SELECT</span></span>
+<span id="cb23-60"><a href="#cb23-60" tabindex="-1"></a>  @target_cohort_id <span class="kw">AS</span> cohort_definition_id,</span>
+<span id="cb23-61"><a href="#cb23-61" tabindex="-1"></a>  subject_id,</span>
+<span id="cb23-62"><a href="#cb23-62" tabindex="-1"></a>  cohort_start_date,</span>
+<span id="cb23-63"><a href="#cb23-63" tabindex="-1"></a>  cohort_end_date</span>
+<span id="cb23-64"><a href="#cb23-64" tabindex="-1"></a><span class="kw">FROM</span> T1;</span></code></pre></div>
+<p>Notice that in this template I am using cohort I have already created
+but building a custom derivation to analyze. I want to do this for
+several cohorts in my manifest. I apply this sql template in an R
+function to create each custom derived cohort and add it to the
+manifest.</p>
+<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span></span>
+<span><span class="va">buildCensoredComplement</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span></span>
+<span>  <span class="va">cohortManifest</span>,</span>
+<span>  <span class="va">inclusionCohortId</span>,</span>
+<span>  <span class="va">inclusionCohortLabel</span>,</span>
+<span>  <span class="va">exclusionCohortId</span>,</span>
+<span>  <span class="va">exclusionCohortLabel</span>,</span>
+<span>  <span class="va">inputsDir</span> <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts/R"</span><span class="op">)</span>,</span>
+<span>  <span class="va">outputPath</span> <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts/sql"</span><span class="op">)</span></span>
+<span><span class="op">)</span> <span class="op">{</span></span>
+<span></span>
+<span>  <span class="va">sqlTemplatePath</span> <span class="op">&lt;-</span> <span class="fu">fs</span><span class="fu">::</span><span class="fu"><a href="https://fs.r-lib.org/reference/path.html" class="external-link">path</a></span><span class="op">(</span><span class="va">inputsDir</span>, <span class="st">"src/sql/censored_complement.sql"</span><span class="op">)</span></span>
+<span>  <span class="va">sqlTemplate</span> <span class="op">&lt;-</span> <span class="fu">SqlRender</span><span class="fu">::</span><span class="fu"><a href="https://ohdsi.github.io/SqlRender/reference/readSql.html" class="external-link">readSql</a></span><span class="op">(</span><span class="va">sqlTemplatePath</span><span class="op">)</span></span>
+<span></span>
+<span>  <span class="co"># make the save label</span></span>
+<span>  <span class="va">cohortLabel</span> <span class="op">&lt;-</span> <span class="fu">glue</span><span class="fu">::</span><span class="fu"><a href="https://glue.tidyverse.org/reference/glue.html" class="external-link">glue</a></span><span class="op">(</span><span class="st">"{inclusionCohortLabel} - {exclusionCohortLabel} exclusion"</span><span class="op">)</span></span>
+<span>  <span class="va">outputLabel</span> <span class="op">&lt;-</span> <span class="fu">snakecase</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/snakecase/man/caseconverter.html" class="external-link">to_snake_case</a></span><span class="op">(</span><span class="va">cohortLabel</span><span class="op">)</span></span>
+<span></span>
+<span>  <span class="va">sqlOutputPath</span> <span class="op">&lt;-</span> <span class="fu">fs</span><span class="fu">::</span><span class="fu"><a href="https://fs.r-lib.org/reference/path.html" class="external-link">path</a></span><span class="op">(</span><span class="va">outputPath</span>, <span class="va">outputLabel</span>, ext <span class="op">=</span> <span class="st">"sql"</span><span class="op">)</span></span>
+<span>  <span class="fu">SqlRender</span><span class="fu">::</span><span class="fu"><a href="https://ohdsi.github.io/SqlRender/reference/writeSql.html" class="external-link">writeSql</a></span><span class="op">(</span><span class="va">sqlTemplate</span>, <span class="va">sqlOutputPath</span><span class="op">)</span></span>
+<span></span>
+<span>  <span class="va">check_if_there</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">queryCohortsByLabel</span><span class="op">(</span><span class="va">cohortLabel</span><span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="va">check_if_there</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="fu">cli</span><span class="fu">::</span><span class="fu"><a href="https://cli.r-lib.org/reference/cli_alert.html" class="external-link">cli_alert_warning</a></span><span class="op">(</span><span class="st">"Censored Complement {.val {cohortLabel}} already exists. Skipped!"</span><span class="op">)</span></span>
+<span>  <span class="op">}</span> <span class="kw">else</span> <span class="op">{</span></span>
+<span>    <span class="fu">cli</span><span class="fu">::</span><span class="fu"><a href="https://cli.r-lib.org/reference/cli_alert.html" class="external-link">cli_alert_info</a></span><span class="op">(</span><span class="st">"Create Censored Complement for {.val {cohortLabel}}"</span><span class="op">)</span></span>
+<span>    <span class="fu">cli</span><span class="fu">::</span><span class="fu"><a href="https://cli.r-lib.org/reference/cli_alert.html" class="external-link">cli_alert_success</a></span><span class="op">(</span><span class="st">"Save Censored Complement to {.file {sqlOutputPath}}"</span><span class="op">)</span></span>
+<span>    <span class="va">cohortManifest</span><span class="op">$</span><span class="fu">addDependentCustomCohort</span><span class="op">(</span></span>
+<span>      filePath <span class="op">=</span> <span class="va">sqlOutputPath</span>,</span>
+<span>      label <span class="op">=</span> <span class="va">cohortLabel</span>,</span>
+<span>      category <span class="op">=</span> <span class="st">"Target Sub Pop"</span>,</span>
+<span>      dependentCohortIdList <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>        inc_cohort_id <span class="op">=</span> <span class="va">inclusionCohortId</span>,</span>
+<span>        exc_cohort_id <span class="op">=</span> <span class="va">exclusionCohortId</span></span>
+<span>      <span class="op">)</span></span>
+<span>    <span class="op">)</span></span>
+<span>  <span class="op">}</span></span>
+<span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/invisible.html" class="external-link">invisible</a></span><span class="op">(</span><span class="va">sqlOutputPath</span><span class="op">)</span></span>
+<span><span class="op">}</span></span></code></pre></div>
+<p>In the derived cohort template, I do not replace the
+<code>@inc_cohort_id</code> or <code>@exc_cohort_id</code>. The
+<code>$addDependentCustomCohort</code> keeps track of these labels and
+renders them at execution time.</p>
+<p>These same templating strategies can be applied to
+<code>$addSqlCohort</code>. Ensure that the template is in the
+<code>inputs/cohorts/R/src/sql</code> folder and the R script to render
+the template is in <code>inputs/cohorts/R/src</code>.</p>
 <hr>
+</div>
+</div>
 </div>
 <div class="section level2">
 <h2 id="subsequent-sessions">Subsequent Sessions<a class="anchor" aria-label="anchor" href="#subsequent-sessions"></a>
 </h2>
 <p>After the first-time import, subsequent sessions only need the
 manifest load calls:</p>
-<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb25"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">conceptSetManifest</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadConceptSetManifest.html">loadConceptSetManifest</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="va">cohortManifest</span>     <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadCohortManifest.html">loadCohortManifest</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p>Both functions read from SQLite and rebuild the in-memory R6 objects.
@@ -691,20 +909,23 @@ automatically when <code>main.R</code> executes
 </tr></thead>
 <tbody>
 <tr class="odd">
-<td>Advanced manifest features</td>
-<td><a href="manifest_overview.html">Manifest: Architecture, Workflows,
-and Helpers</a></td>
+<td>Study setup and editable inputs</td>
+<td><a href="launching_a_study.html">Launching a Picard Study</a></td>
 </tr>
 <tr class="even">
+<td>Manifest checks, updates, delete, and reset</td>
+<td><a href="manifest_management.html">Manifest Management</a></td>
+</tr>
+<tr class="odd">
 <td>Running the analysis pipeline</td>
 <td><a href="running_the_pipeline.html">Running the Pipeline</a></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Pipeline development and testing</td>
 <td><a href="developing_the_pipeline.html">Developing the
 Pipeline</a></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Creating a new study</td>
 <td><a href="launching_a_study.html">Launching a Picard Study</a></td>
 </tr>
