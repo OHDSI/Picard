@@ -159,6 +159,30 @@ topological_sort = function(graph) {
 
     # Verify all nodes were processed
     if (length(sorted_order) != length(graph)) {
+    unprocessed <- setdiff(as.integer(names(graph)), sorted_order)
+
+    # Distinguish dangling references (parent deleted/missing from the graph)
+    # from genuine cycles so the error points at the real problem
+    dangling <- character()
+    for (node_id in as.character(unprocessed)) {
+        missing_parents <- setdiff(graph[[node_id]], as.integer(names(graph)))
+        if (length(missing_parents) > 0) {
+        dangling <- c(dangling, paste0(
+            "cohort ", node_id, " depends on missing/deleted cohort(s) ",
+            paste(missing_parents, collapse = ", ")
+        ))
+        }
+    }
+
+    if (length(dangling) > 0) {
+        cli::cli_abort(c(
+        "Cohort dependency graph has dangling references:",
+        stats::setNames(dangling, rep("x", length(dangling))),
+        i = "The referenced parent cohorts are no longer active in the manifest.",
+        i = "Delete the orphaned dependents or restore their parents, then re-run."
+        ))
+    }
+
     cli::cli_abort("Topological sort failed - possible circular dependency")
     }
 

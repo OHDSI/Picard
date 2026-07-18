@@ -201,6 +201,86 @@ testthat::test_that("updateCaprCohort cascades stale to derived dependents", {
   testthat::expect_false(is.null(manifest$getCohortById(stale_id)))
 })
 
+# Purpose: Seed a manifest with a Capr parent, a circe parent, and a union dependent.
+cm_test_seed_parent_with_union <- function(test_name) {
+  setup <- cm_test_new_manifest(test_name)
+  manifest <- setup$manifest
+
+  cm_test_add_capr_cohort(manifest, label = "Capr T2D", category = "Target")
+  cm_test_add_circe_cohort(
+    manifest = manifest,
+    paths = setup$paths,
+    label = "Chronic Kidney Disease",
+    fixture_name = "ckd.json"
+  )
+
+  parents <- manifest$queryCohortsByLabel(
+    labels = c("Capr T2D", "Chronic Kidney Disease"),
+    matchType = "exact"
+  )
+  manifest$buildUnionCohort(
+    label = "Capr_T2D_or_CKD",
+    category = "Derived Cohorts",
+    cohortEntries = parents
+  )
+
+  list(manifest = manifest, paths = setup$paths)
+}
+
+# Testing: deleteCohort refuses to orphan derived dependents; cascade = TRUE deletes the subtree.
+testthat::test_that("deleteCohort blocks with dependents and cascades when asked", {
+  setup <- cm_test_seed_parent_with_union("mgmt-delete-guard")
+  manifest <- setup$manifest
+
+  parent <- manifest$queryCohortsByLabel("Capr T2D", matchType = "exact")
+  parent_id <- as.integer(parent$id[[1]])
+
+  testthat::expect_error(
+    manifest$deleteCohort(id = parent_id, confirm = TRUE),
+    regexp = "dependent"
+  )
+
+  manifest$deleteCohort(id = parent_id, confirm = TRUE, cascade = TRUE)
+
+  deleted <- manifest$tabulateManifest(filter = "deleted")
+  testthat::expect_true(any(deleted$label == "Capr T2D"))
+  testthat::expect_true(any(deleted$label == "Capr_T2D_or_CKD"))
+
+  # The uninvolved parent stays active
+  active <- manifest$tabulateManifest(filter = "active")
+  testthat::expect_true(any(active$label == "Chronic Kidney Disease"))
+})
+
+# Testing: syncManifest soft-deletes derived dependents when a parent file goes missing.
+testthat::test_that("syncManifest cascades deletion of dependents of missing parents", {
+  setup <- cm_test_seed_parent_with_union("mgmt-sync-cascade")
+  manifest <- setup$manifest
+
+  parent <- manifest$queryCohortsByLabel("Capr T2D", matchType = "exact")
+  unlink(parent$file_path[[1]])
+
+  out <- manifest$syncManifest(strict_mode = TRUE)
+
+  testthat::expect_true(any(out$action == "missing_flagged" & out$label == "Capr T2D"))
+  testthat::expect_true(any(out$action == "cascade_deleted" & out$label == "Capr_T2D_or_CKD"))
+
+  deleted <- manifest$tabulateManifest(filter = "deleted")
+  testthat::expect_true(any(deleted$label == "Capr_T2D_or_CKD"))
+})
+
+# Testing: topological_sort distinguishes dangling parent references from genuine cycles.
+testthat::test_that("topological_sort reports dangling and circular dependencies distinctly", {
+  testthat::expect_error(
+    topological_sort(list("2" = 1L)),
+    regexp = "missing/deleted"
+  )
+
+  testthat::expect_error(
+    topological_sort(list("1" = 2L, "2" = 1L)),
+    regexp = "circular"
+  )
+})
+
 # Testing: addCaprCohort with stopIfExists = FALSE upserts the existing cohort in place.
 testthat::test_that("addCaprCohort stopIfExists FALSE updates existing cohort", {
   setup <- cm_test_new_manifest("mgmt-add-capr-upsert")

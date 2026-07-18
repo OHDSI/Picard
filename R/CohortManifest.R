@@ -3305,7 +3305,8 @@ CohortManifest <- R6::R6Class(
     #' Scans the \code{json/} and \code{sql/} subdirectories of the cohorts folder, reconciles
     #' them against the SQLite manifest, and updates both the database and the in-memory list:
     #' \itemize{
-    #'   \item Active manifest records whose file no longer exists are soft-deleted.
+    #'   \item Active manifest records whose file no longer exists are soft-deleted,
+    #'     along with their derived dependents (which cannot generate without the parent).
     #'   \item Existing files whose SQL hash has changed are updated in the manifest.
     #'   \item Orphaned files on disk not in manifest are automatically deleted.
     #' }
@@ -3316,8 +3317,8 @@ CohortManifest <- R6::R6Class(
     #'   on disk. If FALSE, only warns about them without deletion. Default: TRUE.
     #'
     #' @return Data frame with columns: id, label, action
-    #'   (\code{"hash_updated"}, \code{"missing_flagged"}, \code{"unchanged"}, 
-    #'    \code{"auto_removed_orphan"}).
+    #'   (\code{"hash_updated"}, \code{"missing_flagged"}, \code{"cascade_deleted"},
+    #'    \code{"unchanged"}, \code{"auto_removed_orphan"}).
     syncManifest = function(strict_mode = TRUE) {
       checkmate::assert_flag(strict_mode)
       
@@ -3369,7 +3370,10 @@ CohortManifest <- R6::R6Class(
         file_path  <- rec$file_path
 
         if (rec_status == "active" && !file.exists(file_path)) {
-          # File has gone missing — soft-delete
+          # File has gone missing — soft-delete, along with any derived
+          # dependents (without their parent they can never generate)
+          dependents <- findTransitiveDependents(private$.dbPath, rec_id)
+
           DBI::dbExecute(
             conn,
             "UPDATE cohort_manifest SET status = 'deleted', deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
@@ -3380,6 +3384,24 @@ CohortManifest <- R6::R6Class(
           cli::cli_alert_warning("Missing: {rec_label} (ID {rec_id}) — marked as deleted")
           results <- rbind(results, data.frame(id = rec_id, label = rec_label,
                                                 action = "missing_flagged", stringsAsFactors = FALSE))
+
+          for (dep_id in dependents) {
+            dep_row <- DBI::dbGetQuery(
+              conn,
+              "SELECT label FROM cohort_manifest WHERE id = ?",
+              list(dep_id)
+            )
+            dep_label <- if (nrow(dep_row) > 0) dep_row$label[1] else NA_character_
+            DBI::dbExecute(
+              conn,
+              "UPDATE cohort_manifest SET status = 'deleted', deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+              list(dep_id)
+            )
+            private$.manifest <- Filter(function(c) c$getId() != dep_id, private$.manifest)
+            cli::cli_alert_warning("Cascade: {dep_label} (ID {dep_id}) depends on missing cohort {rec_id} — marked as deleted")
+            results <- rbind(results, data.frame(id = dep_id, label = dep_label,
+                                                  action = "cascade_deleted", stringsAsFactors = FALSE))
+          }
           next
         }
 
@@ -4056,16 +4078,21 @@ CohortManifest <- R6::R6Class(
     #' @param dropFromDBMS Logical. If TRUE, also deletes the cohort from the DBMS
     #'   cohort table and checksum table. Requires `executionSettings` to be set.
     #'   Default: FALSE (filesystem/manifest cleanup only).
+    #' @param cascade Logical. If FALSE (default), deletion is refused when the
+    #'   cohort has derived dependents (deleting it would orphan them and break
+    #'   cohort generation). If TRUE, all transitive dependents are deleted too,
+    #'   deepest-first. Default: FALSE (fail-safe).
     #'
     #' @return Invisible NULL.
-    deleteCohort = function(id, confirm = FALSE, dropFromDBMS = FALSE) {
+    deleteCohort = function(id, confirm = FALSE, dropFromDBMS = FALSE, cascade = FALSE) {
       checkmate::assert_int(id)
       checkmate::assert_flag(confirm)
       checkmate::assert_flag(dropFromDBMS)
-      
+      checkmate::assert_flag(cascade)
+
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
       on.exit(DBI::dbDisconnect(conn))
-      
+
       # Retrieve cohort record
       cohort_row <- DBI::dbGetQuery(
         conn,
@@ -4075,11 +4102,28 @@ CohortManifest <- R6::R6Class(
 
       if (nrow(cohort_row) == 0) {
         cli::cli_alert_danger("Cohort {id} not found in manifest")
-        invisible(NULL)
+        return(invisible(NULL))
       }
-      
-      label     <- cohort_row$label[1]
-      file_path <- cohort_row$file_path[1]
+
+      label <- cohort_row$label[1]
+
+      # Guard: refuse to orphan derived dependents unless cascading
+      dependents <- findTransitiveDependents(private$.dbPath, id)
+      if (length(dependents) > 0) {
+        placeholders <- paste(rep("?", length(dependents)), collapse = ", ")
+        dep_rows <- DBI::dbGetQuery(
+          conn,
+          paste0("SELECT id, label FROM cohort_manifest WHERE id IN (", placeholders, ")"),
+          as.list(dependents)
+        )
+        if (!cascade) {
+          cli::cli_abort(c(
+            "Cohort {id} ({label}) has {length(dependents)} derived dependent(s): {paste0('[', dep_rows$id, '] ', dep_rows$label, collapse = ', ')}.",
+            i = "Deleting it would orphan them and break cohort generation.",
+            i = "Re-run with {.code cascade = TRUE} to delete the dependents too, or delete the dependents first."
+          ))
+        }
+      }
 
        # Validate DBMS requirements if requested
       if (dropFromDBMS && is.null(private$.executionSettings)) {
@@ -4096,11 +4140,18 @@ CohortManifest <- R6::R6Class(
         extra_msg <- ""
       }
 
+      cascade_msg <- if (length(dependents) > 0) {
+        " and {length(dependents)} dependent cohort(s)"
+      } else {
+        ""
+      }
+
       # Request confirmation if not already confirmed
       if (!confirm) {
-        cli::cli_alert_warning(
-          "This will permanently delete cohort {id} ({label}) from the manifest and file system."
-        )
+        cli::cli_alert_warning(paste0(
+          "This will permanently delete cohort {id} ({label})", cascade_msg,
+          " from the manifest and file system{extra_msg}."
+        ))
         response <- readline("Type 'yes' to confirm: ")
         if (!grepl("^yes$", trimws(tolower(response)))) {
           cli::cli_alert_info("Cancelled.")
@@ -4108,35 +4159,44 @@ CohortManifest <- R6::R6Class(
         }
       }
 
-      # Delete file from disk if it exists and path is not empty
-      file_deleted <- FALSE
-      if (!is.na(file_path) && nchar(trimws(file_path)) > 0 && file.exists(file_path)) {
-        tryCatch({
-          unlink(file_path)
-          cli::cli_alert_success("Deleted file: {file_path}")
-          file_deleted <- TRUE
-        }, error = function(e) {
-          cli::cli_alert_warning("Could not delete file {file_path}: {e$message}")
-        })
-      } else if (is.na(file_path) || nchar(trimws(file_path)) == 0) {
-        # Derived cohorts or special cases with no file_path
-        cli::cli_alert_info("No file to delete (derived or special cohort)")
-      } else if (!file.exists(file_path)) {
-        cli::cli_alert_warning("File not found on disk: {file_path} (manifest will be cleaned)")
-      }
+      # Delete dependents deepest-first, then the target cohort itself
+      ids_to_delete <- c(rev(dependents), id)
 
-      # Mark as deleted in SQLite (soft delete with audit trail)
-      tryCatch({
-        DBI::dbExecute(
+      for (del_id in ids_to_delete) {
+        del_row <- DBI::dbGetQuery(
           conn,
-          "UPDATE cohort_manifest SET status = 'deleted', deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
-          list(id)
+          "SELECT label, file_path FROM cohort_manifest WHERE id = ?",
+          list(del_id)
         )
-      }, error = function(e) {
-        cli::cli_alert_danger("Failed to mark cohort as deleted: {e$message}")
-        return(invisible(NULL))
-      })
+        del_label <- del_row$label[1]
+        file_path <- del_row$file_path[1]
 
+        # Delete file from disk if it exists and path is not empty
+        if (!is.na(file_path) && nchar(trimws(file_path)) > 0 && file.exists(file_path)) {
+          tryCatch({
+            unlink(file_path)
+            cli::cli_alert_success("Deleted file: {file_path}")
+          }, error = function(e) {
+            cli::cli_alert_warning("Could not delete file {file_path}: {e$message}")
+          })
+        } else if (is.na(file_path) || nchar(trimws(file_path)) == 0) {
+          # Derived cohorts or special cases with no file_path
+          cli::cli_alert_info("No file to delete for cohort {del_id} (derived or special cohort)")
+        } else if (!file.exists(file_path)) {
+          cli::cli_alert_warning("File not found on disk: {file_path} (manifest will be cleaned)")
+        }
+
+        # Mark as deleted in SQLite (soft delete with audit trail)
+        tryCatch({
+          DBI::dbExecute(
+            conn,
+            "UPDATE cohort_manifest SET status = 'deleted', deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+            list(del_id)
+          )
+        }, error = function(e) {
+          cli::cli_alert_danger("Failed to mark cohort {del_id} as deleted: {e$message}")
+        })
+      }
 
     # Remove from DBMS cohort table and checksum table if requested
       if (dropFromDBMS) {
@@ -4153,36 +4213,44 @@ CohortManifest <- R6::R6Class(
         checksum_table <- getCohortTableNames(cohortTable = cohort_table)$cohortChecksumTable
         dbms           <- settings$getDbms()
 
-        tryCatch({
-          del_sql <- SqlRender::translate(
-            SqlRender::render(
-              "DELETE FROM @schema.@table WHERE cohort_definition_id = @id;",
-              schema = cohort_schema, table = cohort_table, id = id
-            ),
-            targetDialect = dbms
-          )
-          DatabaseConnector::executeSql(conn_db, del_sql, progressBar = FALSE, reportOverallTime = FALSE)
-          cli::cli_alert_success("Removed cohort {id} from {cohort_schema}.{cohort_table}")
-        }, error = function(e) {
-          cli::cli_alert_warning("Could not remove from cohort table: {e$message}")
-        })
+        for (del_id in ids_to_delete) {
+          tryCatch({
+            del_sql <- SqlRender::translate(
+              SqlRender::render(
+                "DELETE FROM @schema.@table WHERE cohort_definition_id = @id;",
+                schema = cohort_schema, table = cohort_table, id = del_id
+              ),
+              targetDialect = dbms
+            )
+            DatabaseConnector::executeSql(conn_db, del_sql, progressBar = FALSE, reportOverallTime = FALSE)
+            cli::cli_alert_success("Removed cohort {del_id} from {cohort_schema}.{cohort_table}")
+          }, error = function(e) {
+            cli::cli_alert_warning("Could not remove from cohort table: {e$message}")
+          })
 
-        tryCatch({
-          chk_sql <- SqlRender::translate(
-            SqlRender::render(
-              "DELETE FROM @schema.@table WHERE cohort_definition_id = @id;",
-              schema = cohort_schema, table = checksum_table, id = id
-            ),
-            targetDialect = dbms
-          )
-          DatabaseConnector::executeSql(conn_db, chk_sql, progressBar = FALSE, reportOverallTime = FALSE)
-          cli::cli_alert_success("Removed cohort {id} from {cohort_schema}.{checksum_table}")
-        }, error = function(e) {
-          cli::cli_alert_warning("Could not remove from checksum table: {e$message}")
-        })
+          tryCatch({
+            chk_sql <- SqlRender::translate(
+              SqlRender::render(
+                "DELETE FROM @schema.@table WHERE cohort_definition_id = @id;",
+                schema = cohort_schema, table = checksum_table, id = del_id
+              ),
+              targetDialect = dbms
+            )
+            DatabaseConnector::executeSql(conn_db, chk_sql, progressBar = FALSE, reportOverallTime = FALSE)
+            cli::cli_alert_success("Removed cohort {del_id} from {cohort_schema}.{checksum_table}")
+          }, error = function(e) {
+            cli::cli_alert_warning("Could not remove from checksum table: {e$message}")
+          })
+        }
       }
-      # Remove from in-memory manifest TODO
-      cli::cli_alert_success("Marked cohort {id}: {label} as deleted (file removed from disk{extra_msg})")
+
+      # Refresh in-memory manifest
+      private$load_manifest_from_db()
+
+      cli::cli_alert_success(paste0(
+        "Marked cohort {id}: {label}", cascade_msg,
+        " as deleted (file removed from disk{extra_msg})"
+      ))
       invisible(NULL)
     },
 

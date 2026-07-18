@@ -1427,7 +1427,8 @@ Sync the manifest against cohort files on disk
 Scans the \code{json/} and \code{sql/} subdirectories of the cohorts folder, reconciles
 them against the SQLite manifest, and updates both the database and the in-memory list:
 \itemize{
-\item Active manifest records whose file no longer exists are soft-deleted.
+\item Active manifest records whose file no longer exists are soft-deleted,
+along with their derived dependents (which cannot generate without the parent).
 \item Existing files whose SQL hash has changed are updated in the manifest.
 \item Orphaned files on disk not in manifest are automatically deleted.
 }
@@ -1447,8 +1448,8 @@ on disk. If FALSE, only warns about them without deletion. Default: TRUE.}
 }
 \subsection{Returns}{
 Data frame with columns: id, label, action
-(\code{"hash_updated"}, \code{"missing_flagged"}, \code{"unchanged"},
-\code{"auto_removed_orphan"}).
+(\code{"hash_updated"}, \code{"missing_flagged"}, \code{"cascade_deleted"},
+\code{"unchanged"}, \code{"auto_removed_orphan"}).
 Clean cohort data from the DBMS for deleted manifest entries
 }
 }
@@ -1574,7 +1575,12 @@ When a manifest is loaded, only active cohorts are loaded into memory.
 This enforces strict 1:1 correspondence between active manifest entries
 and files on disk.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$deleteCohort(id, confirm = FALSE, dropFromDBMS = FALSE)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$deleteCohort(
+  id,
+  confirm = FALSE,
+  dropFromDBMS = FALSE,
+  cascade = FALSE
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -1588,6 +1594,11 @@ Pass TRUE to skip the prompt (suitable for scripts).}
 \item{\code{dropFromDBMS}}{Logical. If TRUE, also deletes the cohort from the DBMS
 cohort table and checksum table. Requires \code{executionSettings} to be set.
 Default: FALSE (filesystem/manifest cleanup only).}
+
+\item{\code{cascade}}{Logical. If FALSE (default), deletion is refused when the
+cohort has derived dependents (deleting it would orphan them and break
+cohort generation). If TRUE, all transitive dependents are deleted too,
+deepest-first. Default: FALSE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
