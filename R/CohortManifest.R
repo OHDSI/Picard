@@ -1110,6 +1110,95 @@ CohortManifest <- R6::R6Class(
       invisible(cohort_id)
     },
 
+    #' @description Update an existing Capr cohort's JSON definition
+    #'
+    #' Takes a revised Capr Cohort object and upserts it over a cohort already
+    #' registered via `addCaprCohort()`: the JSON file recorded in the manifest
+    #' is overwritten in place and the manifest hash is refreshed, so the cohort
+    #' keeps its ID and file path. Any derived cohorts that depend on it are
+    #' marked 'stale'. If the new definition is identical to the registered one,
+    #' nothing is changed.
+    #'
+    #' @param caprCohort A Capr Cohort object (inherits from "Cohort").
+    #' @param label Character. Label of the active cohort to update.
+    #'
+    #' @return Invisible integer. The cohort ID.
+    updateCaprCohort = function(caprCohort, label) {
+      if (!requireNamespace("Capr", quietly = TRUE)) {
+        cli::cli_abort(c(
+          "Package {.pkg Capr} is required for updateCaprCohort().",
+          "i" = "Install with: {.code remotes::install_github('ohdsi/Capr')}"
+        )
+        )
+      }
+
+      if (!inherits(caprCohort, "Cohort")) {
+        cli::cli_abort("caprCohort must be a Capr Cohort object (inherits from 'Cohort')")
+      }
+
+      checkmate::assert_string(label, min.chars = 1)
+
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      existing <- DBI::dbGetQuery(
+        conn,
+        "SELECT id, file_path, hash, cohort_type FROM cohort_manifest
+         WHERE label = ? AND status = 'active'",
+        list(label)
+      )
+
+      if (nrow(existing) == 0) {
+        cli::cli_abort(c(
+          "No active cohort with label {.val {label}} found in the manifest.",
+          "i" = "Use {.code addCaprCohort()} to register a new cohort."
+        ))
+      }
+
+      if (existing$cohort_type[1] != "circe") {
+        cli::cli_abort(c(
+          "Cohort {.val {label}} has cohort_type {.val {existing$cohort_type[1]}}, not {.val circe}.",
+          "i" = "updateCaprCohort() can only overwrite circe JSON cohorts."
+        ))
+      }
+
+      cohort_id <- as.integer(existing$id[1])
+      file_path <- existing$file_path[1]
+
+      # Export to a temp file first so a failed write cannot clobber the
+      # registered JSON, and unchanged definitions leave the file untouched
+      tmp_json <- tempfile(fileext = ".json")
+      Capr::writeCohort(caprCohort, tmp_json)
+      new_hash <- rlang::hash(readr::read_file(tmp_json))
+
+      if (identical(new_hash, existing$hash[1])) {
+        unlink(tmp_json)
+        cli::cli_alert_info("Cohort {cohort_id}: {label} is unchanged")
+        return(invisible(cohort_id))
+      }
+
+      if (!dir.exists(dirname(file_path))) {
+        dir.create(dirname(file_path), recursive = TRUE)
+      }
+      file.copy(tmp_json, file_path, overwrite = TRUE)
+      unlink(tmp_json)
+
+      DBI::dbExecute(
+        conn,
+        "UPDATE cohort_manifest SET hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        list(new_hash, cohort_id)
+      )
+
+      # Derived cohorts built on this definition are now out of date
+      private$cascade_stale_downstream(cohort_id)
+
+      # Refresh in-memory manifest
+      private$load_manifest_from_db()
+
+      cli::cli_alert_success("Updated Capr cohort {cohort_id}: {label}")
+      invisible(cohort_id)
+    },
+
     #' @description Add a custom SQL cohort
     #'
     #' Registers an existing SQL file in the manifest. The file must already exist

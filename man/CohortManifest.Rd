@@ -100,6 +100,7 @@ Requires that executionSettings has been set and includes:
 \item \href{#method-CohortManifest-addAtlasCohort}{\code{CohortManifest$addAtlasCohort()}}
 \item \href{#method-CohortManifest-importAtlasCohorts}{\code{CohortManifest$importAtlasCohorts()}}
 \item \href{#method-CohortManifest-addCaprCohort}{\code{CohortManifest$addCaprCohort()}}
+\item \href{#method-CohortManifest-updateCaprCohort}{\code{CohortManifest$updateCaprCohort()}}
 \item \href{#method-CohortManifest-addSqlCohort}{\code{CohortManifest$addSqlCohort()}}
 \item \href{#method-CohortManifest-addDependentCustomCohort}{\code{CohortManifest$addDependentCustomCohort()}}
 \item \href{#method-CohortManifest-addCirceCohort}{\code{CohortManifest$addCirceCohort()}}
@@ -222,7 +223,7 @@ Tabulate the manifest as a tibble
 }
 \subsection{Returns}{
 A tibble with columns: id, label, category, tags, file_path, hash,
-source_type, cohort_type, status, created_at, deleted_at
+source_type, cohort_type, status, depends_on, created_at, deleted_at
 Review stale derived cohorts
 }
 }
@@ -437,6 +438,35 @@ Invisible integer. The assigned cohort ID.
 }
 }
 \if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-updateCaprCohort"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-updateCaprCohort}{}}}
+\subsection{Method \code{updateCaprCohort()}}{
+Update an existing Capr cohort's JSON definition
+
+Takes a revised Capr Cohort object and upserts it over a cohort already
+registered via \code{addCaprCohort()}: the JSON file recorded in the manifest
+is overwritten in place and the manifest hash is refreshed, so the cohort
+keeps its ID and file path. Any derived cohorts that depend on it are
+marked 'stale'. If the new definition is identical to the registered one,
+nothing is changed.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$updateCaprCohort(caprCohort, label)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{caprCohort}}{A Capr Cohort object (inherits from "Cohort").}
+
+\item{\code{label}}{Character. Label of the active cohort to update.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible integer. The cohort ID.
+}
+}
+\if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-addSqlCohort"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-addSqlCohort}{}}}
 \subsection{Method \code{addSqlCohort()}}{
@@ -554,12 +584,20 @@ Build a union cohort from existing cohorts
 
 Creates a derived cohort that is the union of specified parent cohorts.
 Delegates SQL generation to the internal builder function.
+
+Input route policy:
+\itemize{
+\item Preferred: provide \code{cohortEntries} (manifest query rows with \code{id})
+\item Backward compatible: provide \code{cohortIds}
+\item Exactly one route must be provided; passing both or neither is an error.
+}
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildUnionCohort(
   label,
   category,
   tags = list(),
-  cohortIds,
+  cohortIds = NULL,
+  cohortEntries = NULL,
   gapDays = 0L,
   eraPadDays = 0L,
   minEraDays = 0L,
@@ -578,7 +616,12 @@ Delegates SQL generation to the internal builder function.
 
 \item{\code{tags}}{Named list. Optional metadata tags.}
 
-\item{\code{cohortIds}}{Numeric vector (minimum 2). Cohort IDs to union.}
+\item{\code{cohortIds}}{Numeric vector (minimum 2). Legacy ID route to union cohorts.
+Supported for backward compatibility and emits a migration warning unless
+\code{options(picard.suppressIdRouteWarning = TRUE)} is set.}
+
+\item{\code{cohortEntries}}{Data frame/tibble with an \code{id} column (minimum 2 rows).
+Preferred route using manifest query results.}
 
 \item{\code{gapDays}}{Integer. Bridge eras separated by up to this many days. Default: 0 (only
 overlapping periods collapse).}
@@ -612,13 +655,22 @@ Build a subset cohort with temporal criteria
 
 Creates a derived cohort that subsets a base cohort using temporal
 relationship to a filter cohort.
+
+Input route policy:
+\itemize{
+\item Preferred: provide \code{baseCohortEntry}/\code{filterCohortEntry}
+\item Backward compatible: provide \code{baseCohortId}/\code{filterCohortId}
+\item Exactly one route per role must be provided; both/neither is an error.
+}
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildSubsetCohortTemporal(
   label,
   category,
   tags = list(),
-  baseCohortId,
-  filterCohortId,
+  baseCohortId = NULL,
+  filterCohortId = NULL,
+  baseCohortEntry = NULL,
+  filterCohortEntry = NULL,
   startWindow,
   endWindow = NULL,
   endDateType = "base",
@@ -635,9 +687,15 @@ relationship to a filter cohort.
 
 \item{\code{tags}}{Named list. Optional metadata tags.}
 
-\item{\code{baseCohortId}}{Integer. The cohort ID to subset.}
+\item{\code{baseCohortId}}{Integer. Legacy ID route for the base cohort.}
 
-\item{\code{filterCohortId}}{Integer. The cohort ID to use for temporal filtering.}
+\item{\code{filterCohortId}}{Integer. Legacy ID route for the filter cohort.}
+
+\item{\code{baseCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
+Preferred route using manifest query results for the base cohort.}
+
+\item{\code{filterCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
+Preferred route using manifest query results for the filter cohort.}
 
 \item{\code{startWindow}}{SubsetWindowOperator object. Defines the temporal window for the subset cohort start date
 relative to the filter cohort event.}
@@ -666,13 +724,22 @@ Build a complement cohort
 
 Creates a derived cohort containing all subjects from the population cohort who
 do NOT appear in any (or all) of the exclude cohorts.
+
+Input route policy:
+\itemize{
+\item Preferred: provide \code{populationCohortEntry}/\code{excludeCohortEntries}
+\item Backward compatible: provide \code{populationCohortId}/\code{excludeCohortIds}
+\item Exactly one route per role must be provided; both/neither is an error.
+}
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildComplementCohort(
   label,
   category,
   tags = list(),
-  populationCohortId,
-  excludeCohortIds,
+  populationCohortId = NULL,
+  excludeCohortIds = NULL,
+  populationCohortEntry = NULL,
+  excludeCohortEntries = NULL,
   complementType = "exclude_any"
 )}\if{html}{\out{</div>}}
 }
@@ -686,10 +753,16 @@ do NOT appear in any (or all) of the exclude cohorts.
 
 \item{\code{tags}}{Named list. Optional metadata tags.}
 
-\item{\code{populationCohortId}}{Integer. ID of the population (base) cohort.}
+\item{\code{populationCohortId}}{Integer. Legacy ID route for the population (base) cohort.}
 
-\item{\code{excludeCohortIds}}{Integer vector (min length 1). IDs of cohorts whose
+\item{\code{excludeCohortIds}}{Integer vector (min length 1). Legacy ID route for cohorts whose
 subjects should be excluded from the population.}
+
+\item{\code{populationCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
+Preferred route using manifest query results for the population cohort.}
+
+\item{\code{excludeCohortEntries}}{Data frame/tibble with an \code{id} column (minimum 1 row).
+Preferred route using manifest query results for exclusion cohorts.}
 
 \item{\code{complementType}}{Character. One of \code{"exclude_any"} (default) or
 \code{"exclude_all"}. \code{"exclude_any"} removes subjects present in ANY
@@ -710,12 +783,20 @@ Build a composite cohort
 
 Creates a derived cohort that requires membership in multiple cohorts
 (intersection logic).
+
+Input route policy:
+\itemize{
+\item Preferred: provide \code{criteriaCohortEntries}
+\item Backward compatible: provide \code{criteriaCohortIds}
+\item Exactly one route must be provided; passing both or neither is an error.
+}
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildCompositeCohort(
   label,
   category,
   tags = list(),
-  criteriaCohortIds,
+  criteriaCohortIds = NULL,
+  criteriaCohortEntries = NULL,
   eventSelection = "First",
   minEventCount = 1L
 )}\if{html}{\out{</div>}}
@@ -730,8 +811,11 @@ Creates a derived cohort that requires membership in multiple cohorts
 
 \item{\code{tags}}{Named list. Optional metadata tags.}
 
-\item{\code{criteriaCohortIds}}{Integer vector. The cohort IDs to include in the composite
+\item{\code{criteriaCohortIds}}{Integer vector. Legacy ID route for cohorts to include in the composite
 (e.g., c(1, 2, 3) for Type 1 diabetes, Type 2 diabetes, and secondary diabetes).}
+
+\item{\code{criteriaCohortEntries}}{Data frame/tibble with an \code{id} column (minimum 2 rows).
+Preferred route using manifest query results.}
 
 \item{\code{eventSelection}}{Character. One of 'First', 'Last', or 'All'. Specifies which event(s) to
 retain as the cohort_start_date and cohort_end_date in the output:
@@ -759,10 +843,18 @@ Build a demographic subset cohort
 
 Creates a derived cohort that subsets a base cohort by filtering on
 person-level demographic attributes (age, gender, race, ethnicity).
+
+Input route policy:
+\itemize{
+\item Preferred: provide \code{baseCohortEntry}
+\item Backward compatible: provide \code{baseCohortId}
+\item Exactly one route must be provided; passing both or neither is an error.
+}
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildDemographicCohort(
   label,
-  baseCohortId,
+  baseCohortId = NULL,
+  baseCohortEntry = NULL,
   category,
   minAge = NULL,
   maxAge = NULL,
@@ -778,7 +870,10 @@ person-level demographic attributes (age, gender, race, ethnicity).
 \describe{
 \item{\code{label}}{Character. Display name (e.g., "CKD - Males 40-75").}
 
-\item{\code{baseCohortId}}{Integer. ID of the base cohort to subset.}
+\item{\code{baseCohortId}}{Integer. Legacy ID route for the base cohort.}
+
+\item{\code{baseCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
+Preferred route using manifest query results.}
 
 \item{\code{category}}{Character. Required classification.}
 
@@ -811,9 +906,17 @@ Splits a single base cohort into N named stratum cohorts plus an automatic
 \strong{Unclassified} cohort containing subjects that match none of the named
 strata. Each stratum is registered as a separate manifest entry with
 \code{cohort_type = "subset"}.
+
+Input route policy:
+\itemize{
+\item Preferred: provide \code{baseCohortEntry}
+\item Backward compatible: provide \code{baseCohortId}
+\item Exactly one route must be provided; passing both or neither is an error.
+}
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildStratifiedCohorts(
-  baseCohortId,
+  baseCohortId = NULL,
+  baseCohortEntry = NULL,
   strata,
   labelPrefix = NULL,
   category = "derived",
@@ -824,7 +927,10 @@ strata. Each stratum is registered as a separate manifest entry with
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{baseCohortId}}{Integer. The cohort definition ID to split.}
+\item{\code{baseCohortId}}{Integer. Legacy ID route for the cohort definition ID to split.}
+
+\item{\code{baseCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
+Preferred route using manifest query results.}
 
 \item{\code{strata}}{Named list. Each element is either a named list of demographic
 filters (keys: \code{genderConceptIds}, \code{raceConceptIds},
@@ -1478,16 +1584,25 @@ Build a cohort of outcome events with prior target exposure
 Creates a derived cohort based on the temporal relationship between an
 outcome cohort and a target (exposure) cohort. Filters outcome events that
 have (or lack) a prior target event, optionally within a time window.
+
+Input route policy:
+\itemize{
+\item Preferred: provide \code{outcomeCohortEntry}/\code{targetCohortEntry}
+\item Backward compatible: provide \code{outcomeCohortId}/\code{targetCohortId}
+\item Exactly one route per role must be provided; both/neither is an error.
+}
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildOPriorT(
   label,
   category,
   tags = list(),
-  outcomeCohortId,
-  targetCohortId,
+  outcomeCohortId = NULL,
+  targetCohortId = NULL,
   mode = "prior",
   priorTimeWindowDays = NULL,
-  subsetLimit = "First"
+  subsetLimit = "First",
+  outcomeCohortEntry = NULL,
+  targetCohortEntry = NULL
 )}\if{html}{\out{</div>}}
 }
 
@@ -1500,10 +1615,10 @@ have (or lack) a prior target event, optionally within a time window.
 
 \item{\code{tags}}{Named list. Optional metadata tags.}
 
-\item{\code{outcomeCohortId}}{Integer. The cohort definition ID for the outcome
+\item{\code{outcomeCohortId}}{Integer. Legacy ID route for the outcome cohort definition ID
 (e.g., GI bleed).}
 
-\item{\code{targetCohortId}}{Integer. The cohort definition ID for the target
+\item{\code{targetCohortId}}{Integer. Legacy ID route for the target cohort definition ID
 (e.g., NSAID use).}
 
 \item{\code{mode}}{Character. One of 'prior' or 'no_prior':
@@ -1526,6 +1641,12 @@ which prior target event anchors the match when multiple exist:
 Default: 'First'.
 }}
 
+\item{\code{outcomeCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
+Preferred route using manifest query results for the outcome cohort.}
+
+\item{\code{targetCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
+Preferred route using manifest query results for the target cohort.}
+
 \item{\code{keep_trace}}{Logical. If TRUE, marks missing as deleted with timestamp (soft delete).
 If FALSE, permanently removes from database (hard delete). Defaults to TRUE.}
 }
@@ -1547,16 +1668,25 @@ have (or lack) a prior outcome event, optionally within a time window.
 
 This is the reverse direction of \code{buildOPriorT()}: instead of
 filtering outcome by prior target, filter target by prior outcome.
+
+Input route policy:
+\itemize{
+\item Preferred: provide \code{targetCohortEntry}/\code{outcomeCohortEntry}
+\item Backward compatible: provide \code{targetCohortId}/\code{outcomeCohortId}
+\item Exactly one route per role must be provided; both/neither is an error.
+}
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildTPriorO(
   label,
   category,
   tags = list(),
-  targetCohortId,
-  outcomeCohortId,
+  targetCohortId = NULL,
+  outcomeCohortId = NULL,
   mode = "prior",
   priorTimeWindowDays = NULL,
-  subsetLimit = "First"
+  subsetLimit = "First",
+  targetCohortEntry = NULL,
+  outcomeCohortEntry = NULL
 )}\if{html}{\out{</div>}}
 }
 
@@ -1569,10 +1699,10 @@ filtering outcome by prior target, filter target by prior outcome.
 
 \item{\code{tags}}{Named list. Optional metadata tags.}
 
-\item{\code{targetCohortId}}{Integer. The cohort definition ID for the target
+\item{\code{targetCohortId}}{Integer. Legacy ID route for the target cohort definition ID
 (e.g., NSAID use).}
 
-\item{\code{outcomeCohortId}}{Integer. The cohort definition ID for the outcome
+\item{\code{outcomeCohortId}}{Integer. Legacy ID route for the outcome cohort definition ID
 (e.g., GI bleed).}
 
 \item{\code{mode}}{Character. One of 'prior' or 'no_prior':
@@ -1594,6 +1724,12 @@ which prior outcome event anchors the match when multiple exist:
 \item 'All': Keep all prior outcome events (one output row per pair).
 Default: 'First'.
 }}
+
+\item{\code{targetCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
+Preferred route using manifest query results for the target cohort.}
+
+\item{\code{outcomeCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
+Preferred route using manifest query results for the outcome cohort.}
 }
 \if{html}{\out{</div>}}
 }
@@ -1617,13 +1753,22 @@ Typical use cases:
 \item Censor a disease cohort at the date of disease exacerbation
 \item Censor a treatment cohort at the date of a procedure (e.g., surgery)
 }
+
+Input route policy:
+\itemize{
+\item Preferred: provide \code{targetCohortEntry}/\code{censorCohortEntry}
+\item Backward compatible: provide \code{targetCohortId}/\code{censorCohortId}
+\item Exactly one route per role must be provided; both/neither is an error.
+}
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildCensorCohort(
   label,
   category,
   tags = list(),
-  targetCohortId,
-  censorCohortId
+  targetCohortId = NULL,
+  censorCohortId = NULL,
+  targetCohortEntry = NULL,
+  censorCohortEntry = NULL
 )}\if{html}{\out{</div>}}
 }
 
@@ -1636,9 +1781,15 @@ Typical use cases:
 
 \item{\code{tags}}{Named list. Optional metadata tags.}
 
-\item{\code{targetCohortId}}{Integer. The cohort definition ID for the cohort to censor.}
+\item{\code{targetCohortId}}{Integer. Legacy ID route for the cohort definition ID to censor.}
 
-\item{\code{censorCohortId}}{Integer. The cohort definition ID for the censoring event.}
+\item{\code{censorCohortId}}{Integer. Legacy ID route for the cohort definition ID for the censoring event.}
+
+\item{\code{targetCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
+Preferred route using manifest query results for the target cohort.}
+
+\item{\code{censorCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
+Preferred route using manifest query results for the censor cohort.}
 }
 \if{html}{\out{</div>}}
 }

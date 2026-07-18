@@ -167,6 +167,7 @@ by finding the reverse mapping relationship. For each concept set:
 \item \href{#method-ConceptSetManifest-addConceptSetFile}{\code{ConceptSetManifest$addConceptSetFile()}}
 \item \href{#method-ConceptSetManifest-addAtlasConceptSet}{\code{ConceptSetManifest$addAtlasConceptSet()}}
 \item \href{#method-ConceptSetManifest-addCaprConceptSet}{\code{ConceptSetManifest$addCaprConceptSet()}}
+\item \href{#method-ConceptSetManifest-updateCaprConceptSet}{\code{ConceptSetManifest$updateCaprConceptSet()}}
 \item \href{#method-ConceptSetManifest-importAtlasConceptSets}{\code{ConceptSetManifest$importAtlasConceptSets()}}
 \item \href{#method-ConceptSetManifest-queryConceptSetsByIds}{\code{ConceptSetManifest$queryConceptSetsByIds()}}
 \item \href{#method-ConceptSetManifest-queryConceptSetsByTag}{\code{ConceptSetManifest$queryConceptSetsByTag()}}
@@ -426,6 +427,34 @@ Export a Capr ConceptSet to JSON and register it in the manifest
 }
 \subsection{Returns}{
 Invisible integer. The assigned concept set ID.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-updateCaprConceptSet"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-updateCaprConceptSet}{}}}
+\subsection{Method \code{updateCaprConceptSet()}}{
+Update an existing Capr concept set's JSON definition
+
+Takes a revised Capr ConceptSet object and upserts it over a concept set
+already registered via \code{addCaprConceptSet()}: the JSON file recorded in
+the manifest is overwritten in place and the manifest hash is refreshed,
+so the concept set keeps its ID and file path. If the new definition is
+identical to the registered one, nothing is changed.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$updateCaprConceptSet(caprConceptSet, label)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{caprConceptSet}}{A Capr \code{ConceptSet} object.}
+
+\item{\code{label}}{Character. Label of the active concept set to update.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible integer. The concept set ID.
 }
 }
 \if{html}{\out{<hr>}}

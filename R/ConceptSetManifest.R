@@ -647,6 +647,82 @@ ConceptSetManifest <- R6::R6Class(
       invisible(cs_id)
     },
 
+    #' @description Update an existing Capr concept set's JSON definition
+    #'
+    #' Takes a revised Capr ConceptSet object and upserts it over a concept set
+    #' already registered via `addCaprConceptSet()`: the JSON file recorded in
+    #' the manifest is overwritten in place and the manifest hash is refreshed,
+    #' so the concept set keeps its ID and file path. If the new definition is
+    #' identical to the registered one, nothing is changed.
+    #'
+    #' @param caprConceptSet A Capr `ConceptSet` object.
+    #' @param label Character. Label of the active concept set to update.
+    #'
+    #' @return Invisible integer. The concept set ID.
+    updateCaprConceptSet = function(caprConceptSet, label) {
+      if (!requireNamespace("Capr", quietly = TRUE)) {
+        cli::cli_abort(c(
+          "Package {.pkg Capr} is required for updateCaprConceptSet().",
+          "i" = "Install with: {.code remotes::install_github('ohdsi/Capr')}"
+        ))
+      }
+
+      if (!inherits(caprConceptSet, "ConceptSet")) {
+        cli::cli_abort("caprConceptSet must be a Capr ConceptSet object")
+      }
+
+      checkmate::assert_string(label, min.chars = 1)
+
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      existing <- DBI::dbGetQuery(
+        conn,
+        "SELECT id, file_path, hash FROM concept_set_manifest
+         WHERE label = ? AND status = 'active'",
+        list(label)
+      )
+
+      if (nrow(existing) == 0) {
+        cli::cli_abort(c(
+          "No active concept set with label {.val {label}} found in the manifest.",
+          "i" = "Use {.code addCaprConceptSet()} to register a new concept set."
+        ))
+      }
+
+      cs_id <- as.integer(existing$id[1])
+      file_path <- existing$file_path[1]
+
+      # Export to a temp file first so a failed write cannot clobber the
+      # registered JSON, and unchanged definitions leave the file untouched
+      tmp_json <- tempfile(fileext = ".json")
+      Capr::writeConceptSet(caprConceptSet, tmp_json)
+      new_hash <- rlang::hash(readr::read_file(tmp_json))
+
+      if (identical(new_hash, existing$hash[1])) {
+        unlink(tmp_json)
+        cli::cli_alert_info("Concept set {cs_id}: {label} is unchanged")
+        return(invisible(cs_id))
+      }
+
+      if (!dir.exists(dirname(file_path))) {
+        dir.create(dirname(file_path), recursive = TRUE)
+      }
+      file.copy(tmp_json, file_path, overwrite = TRUE)
+      unlink(tmp_json)
+
+      DBI::dbExecute(
+        conn,
+        "UPDATE concept_set_manifest SET hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        list(new_hash, cs_id)
+      )
+
+      private$load_manifest_from_db()
+
+      cli::cli_alert_success("Updated Capr concept set {cs_id}: {label}")
+      invisible(cs_id)
+    },
+
     #' @description Batch-import concept sets from ATLAS via a conceptSetsLoad dataframe
     #' 
     #' Either create a dataframe or read in a csv file with columns `atlasId`, `label`, `category` (required) plus any
