@@ -65,14 +65,20 @@ conceptSetManifest$setAtlasConnection(atlasConnection)
 # Reads conceptSetsLoad.csv and downloads CIRCE JSON definitions from ATLAS
 # Place your conceptSetsLoad.csv in inputs/conceptSets/ before running this
 
-conceptSetsLoad <- readr::read_csv(
-    here::here("inputs/conceptSets/conceptSetsLoad.csv"), 
-    show_col_types = FALSE
-)
-
 # The load csv is for one-time imports only: rows already registered in the
-# manifest cause an error. After a successful import, clear or remove the csv.
-conceptSetManifest$importAtlasConceptSets(conceptSetsLoad = conceptSetsLoad)
+# manifest cause an error. After a successful import, delete the csv — the
+# import is skipped (and the sync below still runs) when it is absent, so
+# re-running main.R stays safe.
+# NOTE: no curly braces in this template (it is populated via glue).
+conceptSetsLoadPath <- here::here("inputs/conceptSets/conceptSetsLoad.csv")
+
+if (fs::file_exists(conceptSetsLoadPath))
+  conceptSetManifest$importAtlasConceptSets(
+    conceptSetsLoad = readr::read_csv(conceptSetsLoadPath, show_col_types = FALSE)
+  )
+
+if (!fs::file_exists(conceptSetsLoadPath))
+  cli::cli_alert_info("No conceptSetsLoad.csv found - skipping one-time import")
 
 
 # ================================================================================

@@ -63,14 +63,20 @@ cohortManifest$setAtlasConnection(atlasConnection)
 # Reads cohortsLoad.csv and downloads CIRCE JSON definitions from ATLAS
 # Place your cohortsLoad.csv in inputs/cohorts/ before running this
 
-cohortsLoad <- readr::read_csv(
-    here::here("inputs/cohorts/cohortsLoad.csv"), 
-    show_col_types = FALSE
-)
-
 # The load csv is for one-time imports only: rows already registered in the
-# manifest cause an error. After a successful import, clear or remove the csv.
-cohortManifest$importAtlasCohorts(cohortsLoad = cohortsLoad)
+# manifest cause an error. After a successful import, delete the csv — the
+# import is skipped (and the sync below still runs) when it is absent, so
+# re-running main.R stays safe.
+# NOTE: no curly braces in this template (it is populated via glue).
+cohortsLoadPath <- here::here("inputs/cohorts/cohortsLoad.csv")
+
+if (fs::file_exists(cohortsLoadPath))
+  cohortManifest$importAtlasCohorts(
+    cohortsLoad = readr::read_csv(cohortsLoadPath, show_col_types = FALSE)
+  )
+
+if (!fs::file_exists(cohortsLoadPath))
+  cli::cli_alert_info("No cohortsLoad.csv found - skipping one-time import")
 
 
 # ================================================================================
