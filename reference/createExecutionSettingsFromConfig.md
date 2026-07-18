@@ -18,7 +18,8 @@ createExecutionSettingsFromConfig(
   tempEmulationSchema = NULL,
   cohortTable = NULL,
   databaseName = NULL,
-  pipelineVersion = "prod"
+  pipelineVersion = "prod",
+  cohortTableSuffix = NULL
 )
 ```
 
@@ -62,6 +63,12 @@ createExecutionSettingsFromConfig(
 
   Character. Pipeline version ("prod" for production table, "dev" or
   "0.0.1" etc.).
+
+- cohortTableSuffix:
+
+  Character. Optional suffix for cohort table names in non-semver (test)
+  runs. Normalized to lowercase snake_case and truncated to 24
+  characters. If NULL, non-semver runs default to `"_dev"`.
 
 ## Value
 

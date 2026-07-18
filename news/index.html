@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.5</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.6</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -35,6 +35,45 @@
     </div>
 
     <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.0.6" id="picard-006">picard 0.0.6<a class="anchor" aria-label="anchor" href="#picard-006"></a></h2>
+<div class="section level3">
+<h3 id="new-features-0-0-6">New Features<a class="anchor" aria-label="anchor" href="#new-features-0-0-6"></a></h3>
+<div class="section level4">
+<h4 id="custom-dependent-sql-cohorts-0-0-6">Custom Dependent SQL Cohorts<a class="anchor" aria-label="anchor" href="#custom-dependent-sql-cohorts-0-0-6"></a></h4>
+<ul><li>Added <code>$addDependentCustomCohort(filePath, label, category, dependentCohortIdList, tags)</code> to register hand-written SQL cohorts that depend on one or more existing manifest cohorts.</li>
+<li>Introduced <code>custom_derived</code> as an explicit cohort type for dependency-aware custom SQL, distinct from base <code>custom</code> SQL cohorts added with <code>$addSqlCohort()</code>.</li>
+<li>Removed the older <code>buildCustomDependentCohort()</code> pathway in favor of a single add-style workflow for dependent custom SQL.</li>
+<li>
+<code>dependentCohortIdList</code> is now stored as named dependency metadata and reused at execution time, so user-defined SqlRender placeholders such as <code>@inc_cohort_id</code>, <code>@exc_cohort_id</code>, or any other non-reserved parameter names can be injected from manifest metadata.</li>
+<li>Dependency-aware custom SQL must preserve the standard Picard cohort write contract by deleting from and inserting into <code>@target_database_schema.@target_cohort_table</code> using <code>@target_cohort_id</code>.</li>
+<li>Execution logic now treats <code>custom_derived</code> like other derived cohorts for dependency-hash comparison, checksum persistence, and stale-cascade behavior rather than using raw SQL hash logic.</li>
+<li>Dependent cohort review and generation summaries now include <code>custom_derived</code> cohorts explicitly.</li>
+<li>bug fix to deal with named list of dependent cohort ids</li>
+</ul></div>
+<div class="section level4">
+<h4 id="derived-cohort-builder-api-entry-first-0-0-6">Derived Cohort Builder API (Entry-First)<a class="anchor" aria-label="anchor" href="#derived-cohort-builder-api-entry-first-0-0-6"></a></h4>
+<ul><li>
+<strong>API CHANGE</strong>: derived cohort builders in <code>build_dependent_cohorts.R</code> now support entry-row inputs (from <code>queryCohortsByLabel()</code> and similar query methods) as the preferred interface instead of raw cohort IDs.</li>
+<li>Updated builders include: <code>$buildSubsetCohortTemporal()</code>, <code>$buildUnionCohort()</code>, <code>$buildComplementCohort()</code>, <code>$buildCompositeCohort()</code>, <code>$buildDemographicCohort()</code>, <code>$buildStratifiedCohorts()</code>, <code>$buildOPriorT()</code>, <code>$buildTPriorO()</code>, and <code>$buildCensorCohort()</code>.</li>
+<li>Legacy ID-based arguments remain supported for backward compatibility, with migration guidance warnings when using ID routes.</li>
+<li>Added input-route validation to enforce mutually exclusive usage of ID arguments vs entry arguments within each build call.</li>
+</ul></div>
+</div>
+<div class="section level3">
+<h3 id="bug-fixes-0-0-6">Bug Fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-0-6"></a></h3>
+<ul><li>In concept set manifest, check atlasId tag for existing entry in manifest. <code>$addAtlasConceptSet()</code> missing addition of atlasId tag</li>
+<li>Flag which cohort tables are missing for cohort generation. Interactive mode to build cohort tables within <code>$executeCohortGeneration()</code>
+</li>
+<li>change agent mode to correct github copilot format (i.e <code>/.github</code>)</li>
+<li>Clean vignettes and documentation to reflect current state of API</li>
+<li>Add option that <code>createBlank...</code> will open the file</li>
+</ul><div class="section level4">
+<h4 id="unit-tests-0-0-6">Unit Tests<a class="anchor" aria-label="anchor" href="#unit-tests-0-0-6"></a></h4>
+<ul><li>Rebuild unit tests for cohort manifest. Split tests by series of functions</li>
+</ul></div>
+</div>
+</div>
+    <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.0.5" id="picard-005">picard 0.0.5<a class="anchor" aria-label="anchor" href="#picard-005"></a></h2>
 <div class="section level3">
 <h3 id="manifest-api-enhancements-0-0-5">Manifest API Enhancements<a class="anchor" aria-label="anchor" href="#manifest-api-enhancements-0-0-5"></a></h3>
@@ -44,7 +83,7 @@
 <li>
 <code><a href="../reference/resetCohortManifest.html">resetCohortManifest()</a></code> and <code><a href="../reference/resetConceptSetManifest.html">resetConceptSetManifest()</a></code> now include <code>archive</code> parameter (default <code>TRUE</code>) to create timestamped backups of manifest database and files before reset<br></li>
 <li>
-<code>importAtlasCohorts()</code> and <code><a href="../reference/importAtlasConceptSets.html">importAtlasConceptSets()</a></code> <strong>API CHANGE</strong>: changed from file-based (<code>conceptSetsLoadPath = "path/to/file.csv"</code>) to dataframe-based (<code>conceptSetsLoad = dataframe, atlasConnection = NULL</code>). Users now call <code><a href="https://readr.tidyverse.org/reference/read_delim.html" class="external-link">readr::read_csv()</a></code> first, then pass the resulting dataframe. Dataframe must contain columns: <code>atlasId</code>, <code>label</code>, <code>category</code> (plus optional tag columns)</li>
+<code>importAtlasCohorts()</code> and <code>importAtlasConceptSets()</code> <strong>API CHANGE</strong>: changed from file-based (<code>conceptSetsLoadPath = "path/to/file.csv"</code>) to dataframe-based (<code>conceptSetsLoad = dataframe, atlasConnection = NULL</code>). Users now call <code><a href="https://readr.tidyverse.org/reference/read_delim.html" class="external-link">readr::read_csv()</a></code> first, then pass the resulting dataframe. Dataframe must contain columns: <code>atlasId</code>, <code>label</code>, <code>category</code> (plus optional tag columns)</li>
 </ul></div>
 <div class="section level3">
 <h3 id="input-builder-scripts-0-0-5">Input Builder Scripts<a class="anchor" aria-label="anchor" href="#input-builder-scripts-0-0-5"></a></h3>
@@ -421,7 +460,7 @@
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer></div>

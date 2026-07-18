@@ -7,7 +7,8 @@ folder.
 
 ``` r
 createBlankConceptSetsLoadFile(
-  conceptSetsFolderPath = here::here("inputs/conceptSets")
+  conceptSetsFolderPath = here::here("inputs/conceptSets"),
+  openFile = TRUE
 )
 ```
 
@@ -17,6 +18,11 @@ createBlankConceptSetsLoadFile(
 
   Character. Path to the conceptSets folder. Defaults to
   `here::here("inputs/conceptSets")`.
+
+- openFile:
+
+  Logical. If TRUE, opens the created file in the editor. Defaults to
+  TRUE.
 
 ## Value
 

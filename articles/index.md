@@ -10,8 +10,8 @@
   Study](https://ohdsi.github.io/Picard/articles/launching_a_study.md):
 - [Loading Inputs: Getting
   Started](https://ohdsi.github.io/Picard/articles/loading_inputs.md):
-- [The Manifest: Architecture, Workflows, and
-  Helpers](https://ohdsi.github.io/Picard/articles/manifest_overview.md):
+- [Manifest
+  Management](https://ohdsi.github.io/Picard/articles/manifest_management.md):
 - [The Ulysses Standard Repository
   Structure](https://ohdsi.github.io/Picard/articles/picard_repository_structure.md):
 - [Post-Processing and

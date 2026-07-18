@@ -150,8 +150,6 @@ Other utility and helper functions
   : Generate Cohorts for Pipeline Execution
 - [`importAndBind()`](https://ohdsi.github.io/Picard/reference/importAndBind.md)
   : Import and Bind Results by Version and Task
-- [`importAtlasConceptSets()`](https://ohdsi.github.io/Picard/reference/importAtlasConceptSets.md)
-  : Import CIRCE Concept Sets from ATLAS
 - [`migrateCohortManifest()`](https://ohdsi.github.io/Picard/reference/migrateCohortManifest.md)
   : Migrate Old CohortManifest SQLite to New Schema
 - [`migrateConceptSetManifest()`](https://ohdsi.github.io/Picard/reference/migrateConceptSetManifest.md)

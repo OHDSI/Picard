@@ -196,8 +196,9 @@ cohort type
 
 #### Returns
 
-Character. One of 'circe', 'custom', 'subset', 'union', 'complement',
-'composite'. Set the cohort type (internal use)
+Character. One of 'circe', 'custom', 'custom_derived', 'subset',
+'union', 'complement', 'composite', 'oprior', 'tprior', 'censor'. Set
+the cohort type (internal use)
 
 ------------------------------------------------------------------------
 
@@ -211,8 +212,9 @@ Character. One of 'circe', 'custom', 'subset', 'union', 'complement',
 
 - `cohortType`:
 
-  Character. One of 'circe', 'custom', 'subset', 'union', 'complement',
-  'composite'. Get the source type
+  Character. One of 'circe', 'custom', 'custom_derived', 'subset',
+  'union', 'complement', 'composite', 'oprior', 'tprior', 'censor'. Get
+  the source type
 
 ------------------------------------------------------------------------
 

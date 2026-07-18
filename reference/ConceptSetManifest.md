@@ -389,9 +389,7 @@ The ATLAS connection object, or NULL if not set. Set an ATLAS connection
 for use by add/import methods
 
 Stores a connection so it does not need to be passed to
-`addAtlasConceptSet()` or
-[`importAtlasConceptSets()`](https://ohdsi.github.io/Picard/reference/importAtlasConceptSets.md)
-on every call.
+`addAtlasConceptSet()` or `importAtlasConceptSets()` on every call.
 
 ------------------------------------------------------------------------
 
@@ -537,7 +535,7 @@ Invisible integer. The assigned concept set ID.
 
 ------------------------------------------------------------------------
 
-### Method [`importAtlasConceptSets()`](https://ohdsi.github.io/Picard/reference/importAtlasConceptSets.md)
+### Method `importAtlasConceptSets()`
 
 Batch-import concept sets from ATLAS via a conceptSetsLoad dataframe
 

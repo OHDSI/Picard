@@ -7,7 +7,7 @@ Useful for iterative testing during development.
 ## Usage
 
 ``` r
-testStudyPipeline(configBlock, env = rlang::caller_env())
+testStudyPipeline(configBlock, testLabel = "dev", env = rlang::caller_env())
 ```
 
 ## Arguments
@@ -15,6 +15,12 @@ testStudyPipeline(configBlock, env = rlang::caller_env())
 - configBlock:
 
   Character or character vector. Name(s) of config block(s) to use.
+
+- testLabel:
+
+  Character. Label used for test output folder and cohort table suffix.
+  Defaults to `"dev"`. Label is normalized to lowercase snake_case and
+  truncated to 24 characters.
 
 - env:
 
@@ -30,5 +36,7 @@ Invisibly returns task results list
 if (FALSE) { # \dontrun{
 # Test full pipeline on develop branch
 testStudyPipeline(configBlock = "myConfig")
+# Test full pipeline with a custom namespace
+testStudyPipeline(configBlock = "myConfig", testLabel = "feature_ml_test")
 } # }
 ```

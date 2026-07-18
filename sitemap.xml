@@ -1,6 +1,7 @@
 <urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
 <url><loc>https://ohdsi.github.io/Picard/404.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/LICENSE.html</loc></url>
+<url><loc>https://ohdsi.github.io/Picard/TODO.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/articles/cohorts.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/articles/developing_the_pipeline.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/articles/evidence_generation_plan.html</loc></url>
@@ -8,6 +9,7 @@
 <url><loc>https://ohdsi.github.io/Picard/articles/index.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/articles/launching_a_study.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/articles/loading_inputs.html</loc></url>
+<url><loc>https://ohdsi.github.io/Picard/articles/manifest_management.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/articles/manifest_overview.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/articles/picard_repository_structure.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/articles/post_processing.html</loc></url>

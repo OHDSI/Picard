@@ -39,12 +39,12 @@ Invisibly returns a list with:
 
 Agent mode setup consists of:
 
-- `.agent/` folder with reference documentation
+- `.github/` folder with reference documentation
 
 - `copilot-instructions.md` at workspace root (auto-loaded by VS Code
   Copilot)
 
-- `.agent/copilot-instructions.md` (backup/reference)
+- `.github/copilot-instructions.md` (backup/reference)
 
 Study metadata is extracted from existing repo files:
 

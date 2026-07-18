@@ -41,7 +41,18 @@ Requires that executionSettings has been set and includes:
 
 - cohortTable with the desired table name
 
+Requires that executionSettings has been set and includes:
+
+- A database connection (via getConnection()
+
+- workDatabaseSchema for the target schema
+
+- cohortTable with the desired table name
+
 - tempEmulationSchema if needed for the database platform
+
+Use `createAllCohortTables()` instead. This alias is kept for backward
+compatibility.
 
 Requires that executionSettings has been set and includes:
 
@@ -123,6 +134,8 @@ Requires that executionSettings has been set and includes:
 
 - [`CohortManifest$addSqlCohort()`](#method-CohortManifest-addSqlCohort)
 
+- [`CohortManifest$addDependentCustomCohort()`](#method-CohortManifest-addDependentCustomCohort)
+
 - [`CohortManifest$addCirceCohort()`](#method-CohortManifest-addCirceCohort)
 
 - [`CohortManifest$buildUnionCohort()`](#method-CohortManifest-buildUnionCohort)
@@ -130,8 +143,6 @@ Requires that executionSettings has been set and includes:
 - [`CohortManifest$buildSubsetCohortTemporal()`](#method-CohortManifest-buildSubsetCohortTemporal)
 
 - [`CohortManifest$buildComplementCohort()`](#method-CohortManifest-buildComplementCohort)
-
-- [`CohortManifest$buildCustomDependentCohort()`](#method-CohortManifest-buildCustomDependentCohort)
 
 - [`CohortManifest$buildCompositeCohort()`](#method-CohortManifest-buildCompositeCohort)
 
@@ -170,6 +181,12 @@ Requires that executionSettings has been set and includes:
 - [`CohortManifest$statusReport()`](#method-CohortManifest-statusReport)
 
 - [`CohortManifest$print()`](#method-CohortManifest-print)
+
+- [`CohortManifest$checkCohortTables()`](#method-CohortManifest-checkCohortTables)
+
+- [`CohortManifest$createCohortTable()`](#method-CohortManifest-createCohortTable)
+
+- [`CohortManifest$createAllCohortTables()`](#method-CohortManifest-createAllCohortTables)
 
 - [`CohortManifest$createCohortTables()`](#method-CohortManifest-createCohortTables)
 
@@ -235,9 +252,10 @@ Review dependent cohorts and their dependency metadata
 ### Method `reviewDependentCohorts()`
 
 Returns a summary tibble of all active derived cohorts (union, subset,
-complement, composite, oprior, tprior, censor) with parsed dependency
-information sourced directly from SQLite. Useful for quickly auditing
-what each derived cohort depends on and how it was built.
+complement, composite, oprior, tprior, censor, custom_derived) with
+parsed dependency information sourced directly from SQLite. Useful for
+quickly auditing what each derived cohort depends on and how it was
+built.
 
 #### Usage
 
@@ -252,9 +270,7 @@ A tibble with columns:
 - `label` - Cohort label
 
 - `cohort_type` - One of 'union', 'subset', 'complement', 'composite',
-  'oprior', 'tprior', 'censor'
-
-- `category` - User-defined category
+  'oprior', 'tprior', 'censor', 'custom_derived'
 
 - `parent_cohorts` - Human-readable parent list, e.g. "Label A (1),
   Label B (2)"
@@ -568,6 +584,56 @@ Invisible integer. The assigned cohort ID.
 
 ------------------------------------------------------------------------
 
+### Method `addDependentCustomCohort()`
+
+Add a dependent custom SQL cohort
+
+Registers an existing SQL file in the manifest as a dependency-aware
+derived cohort. The SQL file must already exist on disk and must
+preserve the standard Picard cohort write contract using
+\\code@target_database_schema.@target_cohort_table and
+\\code@target_cohort_id.
+
+#### Usage
+
+    CohortManifest$addDependentCustomCohort(
+      filePath,
+      label,
+      category,
+      dependentCohortIdList,
+      tags = list()
+    )
+
+#### Arguments
+
+- `filePath`:
+
+  Character. Path to the SQL file.
+
+- `label`:
+
+  Character. Display name for the cohort.
+
+- `category`:
+
+  Character. Required classification.
+
+- `dependentCohortIdList`:
+
+  Named list. Each name is a SqlRender parameter to expose in the SQL
+  file and each value is the cohort ID to inject at runtime. Example:
+  \\codelist(inc_cohort_id = 10L, exc_cohort_id = 12L).
+
+- `tags`:
+
+  Named list. Optional metadata tags.
+
+#### Returns
+
+Invisible integer. The assigned cohort ID.
+
+------------------------------------------------------------------------
+
 ### Method `addCirceCohort()`
 
 Add a Circe JSON cohort from disk
@@ -802,57 +868,6 @@ cohort who do NOT appear in any (or all) of the exclude cohorts.
   `"exclude_any"` removes subjects present in ANY exclude cohort;
   `"exclude_all"` removes subjects only if they appear in ALL exclude
   cohorts.
-
-#### Returns
-
-Invisible integer. The assigned cohort ID.
-
-------------------------------------------------------------------------
-
-### Method `buildCustomDependentCohort()`
-
-Build a custom dependent cohort from a user-supplied SQL file
-
-Registers an existing `.sql` file as a derived cohort with explicit
-dependencies on manifest cohorts. Unlike `addSqlCohort()` (which treats
-the file as a base cohort), this method copies the SQL into the
-`derived/` directory and sets `depends_on`, so the skip-logic uses
-dependency-aware hashing (see Phase 1.1).
-
-#### Usage
-
-    CohortManifest$buildCustomDependentCohort(
-      filePath,
-      label,
-      category,
-      cohortIds,
-      tags = list()
-    )
-
-#### Arguments
-
-- `filePath`:
-
-  Character. Path to the user's `.sql` file. The file is **copied** into
-  the `derived/` directory — the original is not referenced after
-  registration.
-
-- `label`:
-
-  Character. Display name (must be unique in manifest).
-
-- `category`:
-
-  Character. Required classification.
-
-- `cohortIds`:
-
-  Integer vector (min. 1). Parent cohort IDs this SQL depends on. All
-  must exist in the manifest.
-
-- `tags`:
-
-  Named list. Optional metadata tags.
 
 #### Returns
 
@@ -1412,7 +1427,7 @@ depends_on, status.
 
 Print a friendly view of the CohortManifest
 
-Displays key metadata about the manifest and its contents. Create cohort
+Displays key metadata about the manifest and its contents. Check cohort
 tables in the database
 
 #### Usage
@@ -1421,11 +1436,70 @@ tables in the database
 
 ------------------------------------------------------------------------
 
-### Method `createCohortTables()`
+### Method `checkCohortTables()`
+
+Checks if necessary tables have been created for execution
+
+#### Usage
+
+    CohortManifest$checkCohortTables()
+
+#### Returns
+
+tibble with cohort tables and there exist status Create a single cohort
+table in the database
+
+------------------------------------------------------------------------
+
+### Method `createCohortTable()`
+
+Creates one required cohort table by type using the current execution
+settings.
+
+#### Usage
+
+    CohortManifest$createCohortTable(type, tableName = NULL)
+
+#### Arguments
+
+- `type`:
+
+  Character. One of "main", "inclusion", "inclusion_result",
+  "inclusion_stats", "summary_stats", "censor_stats", or "checksum".
+
+- `tableName`:
+
+  Character. Optional explicit table name. If NULL, defaults to the name
+  derived from execution settings for the selected type.
+
+#### Returns
+
+Invisible NULL. Create cohort tables in the database
+
+------------------------------------------------------------------------
+
+### Method `createAllCohortTables()`
 
 Creates the necessary cohort tables in the target database using the
 execution settings. First checks if tables already exist before
-attempting creation.
+attempting creation. This is an advanced/manual setup function. Most
+users should run `executeCohortGeneration()` and let it create missing
+tables automatically.
+
+#### Usage
+
+    CohortManifest$createAllCohortTables()
+
+#### Returns
+
+Invisible NULL. Creates tables in the database and prints status
+messages.
+
+------------------------------------------------------------------------
+
+### Method `createCohortTables()`
+
+Deprecated alias for createAllCohortTables
 
 #### Usage
 
@@ -1433,8 +1507,7 @@ attempting creation.
 
 #### Returns
 
-Invisible NULL. Creates tables in the database and prints status
-messages. Drop cohort tables from the database
+Invisible NULL. Drop cohort tables from the database
 
 ------------------------------------------------------------------------
 
@@ -1526,7 +1599,16 @@ checksum table, regenerates and updates the hash.
 
 #### Usage
 
-    CohortManifest$executeCohortGeneration()
+    CohortManifest$executeCohortGeneration(confirm = TRUE)
+
+#### Arguments
+
+- `confirm`:
+
+  Logical. If TRUE and interactive, asks for confirmation before
+  creating missing tables. If FALSE, missing tables are created without
+  prompting. In non-interactive sessions, missing tables are not created
+  automatically.
 
 #### Returns
 

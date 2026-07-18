@@ -289,8 +289,9 @@ issues <- validation[validation$validationStatus != "OK", ]
 
 ## Next Steps
 
-1.  **Run orchestration:** Call `orchestratePipelineExport()` after
-    production pipeline completes
+1.  **Run post process merge:** Call
+    [`runPostProcessing()`](https://ohdsi.github.io/Picard/reference/runPostProcessing.md)
+    after production pipeline completes
 2.  **Review QC reports:** Check qc_cohortValidation.csv and
     qc_processMeta.csv
 3.  **Examine schema:** Use schema_review.csv to understand data

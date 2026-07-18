@@ -13,7 +13,7 @@ secrets.yml, keyed by the dbServer field in each config block."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.5</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.6</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -59,7 +59,8 @@ secrets.yml, keyed by the <code>dbServer</code> field in each config block.</p>
 <span>  tempEmulationSchema <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  cohortTable <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  databaseName <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  pipelineVersion <span class="op">=</span> <span class="st">"prod"</span></span>
+<span>  pipelineVersion <span class="op">=</span> <span class="st">"prod"</span>,</span>
+<span>  cohortTableSuffix <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -102,6 +103,12 @@ secrets.yml, keyed by the <code>dbServer</code> field in each config block.</p>
 <dt id="arg-pipelineversion">pipelineVersion<a class="anchor" aria-label="anchor" href="#arg-pipelineversion"></a></dt>
 <dd><p>Character. Pipeline version ("prod" for production table, "dev" or "0.0.1" etc.).</p></dd>
 
+
+<dt id="arg-cohorttablesuffix">cohortTableSuffix<a class="anchor" aria-label="anchor" href="#arg-cohorttablesuffix"></a></dt>
+<dd><p>Character. Optional suffix for cohort table names in
+non-semver (test) runs. Normalized to lowercase snake_case and truncated to
+24 characters. If NULL, non-semver runs default to <code>"_dev"</code>.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -126,7 +133,7 @@ overrides taking precedence.</p>
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer></div>

@@ -12,7 +12,9 @@ execute_pipeline(
   testMode = FALSE,
   skipRenv = FALSE,
   skipConnectivityCheck = TRUE,
-  env = rlang::caller_env()
+  env = rlang::caller_env(),
+  pipelineVersionOverride = NULL,
+  cohortTableSuffix = NULL
 )
 ```
 
@@ -45,6 +47,15 @@ execute_pipeline(
 - env:
 
   the execution environment
+
+- pipelineVersionOverride:
+
+  Character. Optional test-mode override for the pipeline version folder
+  label.
+
+- cohortTableSuffix:
+
+  Character. Optional test-mode suffix used for cohort table names.
 
 ## Value
 

@@ -654,7 +654,7 @@ SQLite database created/managed by `ConceptSetManifest` class. Contains
 1.  Create or update `conceptSetsLoad.csv` with metadata (use
     [`createBlankConceptSetsLoadFile()`](https://ohdsi.github.io/Picard/reference/createBlankConceptSetsLoadFile.md))
 2.  Import ATLAS concept set JSON definitions to `json/` folder (use
-    [`importAtlasConceptSets()`](https://ohdsi.github.io/Picard/reference/importAtlasConceptSets.md))
+    `importAtlasConceptSets()`)
 3.  Call
     [`loadConceptSetManifest()`](https://ohdsi.github.io/Picard/reference/loadConceptSetManifest.md)
     to scan directories and enrich with `conceptSetsLoad.csv` metadata
