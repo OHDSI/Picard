@@ -2103,7 +2103,6 @@ updates the registered derived cohort in place (same ID and file path):
 the SQL is re-rendered, parents and build parameters are replaced, the
 cohort is marked 'stale' for regeneration, and its own dependents are
 marked stale too. Default: TRUE (fail-safe).}
-
 }
 \if{html}{\out{</div>}}
 }
@@ -2172,7 +2171,6 @@ updates the registered derived cohort in place (same ID and file path):
 the SQL is re-rendered, parents and build parameters are replaced, the
 cohort is marked 'stale' for regeneration, and its own dependents are
 marked stale too. Default: TRUE (fail-safe).}
-
 }
 \if{html}{\out{</div>}}
 }
