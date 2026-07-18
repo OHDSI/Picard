@@ -358,6 +358,9 @@ get_custom_derived_sql_params <- function(sqlite_conn, cohort_id) {
   )
 
   custom_params <- dep_rule$dependentCohortIdList
+  # Vector-valued entries come back from JSON as lists; flatten each to an
+  # atomic vector so SqlRender renders them comma-separated (IN clauses)
+  custom_params <- lapply(custom_params, function(x) unlist(x, use.names = FALSE))
   if (is.null(custom_params) || length(custom_params) == 0) {
     cli::cli_abort("custom_derived cohort {cohort_id} is missing dependentCohortIdList metadata")
   }

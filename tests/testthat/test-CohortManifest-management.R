@@ -414,6 +414,56 @@ testthat::test_that("addDependentCustomCohort stopIfExists FALSE updates deps an
   testthat::expect_equal(as.integer(rule$dependentCohortIdList$exc_cohort_id), ckd_id)
 })
 
+# Testing: dependentCohortIdList entries accept vectors of IDs, stored in depends_on
+# and rendered comma-separated at generation time.
+testthat::test_that("addDependentCustomCohort accepts vectors of dependent IDs", {
+  setup <- cm_test_new_manifest("mgmt-depcustom-vector")
+  manifest <- setup$manifest
+
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "Chronic Kidney Disease", fixture_name = "ckd.json")
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "Type 2 Diabetes", fixture_name = "t2d.json")
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "All-Cause Death", fixture_name = "death.json")
+  rows <- manifest$tabulateManifest(filter = "active")
+  ckd_id <- as.integer(rows$id[rows$label == "Chronic Kidney Disease"][1])
+  t2d_id <- as.integer(rows$id[rows$label == "Type 2 Diabetes"][1])
+  death_id <- as.integer(rows$id[rows$label == "All-Cause Death"][1])
+
+  fixture <- cm_test_sql_fixture_path("my_custom_dependent.sql")
+  local_sql <- fs::path(setup$paths$sql_dir, "my_custom_dependent.sql")
+  fs::file_copy(fixture, local_sql)
+
+  dep_id <- manifest$addDependentCustomCohort(
+    filePath = local_sql,
+    label = "Dep Vector",
+    category = "Derived Cohorts",
+    dependentCohortIdList = list(
+      inc_cohort_id = ckd_id,
+      exc_cohort_id = c(t2d_id, death_id)
+    )
+  )
+
+  row <- cm_test_get_manifest_row(manifest, "Dep Vector")
+  testthat::expect_equal(
+    jsonlite::fromJSON(row$depends_on[[1]]),
+    c(ckd_id, t2d_id, death_id)
+  )
+
+  # Generation-side round trip: params come back atomic and render for IN clauses
+  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
+  on.exit(DBI::dbDisconnect(conn), add = TRUE)
+  params <- get_custom_derived_sql_params(conn, as.integer(dep_id))
+  testthat::expect_false(is.list(params$exc_cohort_id))
+  testthat::expect_equal(as.integer(params$exc_cohort_id), c(t2d_id, death_id))
+
+  rendered <- SqlRender::render(
+    "cohort_definition_id IN (@exc_cohort_id)",
+    exc_cohort_id = params$exc_cohort_id
+  )
+  testthat::expect_true(grepl(as.character(t2d_id), rendered, fixed = TRUE))
+  testthat::expect_true(grepl(as.character(death_id), rendered, fixed = TRUE))
+  testthat::expect_true(grepl(",", rendered, fixed = TRUE))
+})
+
 # Testing: addDependentCustomCohort default stopIfExists = TRUE errors on duplicate labels.
 testthat::test_that("addDependentCustomCohort errors on duplicate label by default", {
   setup <- cm_test_new_manifest("mgmt-depcustom-dup")

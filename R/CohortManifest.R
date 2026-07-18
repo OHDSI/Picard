@@ -450,10 +450,12 @@ CohortManifest <- R6::R6Class(
           cli::cli_abort("dependentCohortIdList must be a named list of SqlRender parameter names to cohort IDs")
         }
 
-        if (!all(lengths(dependentCohortIdList) == 1L)) {
-          cli::cli_abort("Each dependentCohortIdList entry must contain exactly one cohort ID")
+        if (!all(lengths(dependentCohortIdList) >= 1L)) {
+          cli::cli_abort("Each dependentCohortIdList entry must contain at least one cohort ID")
         }
 
+        # Entries may hold a single cohort ID or a vector of IDs (rendered
+        # comma-separated by SqlRender, e.g. for IN (@param) clauses)
         dependent_ids <- unlist(dependentCohortIdList, use.names = TRUE)
         checkmate::assert_integerish(x = dependent_ids, min.len = 1, any.missing = FALSE, unique = TRUE)
       }
@@ -1415,8 +1417,10 @@ CohortManifest <- R6::R6Class(
     #' @param label Character. Display name for the cohort.
     #' @param category Character. Required classification.
     #' @param dependentCohortIdList Named list. Each name is a SqlRender parameter to expose
-    #'   in the SQL file and each value is the cohort ID to inject at runtime.
-    #'   Example: \.code{list(inc_cohort_id = 10L, exc_cohort_id = 12L)}.
+    #'   in the SQL file and each value is the cohort ID — or an integer vector of
+    #'   cohort IDs — to inject at runtime. Vectors render comma-separated, for use
+    #'   in \.code{IN (@param)} clauses.
+    #'   Example: \.code{list(inc_cohort_id = 10L, exc_cohort_ids = c(12L, 14L))}.
     #' @param tags Named list. Optional metadata tags.
     #' @param stopIfExists Logical. If TRUE (default), raises an error when an
     #'   active or stale cohort with this label is already registered. If FALSE,

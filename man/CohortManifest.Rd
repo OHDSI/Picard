@@ -559,8 +559,10 @@ and \.code{@target_cohort_id}.
 \item{\code{category}}{Character. Required classification.}
 
 \item{\code{dependentCohortIdList}}{Named list. Each name is a SqlRender parameter to expose
-in the SQL file and each value is the cohort ID to inject at runtime.
-Example: \.code{list(inc_cohort_id = 10L, exc_cohort_id = 12L)}.}
+in the SQL file and each value is the cohort ID — or an integer vector of
+cohort IDs — to inject at runtime. Vectors render comma-separated, for use
+in \.code{IN (@param)} clauses.
+Example: \.code{list(inc_cohort_id = 10L, exc_cohort_ids = c(12L, 14L))}.}
 
 \item{\code{tags}}{Named list. Optional metadata tags.}
 
