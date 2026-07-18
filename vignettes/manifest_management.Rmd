@@ -375,3 +375,243 @@ manifest (it queries the vocabulary tables in your CDM):
 csm$setExecutionSettings(execSettings)
 csm$extractSourceCodes(conceptSetIds = c(1L, 2L), sourceVocabs = "ICD10CM")
 ```
+
+---
+
+## Tag Management
+
+Tags are flexible, key-value metadata pairs attached to cohorts. They enable classification,
+auditing, workflow automation, and cohort discovery without requiring SQL schema changes.
+
+### What are tags for?
+
+Common use cases:
+
+- **Classification**: `list(status = "approved", owner = "alice", qa_date = "2025-02-15")`
+- **Workflow tracking**: `list(type = "primary", route = "capr", validation_needed = "true")`
+- **Data quality**: `list(missing_data_pct = "5.2", enumeration_checked = "yes")`
+- **Linkage**: `list(parent_study = "COPD_Registry", version = "2.0")`
+
+Tags are stored as JSON in the `tags` column and persist across manifest reloads.
+
+### Single-cohort tag operations
+
+#### Add or overwrite a tag
+
+```{r}
+# Add a single tag (non-destructive; existing tags are preserved)
+manifest$addCohortTag(cohortId = 5L, tagName = "status", tagValue = "approved")
+```
+
+#### Get all tags for a cohort
+
+```{r}
+# Retrieve all tags as a named list
+manifest$getCohortTags(cohortId = 5L)
+# Returns: list(status = "approved", owner = "alice")
+```
+
+#### Get a single tag value
+
+```{r}
+# Quick retrieval of one tag value (returns NULL if not found)
+manifest$getTagValue(cohortId = 5L, tagName = "status")
+# Returns: "approved"
+```
+
+#### Modify an existing tag value
+
+```{r}
+# Change the value of an existing tag
+manifest$modifyCohortTagValue(
+  cohortId = 5L,
+  tagName = "status",
+  newValue = "pending_review"
+)
+# Logs: Modified tag 'status' in cohort 5: approved → pending_review
+```
+
+#### Remove a tag
+
+```{r}
+# Delete a specific tag without affecting others
+manifest$removeCohortTag(cohortId = 5L, tagName = "owner")
+# Logs: Removed tag 'owner' from cohort 5
+```
+
+#### Merge multiple tags (non-destructive)
+
+```{r}
+# Add or overwrite only specified tags; existing tags are preserved
+manifest$mergeTagsIntoCohort(
+  cohortId = 5L,
+  newTags = list(
+    qa_status = "checked",
+    qa_date = "2025-02-15"
+  )
+)
+# If cohort 5 already has status = "approved", it remains unchanged
+```
+
+### Batch tag operations
+
+#### Rename a tag key across cohorts
+
+```{r}
+# Rename a tag name (e.g., "owner" → "responsible_party") across all cohorts
+# that have it, or a specific subset
+manifest$renameTagKey(
+  oldTagName = "owner",
+  newTagName = "responsible_party"
+)
+
+# Rename only for specific cohorts
+manifest$renameTagKey(
+  oldTagName = "owner",
+  newTagName = "responsible_party",
+  cohortIds = c(1L, 2L, 5L)
+)
+# Returns invisible tibble showing id, label, old_value
+```
+
+#### Bulk modify a tag value
+
+```{r}
+# Find all cohorts where tagName = oldValue and update to newValue
+manifest$bulkModifyTagValue(
+  tagName = "status",
+  oldValue = "pending_review",
+  newValue = "approved"
+)
+# Returns invisible tibble showing which cohorts were modified
+```
+
+### Querying cohorts by tags
+
+#### Query by tag name and value (string format)
+
+```{r}
+# Find cohorts with a specific tag name and value
+manifest$queryCohortsByTag(tagStrings = "status: approved")
+
+# Match any of multiple tags (OR logic)
+manifest$queryCohortsByTag(
+  tagStrings = c("status: approved", "status: published"),
+  match = "any"
+)
+
+# Require all tags to match (AND logic)
+manifest$queryCohortsByTag(
+  tagStrings = c("status: approved", "owner: alice"),
+  match = "all"
+)
+```
+
+Returns a tibble of matching cohorts or `NULL` if none found.
+
+#### Query by tag name only
+
+```{r}
+# Find all cohorts that have a specific tag (regardless of value)
+manifest$queryCohortsByTagName(tagName = "owner")
+```
+
+Returns a tibble of cohorts with that tag or `NULL`.
+
+#### Query by named list (cleaner syntax)
+
+```{r}
+# Cleaner syntax for AND-logic multi-tag queries
+manifest$queryCohortsWithTagValues(
+  tagValueMapping = list(
+    status = "approved",
+    owner = "alice"
+  )
+)
+# Equivalent to:
+# manifest$queryCohortsByTag(
+#   tagStrings = c("status: approved", "owner: alice"),
+#   match = "all"
+# )
+```
+
+Returns a tibble or `NULL`.
+
+#### Find cohorts missing a tag
+
+```{r}
+# Quality check: which cohorts don't have an owner tag?
+unowned <- manifest$queryCohortsMissingTag(tagName = "owner")
+
+# If all cohorts have it, returns NULL with a warning
+# Useful for auditing before workflow milestones
+```
+
+### Tag discovery and auditing
+
+#### Get all unique tag names
+
+```{r}
+# Discover all tag names in use across the manifest (sorted alphabetically)
+manifest$listAllUniqueTags()
+# Returns: c("owner", "qa_date", "qa_status", "status", "type")
+```
+
+#### Get summary of tag values
+
+```{r}
+# For a specific tag, see all unique values and which cohorts use them
+manifest$getTagValuesSummary(tagName = "status")
+
+# Returns tibble like:
+# | value         | count | cohorts       |
+# |:--------------|------:|:--------------|
+# | approved      |     8 | "1, 2, 5, 9" |
+# | pending_review|     3 | "3, 4, 6"     |
+# | draft         |     2 | "7, 8"        |
+```
+
+Sorted by count (descending). Useful for auditing tag usage patterns.
+
+### Complete workflow example
+
+```{r}
+# 1. Load and inspect
+manifest <- loadCohortManifest()
+
+# 2. Tag new cohorts during import
+manifest$importAtlasCohorts(
+  cohortsLoad = read.csv("cohorts_to_import.csv")
+)
+
+# 3. Add QA tags after review
+approved_cohorts <- manifest$queryCohortsByTag("route: atlas")
+for (row in 1:nrow(approved_cohorts)) {
+  cid <- approved_cohorts$id[row]
+  manifest$mergeTagsIntoCohort(
+    cohortId = cid,
+    newTags = list(
+      qa_status = "reviewed",
+      qa_date = Sys.Date(),
+      qa_by = "validation_team"
+    )
+  )
+}
+
+# 4. Validate that all cohorts have required tags
+missing_qa <- manifest$queryCohortsMissingTag("qa_status")
+if (!is.null(missing_qa)) {
+  cli::cli_alert_warning("Cohorts missing QA status: {paste(missing_qa$id, collapse = ', ')}")
+}
+
+# 5. Generate report of tag coverage
+tag_summary <- manifest$getTagValuesSummary("qa_status")
+print(tag_summary)
+
+# 6. Rename or bulk-update tags if needed
+manifest$bulkModifyTagValue(
+  tagName = "qa_status",
+  oldValue = "reviewed",
+  newValue = "approved"
+)
+```

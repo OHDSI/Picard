@@ -12,7 +12,7 @@ ConceptSetManifest R6 Class"><!-- mathjax --><script src="https://cdnjs.cloudfla
     
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.5</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.6</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -170,6 +170,9 @@ by finding the reverse mapping relationship. For each concept set:</p><ol><li><p
 <li><p><a href="#method-ConceptSetManifest-queryConceptSetsByIds"><code>ConceptSetManifest$queryConceptSetsByIds()</code></a></p></li>
 <li><p><a href="#method-ConceptSetManifest-queryConceptSetsByTag"><code>ConceptSetManifest$queryConceptSetsByTag()</code></a></p></li>
 <li><p><a href="#method-ConceptSetManifest-queryConceptSetsByTagName"><code>ConceptSetManifest$queryConceptSetsByTagName()</code></a></p></li>
+<li><p><a href="#method-ConceptSetManifest-queryConceptSetsMissingTag"><code>ConceptSetManifest$queryConceptSetsMissingTag()</code></a></p></li>
+<li><p><a href="#method-ConceptSetManifest-queryConceptSetsWithTagValues"><code>ConceptSetManifest$queryConceptSetsWithTagValues()</code></a></p></li>
+<li><p><a href="#method-ConceptSetManifest-getTagValuesSummary"><code>ConceptSetManifest$getTagValuesSummary()</code></a></p></li>
 <li><p><a href="#method-ConceptSetManifest-queryConceptSetsByLabel"><code>ConceptSetManifest$queryConceptSetsByLabel()</code></a></p></li>
 <li><p><a href="#method-ConceptSetManifest-nConceptSets"><code>ConceptSetManifest$nConceptSets()</code></a></p></li>
 <li><p><a href="#method-ConceptSetManifest-getConceptSetById"><code>ConceptSetManifest$getConceptSetById()</code></a></p></li>
@@ -182,6 +185,15 @@ by finding the reverse mapping relationship. For each concept set:</p><ol><li><p
 <li><p><a href="#method-ConceptSetManifest-updateConceptSetLabel"><code>ConceptSetManifest$updateConceptSetLabel()</code></a></p></li>
 <li><p><a href="#method-ConceptSetManifest-updateConceptSetCategory"><code>ConceptSetManifest$updateConceptSetCategory()</code></a></p></li>
 <li><p><a href="#method-ConceptSetManifest-updateConceptSetTags"><code>ConceptSetManifest$updateConceptSetTags()</code></a></p></li>
+<li><p><a href="#method-ConceptSetManifest-removeConceptSetTag"><code>ConceptSetManifest$removeConceptSetTag()</code></a></p></li>
+<li><p><a href="#method-ConceptSetManifest-modifyConceptSetTagValue"><code>ConceptSetManifest$modifyConceptSetTagValue()</code></a></p></li>
+<li><p><a href="#method-ConceptSetManifest-addConceptSetTag"><code>ConceptSetManifest$addConceptSetTag()</code></a></p></li>
+<li><p><a href="#method-ConceptSetManifest-getConceptSetTags"><code>ConceptSetManifest$getConceptSetTags()</code></a></p></li>
+<li><p><a href="#method-ConceptSetManifest-mergeTagsIntoConceptSet"><code>ConceptSetManifest$mergeTagsIntoConceptSet()</code></a></p></li>
+<li><p><a href="#method-ConceptSetManifest-listAllUniqueTags"><code>ConceptSetManifest$listAllUniqueTags()</code></a></p></li>
+<li><p><a href="#method-ConceptSetManifest-getTagValue"><code>ConceptSetManifest$getTagValue()</code></a></p></li>
+<li><p><a href="#method-ConceptSetManifest-renameTagKey"><code>ConceptSetManifest$renameTagKey()</code></a></p></li>
+<li><p><a href="#method-ConceptSetManifest-bulkModifyTagValue"><code>ConceptSetManifest$bulkModifyTagValue()</code></a></p></li>
 <li><p><a href="#method-ConceptSetManifest-checkAtlasConceptSets"><code>ConceptSetManifest$checkAtlasConceptSets()</code></a></p></li>
 <li><p><a href="#method-ConceptSetManifest-updateAtlasConceptSets"><code>ConceptSetManifest$updateAtlasConceptSets()</code></a></p></li>
 <li><p><a href="#method-ConceptSetManifest-cleanupMissing"><code>ConceptSetManifest$cleanupMissing()</code></a></p></li>
@@ -308,7 +320,7 @@ Get the stored ATLAS connection</p>
 <p>The ATLAS connection object, or NULL if not set.
 Set an ATLAS connection for use by add/import methods</p>
 <p>Stores a connection so it does not need to be passed to
-<code>addAtlasConceptSet()</code> or <code><a href="importAtlasConceptSets.html">importAtlasConceptSets()</a></code> on every call.</p>
+<code>addAtlasConceptSet()</code> or <code>importAtlasConceptSets()</code> on every call.</p>
 </div>
 
 </div><p></p><hr><a id="method-ConceptSetManifest-setAtlasConnection"></a><div class="section">
@@ -452,7 +464,7 @@ If <code>NULL</code>, falls back to the connection stored via <code>$setAtlasCon
 </div>
 
 </div><p></p><hr><a id="method-ConceptSetManifest-importAtlasConceptSets"></a><div class="section">
-<h3 id="method-importatlasconceptsets-">Method <code><a href="importAtlasConceptSets.html">importAtlasConceptSets()</a></code><a class="anchor" aria-label="anchor" href="#method-importatlasconceptsets-"></a></h3>
+<h3 id="method-importatlasconceptsets-">Method <code>importAtlasConceptSets()</code><a class="anchor" aria-label="anchor" href="#method-importatlasconceptsets-"></a></h3>
 <p>Batch-import concept sets from ATLAS via a conceptSetsLoad dataframe</p>
 <p>Either create a dataframe or read in a csv file with columns <code>atlasId</code>, <code>label</code>, <code>category</code> (required) plus any
 additional columns treated as tag key-value pairs for tags. Calls <code>addAtlasConceptSet()</code> for each row inside
@@ -553,7 +565,71 @@ Query cohorts by category</p>
 </div>
 <div class="section">
 <h4 id="returns-13">Returns<a class="anchor" aria-label="anchor" href="#returns-13"></a></h4>
-<p>Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
+<p>Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.</p>
+</div>
+
+</div><p></p><hr><a id="method-ConceptSetManifest-queryConceptSetsMissingTag"></a><div class="section">
+<h3 id="method-queryconceptsetsmissingtag-">Method <code>queryConceptSetsMissingTag()</code><a class="anchor" aria-label="anchor" href="#method-queryconceptsetsmissingtag-"></a></h3>
+<p>Query concept sets missing a specific tag</p><div class="section">
+<h4 id="usage-15">Usage<a class="anchor" aria-label="anchor" href="#usage-15"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">queryConceptSetsMissingTag</span><span class="op">(</span><span class="va">tagName</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="arguments-11">Arguments<a class="anchor" aria-label="anchor" href="#arguments-11"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>tagName</code></dt>
+<dd><p>Character. The name of the tag to check for absence.</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-14">Returns<a class="anchor" aria-label="anchor" href="#returns-14"></a></h4>
+<p>Tibble with columns: id, label, category, tags, file_path, hash, created_at.
+Returns NULL if all concept sets have the tag.</p>
+</div>
+
+</div><p></p><hr><a id="method-ConceptSetManifest-queryConceptSetsWithTagValues"></a><div class="section">
+<h3 id="method-queryconceptsetswithtagvalues-">Method <code>queryConceptSetsWithTagValues()</code><a class="anchor" aria-label="anchor" href="#method-queryconceptsetswithtagvalues-"></a></h3>
+<p>Query concept sets by tag value mapping</p><div class="section">
+<h4 id="usage-16">Usage<a class="anchor" aria-label="anchor" href="#usage-16"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">queryConceptSetsWithTagValues</span><span class="op">(</span><span class="va">tagValueMapping</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="arguments-12">Arguments<a class="anchor" aria-label="anchor" href="#arguments-12"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>tagValueMapping</code></dt>
+<dd><p>Named list. Keys are tag names, values are tag values to match.
+Example: <code>list(status = "approved", type = "primary")</code> requires both conditions (AND logic).</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-15">Returns<a class="anchor" aria-label="anchor" href="#returns-15"></a></h4>
+<p>Tibble with columns: id, label, category, tags, file_path, hash, created_at.
+Returns NULL if no concept sets match all tag conditions.</p>
+</div>
+
+</div><p></p><hr><a id="method-ConceptSetManifest-getTagValuesSummary"></a><div class="section">
+<h3 id="method-gettagvaluessummary-">Method <code>getTagValuesSummary()</code><a class="anchor" aria-label="anchor" href="#method-gettagvaluessummary-"></a></h3>
+<p>Get a summary of all unique values for a specific tag</p><div class="section">
+<h4 id="usage-17">Usage<a class="anchor" aria-label="anchor" href="#usage-17"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">getTagValuesSummary</span><span class="op">(</span><span class="va">tagName</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="arguments-13">Arguments<a class="anchor" aria-label="anchor" href="#arguments-13"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>tagName</code></dt>
+<dd><p>Character. The name of the tag to summarize.</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-16">Returns<a class="anchor" aria-label="anchor" href="#returns-16"></a></h4>
+<p>Tibble with columns: value, count, concept_sets (comma-separated IDs).
+Returns NULL if no concept sets have the tag.
 Query concept sets by label</p>
 </div>
 
@@ -561,102 +637,8 @@ Query concept sets by label</p>
 <h3 id="method-queryconceptsetsbylabel-">Method <code>queryConceptSetsByLabel()</code><a class="anchor" aria-label="anchor" href="#method-queryconceptsetsbylabel-"></a></h3>
 
 <div class="section">
-<h4 id="usage-15">Usage<a class="anchor" aria-label="anchor" href="#usage-15"></a></h4>
-<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">queryConceptSetsByLabel</span><span class="op">(</span></span>
-<span>  <span class="va">labels</span>,</span>
-<span>  matchType <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"exact"</span>, <span class="st">"pattern"</span><span class="op">)</span></span>
-<span><span class="op">)</span></span></code></pre></div><p></p></div>
-</div>
-
-<div class="section">
-<h4 id="arguments-11">Arguments<a class="anchor" aria-label="anchor" href="#arguments-11"></a></h4>
-<p></p><div class="arguments"><dl><dt><code>labels</code></dt>
-<dd><p>Character vector. One or more labels to search for.
-A concept set is included when it matches at least one of the supplied labels (OR logic).</p></dd>
-
-
-<dt><code>matchType</code></dt>
-<dd><p>Character. Either "exact" for exact match or "pattern" for pattern matching.
-Defaults to "exact".</p></dd>
-
-
-</dl><p></p></div>
-</div>
-<div class="section">
-<h4 id="returns-14">Returns<a class="anchor" aria-label="anchor" href="#returns-14"></a></h4>
-<p>Tibble with columns: id, label, category, tags, file_path, hash, created_at.</p>
-</div>
-
-</div><p></p><hr><a id="method-ConceptSetManifest-nConceptSets"></a><div class="section">
-<h3 id="method-nconceptsets-">Method <code>nConceptSets()</code><a class="anchor" aria-label="anchor" href="#method-nconceptsets-"></a></h3>
-<p>Get number of concept sets in manifest</p><div class="section">
-<h4 id="usage-16">Usage<a class="anchor" aria-label="anchor" href="#usage-16"></a></h4>
-<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">nConceptSets</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
-</div>
-
-<div class="section">
-<h4 id="returns-15">Returns<a class="anchor" aria-label="anchor" href="#returns-15"></a></h4>
-<p>Integer. The number of concept sets.
-Get a specific concept set by ID</p>
-</div>
-
-</div><p></p><hr><a id="method-ConceptSetManifest-getConceptSetById"></a><div class="section">
-<h3 id="method-getconceptsetbyid-">Method <code>getConceptSetById()</code><a class="anchor" aria-label="anchor" href="#method-getconceptsetbyid-"></a></h3>
-
-<div class="section">
-<h4 id="usage-17">Usage<a class="anchor" aria-label="anchor" href="#usage-17"></a></h4>
-<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">getConceptSetById</span><span class="op">(</span><span class="va">id</span><span class="op">)</span></span></code></pre></div><p></p></div>
-</div>
-
-<div class="section">
-<h4 id="arguments-12">Arguments<a class="anchor" aria-label="anchor" href="#arguments-12"></a></h4>
-<p></p><div class="arguments"><dl><dt><code>id</code></dt>
-<dd><p>Integer. The concept set ID.</p></dd>
-
-
-</dl><p></p></div>
-</div>
-<div class="section">
-<h4 id="returns-16">Returns<a class="anchor" aria-label="anchor" href="#returns-16"></a></h4>
-<p>ConceptSetDef. The ConceptSetDef object with matching ID, or NULL if not found.
-Get concept sets by tag</p>
-</div>
-
-</div><p></p><hr><a id="method-ConceptSetManifest-getConceptSetsByTag"></a><div class="section">
-<h3 id="method-getconceptsetsbytag-">Method <code>getConceptSetsByTag()</code><a class="anchor" aria-label="anchor" href="#method-getconceptsetsbytag-"></a></h3>
-
-<div class="section">
 <h4 id="usage-18">Usage<a class="anchor" aria-label="anchor" href="#usage-18"></a></h4>
-<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">getConceptSetsByTag</span><span class="op">(</span><span class="va">tagStrings</span>, match <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"any"</span>, <span class="st">"all"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div><p></p></div>
-</div>
-
-<div class="section">
-<h4 id="arguments-13">Arguments<a class="anchor" aria-label="anchor" href="#arguments-13"></a></h4>
-<p></p><div class="arguments"><dl><dt><code>tagStrings</code></dt>
-<dd><p>Character vector. One or more tags in the format "name: value"
-(e.g., "category: primary"). When multiple tags are supplied, the <code>match</code>
-argument controls whether a concept set must satisfy any or all of them.</p></dd>
-
-
-<dt><code>match</code></dt>
-<dd><p>Character. "any" (default) returns concept sets matching at least one tag;
-"all" returns only concept sets matching every tag.</p></dd>
-
-
-</dl><p></p></div>
-</div>
-<div class="section">
-<h4 id="returns-17">Returns<a class="anchor" aria-label="anchor" href="#returns-17"></a></h4>
-<p>List. A list of ConceptSetDef objects with matching tags, or NULL if none found.
-Get concept sets by label</p>
-</div>
-
-</div><p></p><hr><a id="method-ConceptSetManifest-getConceptSetsByLabel"></a><div class="section">
-<h3 id="method-getconceptsetsbylabel-">Method <code>getConceptSetsByLabel()</code><a class="anchor" aria-label="anchor" href="#method-getconceptsetsbylabel-"></a></h3>
-
-<div class="section">
-<h4 id="usage-19">Usage<a class="anchor" aria-label="anchor" href="#usage-19"></a></h4>
-<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">getConceptSetsByLabel</span><span class="op">(</span></span>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">queryConceptSetsByLabel</span><span class="op">(</span></span>
 <span>  <span class="va">labels</span>,</span>
 <span>  matchType <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"exact"</span>, <span class="st">"pattern"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div><p></p></div>
@@ -677,43 +659,137 @@ Defaults to "exact".</p></dd>
 </dl><p></p></div>
 </div>
 <div class="section">
+<h4 id="returns-17">Returns<a class="anchor" aria-label="anchor" href="#returns-17"></a></h4>
+<p>Tibble with columns: id, label, category, tags, file_path, hash, created_at.</p>
+</div>
+
+</div><p></p><hr><a id="method-ConceptSetManifest-nConceptSets"></a><div class="section">
+<h3 id="method-nconceptsets-">Method <code>nConceptSets()</code><a class="anchor" aria-label="anchor" href="#method-nconceptsets-"></a></h3>
+<p>Get number of concept sets in manifest</p><div class="section">
+<h4 id="usage-19">Usage<a class="anchor" aria-label="anchor" href="#usage-19"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">nConceptSets</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
 <h4 id="returns-18">Returns<a class="anchor" aria-label="anchor" href="#returns-18"></a></h4>
+<p>Integer. The number of concept sets.
+Get a specific concept set by ID</p>
+</div>
+
+</div><p></p><hr><a id="method-ConceptSetManifest-getConceptSetById"></a><div class="section">
+<h3 id="method-getconceptsetbyid-">Method <code>getConceptSetById()</code><a class="anchor" aria-label="anchor" href="#method-getconceptsetbyid-"></a></h3>
+
+<div class="section">
+<h4 id="usage-20">Usage<a class="anchor" aria-label="anchor" href="#usage-20"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">getConceptSetById</span><span class="op">(</span><span class="va">id</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="arguments-15">Arguments<a class="anchor" aria-label="anchor" href="#arguments-15"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>id</code></dt>
+<dd><p>Integer. The concept set ID.</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-19">Returns<a class="anchor" aria-label="anchor" href="#returns-19"></a></h4>
+<p>ConceptSetDef. The ConceptSetDef object with matching ID, or NULL if not found.
+Get concept sets by tag</p>
+</div>
+
+</div><p></p><hr><a id="method-ConceptSetManifest-getConceptSetsByTag"></a><div class="section">
+<h3 id="method-getconceptsetsbytag-">Method <code>getConceptSetsByTag()</code><a class="anchor" aria-label="anchor" href="#method-getconceptsetsbytag-"></a></h3>
+
+<div class="section">
+<h4 id="usage-21">Usage<a class="anchor" aria-label="anchor" href="#usage-21"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">getConceptSetsByTag</span><span class="op">(</span><span class="va">tagStrings</span>, match <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"any"</span>, <span class="st">"all"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="arguments-16">Arguments<a class="anchor" aria-label="anchor" href="#arguments-16"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>tagStrings</code></dt>
+<dd><p>Character vector. One or more tags in the format "name: value"
+(e.g., "category: primary"). When multiple tags are supplied, the <code>match</code>
+argument controls whether a concept set must satisfy any or all of them.</p></dd>
+
+
+<dt><code>match</code></dt>
+<dd><p>Character. "any" (default) returns concept sets matching at least one tag;
+"all" returns only concept sets matching every tag.</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-20">Returns<a class="anchor" aria-label="anchor" href="#returns-20"></a></h4>
+<p>List. A list of ConceptSetDef objects with matching tags, or NULL if none found.
+Get concept sets by label</p>
+</div>
+
+</div><p></p><hr><a id="method-ConceptSetManifest-getConceptSetsByLabel"></a><div class="section">
+<h3 id="method-getconceptsetsbylabel-">Method <code>getConceptSetsByLabel()</code><a class="anchor" aria-label="anchor" href="#method-getconceptsetsbylabel-"></a></h3>
+
+<div class="section">
+<h4 id="usage-22">Usage<a class="anchor" aria-label="anchor" href="#usage-22"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">getConceptSetsByLabel</span><span class="op">(</span></span>
+<span>  <span class="va">labels</span>,</span>
+<span>  matchType <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"exact"</span>, <span class="st">"pattern"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="arguments-17">Arguments<a class="anchor" aria-label="anchor" href="#arguments-17"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>labels</code></dt>
+<dd><p>Character vector. One or more labels to search for.
+A concept set is included when it matches at least one of the supplied labels (OR logic).</p></dd>
+
+
+<dt><code>matchType</code></dt>
+<dd><p>Character. Either "exact" for exact match or "pattern" for pattern matching.
+Defaults to "exact".</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-21">Returns<a class="anchor" aria-label="anchor" href="#returns-21"></a></h4>
 <p>List. A list of ConceptSetDef objects with matching labels, or NULL if none found.</p>
 </div>
 
 </div><p></p><hr><a id="method-ConceptSetManifest-validateManifest"></a><div class="section">
 <h3 id="method-validatemanifest-">Method <code>validateManifest()</code><a class="anchor" aria-label="anchor" href="#method-validatemanifest-"></a></h3>
 <p>Validate manifest and return status of all concept sets</p><div class="section">
-<h4 id="usage-20">Usage<a class="anchor" aria-label="anchor" href="#usage-20"></a></h4>
+<h4 id="usage-23">Usage<a class="anchor" aria-label="anchor" href="#usage-23"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">validateManifest</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="returns-19">Returns<a class="anchor" aria-label="anchor" href="#returns-19"></a></h4>
+<h4 id="returns-22">Returns<a class="anchor" aria-label="anchor" href="#returns-22"></a></h4>
 <p>A tibble with columns: id, label, status (active/missing/deleted), deleted_at, file_exists</p>
 </div>
 
 </div><p></p><hr><a id="method-ConceptSetManifest-getManifestStatus"></a><div class="section">
 <h3 id="method-getmanifeststatus-">Method <code>getManifestStatus()</code><a class="anchor" aria-label="anchor" href="#method-getmanifeststatus-"></a></h3>
 <p>Get summary status of manifest</p><div class="section">
-<h4 id="usage-21">Usage<a class="anchor" aria-label="anchor" href="#usage-21"></a></h4>
+<h4 id="usage-24">Usage<a class="anchor" aria-label="anchor" href="#usage-24"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">getManifestStatus</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="returns-20">Returns<a class="anchor" aria-label="anchor" href="#returns-20"></a></h4>
+<h4 id="returns-23">Returns<a class="anchor" aria-label="anchor" href="#returns-23"></a></h4>
 <p>List with elements: active_count, missing_count, deleted_count, next_available_id</p>
 </div>
 
 </div><p></p><hr><a id="method-ConceptSetManifest-deleteConceptSet"></a><div class="section">
 <h3 id="method-deleteconceptset-">Method <code>deleteConceptSet()</code><a class="anchor" aria-label="anchor" href="#method-deleteconceptset-"></a></h3>
 <p>Soft delete a concept set (mark as deleted, preserve record)</p><div class="section">
-<h4 id="usage-22">Usage<a class="anchor" aria-label="anchor" href="#usage-22"></a></h4>
+<h4 id="usage-25">Usage<a class="anchor" aria-label="anchor" href="#usage-25"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">deleteConceptSet</span><span class="op">(</span><span class="va">id</span>, confirm <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-15">Arguments<a class="anchor" aria-label="anchor" href="#arguments-15"></a></h4>
+<h4 id="arguments-18">Arguments<a class="anchor" aria-label="anchor" href="#arguments-18"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>id</code></dt>
 <dd><p>Integer. The concept set ID to delete.</p></dd>
 
@@ -726,7 +802,7 @@ Pass TRUE to skip the prompt (suitable for scripts).</p></dd>
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-21">Returns<a class="anchor" aria-label="anchor" href="#returns-21"></a></h4>
+<h4 id="returns-24">Returns<a class="anchor" aria-label="anchor" href="#returns-24"></a></h4>
 <p>Invisibly returns TRUE if successful, FALSE otherwise.</p>
 </div>
 
@@ -736,7 +812,7 @@ Pass TRUE to skip the prompt (suitable for scripts).</p></dd>
 <p>Loads multiple concept sets from the manifest as Capr objects, merges them
 into a unified concept set using set logic (include, include+descendants, exclude,
 exclude+descendants), exports the result as JSON, and registers it in the manifest.</p><div class="section">
-<h4 id="usage-23">Usage<a class="anchor" aria-label="anchor" href="#usage-23"></a></h4>
+<h4 id="usage-26">Usage<a class="anchor" aria-label="anchor" href="#usage-26"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">combineConceptSets</span><span class="op">(</span></span>
 <span>  <span class="va">conceptSetIds</span>,</span>
 <span>  <span class="va">combinedLabel</span>,</span>
@@ -746,7 +822,7 @@ exclude+descendants), exports the result as JSON, and registers it in the manife
 </div>
 
 <div class="section">
-<h4 id="arguments-16">Arguments<a class="anchor" aria-label="anchor" href="#arguments-16"></a></h4>
+<h4 id="arguments-19">Arguments<a class="anchor" aria-label="anchor" href="#arguments-19"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>conceptSetIds</code></dt>
 <dd><p>Integer vector. IDs of concept sets to combine (minimum 2).</p></dd>
 
@@ -769,19 +845,19 @@ with comma-separated source IDs.</p></dd>
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-22">Returns<a class="anchor" aria-label="anchor" href="#returns-22"></a></h4>
+<h4 id="returns-25">Returns<a class="anchor" aria-label="anchor" href="#returns-25"></a></h4>
 <p>Invisible integer. The ID of the newly created combined concept set.</p>
 </div>
 
 </div><p></p><hr><a id="method-ConceptSetManifest-updateConceptSetLabel"></a><div class="section">
 <h3 id="method-updateconceptsetlabel-">Method <code>updateConceptSetLabel()</code><a class="anchor" aria-label="anchor" href="#method-updateconceptsetlabel-"></a></h3>
 <p>Update a concept set label</p><div class="section">
-<h4 id="usage-24">Usage<a class="anchor" aria-label="anchor" href="#usage-24"></a></h4>
+<h4 id="usage-27">Usage<a class="anchor" aria-label="anchor" href="#usage-27"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">updateConceptSetLabel</span><span class="op">(</span><span class="va">conceptSetId</span>, <span class="va">newLabel</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-17">Arguments<a class="anchor" aria-label="anchor" href="#arguments-17"></a></h4>
+<h4 id="arguments-20">Arguments<a class="anchor" aria-label="anchor" href="#arguments-20"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>conceptSetId</code></dt>
 <dd><p>Integer. The concept set ID to update.</p></dd>
 
@@ -793,19 +869,19 @@ with comma-separated source IDs.</p></dd>
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-23">Returns<a class="anchor" aria-label="anchor" href="#returns-23"></a></h4>
+<h4 id="returns-26">Returns<a class="anchor" aria-label="anchor" href="#returns-26"></a></h4>
 <p>Invisible NULL.</p>
 </div>
 
 </div><p></p><hr><a id="method-ConceptSetManifest-updateConceptSetCategory"></a><div class="section">
 <h3 id="method-updateconceptsetcategory-">Method <code>updateConceptSetCategory()</code><a class="anchor" aria-label="anchor" href="#method-updateconceptsetcategory-"></a></h3>
 <p>Update a concept set category</p><div class="section">
-<h4 id="usage-25">Usage<a class="anchor" aria-label="anchor" href="#usage-25"></a></h4>
+<h4 id="usage-28">Usage<a class="anchor" aria-label="anchor" href="#usage-28"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">updateConceptSetCategory</span><span class="op">(</span><span class="va">conceptSetId</span>, <span class="va">newCategory</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-18">Arguments<a class="anchor" aria-label="anchor" href="#arguments-18"></a></h4>
+<h4 id="arguments-21">Arguments<a class="anchor" aria-label="anchor" href="#arguments-21"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>conceptSetId</code></dt>
 <dd><p>Integer. The concept set ID to update.</p></dd>
 
@@ -817,19 +893,19 @@ with comma-separated source IDs.</p></dd>
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-24">Returns<a class="anchor" aria-label="anchor" href="#returns-24"></a></h4>
+<h4 id="returns-27">Returns<a class="anchor" aria-label="anchor" href="#returns-27"></a></h4>
 <p>Invisible NULL.</p>
 </div>
 
 </div><p></p><hr><a id="method-ConceptSetManifest-updateConceptSetTags"></a><div class="section">
 <h3 id="method-updateconceptsettags-">Method <code>updateConceptSetTags()</code><a class="anchor" aria-label="anchor" href="#method-updateconceptsettags-"></a></h3>
 <p>Update concept set tags</p><div class="section">
-<h4 id="usage-26">Usage<a class="anchor" aria-label="anchor" href="#usage-26"></a></h4>
+<h4 id="usage-29">Usage<a class="anchor" aria-label="anchor" href="#usage-29"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">updateConceptSetTags</span><span class="op">(</span><span class="va">conceptSetId</span>, <span class="va">newTags</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-19">Arguments<a class="anchor" aria-label="anchor" href="#arguments-19"></a></h4>
+<h4 id="arguments-22">Arguments<a class="anchor" aria-label="anchor" href="#arguments-22"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>conceptSetId</code></dt>
 <dd><p>Integer. The concept set ID to update.</p></dd>
 
@@ -841,8 +917,224 @@ with comma-separated source IDs.</p></dd>
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-25">Returns<a class="anchor" aria-label="anchor" href="#returns-25"></a></h4>
+<h4 id="returns-28">Returns<a class="anchor" aria-label="anchor" href="#returns-28"></a></h4>
 <p>Invisible NULL.</p>
+</div>
+
+</div><p></p><hr><a id="method-ConceptSetManifest-removeConceptSetTag"></a><div class="section">
+<h3 id="method-removeconceptsettag-">Method <code>removeConceptSetTag()</code><a class="anchor" aria-label="anchor" href="#method-removeconceptsettag-"></a></h3>
+<p>Remove a specific tag from a concept set</p><div class="section">
+<h4 id="usage-30">Usage<a class="anchor" aria-label="anchor" href="#usage-30"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">removeConceptSetTag</span><span class="op">(</span><span class="va">conceptSetId</span>, <span class="va">tagName</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="arguments-23">Arguments<a class="anchor" aria-label="anchor" href="#arguments-23"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>conceptSetId</code></dt>
+<dd><p>Integer. The concept set ID to update.</p></dd>
+
+
+<dt><code>tagName</code></dt>
+<dd><p>Character. The name of the tag to remove.</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-29">Returns<a class="anchor" aria-label="anchor" href="#returns-29"></a></h4>
+<p>Invisible NULL. Emits success message if tag was removed, warning if tag was not found.</p>
+</div>
+
+</div><p></p><hr><a id="method-ConceptSetManifest-modifyConceptSetTagValue"></a><div class="section">
+<h3 id="method-modifyconceptsettagvalue-">Method <code>modifyConceptSetTagValue()</code><a class="anchor" aria-label="anchor" href="#method-modifyconceptsettagvalue-"></a></h3>
+<p>Modify the value of an existing tag</p><div class="section">
+<h4 id="usage-31">Usage<a class="anchor" aria-label="anchor" href="#usage-31"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">modifyConceptSetTagValue</span><span class="op">(</span><span class="va">conceptSetId</span>, <span class="va">tagName</span>, <span class="va">newValue</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="arguments-24">Arguments<a class="anchor" aria-label="anchor" href="#arguments-24"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>conceptSetId</code></dt>
+<dd><p>Integer. The concept set ID to update.</p></dd>
+
+
+<dt><code>tagName</code></dt>
+<dd><p>Character. The name of the tag to modify.</p></dd>
+
+
+<dt><code>newValue</code></dt>
+<dd><p>Character. The new value for the tag.</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-30">Returns<a class="anchor" aria-label="anchor" href="#returns-30"></a></h4>
+<p>Invisible NULL. Emits success message if tag was modified, error if tag does not exist.</p>
+</div>
+
+</div><p></p><hr><a id="method-ConceptSetManifest-addConceptSetTag"></a><div class="section">
+<h3 id="method-addconceptsettag-">Method <code>addConceptSetTag()</code><a class="anchor" aria-label="anchor" href="#method-addconceptsettag-"></a></h3>
+<p>Add a single tag to a concept set (non-destructive)</p><div class="section">
+<h4 id="usage-32">Usage<a class="anchor" aria-label="anchor" href="#usage-32"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">addConceptSetTag</span><span class="op">(</span><span class="va">conceptSetId</span>, <span class="va">tagName</span>, <span class="va">tagValue</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="arguments-25">Arguments<a class="anchor" aria-label="anchor" href="#arguments-25"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>conceptSetId</code></dt>
+<dd><p>Integer. The concept set ID to update.</p></dd>
+
+
+<dt><code>tagName</code></dt>
+<dd><p>Character. The name of the tag to add.</p></dd>
+
+
+<dt><code>tagValue</code></dt>
+<dd><p>Character. The value for the new tag.</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-31">Returns<a class="anchor" aria-label="anchor" href="#returns-31"></a></h4>
+<p>Invisible NULL. Emits success message if tag was added.</p>
+</div>
+
+</div><p></p><hr><a id="method-ConceptSetManifest-getConceptSetTags"></a><div class="section">
+<h3 id="method-getconceptsettags-">Method <code>getConceptSetTags()</code><a class="anchor" aria-label="anchor" href="#method-getconceptsettags-"></a></h3>
+<p>Get all tags for a specific concept set</p><div class="section">
+<h4 id="usage-33">Usage<a class="anchor" aria-label="anchor" href="#usage-33"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">getConceptSetTags</span><span class="op">(</span><span class="va">conceptSetId</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="arguments-26">Arguments<a class="anchor" aria-label="anchor" href="#arguments-26"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>conceptSetId</code></dt>
+<dd><p>Integer. The concept set ID to query.</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-32">Returns<a class="anchor" aria-label="anchor" href="#returns-32"></a></h4>
+<p>Named list of tags, or NULL if concept set not found.</p>
+</div>
+
+</div><p></p><hr><a id="method-ConceptSetManifest-mergeTagsIntoConceptSet"></a><div class="section">
+<h3 id="method-mergetagsintoconceptset-">Method <code>mergeTagsIntoConceptSet()</code><a class="anchor" aria-label="anchor" href="#method-mergetagsintoconceptset-"></a></h3>
+<p>Merge multiple tags into a concept set (non-destructive, additive)</p><div class="section">
+<h4 id="usage-34">Usage<a class="anchor" aria-label="anchor" href="#usage-34"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">mergeTagsIntoConceptSet</span><span class="op">(</span><span class="va">conceptSetId</span>, <span class="va">newTags</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="arguments-27">Arguments<a class="anchor" aria-label="anchor" href="#arguments-27"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>conceptSetId</code></dt>
+<dd><p>Integer. The concept set ID to update.</p></dd>
+
+
+<dt><code>newTags</code></dt>
+<dd><p>Named list. The tags to add/merge (overwrites existing keys with same name).</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-33">Returns<a class="anchor" aria-label="anchor" href="#returns-33"></a></h4>
+<p>Invisible NULL. Emits success message.</p>
+</div>
+
+</div><p></p><hr><a id="method-ConceptSetManifest-listAllUniqueTags"></a><div class="section">
+<h3 id="method-listalluniquetags-">Method <code>listAllUniqueTags()</code><a class="anchor" aria-label="anchor" href="#method-listalluniquetags-"></a></h3>
+<p>Get all unique tag names used across the concept set manifest</p><div class="section">
+<h4 id="usage-35">Usage<a class="anchor" aria-label="anchor" href="#usage-35"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">listAllUniqueTags</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="returns-34">Returns<a class="anchor" aria-label="anchor" href="#returns-34"></a></h4>
+<p>Character vector of unique tag names, sorted alphabetically.</p>
+</div>
+
+</div><p></p><hr><a id="method-ConceptSetManifest-getTagValue"></a><div class="section">
+<h3 id="method-gettagvalue-">Method <code>getTagValue()</code><a class="anchor" aria-label="anchor" href="#method-gettagvalue-"></a></h3>
+<p>Get value of a single tag for a concept set</p><div class="section">
+<h4 id="usage-36">Usage<a class="anchor" aria-label="anchor" href="#usage-36"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">getTagValue</span><span class="op">(</span><span class="va">conceptSetId</span>, <span class="va">tagName</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="arguments-28">Arguments<a class="anchor" aria-label="anchor" href="#arguments-28"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>conceptSetId</code></dt>
+<dd><p>Integer. The concept set ID to query.</p></dd>
+
+
+<dt><code>tagName</code></dt>
+<dd><p>Character. The name of the tag to retrieve.</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-35">Returns<a class="anchor" aria-label="anchor" href="#returns-35"></a></h4>
+<p>Character. The tag value, or NULL if tag or concept set not found.</p>
+</div>
+
+</div><p></p><hr><a id="method-ConceptSetManifest-renameTagKey"></a><div class="section">
+<h3 id="method-renametagkey-">Method <code>renameTagKey()</code><a class="anchor" aria-label="anchor" href="#method-renametagkey-"></a></h3>
+<p>Rename a tag key across specified concept sets (or all concept sets)</p><div class="section">
+<h4 id="usage-37">Usage<a class="anchor" aria-label="anchor" href="#usage-37"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">renameTagKey</span><span class="op">(</span><span class="va">oldTagName</span>, <span class="va">newTagName</span>, conceptSetIds <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="arguments-29">Arguments<a class="anchor" aria-label="anchor" href="#arguments-29"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>oldTagName</code></dt>
+<dd><p>Character. The current tag name to rename.</p></dd>
+
+
+<dt><code>newTagName</code></dt>
+<dd><p>Character. The new tag name.</p></dd>
+
+
+<dt><code>conceptSetIds</code></dt>
+<dd><p>Integer vector or NULL. If NULL, renames across all concept sets that have this tag.</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-36">Returns<a class="anchor" aria-label="anchor" href="#returns-36"></a></h4>
+<p>Invisible tibble with id, old_value showing what was renamed.</p>
+</div>
+
+</div><p></p><hr><a id="method-ConceptSetManifest-bulkModifyTagValue"></a><div class="section">
+<h3 id="method-bulkmodifytagvalue-">Method <code>bulkModifyTagValue()</code><a class="anchor" aria-label="anchor" href="#method-bulkmodifytagvalue-"></a></h3>
+<p>Bulk modify a tag value across concept sets matching an old value</p><div class="section">
+<h4 id="usage-38">Usage<a class="anchor" aria-label="anchor" href="#usage-38"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">bulkModifyTagValue</span><span class="op">(</span><span class="va">tagName</span>, <span class="va">oldValue</span>, <span class="va">newValue</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="arguments-30">Arguments<a class="anchor" aria-label="anchor" href="#arguments-30"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>tagName</code></dt>
+<dd><p>Character. The name of the tag to modify.</p></dd>
+
+
+<dt><code>oldValue</code></dt>
+<dd><p>Character. The current value to match and replace.</p></dd>
+
+
+<dt><code>newValue</code></dt>
+<dd><p>Character. The new value to set.</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-37">Returns<a class="anchor" aria-label="anchor" href="#returns-37"></a></h4>
+<p>Invisible tibble with id, label showing what was modified.</p>
 </div>
 
 </div><p></p><hr><a id="method-ConceptSetManifest-checkAtlasConceptSets"></a><div class="section">
@@ -852,12 +1144,12 @@ with comma-separated source IDs.</p></dd>
 fetches their current definitions from ATLAS, computes hashes, and compares against
 the stored local hash. Provides a read-only summary of which concept sets have changed
 in ATLAS since import. No modifications are made.</p><div class="section">
-<h4 id="usage-27">Usage<a class="anchor" aria-label="anchor" href="#usage-27"></a></h4>
+<h4 id="usage-39">Usage<a class="anchor" aria-label="anchor" href="#usage-39"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">checkAtlasConceptSets</span><span class="op">(</span>atlasConnection <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-20">Arguments<a class="anchor" aria-label="anchor" href="#arguments-20"></a></h4>
+<h4 id="arguments-31">Arguments<a class="anchor" aria-label="anchor" href="#arguments-31"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>atlasConnection</code></dt>
 <dd><p>An ATLAS connection object with a method <code>getConceptSetDefinition(conceptSetId)</code>
 that returns a list with an <code>expression</code> element (the CIRCE JSON as a string).
@@ -868,7 +1160,7 @@ If no connection is available, raises an error.</p></dd>
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-26">Returns<a class="anchor" aria-label="anchor" href="#returns-26"></a></h4>
+<h4 id="returns-38">Returns<a class="anchor" aria-label="anchor" href="#returns-38"></a></h4>
 <p>Invisible tibble with columns:</p><ul><li><p><code>id</code>: Concept set ID in the local manifest</p></li>
 <li><p><code>label</code>: Concept set label</p></li>
 <li><p><code>atlasId</code>: ATLAS concept set ID</p></li>
@@ -884,12 +1176,12 @@ If no connection is available, raises an error.</p></dd>
 <p>Fetches current definitions from ATLAS for concept sets that have changed and updates
 the stored JSON files and manifest entries. This is the modification phase that applies
 changes detected by checkAtlasConceptSets().</p><div class="section">
-<h4 id="usage-28">Usage<a class="anchor" aria-label="anchor" href="#usage-28"></a></h4>
+<h4 id="usage-40">Usage<a class="anchor" aria-label="anchor" href="#usage-40"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">updateAtlasConceptSets</span><span class="op">(</span>atlasConnection <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-21">Arguments<a class="anchor" aria-label="anchor" href="#arguments-21"></a></h4>
+<h4 id="arguments-32">Arguments<a class="anchor" aria-label="anchor" href="#arguments-32"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>atlasConnection</code></dt>
 <dd><p>An ATLAS connection object with a method <code>getConceptSetDefinition(conceptSetId)</code>.
 If <code>NULL</code> (default), uses the connection stored via <code>$setAtlasConnection()</code>.</p></dd>
@@ -898,7 +1190,7 @@ If <code>NULL</code> (default), uses the connection stored via <code>$setAtlasCo
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-27">Returns<a class="anchor" aria-label="anchor" href="#returns-27"></a></h4>
+<h4 id="returns-39">Returns<a class="anchor" aria-label="anchor" href="#returns-39"></a></h4>
 <p>Invisible tibble of concept sets that were updated, with columns:
 id, label, atlasId, filePath, hasChanged, localHash, remoteHash</p>
 </div>
@@ -906,12 +1198,12 @@ id, label, atlasId, filePath, hasChanged, localHash, remoteHash</p>
 </div><p></p><hr><a id="method-ConceptSetManifest-cleanupMissing"></a><div class="section">
 <h3 id="method-cleanupmissing-">Method <code>cleanupMissing()</code><a class="anchor" aria-label="anchor" href="#method-cleanupmissing-"></a></h3>
 <p>Clean up missing concept sets from manifest</p><div class="section">
-<h4 id="usage-29">Usage<a class="anchor" aria-label="anchor" href="#usage-29"></a></h4>
+<h4 id="usage-41">Usage<a class="anchor" aria-label="anchor" href="#usage-41"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">cleanupMissing</span><span class="op">(</span>keep_trace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-22">Arguments<a class="anchor" aria-label="anchor" href="#arguments-22"></a></h4>
+<h4 id="arguments-33">Arguments<a class="anchor" aria-label="anchor" href="#arguments-33"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>keep_trace</code></dt>
 <dd><p>Logical. If TRUE, marks missing as deleted with timestamp (soft delete).
 If FALSE, permanently removes from database (hard delete). Defaults to TRUE.</p></dd>
@@ -920,7 +1212,7 @@ If FALSE, permanently removes from database (hard delete). Defaults to TRUE.</p>
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-28">Returns<a class="anchor" aria-label="anchor" href="#returns-28"></a></h4>
+<h4 id="returns-40">Returns<a class="anchor" aria-label="anchor" href="#returns-40"></a></h4>
 <p>Invisibly returns NULL. Displays summary of cleanup actions.
 Sync the manifest against concept set files on disk</p>
 </div>
@@ -932,12 +1224,12 @@ the SQLite manifest, and updates both the database and the in-memory list:</p><u
 <li><p>Active manifest records whose file no longer exists are soft-deleted.</p></li>
 <li><p>Existing files whose JSON hash has changed are updated in the manifest.</p></li>
 </ul><div class="section">
-<h4 id="usage-30">Usage<a class="anchor" aria-label="anchor" href="#usage-30"></a></h4>
+<h4 id="usage-42">Usage<a class="anchor" aria-label="anchor" href="#usage-42"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">syncManifest</span><span class="op">(</span>strict_mode <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-23">Arguments<a class="anchor" aria-label="anchor" href="#arguments-23"></a></h4>
+<h4 id="arguments-34">Arguments<a class="anchor" aria-label="anchor" href="#arguments-34"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>strict_mode</code></dt>
 <dd><p>Logical. If TRUE (default), automatically removes orphaned files found
 on disk. If FALSE, only warns about them without deletion. Default: TRUE.</p></dd>
@@ -946,7 +1238,7 @@ on disk. If FALSE, only warns about them without deletion. Default: TRUE.</p></d
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-29">Returns<a class="anchor" aria-label="anchor" href="#returns-29"></a></h4>
+<h4 id="returns-41">Returns<a class="anchor" aria-label="anchor" href="#returns-41"></a></h4>
 <p>Data frame with columns: id, label, action
 (<code>"added"</code>, <code>"hash_updated"</code>, <code>"missing_flagged"</code>, or <code>"unchanged"</code>).</p>
 </div>
@@ -958,12 +1250,12 @@ on disk. If FALSE, only warns about them without deletion. Default: TRUE.</p></d
 The concept set definition (stored as CIRCE JSON) is used to build a query that retrieves
 all concept IDs and names matching the set definition. Results are returned as a tibble
 with concept identifiers and display names.</p><div class="section">
-<h4 id="usage-31">Usage<a class="anchor" aria-label="anchor" href="#usage-31"></a></h4>
+<h4 id="usage-43">Usage<a class="anchor" aria-label="anchor" href="#usage-43"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">grabConceptInfoFromSet</span><span class="op">(</span><span class="va">conceptSetId</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-24">Arguments<a class="anchor" aria-label="anchor" href="#arguments-24"></a></h4>
+<h4 id="arguments-35">Arguments<a class="anchor" aria-label="anchor" href="#arguments-35"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>conceptSetId</code></dt>
 <dd><p>Integer. The concept set ID in the manifest.</p></dd>
 
@@ -971,7 +1263,7 @@ with concept identifiers and display names.</p><div class="section">
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-30">Returns<a class="anchor" aria-label="anchor" href="#returns-30"></a></h4>
+<h4 id="returns-42">Returns<a class="anchor" aria-label="anchor" href="#returns-42"></a></h4>
 <p>Tibble with columns:</p><ul><li><p><code>conceptId</code>: Integer, the OMOP concept identifier</p></li>
 <li><p><code>conceptName</code>: Character, the concept name from the vocabulary</p></li>
 </ul></div>
@@ -982,7 +1274,7 @@ with concept identifiers and display names.</p><div class="section">
 standard concepts. Results are exported to a single xlsx file with one sheet
 per concept set, saved in the inputs/conceptSets folder. The function provides
 interactive vocabulary suggestions based on detected concept set domains.</p><div class="section">
-<h4 id="usage-32">Usage<a class="anchor" aria-label="anchor" href="#usage-32"></a></h4>
+<h4 id="usage-44">Usage<a class="anchor" aria-label="anchor" href="#usage-44"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">extractSourceCodes</span><span class="op">(</span></span>
 <span>  sourceVocabs <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ICD10CM"</span><span class="op">)</span>,</span>
 <span>  outputFolder <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/conceptSets"</span><span class="op">)</span></span>
@@ -990,7 +1282,7 @@ interactive vocabulary suggestions based on detected concept set domains.</p><di
 </div>
 
 <div class="section">
-<h4 id="arguments-25">Arguments<a class="anchor" aria-label="anchor" href="#arguments-25"></a></h4>
+<h4 id="arguments-36">Arguments<a class="anchor" aria-label="anchor" href="#arguments-36"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>sourceVocabs</code></dt>
 <dd><p>Character vector. Source vocabulary IDs to search for.
 Valid options: "ICD9CM", "ICD10CM", "HCPCS", "CPT4", "LOINC", "NDC".
@@ -1006,7 +1298,7 @@ Defaults to "inputs/conceptSets".</p></dd>
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-31">Returns<a class="anchor" aria-label="anchor" href="#returns-31"></a></h4>
+<h4 id="returns-43">Returns<a class="anchor" aria-label="anchor" href="#returns-43"></a></h4>
 <p>Invisibly returns NULL. Saves xlsx file to outputFolder and prints
 status messages via cli package. Output file is ready to open in Excel or
 other spreadsheet software.</p>
@@ -1020,14 +1312,14 @@ saved in the inputs/conceptSets folder.</p>
 <h3 id="method-extractincludedcodes-">Method <code>extractIncludedCodes()</code><a class="anchor" aria-label="anchor" href="#method-extractincludedcodes-"></a></h3>
 
 <div class="section">
-<h4 id="usage-33">Usage<a class="anchor" aria-label="anchor" href="#usage-33"></a></h4>
+<h4 id="usage-45">Usage<a class="anchor" aria-label="anchor" href="#usage-45"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">extractIncludedCodes</span><span class="op">(</span></span>
 <span>  outputFolder <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/conceptSets"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-26">Arguments<a class="anchor" aria-label="anchor" href="#arguments-26"></a></h4>
+<h4 id="arguments-37">Arguments<a class="anchor" aria-label="anchor" href="#arguments-37"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>outputFolder</code></dt>
 <dd><p>Character. Path where the xlsx file will be saved.
 Defaults to "inputs/conceptSets".</p></dd>
@@ -1036,19 +1328,19 @@ Defaults to "inputs/conceptSets".</p></dd>
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-32">Returns<a class="anchor" aria-label="anchor" href="#returns-32"></a></h4>
+<h4 id="returns-44">Returns<a class="anchor" aria-label="anchor" href="#returns-44"></a></h4>
 <p>Invisibly returns NULL. Saves xlsx file to outputFolder and prints status messages.</p>
 </div>
 
 </div><p></p><hr><a id="method-ConceptSetManifest-clone"></a><div class="section">
 <h3 id="method-clone-">Method <code>clone()</code><a class="anchor" aria-label="anchor" href="#method-clone-"></a></h3>
 <p>The objects of this class are cloneable with this method.</p><div class="section">
-<h4 id="usage-34">Usage<a class="anchor" aria-label="anchor" href="#usage-34"></a></h4>
+<h4 id="usage-46">Usage<a class="anchor" aria-label="anchor" href="#usage-46"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">clone</span><span class="op">(</span>deep <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-27">Arguments<a class="anchor" aria-label="anchor" href="#arguments-27"></a></h4>
+<h4 id="arguments-38">Arguments<a class="anchor" aria-label="anchor" href="#arguments-38"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>deep</code></dt>
 <dd><p>Whether to make a deep clone.</p></dd>
 

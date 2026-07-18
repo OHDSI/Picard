@@ -22,19 +22,23 @@ Help the research team with:
 6. **Assisting with Development and Testing** - Help test tasks and debug code
 7. **Handling Results** - Support post-processing, validation, and dissemination
 
-## ⚠️ CRITICAL RESTRICTION: NO EXECUTING THE ANALYSIS PIPELINE.
+## ⚠️ CRITICAL RESTRICTION: NO EXECUTING THE ANALYSIS PIPELINE OR CONNECTING TO THE OMOP DBMS.
 
-**YOU ARE PROHIBITED FROM EXECUTING THE ANALYSIS PIPELINE.**
+**YOU ARE PROHIBITED FROM EXECUTING THE ANALYSIS PIPELINE OR ANY FUNCTION THAT CONNECTS TO A DATABASE.**
 
 This includes:
-- ❌ Running `source("main.R")` or any R script
-- ❌ Executing `testStudyTask()`, `testStudyPipeline()`, or any test functions
-- ❌ Running `Rscript` in bash/shell (terminal execution of a file)
-- ❌ Executing SQL queries or database commands
+- ❌ Running `source("main.R")` or any R script that executes the pipeline
+- ❌ Executing `testStudyTask()`, `testStudyPipeline()`, `runStudyPipeline()`, or any test/pipeline execution functions
+- ❌ Executing `cm$executeCohortGeneration()` or any CohortManifest execution methods
+- ❌ Calling any function that invokes `executionSettings$connect()` or otherwise opens a DBMS connection
+- ❌ Running any function that uses an `ExecutionSettings` object to connect to or query the OMOP CDM (e.g., `generateCohorts()`, `execStudyPipeline()`, `execute_pipeline()`, `execute_task()`)
+- ❌ Executing SQL queries or database commands directly
 - ❌ Running any function that modifies database state or generates results
 
 **What you CAN do:**
 - ✅ Write code files (analysis tasks, utility functions, SQL templates)
+- ✅ Call scaffold/make functions that do not connect to the OMOP DBMS — e.g., `makeTaskFile()`, `makeSrcFile()`, `makeBlock()`, `makeInputBuilderScript()`, `makeDisseminationScript()`, `initAgentMode()`
+- ✅ Build and inspect cohort or concept set manifests without executing them
 - ✅ Provide complete example code
 - ✅ Suggest commands for the user to run
 - ✅ Explain how to execute things step-by-step
@@ -42,12 +46,12 @@ This includes:
 - ✅ Review results AFTER the user executes
 
 **Why:** The researcher must maintain complete authority and control over:
-- Data access and database modifications
+- Data access and DBMS connections
 - Pipeline execution and result generation
 - Testing and validation workflows
 - All operations that touch study data or produce official outputs
 
-Only the user can execute, test, and run code. You are an assistant for writing, explaining, and guiding—never for executing.
+Only the user can execute, test, connect to databases, and run the pipeline. You are an assistant for writing, explaining, and guiding—never for executing or connecting.
 
 ## Key Files and Folders
 
@@ -145,9 +149,9 @@ All detailed guides are in `.agent/reference-docs/`:
 
 ## Important Guidelines
 
-- **NEVER execute any code** - No `source()`, `Rscript`, bash calls, tests, or script execution. You can write code files and suggest commands, but the user must execute everything.
-- **NEVER run tests** - User must run `testStudyTask()` and `testStudyPipeline()` themselves
-- **NEVER run the pipeline** - User must execute `source("main.R")` or `execStudyPipeline()`
+- **NEVER connect to a DBMS** - Do not call `executionSettings$connect()`, or any function that opens a database connection or queries the OMOP CDM. This includes `generateCohorts()`, `execStudyPipeline()`, `execute_pipeline()`, `execute_task()`, and `cm$executeCohortGeneration()`.
+- **NEVER run the pipeline or tests** - User must run `testStudyTask()`, `runStudyPipeline()`, `testStudyPipeline()`, and `source("main.R")` themselves
+- **scaffold/make functions are allowed** - Functions like `makeTaskFile()`, `makeSrcFile()`, `makeBlock()`, `makeInputBuilderScript()`, `makeDisseminationScript()`, and `initAgentMode()` do not connect to a database and are safe to call
 - **Git branch enforcement** - If user is on `main` branch, STOP and require them to switch to a feature branch (develop or feature_*) before continuing
 - **Do NOT commit sensitive data** - Database credentials, patient data, and credentials should never be in git
 - **Always use git** - Maintain complete version history for regulatory compliance and reproducibility
@@ -155,7 +159,82 @@ All detailed guides are in `.agent/reference-docs/`:
 - **Follow the branching model** - Develop on feature branches, merge to develop, then to main via PR
 - **Document everything** - Keep README and NEWS updated as the study evolves
 
-## 🔒 Git Branch Enforcement
+## �️ Windows PowerShell: Running R Scripts Correctly
+
+**This project runs on Windows with PowerShell as the terminal.** When suggesting any PowerShell command that calls `Rscript`, you MUST follow these rules to avoid working-directory errors and wrong-version failures.
+
+### Rule 1 — Always `Set-Location` to the Project Root First
+
+`here::here()` anchors to the `.Rproj` file. If the working directory is wrong, all path resolution breaks.
+**Every** PowerShell snippet that runs R must begin with:
+
+```powershell
+Set-Location "C:\path\to\{{repoName}}"
+```
+
+Never assume the user is already in the right directory.
+
+### Rule 2 — Never Hardcode an R Version Path
+
+Do NOT write paths like `C:\Program Files\R\R-4.3.2\bin\Rscript.exe`. R versions change.
+Instead, use `Get-ChildItem` to discover and verify installed versions, then let the user confirm:
+
+```powershell
+# Step 1: List all installed R versions (newest first)
+Get-ChildItem "C:\Program Files\R" -Directory | Sort-Object Name -Descending
+
+# Step 2: Capture the path to the newest Rscript.exe
+$rDir = Get-ChildItem "C:\Program Files\R" -Directory |
+        Sort-Object Name -Descending |
+        Select-Object -First 1
+$rscript = Join-Path $rDir.FullName "bin\Rscript.exe"
+
+# Step 3: Confirm the version before running anything
+& $rscript --version
+```
+
+> ⚠️ **Always show the user the `Get-ChildItem` output and `--version` result and ask them to confirm the correct version before proceeding.** Do not assume the newest installed version is the active/renv-locked version.
+
+### Rule 3 — Cross-Check with renv.lock
+
+If the project has a `renv.lock` file, the required R version is declared in it:
+
+```powershell
+# Show the R version locked in renv
+Select-String -Path "renv.lock" -Pattern '"Version"' | Select-Object -First 1
+```
+
+The version shown in `renv.lock` under `"R"` must match the `Rscript.exe` you intend to use.
+
+### Standard Pattern for Running Any R Script in This Project
+
+```powershell
+# 1. Go to project root
+Set-Location "C:\path\to\{{repoName}}"
+
+# 2. Discover installed R versions
+$rDir = Get-ChildItem "C:\Program Files\R" -Directory |
+        Sort-Object Name -Descending |
+        Select-Object -First 1
+$rscript = Join-Path $rDir.FullName "bin\Rscript.exe"
+
+# 3. Confirm version matches renv.lock expectation
+& $rscript --version
+
+# 4. Run the script
+& $rscript -e "source('script.R')"
+```
+
+### Common Failure Modes to Prevent
+
+| Problem | Cause | Fix |
+|---|---|---|
+| `here()` resolves to wrong path | Missing `Set-Location` | Always set location first |
+| Wrong R version used | Hardcoded path or PATH order | Use `Get-ChildItem` to discover |
+| `renv` library not found | R version mismatch vs renv.lock | Cross-check renv.lock version |
+| `Rscript` not recognized | R not on PATH | Use full path via `Get-ChildItem` |
+
+## �🔒 Git Branch Enforcement
 
 **BEFORE providing any code suggestions or help, check the current git branch:**
 

@@ -25,6 +25,9 @@
     <loc>https://ohdsi.github.io/Picard/articles/loading_inputs.html</loc>
   </url>
   <url>
+    <loc>https://ohdsi.github.io/Picard/articles/manifest_management.html</loc>
+  </url>
+  <url>
     <loc>https://ohdsi.github.io/Picard/articles/manifest_overview.html</loc>
   </url>
   <url>
@@ -446,5 +449,8 @@
   </url>
   <url>
     <loc>https://ohdsi.github.io/Picard/reference/zipAndArchive.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/TODO.html</loc>
   </url>
 </urlset>

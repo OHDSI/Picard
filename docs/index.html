@@ -26,7 +26,7 @@
     
     <a class="navbar-brand me-2" href="index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.5</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.6</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -72,134 +72,143 @@
   <main id="main" class="col-md-9"><div class="section level1">
 <div class="page-header"><h1 id="picard-">picard <img src="reference/figures/picardLogo.png" width="150" alt="logo" align="right"><a class="anchor" aria-label="anchor" href="#picard-"></a>
 </h1></div>
-<p>This R package is designed to be an RWE Pipelining Tool favoring OHDSI tools. Like its namesake, the picard package will allow RWE researchers to explore strange new worlds within their data, seeking out new patterns and analyses, and boldly going where no researcher has gone before!</p>
-</div>
-<div class="section level1">
-<h1 id="quick-start">Quick Start<a class="anchor" aria-label="anchor" href="#quick-start"></a>
-</h1>
-<p>Install and load the picard package:</p>
-<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ohdsi.github.io/Picard/">picard</a></span><span class="op">)</span></span></code></pre></div>
+<p>picard is an R package for building and running reproducible, pipeline-based RWE studies using OHDSI tools. It provides a standardized study repository structure, manifest-driven input management, and execution workflows from development through production.</p>
 <div class="section level2">
-<h2 id="begin-a-new-ulysses-repo">Begin a new Ulysses Repo<a class="anchor" aria-label="anchor" href="#begin-a-new-ulysses-repo"></a>
+<h2 id="what-picard-helps-you-do">What picard Helps You Do<a class="anchor" aria-label="anchor" href="#what-picard-helps-you-do"></a>
 </h2>
-<p>The <code>picard</code> package begins by initializing a Ulysses Repo. This is a standard repo structure to conduct an RWE pipeline using OHDSI tools. This is a maturation of the <code>Ulysses</code> package which was retired due to the technical advances and reframing of the use-case as a pipeline tool.</p>
+<p>picard helps analysts manage the full lifecycle of an RWE pipeline, from study bootstrap through execution and dissemination.</p>
 <div class="section level3">
-<h3 id="create-study-metadata">Create Study Metadata<a class="anchor" aria-label="anchor" href="#create-study-metadata"></a>
+<h3 id="id_1-launch-a-standard-study-repository-ulysses">1. Launch a Standard Study Repository (Ulysses)<a class="anchor" aria-label="anchor" href="#id_1-launch-a-standard-study-repository-ulysses"></a>
 </h3>
-<p>Define your study with contributors and basic information:</p>
+<p>picard initializes a consistent repository structure and project scaffolding via the Ulysses setup flow.</p>
+<ul>
+<li>Defines study metadata and contributors</li>
+<li>Configures one or more database blocks</li>
+<li>Creates standard folders, config files, and starter scripts</li>
+<li>Supports Git and reproducibility setup during initialization</li>
+</ul>
+</div>
+<div class="section level3">
+<h3 id="id_2-maintain-execution-settings">2. Maintain Execution Settings<a class="anchor" aria-label="anchor" href="#id_2-maintain-execution-settings"></a>
+</h3>
+<p>picard centralizes DBMS connection and execution configuration through ExecutionSettings.</p>
+<ul>
+<li>Builds execution settings directly or from config blocks</li>
+<li>Separates schema settings from credential storage</li>
+<li>Supports environment-specific runs and cohort table naming conventions</li>
+</ul>
+</div>
+<div class="section level3">
+<h3 id="id_3-manage-inputs-with-manifest-tools">3. Manage Inputs with Manifest Tools<a class="anchor" aria-label="anchor" href="#id_3-manage-inputs-with-manifest-tools"></a>
+</h3>
+<p>picard uses manifest objects to register and track cohort and concept set inputs as durable study assets.</p>
+<ul>
+<li>Imports from ATLAS or adds programmatic definitions</li>
+<li>Registers custom SQL and derived cohorts</li>
+<li>Tracks metadata, hashes, dependencies, and status</li>
+<li>Supports mid-cycle maintenance (check, update, delete, reset)</li>
+</ul>
+</div>
+<div class="section level3">
+<h3 id="id_4-create-pipeline-files-and-scripts">4. Create Pipeline Files and Scripts<a class="anchor" aria-label="anchor" href="#id_4-create-pipeline-files-and-scripts"></a>
+</h3>
+<p>picard provides file-generation helpers to reduce manual setup and enforce project conventions.</p>
+<ul>
+<li>Creates task scripts and reusable source utility files</li>
+<li>Creates SQL templates for analysis logic</li>
+<li>Creates pre-pipeline builder scripts for cohorts and concept sets</li>
+<li>Creates dissemination scripts for downstream reporting workflows</li>
+</ul>
+</div>
+<div class="section level3">
+<h3 id="id_5-execute-and-monitor-the-pipeline">5. Execute and Monitor the Pipeline<a class="anchor" aria-label="anchor" href="#id_5-execute-and-monitor-the-pipeline"></a>
+</h3>
+<p>picard supports consistent pipeline execution across study tasks and database targets.</p>
+<ul>
+<li>Runs cohort generation and task pipelines with execution settings</li>
+<li>Tracks task execution state, rerun logic, and summaries</li>
+<li>Supports structured workflow from development to production runs</li>
+</ul>
+</div>
+<div class="section level3">
+<h3 id="id_6-post-processing-and-dissemination">6. Post-Processing and Dissemination<a class="anchor" aria-label="anchor" href="#id_6-post-processing-and-dissemination"></a>
+</h3>
+<p>picard includes tools for combining and formatting outputs into analyst-ready deliverables.</p>
+<ul>
+<li>Binds results across database runs</li>
+<li>Standardizes outputs for comparison and downstream consumption</li>
+<li>Supports dissemination pipelines and print-friendly output generation</li>
+</ul>
+</div>
+</div>
+<div class="section level2">
+<h2 id="install">Install<a class="anchor" aria-label="anchor" href="#install"></a>
+</h2>
+<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># install.packages("remotes")</span></span>
+<span><span class="fu">remotes</span><span class="fu">::</span><span class="fu"><a href="https://remotes.r-lib.org/reference/install_github.html" class="external-link">install_github</a></span><span class="op">(</span><span class="st">"OHDSI/Picard"</span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ohdsi.github.io/Picard/">picard</a></span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="quick-start-minimal">Quick Start (Minimal)<a class="anchor" aria-label="anchor" href="#quick-start-minimal"></a>
+</h2>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">sm</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/makeStudyMeta.html">makeStudyMeta</a></span><span class="op">(</span></span>
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ohdsi.github.io/Picard/">picard</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">sm</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/makeStudyMeta.html">makeStudyMeta</a></span><span class="op">(</span></span>
 <span>  studyTitle <span class="op">=</span> <span class="st">"OMOP Characterization Study"</span>,</span>
-<span>  therapeuticArea <span class="op">=</span> <span class="st">"Inflamation"</span>,</span>
+<span>  therapeuticArea <span class="op">=</span> <span class="st">"Endocrinology"</span>,</span>
 <span>  studyType <span class="op">=</span> <span class="st">"Characterization"</span>,</span>
 <span>  contributors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
 <span>    <span class="fu"><a href="reference/setContributor.html">setContributor</a></span><span class="op">(</span></span>
-<span>      name <span class="op">=</span> <span class="st">"Jean-Luc Picard"</span>,</span>
-<span>      email <span class="op">=</span> <span class="st">"jeanluc.picard@ussenterprise.com"</span>,</span>
-<span>      role <span class="op">=</span> <span class="st">"lead"</span></span>
-<span>    <span class="op">)</span>,</span>
-<span>    <span class="fu"><a href="reference/setContributor.html">setContributor</a></span><span class="op">(</span></span>
-<span>      name <span class="op">=</span> <span class="st">"Data Spiner"</span>,</span>
-<span>      email <span class="op">=</span> <span class="st">"data.spiner@ussenterprise.com"</span>,</span>
-<span>      role <span class="op">=</span> <span class="st">"analyst"</span></span>
+<span>      name <span class="op">=</span> <span class="st">"Jane Doe"</span>,</span>
+<span>      email <span class="op">=</span> <span class="st">"jane.doe@institution.org"</span>,</span>
+<span>      role <span class="op">=</span> <span class="st">"developer"</span></span>
 <span>    <span class="op">)</span></span>
-<span>  <span class="op">)</span>,</span>
-<span>  studyTags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"OMOP"</span>, <span class="st">"OHDSI"</span>, <span class="st">"Analysis"</span><span class="op">)</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level3">
-<h3 id="configure-database-connection">Configure Database Connection<a class="anchor" aria-label="anchor" href="#configure-database-connection"></a>
-</h3>
-<p>Set up your OMOP CDM database configuration:</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">db</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/setDbConfigBlock.html">setDbConfigBlock</a></span><span class="op">(</span></span>
-<span>  configBlockName <span class="op">=</span> <span class="st">"omop_cdm"</span>,</span>
-<span>  cdmDatabaseSchema <span class="op">=</span> <span class="st">"public_omop_cdm"</span>,</span>
-<span>  databaseName <span class="op">=</span> <span class="st">"omop_database"</span>,</span>
-<span>  cohortTable <span class="op">=</span> <span class="st">"study_cohort"</span>,</span>
-<span>  databaseLabel <span class="op">=</span> <span class="st">"OMOP CDM Instance"</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level3">
-<h3 id="initialize-project">Initialize Project<a class="anchor" aria-label="anchor" href="#initialize-project"></a>
-</h3>
-<p>Create and initialize your study repository (the <code>dbConnectionBlocks</code> carry all DBMS/schema info from your config blocks):</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">ulySt</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/makeUlyssesStudySettings.html">makeUlyssesStudySettings</a></span><span class="op">(</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">db</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/makeBlock.html">makeBlock</a></span><span class="op">(</span></span>
+<span>  configBlockName <span class="op">=</span> <span class="st">"my_cdm"</span>,</span>
+<span>  cdmDatabaseSchema <span class="op">=</span> <span class="st">"omop_cdm_schema"</span>,</span>
+<span>  cohortTable <span class="op">=</span> <span class="st">"study_cohorts"</span>,</span>
+<span>  databaseName <span class="op">=</span> <span class="st">"my_database_v1"</span>,</span>
+<span>  databaseLabel <span class="op">=</span> <span class="st">"Primary CDM"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">ulySt</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/makeUlyssesStudySettings.html">makeUlyssesStudySettings</a></span><span class="op">(</span></span>
 <span>  repoName <span class="op">=</span> <span class="st">"my_study_project"</span>,</span>
-<span>  repoFolder <span class="op">=</span> <span class="st">"~/studies/my_study_project"</span>,</span>
+<span>  repoFolder <span class="op">=</span> <span class="st">"~/studies"</span>,</span>
 <span>  studyMeta <span class="op">=</span> <span class="va">sm</span>,</span>
 <span>  dbConnectionBlocks <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">db</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># Initialize the repository structure</span></span>
 <span><span class="va">ulySt</span><span class="op">$</span><span class="fu">initUlyssesRepo</span><span class="op">(</span>verbose <span class="op">=</span> <span class="cn">TRUE</span>, openProject <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
-<p>This will create a standardized directory structure for your study with all necessary configuration files and folders.</p>
-</div>
+<p>For detailed usage examples and end-to-end workflows, see the package site and vignettes.</p>
 </div>
 <div class="section level2">
-<h2 id="cohort-management-and-generation">Cohort Management and Generation<a class="anchor" aria-label="anchor" href="#cohort-management-and-generation"></a>
+<h2 id="documentation">Documentation<a class="anchor" aria-label="anchor" href="#documentation"></a>
 </h2>
-<p>Once your study environment is initialized, you can manage and generate cohorts using the CohortManifest.</p>
-<div class="section level3">
-<h3 id="load-execution-settings">Load Execution Settings<a class="anchor" aria-label="anchor" href="#load-execution-settings"></a>
-</h3>
-<p>Load your database configuration from the config file:</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">settings</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/createExecutionSettingsFromConfig.html">createExecutionSettingsFromConfig</a></span><span class="op">(</span>configBlock <span class="op">=</span> <span class="st">"omop_cdm"</span><span class="op">)</span></span></code></pre></div>
+<ol style="list-style-type: decimal">
+<li>Package site and articles: <a href="articles/index.html">Articles</a>
+</li>
+<li>Full function reference: <a href="reference/index.html">Reference</a>
+</li>
+<li>Changelog: <a href="NEWS.html">NEWS</a>
+</li>
+</ol>
 </div>
-<div class="section level3">
-<h3 id="import-cohorts-from-atlas">Import Cohorts from ATLAS<a class="anchor" aria-label="anchor" href="#import-cohorts-from-atlas"></a>
-</h3>
-<p>Before importing cohorts, create a load list by running:</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="reference/createBlankCohortsLoadFile.html">createBlankCohortsLoadFile</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-<p>Edit <code>inputs/cohorts/cohortsLoad.csv</code> in Excel to add your ATLAS cohort IDs and metadata. Then import:</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">cohortManifest</span> <span class="op">&lt;-</span> <span class="va"><a href="reference/CohortManifest.html">CohortManifest</a></span><span class="op">$</span><span class="fu">new</span><span class="op">(</span>dbPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts/manifest.sqlite"</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="fu">importAtlasCohorts</span><span class="op">(</span></span>
-<span>  manifest <span class="op">=</span> <span class="va">cohortManifest</span>,</span>
-<span>  atlasConnection <span class="op">=</span> <span class="fu">setAtlasConnection</span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  cohortsLoadPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts/cohortsLoad.csv"</span><span class="op">)</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-<p>For you to set up the atlas connection you need to provide your credentials for logging into webApi. Follow this template to add credentials to .Renviron file:</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="reference/templateAtlasCredentials.html">templateAtlasCredentials</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<div class="section level2">
+<h2 id="project-status">Project Status<a class="anchor" aria-label="anchor" href="#project-status"></a>
+</h2>
+<p>picard is under active development. APIs may evolve as pipeline and manifest workflows mature. Review NEWS before upgrading long-running studies.</p>
 </div>
-<div class="section level3">
-<h3 id="load-and-view-cohort-manifest">Load and View Cohort Manifest<a class="anchor" aria-label="anchor" href="#load-and-view-cohort-manifest"></a>
-</h3>
-<p>Create a CohortManifest and examine available cohorts:</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">cm</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/loadCohortManifest.html">loadCohortManifest</a></span><span class="op">(</span>executionSettings <span class="op">=</span> <span class="va">settings</span><span class="op">)</span></span>
-<span><span class="va">cm</span><span class="op">$</span><span class="fu">getManifest</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level3">
-<h3 id="create-cohort-tables">Create Cohort Tables<a class="anchor" aria-label="anchor" href="#create-cohort-tables"></a>
-</h3>
-<p>Initialize the necessary database tables for cohort storage:</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">cm</span><span class="op">$</span><span class="fu">createCohortTables</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level3">
-<h3 id="generate-cohorts">Generate Cohorts<a class="anchor" aria-label="anchor" href="#generate-cohorts"></a>
-</h3>
-<p>Execute the cohort generation process:</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">cm</span><span class="op">$</span><span class="fu">generateCohorts</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level3">
-<h3 id="retrieve-cohort-counts">Retrieve Cohort Counts<a class="anchor" aria-label="anchor" href="#retrieve-cohort-counts"></a>
-</h3>
-<p>Get summary statistics for all generated cohorts:</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">counts</span> <span class="op">&lt;-</span> <span class="va">cm</span><span class="op">$</span><span class="fu">retrieveCohortCounts</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-<p>This will return a data frame with: - <code>cohort_id</code>: The cohort definition ID - <code>label</code>: The cohort label - <code>tags</code>: Associated cohort tags - <code>cohort_entries</code>: Total number of cohort records - <code>cohort_subjects</code>: Number of distinct subjects in each cohort</p>
+<div class="section level2">
+<h2 id="contributing">Contributing<a class="anchor" aria-label="anchor" href="#contributing"></a>
+</h2>
+<p>Contributions, issues, and suggestions are welcome. Open an issue or pull request in the repository.</p>
 </div>
 </div>
-</div>
-
   </main><aside class="col-md-3"><div class="links">
 <h2 data-toc-skip>Links</h2>
 <ul class="list-unstyled">
