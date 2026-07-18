@@ -626,7 +626,8 @@ Input route policy:
   minEraDays = 0L,
   minCohorts = 1L,
   washoutDays = 0L,
-  firstEraOnly = FALSE
+  firstEraOnly = FALSE,
+  stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -663,6 +664,13 @@ new era can open. Subjects must have no source cohort membership for this period
 Default: 0.}
 
 \item{\code{firstEraOnly}}{Logical. Return only the first collapsed era per subject. Default: FALSE.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+active or stale cohort with this label is already registered. If FALSE,
+updates the registered derived cohort in place (same ID and file path):
+the SQL is re-rendered, parents and build parameters are replaced, the
+cohort is marked 'stale' for regeneration, and its own dependents are
+marked stale too. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -697,7 +705,8 @@ Input route policy:
   startWindow,
   endWindow = NULL,
   endDateType = "base",
-  subsetLimit = "First"
+  subsetLimit = "First",
+  stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -732,6 +741,13 @@ as the cohort end date in the output subset cohort. Default: 'base'.}
 \item{\code{subsetLimit}}{Character. One of 'First', 'Last', or 'All'. Specifies which qualifying filter cohort event(s)
 to retain per subject. 'First' keeps the earliest event, 'Last' keeps the most recent event, 'All' keeps all
 qualifying events. Default: 'First'.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+active or stale cohort with this label is already registered. If FALSE,
+updates the registered derived cohort in place (same ID and file path):
+the SQL is re-rendered, parents and build parameters are replaced, the
+cohort is marked 'stale' for regeneration, and its own dependents are
+marked stale too. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -763,7 +779,8 @@ Input route policy:
   excludeCohortIds = NULL,
   populationCohortEntry = NULL,
   excludeCohortEntries = NULL,
-  complementType = "exclude_any"
+  complementType = "exclude_any",
+  stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -791,6 +808,13 @@ Preferred route using manifest query results for exclusion cohorts.}
 \code{"exclude_all"}. \code{"exclude_any"} removes subjects present in ANY
 exclude cohort; \code{"exclude_all"} removes subjects only if they appear
 in ALL exclude cohorts.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+active or stale cohort with this label is already registered. If FALSE,
+updates the registered derived cohort in place (same ID and file path):
+the SQL is re-rendered, parents and build parameters are replaced, the
+cohort is marked 'stale' for regeneration, and its own dependents are
+marked stale too. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -821,7 +845,8 @@ Input route policy:
   criteriaCohortIds = NULL,
   criteriaCohortEntries = NULL,
   eventSelection = "First",
-  minEventCount = 1L
+  minEventCount = 1L,
+  stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -851,6 +876,13 @@ Default: 'First'.
 
 \item{\code{minEventCount}}{Integer. Minimum number of distinct cohort events required for a subject
 to qualify for the composite. Default: 1 (any subject with at least 1 event qualifies).}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+active or stale cohort with this label is already registered. If FALSE,
+updates the registered derived cohort in place (same ID and file path):
+the SQL is re-rendered, parents and build parameters are replaced, the
+cohort is marked 'stale' for regeneration, and its own dependents are
+marked stale too. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -884,7 +916,8 @@ Input route policy:
   genderConceptIds = NULL,
   raceConceptIds = NULL,
   ethnicityConceptIds = NULL,
-  tags = list()
+  tags = list(),
+  stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -912,6 +945,13 @@ Common values: 8507 = Male, 8532 = Female. Default: NULL (all genders).}
 \item{\code{ethnicityConceptIds}}{Integer vector or NULL. Ethnicity concept IDs to include. Default: NULL.}
 
 \item{\code{tags}}{Named list. Optional metadata tags.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+active or stale cohort with this label is already registered. If FALSE,
+updates the registered derived cohort in place (same ID and file path):
+the SQL is re-rendered, parents and build parameters are replaced, the
+cohort is marked 'stale' for regeneration, and its own dependents are
+marked stale too. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -1636,7 +1676,8 @@ Input route policy:
   priorTimeWindowDays = NULL,
   subsetLimit = "First",
   outcomeCohortEntry = NULL,
-  targetCohortEntry = NULL
+  targetCohortEntry = NULL,
+  stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -1681,6 +1722,13 @@ Preferred route using manifest query results for the outcome cohort.}
 \item{\code{targetCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
 Preferred route using manifest query results for the target cohort.}
 
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+active or stale cohort with this label is already registered. If FALSE,
+updates the registered derived cohort in place (same ID and file path):
+the SQL is re-rendered, parents and build parameters are replaced, the
+cohort is marked 'stale' for regeneration, and its own dependents are
+marked stale too. Default: TRUE (fail-safe).}
+
 \item{\code{keep_trace}}{Logical. If TRUE, marks missing as deleted with timestamp (soft delete).
 If FALSE, permanently removes from database (hard delete). Defaults to TRUE.}
 }
@@ -1720,7 +1768,8 @@ Input route policy:
   priorTimeWindowDays = NULL,
   subsetLimit = "First",
   targetCohortEntry = NULL,
-  outcomeCohortEntry = NULL
+  outcomeCohortEntry = NULL,
+  stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -1764,6 +1813,13 @@ Preferred route using manifest query results for the target cohort.}
 
 \item{\code{outcomeCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
 Preferred route using manifest query results for the outcome cohort.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+active or stale cohort with this label is already registered. If FALSE,
+updates the registered derived cohort in place (same ID and file path):
+the SQL is re-rendered, parents and build parameters are replaced, the
+cohort is marked 'stale' for regeneration, and its own dependents are
+marked stale too. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -1802,7 +1858,8 @@ Input route policy:
   targetCohortId = NULL,
   censorCohortId = NULL,
   targetCohortEntry = NULL,
-  censorCohortEntry = NULL
+  censorCohortEntry = NULL,
+  stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -1824,6 +1881,13 @@ Preferred route using manifest query results for the target cohort.}
 
 \item{\code{censorCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
 Preferred route using manifest query results for the censor cohort.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+active or stale cohort with this label is already registered. If FALSE,
+updates the registered derived cohort in place (same ID and file path):
+the SQL is re-rendered, parents and build parameters are replaced, the
+cohort is marked 'stale' for regeneration, and its own dependents are
+marked stale too. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }

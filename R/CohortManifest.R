@@ -203,6 +203,119 @@ CohortManifest <- R6::R6Class(
       as.integer(existing$id[1])
     },
 
+    # Resolve the upsert target for a derived build. Returns the existing
+    # active/stale cohort id for this label, or NA when the label is new.
+    # Aborts when the label exists and stopIfExists is TRUE, when it belongs
+    # to a source (non-derived) cohort, or when the new parents would create
+    # a dependency cycle.
+    resolve_derived_upsert = function(label, stopIfExists, parent_ids) {
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      existing <- DBI::dbGetQuery(
+        conn,
+        "SELECT id, cohort_type FROM cohort_manifest
+         WHERE label = ? AND status IN ('active', 'stale')",
+        list(label)
+      )
+
+      if (nrow(existing) == 0) {
+        return(NA_integer_)
+      }
+
+      existing_id <- as.integer(existing$id[1])
+
+      if (stopIfExists) {
+        cli::cli_abort(c(
+          "Label '{label}' is already in use by cohort {existing_id}.",
+          i = "Re-run with {.code stopIfExists = FALSE} to update the derived cohort in place."
+        ))
+      }
+
+      if (existing$cohort_type[1] %in% c("circe", "custom")) {
+        cli::cli_abort(c(
+          "Cohort {existing_id} ({label}) is a source cohort ({.val {existing$cohort_type[1]}}), not a derived cohort.",
+          i = "Build methods can only update derived cohorts in place."
+        ))
+      }
+
+      # Guard against cycles: the new parents must not include the cohort
+      # itself or anything derived from it
+      forbidden <- c(existing_id, findTransitiveDependents(private$.dbPath, existing_id))
+      bad_parents <- intersect(as.integer(parent_ids), forbidden)
+      if (length(bad_parents) > 0) {
+        cli::cli_abort(
+          "Updating cohort {existing_id} ({label}) with parent(s) {paste(bad_parents, collapse = ', ')} would create a dependency cycle."
+        )
+      }
+
+      return(existing_id)
+    },
+
+    # Insert a new derived cohort, or — when existingId is not NA — update the
+    # registered one in place (same id and label). On update the definition
+    # columns are replaced, the cohort is marked 'stale' so the next
+    # generateCohorts() run regenerates it, and stale cascades to its own
+    # dependents. Tags are replaced only when supplied.
+    upsert_derived_cohort = function(existingId, label, category, tags, file_path,
+                                     cohort_type, depends_on, dependency_rule) {
+      if (is.na(existingId)) {
+        return(private$insert_cohort(
+          label = label,
+          category = category,
+          tags = tags,
+          file_path = file_path,
+          source_type = "derived",
+          cohort_type = cohort_type,
+          depends_on = depends_on,
+          dependency_rule = dependency_rule
+        ))
+      }
+
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      hash <- if (file.exists(file_path)) {
+        rlang::hash(readr::read_file(file_path))
+      } else {
+        rlang::hash(label)
+      }
+
+      depends_on_json <- jsonlite::toJSON(as.integer(depends_on), auto_unbox = FALSE)
+      dep_rule_json <- if (!is.null(dependency_rule) && length(dependency_rule) > 0) {
+        jsonlite::toJSON(dependency_rule, auto_unbox = TRUE)
+      } else {
+        NA_character_
+      }
+
+      set_clauses <- paste(
+        "category = ?, file_path = ?, hash = ?, cohort_type = ?,",
+        "depends_on = ?, dependency_rule = ?, status = 'stale',",
+        "updated_at = CURRENT_TIMESTAMP"
+      )
+      params <- list(category, file_path, hash, cohort_type, depends_on_json, dep_rule_json)
+
+      if (length(tags) > 0) {
+        set_clauses <- paste(set_clauses, ", tags = ?")
+        params <- c(params, list(jsonlite::toJSON(tags, auto_unbox = TRUE)))
+      }
+
+      DBI::dbExecute(
+        conn,
+        paste0("UPDATE cohort_manifest SET ", set_clauses, " WHERE id = ?"),
+        c(params, list(existingId))
+      )
+
+      # This cohort's own dependents are now out of date too
+      cascadeStaleDownstream(private$.dbPath, existingId)
+
+      # Refresh in-memory manifest
+      private$load_manifest_from_db()
+
+      cli::cli_alert_info("Updated derived cohort {existingId}: {label} in place (marked stale for regeneration)")
+      return(existingId)
+    },
+
     # Validate that a file_path is unique among active entries
     validate_filepath_unique = function(file_path) {
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
@@ -1391,6 +1504,12 @@ CohortManifest <- R6::R6Class(
     #'   new era can open. Subjects must have no source cohort membership for this period.
     #'   Default: 0.
     #' @param firstEraOnly Logical. Return only the first collapsed era per subject. Default: FALSE.
+    #' @param stopIfExists Logical. If TRUE (default), raises an error when an
+    #'   active or stale cohort with this label is already registered. If FALSE,
+    #'   updates the registered derived cohort in place (same ID and file path):
+    #'   the SQL is re-rendered, parents and build parameters are replaced, the
+    #'   cohort is marked 'stale' for regeneration, and its own dependents are
+    #'   marked stale too. Default: TRUE (fail-safe).
     #' @return Invisible integer. The assigned cohort ID.
     buildUnionCohort = function(
       label, 
@@ -1403,7 +1522,8 @@ CohortManifest <- R6::R6Class(
       minEraDays = 0L,
       minCohorts = 1L,
       washoutDays = 0L,
-      firstEraOnly = FALSE
+      firstEraOnly = FALSE,
+      stopIfExists = TRUE
       ) {
       use_id_route <- !is.null(cohortIds)
       use_entry_route <- !is.null(cohortEntries)
@@ -1453,7 +1573,8 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_integerish(x = washoutDays, len = 1, lower = 0)
       checkmate::assert_logical(x = firstEraOnly, len = 1)
 
-      private$validate_label_unique(label)
+      checkmate::assert_flag(stopIfExists)
+      existing_id <- private$resolve_derived_upsert(label, stopIfExists, cohortIds)
       private$validate_parent_cohorts_exist(cohortIds)
 
       # Build dependency rule
@@ -1482,12 +1603,12 @@ CohortManifest <- R6::R6Class(
       )
 
       # Register in manifest
-      cohort_id <- private$insert_cohort(
+      cohort_id <- private$upsert_derived_cohort(
+        existingId = existing_id,
         label = label,
         category = category,
         tags = tags,
         file_path = fs::path_rel(sql_path),
-        source_type = "derived",
         cohort_type = "union",
         depends_on = as.integer(cohortIds),
         dependency_rule = dependency_rule
@@ -1526,6 +1647,12 @@ CohortManifest <- R6::R6Class(
     #'   to retain per subject. 'First' keeps the earliest event, 'Last' keeps the most recent event, 'All' keeps all 
     #'   qualifying events. Default: 'First'.
     #'
+    #' @param stopIfExists Logical. If TRUE (default), raises an error when an
+    #'   active or stale cohort with this label is already registered. If FALSE,
+    #'   updates the registered derived cohort in place (same ID and file path):
+    #'   the SQL is re-rendered, parents and build parameters are replaced, the
+    #'   cohort is marked 'stale' for regeneration, and its own dependents are
+    #'   marked stale too. Default: TRUE (fail-safe).
     #' @return Invisible integer. The assigned cohort ID.
     buildSubsetCohortTemporal = function(
       label, 
@@ -1538,7 +1665,8 @@ CohortManifest <- R6::R6Class(
       startWindow,
       endWindow = NULL,
       endDateType = "base",
-      subsetLimit = "First"
+      subsetLimit = "First",
+      stopIfExists = TRUE
     ) {
       base_use_id <- !is.null(baseCohortId)
       base_use_entry <- !is.null(baseCohortEntry)
@@ -1610,7 +1738,8 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_choice(subsetLimit, choices = c("First", "Last", "All"))
       checkmate::assert_list(tags, names = "named")
 
-      private$validate_label_unique(label)
+      checkmate::assert_flag(stopIfExists)
+      existing_id <- private$resolve_derived_upsert(label, stopIfExists, c(baseCohortId, filterCohortId))
       private$validate_parent_cohorts_exist(c(baseCohortId, filterCohortId))
 
       # Generate SQL snippets from SubsetWindowOperator objects
@@ -1652,12 +1781,12 @@ CohortManifest <- R6::R6Class(
 
       parent_ids <- unique(c(baseCohortId, filterCohortId))
 
-      cohort_id <- private$insert_cohort(
+      cohort_id <- private$upsert_derived_cohort(
+        existingId = existing_id,
         label = label,
         category = category,
         tags = tags,
         file_path = fs::path_rel(sql_path),
-        source_type = "derived",
         cohort_type = "subset",
         depends_on = as.integer(parent_ids),
         dependency_rule = dependency_rule
@@ -1692,6 +1821,12 @@ CohortManifest <- R6::R6Class(
     #'   in ALL exclude cohorts.
     #' @param tags Named list. Optional metadata tags.
     #'
+    #' @param stopIfExists Logical. If TRUE (default), raises an error when an
+    #'   active or stale cohort with this label is already registered. If FALSE,
+    #'   updates the registered derived cohort in place (same ID and file path):
+    #'   the SQL is re-rendered, parents and build parameters are replaced, the
+    #'   cohort is marked 'stale' for regeneration, and its own dependents are
+    #'   marked stale too. Default: TRUE (fail-safe).
     #' @return Invisible integer. The assigned cohort ID.
     buildComplementCohort = function(
       label, 
@@ -1701,7 +1836,8 @@ CohortManifest <- R6::R6Class(
       excludeCohortIds = NULL,
       populationCohortEntry = NULL,
       excludeCohortEntries = NULL,
-      complementType = "exclude_any"
+      complementType = "exclude_any",
+      stopIfExists = TRUE
     ) {
       population_use_id <- !is.null(populationCohortId)
       population_use_entry <- !is.null(populationCohortEntry)
@@ -1781,7 +1917,8 @@ CohortManifest <- R6::R6Class(
         cli::cli_abort("populationCohortId {populationCohortId} cannot also appear in excludeCohortIds")
       }
 
-      private$validate_label_unique(label)
+      checkmate::assert_flag(stopIfExists)
+      existing_id <- private$resolve_derived_upsert(label, stopIfExists, c(populationCohortId, as.integer(excludeCohortIds)))
       private$validate_parent_cohorts_exist(c(populationCohortId, as.integer(excludeCohortIds)))
 
       dependency_rule <- list(
@@ -1802,12 +1939,12 @@ CohortManifest <- R6::R6Class(
 
       parent_ids <- unique(c(as.integer(populationCohortId), as.integer(excludeCohortIds)))
 
-      cohort_id <- private$insert_cohort(
+      cohort_id <- private$upsert_derived_cohort(
+        existingId = existing_id,
         label = label,
         category = category,
         tags = tags,
         file_path = fs::path_rel(sql_path),
-        source_type = "derived",
         cohort_type = "complement",
         depends_on = parent_ids,
         dependency_rule = dependency_rule
@@ -1844,6 +1981,12 @@ CohortManifest <- R6::R6Class(
     #'   Default: 'First'.
     #' 
     #'
+    #' @param stopIfExists Logical. If TRUE (default), raises an error when an
+    #'   active or stale cohort with this label is already registered. If FALSE,
+    #'   updates the registered derived cohort in place (same ID and file path):
+    #'   the SQL is re-rendered, parents and build parameters are replaced, the
+    #'   cohort is marked 'stale' for regeneration, and its own dependents are
+    #'   marked stale too. Default: TRUE (fail-safe).
     #' @return Invisible integer. The assigned cohort ID.
     buildCompositeCohort = function(
         label, 
@@ -1852,7 +1995,8 @@ CohortManifest <- R6::R6Class(
         criteriaCohortIds = NULL, 
         criteriaCohortEntries = NULL,
         eventSelection = "First", 
-        minEventCount = 1L
+        minEventCount = 1L,
+        stopIfExists = TRUE
         ) {
       use_id_route <- !is.null(criteriaCohortIds)
       use_entry_route <- !is.null(criteriaCohortEntries)
@@ -1898,7 +2042,8 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_choice(x = eventSelection, choices = c("First", "Last", "All"))
       checkmate::assert_integerish(minEventCount, lower = 1, upper = length(criteriaCohortIds))
 
-      private$validate_label_unique(label)
+      checkmate::assert_flag(stopIfExists)
+      existing_id <- private$resolve_derived_upsert(label, stopIfExists, criteriaCohortIds)
       private$validate_parent_cohorts_exist(criteriaCohortIds)
 
       dependency_rule <- list(
@@ -1916,12 +2061,12 @@ CohortManifest <- R6::R6Class(
         event_selection = eventSelection
       )
 
-      cohort_id <- private$insert_cohort(
+      cohort_id <- private$upsert_derived_cohort(
+        existingId = existing_id,
         label = label,
         category = category,
         tags = tags,
         file_path = fs::path_rel(sql_path),
-        source_type = "derived",
         cohort_type = "composite",
         depends_on = as.integer(criteriaCohortIds),
         dependency_rule = dependency_rule
@@ -1954,6 +2099,12 @@ CohortManifest <- R6::R6Class(
     #' @param ethnicityConceptIds Integer vector or NULL. Ethnicity concept IDs to include. Default: NULL.
     #' @param tags Named list. Optional metadata tags.
     #'
+    #' @param stopIfExists Logical. If TRUE (default), raises an error when an
+    #'   active or stale cohort with this label is already registered. If FALSE,
+    #'   updates the registered derived cohort in place (same ID and file path):
+    #'   the SQL is re-rendered, parents and build parameters are replaced, the
+    #'   cohort is marked 'stale' for regeneration, and its own dependents are
+    #'   marked stale too. Default: TRUE (fail-safe).
     #' @return Invisible integer. The assigned cohort ID.
     buildDemographicCohort = function(label, baseCohortId = NULL, 
                                       baseCohortEntry = NULL, category,
@@ -1961,7 +2112,8 @@ CohortManifest <- R6::R6Class(
                                       genderConceptIds = NULL,
                                       raceConceptIds = NULL,
                                       ethnicityConceptIds = NULL,
-                                      tags = list()) {
+                                      tags = list(),
+                                      stopIfExists = TRUE) {
       use_id_route <- !is.null(baseCohortId)
       use_entry_route <- !is.null(baseCohortEntry)
       baseCohortName <- NA_character_
@@ -2005,7 +2157,8 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_integerish(ethnicityConceptIds, min.len = 1, null.ok = TRUE)
       checkmate::assert_list(tags, names = "named")
 
-      private$validate_label_unique(label)
+      checkmate::assert_flag(stopIfExists)
+      existing_id <- private$resolve_derived_upsert(label, stopIfExists, baseCohortId)
       private$validate_parent_cohorts_exist(baseCohortId)
 
       # Convert NULLs to "" for SqlRender conditional blocks
@@ -2044,12 +2197,12 @@ CohortManifest <- R6::R6Class(
         )
       writeLines(rendered_sql, sql_path)
 
-      cohort_id <- private$insert_cohort(
+      cohort_id <- private$upsert_derived_cohort(
+        existingId      = existing_id,
         label           = label,
         category        = category,
         tags            = tags,
         file_path       = fs::path_rel(sql_path),
-        source_type     = "derived",
         cohort_type     = "subset",
         depends_on      = as.integer(baseCohortId),
         dependency_rule = dependency_rule
@@ -4295,6 +4448,12 @@ CohortManifest <- R6::R6Class(
     #'   - 'All': Keep all prior target events (one output row per pair).
     #'   Default: 'First'.
     #'
+    #' @param stopIfExists Logical. If TRUE (default), raises an error when an
+    #'   active or stale cohort with this label is already registered. If FALSE,
+    #'   updates the registered derived cohort in place (same ID and file path):
+    #'   the SQL is re-rendered, parents and build parameters are replaced, the
+    #'   cohort is marked 'stale' for regeneration, and its own dependents are
+    #'   marked stale too. Default: TRUE (fail-safe).
     #' @return Invisible integer. The assigned cohort ID.
     buildOPriorT = function(
       label,
@@ -4306,7 +4465,8 @@ CohortManifest <- R6::R6Class(
       priorTimeWindowDays = NULL,
       subsetLimit = "First",
       outcomeCohortEntry = NULL,
-      targetCohortEntry = NULL
+      targetCohortEntry = NULL,
+      stopIfExists = TRUE
     ) {
       outcome_use_id <- !is.null(outcomeCohortId)
       outcome_use_entry <- !is.null(outcomeCohortEntry)
@@ -4378,7 +4538,8 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_integerish(priorTimeWindowDays, len = 1, null.ok = TRUE)
       checkmate::assert_choice(subsetLimit, choices = c("First", "Last", "All"))
 
-      private$validate_label_unique(label)
+      checkmate::assert_flag(stopIfExists)
+      existing_id <- private$resolve_derived_upsert(label, stopIfExists, c(outcomeCohortId, targetCohortId))
       private$validate_parent_cohorts_exist(c(outcomeCohortId, targetCohortId))
 
       dependency_rule <- list(
@@ -4401,12 +4562,12 @@ CohortManifest <- R6::R6Class(
         subset_limit = subsetLimit
       )
 
-      cohort_id <- private$insert_cohort(
+      cohort_id <- private$upsert_derived_cohort(
+        existingId = existing_id,
         label = label,
         category = category,
         tags = tags,
         file_path = fs::path_rel(sql_path),
-        source_type = "derived",
         cohort_type = "oprior",
         depends_on = as.integer(c(outcomeCohortId, targetCohortId)),
         dependency_rule = dependency_rule
@@ -4455,6 +4616,12 @@ CohortManifest <- R6::R6Class(
     #'   - 'All': Keep all prior outcome events (one output row per pair).
     #'   Default: 'First'.
     #'
+    #' @param stopIfExists Logical. If TRUE (default), raises an error when an
+    #'   active or stale cohort with this label is already registered. If FALSE,
+    #'   updates the registered derived cohort in place (same ID and file path):
+    #'   the SQL is re-rendered, parents and build parameters are replaced, the
+    #'   cohort is marked 'stale' for regeneration, and its own dependents are
+    #'   marked stale too. Default: TRUE (fail-safe).
     #' @return Invisible integer. The assigned cohort ID.
     buildTPriorO = function(
       label,
@@ -4466,7 +4633,8 @@ CohortManifest <- R6::R6Class(
       priorTimeWindowDays = NULL,
       subsetLimit = "First",
       targetCohortEntry = NULL,
-      outcomeCohortEntry = NULL
+      outcomeCohortEntry = NULL,
+      stopIfExists = TRUE
     ) {
       target_use_id <- !is.null(targetCohortId)
       target_use_entry <- !is.null(targetCohortEntry)
@@ -4538,7 +4706,8 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_integerish(priorTimeWindowDays, len = 1, null.ok = TRUE)
       checkmate::assert_choice(subsetLimit, choices = c("First", "Last", "All"))
 
-      private$validate_label_unique(label)
+      checkmate::assert_flag(stopIfExists)
+      existing_id <- private$resolve_derived_upsert(label, stopIfExists, c(targetCohortId, outcomeCohortId))
       private$validate_parent_cohorts_exist(c(targetCohortId, outcomeCohortId))
 
       dependency_rule <- list(
@@ -4561,12 +4730,12 @@ CohortManifest <- R6::R6Class(
         subset_limit = subsetLimit
       )
 
-      cohort_id <- private$insert_cohort(
+      cohort_id <- private$upsert_derived_cohort(
+        existingId = existing_id,
         label = label,
         category = category,
         tags = tags,
         file_path = fs::path_rel(sql_path),
-        source_type = "derived",
         cohort_type = "tprior",
         depends_on = as.integer(c(targetCohortId, outcomeCohortId)),
         dependency_rule = dependency_rule
@@ -4602,6 +4771,12 @@ CohortManifest <- R6::R6Class(
     #' @param censorCohortEntry Data frame/tibble with one row and an \code{id} column.
     #'   Preferred route using manifest query results for the censor cohort.
     #'
+    #' @param stopIfExists Logical. If TRUE (default), raises an error when an
+    #'   active or stale cohort with this label is already registered. If FALSE,
+    #'   updates the registered derived cohort in place (same ID and file path):
+    #'   the SQL is re-rendered, parents and build parameters are replaced, the
+    #'   cohort is marked 'stale' for regeneration, and its own dependents are
+    #'   marked stale too. Default: TRUE (fail-safe).
     #' @return Invisible integer. The assigned cohort ID.
     buildCensorCohort = function(
       label,
@@ -4610,7 +4785,8 @@ CohortManifest <- R6::R6Class(
       targetCohortId = NULL,
       censorCohortId = NULL,
       targetCohortEntry = NULL,
-      censorCohortEntry = NULL
+      censorCohortEntry = NULL,
+      stopIfExists = TRUE
     ) {
       target_use_id <- !is.null(targetCohortId)
       target_use_entry <- !is.null(targetCohortEntry)
@@ -4679,7 +4855,8 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_int(targetCohortId)
       checkmate::assert_int(censorCohortId)
 
-      private$validate_label_unique(label)
+      checkmate::assert_flag(stopIfExists)
+      existing_id <- private$resolve_derived_upsert(label, stopIfExists, c(targetCohortId, censorCohortId))
       private$validate_parent_cohorts_exist(c(targetCohortId, censorCohortId))
 
       dependency_rule <- list(
@@ -4700,12 +4877,12 @@ CohortManifest <- R6::R6Class(
         censor_cohort_name = censorCohortName
       )
 
-      cohort_id <- private$insert_cohort(
+      cohort_id <- private$upsert_derived_cohort(
+        existingId = existing_id,
         label = label,
         category = category,
         tags = tags,
         file_path = fs::path_rel(sql_path),
-        source_type = "derived",
         cohort_type = "censor",
         depends_on = as.integer(c(targetCohortId, censorCohortId)),
         dependency_rule = dependency_rule

@@ -268,6 +268,96 @@ testthat::test_that("syncManifest cascades deletion of dependents of missing par
   testthat::expect_true(any(deleted$label == "Capr_T2D_or_CKD"))
 })
 
+# Testing: buildUnionCohort stopIfExists = FALSE updates the parent list in place.
+testthat::test_that("buildUnionCohort stopIfExists FALSE updates parent list in place", {
+  setup <- cm_test_seed_parent_with_union("mgmt-union-upsert")
+  manifest <- setup$manifest
+
+  cm_test_add_circe_cohort(
+    manifest = manifest,
+    paths = setup$paths,
+    label = "All-Cause Death",
+    fixture_name = "death.json"
+  )
+
+  before <- cm_test_get_manifest_row(manifest, "Capr_T2D_or_CKD")
+  testthat::expect_equal(length(jsonlite::fromJSON(before$depends_on[[1]])), 2)
+
+  parents <- manifest$queryCohortsByLabel(
+    labels = c("Capr T2D", "Chronic Kidney Disease", "All-Cause Death"),
+    matchType = "exact"
+  )
+  returned_id <- manifest$buildUnionCohort(
+    label = "Capr_T2D_or_CKD",
+    category = "Derived Cohorts",
+    cohortEntries = parents,
+    stopIfExists = FALSE
+  )
+
+  after <- cm_test_get_manifest_row(manifest, "Capr_T2D_or_CKD")
+  testthat::expect_equal(nrow(after), 1)
+  testthat::expect_equal(as.integer(returned_id), as.integer(before$id[[1]]))
+  testthat::expect_equal(after$file_path[[1]], before$file_path[[1]])
+  testthat::expect_equal(length(jsonlite::fromJSON(after$depends_on[[1]])), 3)
+  testthat::expect_equal(after$status[[1]], "stale")
+  testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
+
+  # The re-rendered SQL file matches the recorded hash
+  disk_hash <- rlang::hash(readr::read_file(after$file_path[[1]]))
+  testthat::expect_equal(after$hash[[1]], disk_hash)
+})
+
+# Testing: build methods still error on duplicate labels by default.
+testthat::test_that("buildUnionCohort errors on duplicate label by default", {
+  setup <- cm_test_seed_parent_with_union("mgmt-union-dup")
+  manifest <- setup$manifest
+
+  parents <- manifest$queryCohortsByLabel(
+    labels = c("Capr T2D", "Chronic Kidney Disease"),
+    matchType = "exact"
+  )
+  testthat::expect_error(
+    manifest$buildUnionCohort(
+      label = "Capr_T2D_or_CKD",
+      category = "Derived Cohorts",
+      cohortEntries = parents
+    ),
+    regexp = "already in use"
+  )
+})
+
+# Testing: derived upsert rejects a parent set that would create a dependency cycle.
+testthat::test_that("derived upsert rejects parents that would create a cycle", {
+  setup <- cm_test_seed_parent_with_union("mgmt-union-cycle")
+  manifest <- setup$manifest
+
+  # Build a second union that depends on the first one
+  parents_u2 <- manifest$queryCohortsByLabel(
+    labels = c("Capr_T2D_or_CKD", "Chronic Kidney Disease"),
+    matchType = "exact"
+  )
+  manifest$buildUnionCohort(
+    label = "Union_of_Union",
+    category = "Derived Cohorts",
+    cohortEntries = parents_u2
+  )
+
+  # Updating the first union to depend on its own dependent must fail
+  bad_parents <- manifest$queryCohortsByLabel(
+    labels = c("Capr T2D", "Union_of_Union"),
+    matchType = "exact"
+  )
+  testthat::expect_error(
+    manifest$buildUnionCohort(
+      label = "Capr_T2D_or_CKD",
+      category = "Derived Cohorts",
+      cohortEntries = bad_parents,
+      stopIfExists = FALSE
+    ),
+    regexp = "cycle"
+  )
+})
+
 # Testing: topological_sort distinguishes dangling parent references from genuine cycles.
 testthat::test_that("topological_sort reports dangling and circular dependencies distinctly", {
   testthat::expect_error(
