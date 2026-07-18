@@ -68,3 +68,5 @@ PKGDOWN_SETUP.md
 
 
 tests/archive/
+
+.claude/worktrees/

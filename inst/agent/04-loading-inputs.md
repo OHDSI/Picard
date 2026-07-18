@@ -237,6 +237,11 @@ cohortManifest$tabulateManifest()
 
 This pattern uses `inputs/cohorts/R/import_capr_cohort.R` and requires the Capr package.
 
+**AI agent support:** study repos ship with a `picard-capr-cohorts` skill in
+`.agent/skills/` that wraps Capr's own `capr-cohort-generation` skill. A coding
+agent (Claude Code, Copilot, Cursor, ...) can generate the validated Capr code and
+append it to the builder script; you review and source the script yourself.
+
 Capr provides a fluent interface for building cohort definitions in R:
 
 ```{r}
@@ -301,13 +306,12 @@ your SQL files in `inputs/cohorts/sql/`:
 ```{r}
 cohortManifest <- loadCohortManifest()
 
-# Add a custom SQL cohort
+# Add a custom SQL cohort (the file must already exist in inputs/cohorts/sql/)
 cohortManifest$addSqlCohort(
-  cohortName = "MyCustomCohort",
-  sqlPath = here::here("inputs/cohorts/sql/my_custom_cohort.sql"),
-  # SqlRender parameters (will substitute @param in the SQL file)
-  targetCohortId = 1001,
-  cdmDatabaseSchema = "cdm"
+  filePath = here::here("inputs/cohorts/sql/my_custom_cohort.sql"),
+  label = "My Custom Cohort",
+  category = "Custom",
+  tags = list(source = "sql")
 )
 ```
 
