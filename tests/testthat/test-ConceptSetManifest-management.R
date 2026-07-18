@@ -104,3 +104,42 @@ testthat::test_that("updateCaprConceptSet errors when label is not registered", 
     regexp = "No active concept set"
   )
 })
+
+# Testing: addCaprConceptSet with stopIfExists = FALSE upserts the existing concept set in place.
+testthat::test_that("addCaprConceptSet stopIfExists FALSE updates existing concept set", {
+  setup <- csm_test_new_manifest("csm-add-capr-upsert")
+  manifest <- setup$manifest
+
+  capr_cs <- csm_test_make_capr_concept_set()
+  manifest$addCaprConceptSet(capr_cs, label = "T2D Concepts", category = "condition_occurrence")
+  before <- csm_test_get_manifest_row(manifest, "T2D Concepts")
+
+  revised <- csm_test_make_capr_concept_set(concept_ids = c(201826, 443238))
+  returned_id <- manifest$addCaprConceptSet(
+    caprConceptSet = revised,
+    label = "T2D Concepts",
+    category = "observation",
+    stopIfExists = FALSE
+  )
+
+  after <- csm_test_get_manifest_row(manifest, "T2D Concepts")
+  testthat::expect_equal(nrow(after), 1)
+  testthat::expect_equal(as.integer(returned_id), as.integer(before$id[[1]]))
+  testthat::expect_equal(after$file_path[[1]], before$file_path[[1]])
+  testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
+  testthat::expect_equal(after$category[[1]], "observation")
+})
+
+# Testing: addCaprConceptSet default stopIfExists = TRUE errors cleanly on duplicate labels.
+testthat::test_that("addCaprConceptSet errors on duplicate label by default", {
+  setup <- csm_test_new_manifest("csm-add-capr-dup")
+  manifest <- setup$manifest
+
+  capr_cs <- csm_test_make_capr_concept_set()
+  manifest$addCaprConceptSet(capr_cs, label = "T2D Concepts", category = "condition_occurrence")
+
+  testthat::expect_error(
+    manifest$addCaprConceptSet(capr_cs, label = "T2D Concepts", category = "condition_occurrence"),
+    regexp = "already in use"
+  )
+})

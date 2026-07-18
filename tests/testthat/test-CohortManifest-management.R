@@ -193,3 +193,43 @@ testthat::test_that("updateCaprCohort cascades stale to derived dependents", {
   stale <- manifest$tabulateManifest(filter = "stale")
   testthat::expect_true(any(stale$label == "Capr_T2D_or_CKD"))
 })
+
+# Testing: addCaprCohort with stopIfExists = FALSE upserts the existing cohort in place.
+testthat::test_that("addCaprCohort stopIfExists FALSE updates existing cohort", {
+  setup <- cm_test_new_manifest("mgmt-add-capr-upsert")
+  manifest <- setup$manifest
+
+  cm_test_add_capr_cohort(manifest, label = "Capr T2D", category = "Target")
+  before <- cm_test_get_manifest_row(manifest, "Capr T2D")
+
+  revised <- cm_test_make_minimal_capr_cohort(prior_days = 365L)
+  returned_id <- manifest$addCaprCohort(
+    caprCohort = revised,
+    label = "Capr T2D",
+    category = "Comparator",
+    tags = list(source = "capr", revision = "v2"),
+    stopIfExists = FALSE
+  )
+
+  after <- cm_test_get_manifest_row(manifest, "Capr T2D")
+  testthat::expect_equal(nrow(after), 1)
+  testthat::expect_equal(as.integer(returned_id), as.integer(before$id[[1]]))
+  testthat::expect_equal(after$file_path[[1]], before$file_path[[1]])
+  testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
+  testthat::expect_equal(after$category[[1]], "Comparator")
+  testthat::expect_true(grepl("revision", after$tags[[1]]))
+})
+
+# Testing: addCaprCohort default stopIfExists = TRUE still errors on duplicate labels.
+testthat::test_that("addCaprCohort errors on duplicate label by default", {
+  setup <- cm_test_new_manifest("mgmt-add-capr-dup")
+  manifest <- setup$manifest
+
+  cm_test_add_capr_cohort(manifest, label = "Capr T2D", category = "Target")
+
+  same <- cm_test_make_minimal_capr_cohort()
+  testthat::expect_error(
+    manifest$addCaprCohort(same, label = "Capr T2D", category = "Target"),
+    regexp = "already in use"
+  )
+})

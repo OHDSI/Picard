@@ -191,6 +191,23 @@ CohortManifest <- R6::R6Class(
       }
     },
 
+    # Return the id of the active cohort with this label, or NA if none exists
+    find_active_id_by_label = function(label) {
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      existing <- DBI::dbGetQuery(
+        conn,
+        "SELECT id FROM cohort_manifest WHERE label = ? AND status = 'active'",
+        list(label)
+      )
+
+      if (nrow(existing) == 0) {
+        return(NA_integer_)
+      }
+      as.integer(existing$id[1])
+    },
+
     # Validate that a file_path is unique among active entries
     validate_filepath_unique = function(file_path) {
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
@@ -1061,9 +1078,14 @@ CohortManifest <- R6::R6Class(
     #' @param label Character. Display name for the cohort.
     #' @param category Character. Required classification.
     #' @param tags Named list. Optional metadata tags.
+    #' @param stopIfExists Logical. If TRUE (default), raises an error when an
+    #'   active cohort with this label is already registered. If FALSE, updates
+    #'   the existing cohort in place via `updateCaprCohort()` — the cohort
+    #'   keeps its ID and file path, and `category` (and `tags`, when supplied)
+    #'   replace the registered metadata. Default: TRUE (fail-safe).
     #'
     #' @return Invisible integer. The assigned cohort ID.
-    addCaprCohort = function(caprCohort, label, category, tags = list()) {
+    addCaprCohort = function(caprCohort, label, category, tags = list(), stopIfExists = TRUE) {
       if (!requireNamespace("Capr", quietly = TRUE)) {
         cli::cli_abort(c(
           "Package {.pkg Capr} is required for addCaprCohort().",
@@ -1079,6 +1101,23 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_string(label, min.chars = 1)
       checkmate::assert_string(category, min.chars = 1)
       checkmate::assert_list(tags, names = "named")
+      checkmate::assert_flag(stopIfExists)
+
+      # Upsert path: update the existing cohort in place instead of erroring
+      if (!stopIfExists) {
+        existing_id <- private$find_active_id_by_label(label)
+        if (!is.na(existing_id)) {
+          cli::cli_alert_info("Cohort {.val {label}} already exists (ID {existing_id}) — updating in place")
+          self$updateCaprCohort(caprCohort, label = label)
+          if (length(tags) > 0) {
+            tags$route <- "capr"
+            private$update_cohort_def(cohortId = existing_id, category = category, tags = tags)
+          } else {
+            private$update_cohort_def(cohortId = existing_id, category = category)
+          }
+          return(invisible(existing_id))
+        }
+      }
 
       # Validate label uniqueness
       private$validate_label_unique(label)

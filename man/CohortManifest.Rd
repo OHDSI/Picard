@@ -417,7 +417,13 @@ Add a Capr cohort
 Takes a Capr Cohort object, exports it to JSON in \verb{json/}, and registers
 the cohort in the manifest.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$addCaprCohort(caprCohort, label, category, tags = list())}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$addCaprCohort(
+  caprCohort,
+  label,
+  category,
+  tags = list(),
+  stopIfExists = TRUE
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -430,6 +436,12 @@ the cohort in the manifest.
 \item{\code{category}}{Character. Required classification.}
 
 \item{\code{tags}}{Named list. Optional metadata tags.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+active cohort with this label is already registered. If FALSE, updates
+the existing cohort in place via \code{updateCaprCohort()} — the cohort
+keeps its ID and file path, and \code{category} (and \code{tags}, when supplied)
+replace the registered metadata. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }

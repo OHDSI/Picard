@@ -107,6 +107,23 @@ ConceptSetManifest <- R6::R6Class(
       invisible(NULL)
     },
 
+    # Return the id of the active concept set with this label, or NA if none exists
+    find_active_id_by_label = function(label) {
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      existing <- DBI::dbGetQuery(
+        conn,
+        "SELECT id FROM concept_set_manifest WHERE label = ? AND status = 'active'",
+        list(label)
+      )
+
+      if (nrow(existing) == 0) {
+        return(NA_integer_)
+      }
+      as.integer(existing$id[1])
+    },
+
     # Insert a new concept set record into SQLite and refresh the in-memory manifest
     insert_concept_set = function(label, category, tags, file_path) {
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
@@ -604,9 +621,14 @@ ConceptSetManifest <- R6::R6Class(
     #' @param label Character. Display name for the concept set.
     #' @param category Character. Category for the concept set. Defaults to `"init"`.
     #' @param tags Named list. Optional extra metadata tags. Defaults to `list()`.
+    #' @param stopIfExists Logical. If TRUE (default), raises an error when an
+    #'   active concept set with this label is already registered. If FALSE,
+    #'   updates the existing concept set in place via `updateCaprConceptSet()`
+    #'   — it keeps its ID and file path, and `category` (and `tags`, when
+    #'   supplied) replace the registered metadata. Default: TRUE (fail-safe).
     #'
     #' @return Invisible integer. The assigned concept set ID.
-    addCaprConceptSet = function(caprConceptSet, label, category = "init", tags = list()) {
+    addCaprConceptSet = function(caprConceptSet, label, category = "init", tags = list(), stopIfExists = TRUE) {
       if (!requireNamespace("Capr", quietly = TRUE)) {
         cli::cli_abort(c(
           "Package {.pkg Capr} is required for addCaprConceptSet().",
@@ -624,6 +646,23 @@ ConceptSetManifest <- R6::R6Class(
       #                    "observation", "device_exposure", "visit_occurrence", "init")
       checkmate::assert_string(category, min.chars = 1)
       checkmate::assert_list(tags, names = "named")
+      checkmate::assert_flag(stopIfExists)
+
+      existing_id <- private$find_active_id_by_label(label)
+      if (!is.na(existing_id)) {
+        if (stopIfExists) {
+          cli::cli_abort("Label '{label}' is already in use by concept set {existing_id}")
+        }
+        # Upsert path: update the existing concept set in place
+        cli::cli_alert_info("Concept set {.val {label}} already exists (ID {existing_id}) — updating in place")
+        self$updateCaprConceptSet(caprConceptSet, label = label)
+        if (length(tags) > 0) {
+          private$update_concept_set_def(conceptSetId = existing_id, category = category, tags = tags)
+        } else {
+          private$update_concept_set_def(conceptSetId = existing_id, category = category)
+        }
+        return(invisible(existing_id))
+      }
 
       concept_sets_dir <- dirname(private$.dbPath)
       json_dir <- fs::path(concept_sets_dir, "json")

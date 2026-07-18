@@ -408,7 +408,8 @@ Export a Capr ConceptSet to JSON and register it in the manifest
   caprConceptSet,
   label,
   category = "init",
-  tags = list()
+  tags = list(),
+  stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -422,6 +423,12 @@ Export a Capr ConceptSet to JSON and register it in the manifest
 \item{\code{category}}{Character. Category for the concept set. Defaults to \code{"init"}.}
 
 \item{\code{tags}}{Named list. Optional extra metadata tags. Defaults to \code{list()}.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+active concept set with this label is already registered. If FALSE,
+updates the existing concept set in place via \code{updateCaprConceptSet()}
+— it keeps its ID and file path, and \code{category} (and \code{tags}, when
+supplied) replace the registered metadata. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
