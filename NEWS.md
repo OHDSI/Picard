@@ -48,13 +48,58 @@
 - **Clean query syntax**: Named list interface replaces manual "name: value" string construction
 - **Consistent API**: Identical method names and signatures across CohortManifest and ConceptSetManifest
 
+### Definition Updates and Upsert API
+
+#### Capr
+- New `$updateCaprCohort()` / `$updateCaprConceptSet()`: overwrite a registered JSON definition in place — same ID and file path, hash refreshed, derived dependents marked `stale`, no-op when the definition is unchanged.
+- `$addCaprCohort()` / `$addCaprConceptSet()` gain `stopIfExists = FALSE` to upsert instead of erroring on an existing label (metadata refreshed; tags replaced only when supplied).
+- `$addCaprConceptSet()` now records `route = "capr"` for provenance parity with cohorts.
+
+#### ATLAS
+- `$addAtlasCohort()` / `$addAtlasConceptSet()` gain `stopIfExists = FALSE`: fetch the current ATLAS definition and update the registered entry in place.
+- `importAtlasCohorts()` / `importAtlasConceptSets()` are now strictly **one-time imports**: they fail fast before importing anything when rows are already registered by `atlasId` or when labels collide.
+- The import ATLAS templates now run `updateAtlasCohorts()` / `updateAtlasConceptSets()` unconditionally **before** the import section, so every `sourceInputBuilderScripts()` run syncs registered definitions with ATLAS first. The one-time import section is skipped once the load CSV has been deleted (the documented post-import step), keeping `main.R` re-runs safe.
+
+#### Derived Cohorts
+- All eight builder functions (`buildUnionCohort`, `buildSubsetCohortTemporal`, `buildComplementCohort`, `buildCompositeCohort`, `buildDemographicCohort`, `buildOPriorT`, `buildTPriorO`, `buildCensorCohort`) plus `addDependentCustomCohort()` gain `stopIfExists = FALSE`: update parents, build parameters, and (for custom SQL) the file registration in place — SQL re-rendered, `depends_on`/`dependency_rule`/hash replaced, cohort marked `stale`, staleness cascaded to dependents.
+- `dependentCohortIdList` entries now accept **vectors of cohort IDs** (rendered comma-separated by SqlRender for `IN (@param)` clauses); all IDs flow into `depends_on`.
+
+#### Accidental-Collision Guards on All Upserts
+Every `stopIfExists = FALSE` upsert verifies identity before any mutation to prevent silently replacing an unrelated entry under a typo'd label:
+- **ATLAS** route: the registered `atlasId` tag must match the `atlasId` passed; entries without an `atlasId` tag cannot be updated via the ATLAS route.
+- **Capr** route: `updateCaprCohort()` requires `route = "capr"`; `updateCaprConceptSet()` refuses ATLAS-registered concept sets.
+- **Derived builders**: the existing cohort's type must match the type the builder creates (a union can only be updated by `buildUnionCohort()`, etc.).
+- Intentional cross-boundary changes remain possible as an explicit two-step (retag then rebuild, or delete + rebuild); error messages state this.
+
+### Deletion and Dependency Integrity
+- `$deleteCohort()` now refuses to orphan derived dependents; new `cascade = TRUE` parameter deletes the whole dependent subtree deepest-first (with optional `dropFromDBMS = TRUE` for DBMS cleanup).
+- `$syncManifest()` cascades soft-deletion to dependents when a parent's file has gone missing (new `cascade_deleted` action).
+- Dependency-cycle guard: a cohort cannot be updated to depend on itself or one of its own dependents.
+- `topological_sort()` now reports dangling parent references explicitly instead of a misleading "possible circular dependency" error.
+
+### Pipeline Safety
+- `sourceInputBuilderScripts()` no longer swallows builder-script errors: failures are aggregated across all scripts and raised as a single abort, so a failed input build can never be followed by `execStudyPipeline()` running on an incomplete or stale manifest.
+
 ## Bug Fixes
 
-- In concept set manifest, check atlasId tag for existing entry in manifest. `$addAtlasConceptSet()` missing addition of atlasId tag
-- Flag which cohort tables are missing for cohort generation. Interactive mode to build cohort tables within `$executeCohortGeneration()`
-- change agent mode to correct github copilot format (i.e `/.github`)
-- Clean vignettes and documentation to reflect current state of API
-- Add option that `createBlank...` will open the file
+- Stale cohorts were unreachable by `generateCohorts()` — three `status = 'active'` filters dropped them from the dependency graph, the in-memory manifest, and dependency hashing, so the stale → regenerate → re-activate flow could never run.
+- `checkAtlasConceptSets()` crashed on call due to undefined `cm_atlas_subset` / `atlas_id` variables and a nonexistent `filePath` column; `updateAtlasConceptSets()` targeted a nonexistent `timestamp` column.
+- `updateAtlasCohorts()` never refreshed the in-memory manifest after updates; fetch-failure handlers in all four Atlas check/update methods didn't skip failed iterations; early no-op exits fell through instead of returning.
+- `deleteCohort()` fell through silently when the ID didn't exist and never refreshed the in-memory manifest.
+- `addCaprConceptSet()` now raises a clean duplicate-label error instead of a raw SQLite unique-index failure.
+- `sourceInputBuilderScripts()` error handlers assigned to handler-local copies of the errors list (scoping bug), so `error_summary` never reported anything.
+- In concept set manifest, check atlasId tag for existing entry in manifest. `$addAtlasConceptSet()` missing addition of atlasId tag.
+- Flag which cohort tables are missing for cohort generation. Interactive mode to build cohort tables within `$executeCohortGeneration()`.
+- Change agent mode to correct GitHub Copilot format (i.e. `/.github`).
+- Clean vignettes and documentation to reflect current state of API.
+- Add option that `createBlank...` will open the file.
+
+### Unit Tests
+
+- Expanded `test-CohortManifest-management.R` (80 passing tests).
+- New `test-ConceptSetManifest-management.R` (33 passing tests).
+- New `test-sourceInputBuilderScripts.R` (6 passing tests).
+- New `test-CohortManifest-tags.R` covering the full tag manipulation and query API.
 
 
 # picard 0.0.5

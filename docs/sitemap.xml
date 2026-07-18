@@ -181,6 +181,9 @@
     <loc>https://ohdsi.github.io/Picard/reference/expandManifestTags.html</loc>
   </url>
   <url>
+    <loc>https://ohdsi.github.io/Picard/reference/findTransitiveDependents.html</loc>
+  </url>
+  <url>
     <loc>https://ohdsi.github.io/Picard/reference/formatFloats.html</loc>
   </url>
   <url>

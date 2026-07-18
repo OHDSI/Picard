@@ -123,16 +123,77 @@
 <strong>Consistent API</strong>: Identical method names and signatures across CohortManifest and ConceptSetManifest</li>
 </ul></div>
 </div>
+<div class="section level4">
+<h4 id="definition-updates-and-upsert-api-0-0-6">Definition Updates and Upsert API<a class="anchor" aria-label="anchor" href="#definition-updates-and-upsert-api-0-0-6"></a></h4>
+<div class="section level5">
+<h5 id="capr-0-0-6">Capr<a class="anchor" aria-label="anchor" href="#capr-0-0-6"></a></h5>
+<ul><li>New <code>$updateCaprCohort()</code> / <code>$updateCaprConceptSet()</code>: overwrite a registered JSON definition in place — same ID and file path, hash refreshed, derived dependents marked <code>stale</code>, no-op when the definition is unchanged.</li>
+<li>
+<code>$addCaprCohort()</code> / <code>$addCaprConceptSet()</code> gain <code>stopIfExists = FALSE</code> to upsert instead of erroring on an existing label (metadata refreshed; tags replaced only when supplied).</li>
+<li>
+<code>$addCaprConceptSet()</code> now records <code>route = "capr"</code> for provenance parity with cohorts.</li>
+</ul></div>
+<div class="section level5">
+<h5 id="atlas-0-0-6">ATLAS<a class="anchor" aria-label="anchor" href="#atlas-0-0-6"></a></h5>
+<ul><li>
+<code>$addAtlasCohort()</code> / <code>$addAtlasConceptSet()</code> gain <code>stopIfExists = FALSE</code>: fetch the current ATLAS definition and update the registered entry in place.</li>
+<li>
+<code>importAtlasCohorts()</code> / <code>importAtlasConceptSets()</code> are now strictly <strong>one-time imports</strong>: they fail fast before importing anything when rows are already registered by <code>atlasId</code> or when labels collide.</li>
+<li>The import ATLAS templates now run <code>updateAtlasCohorts()</code> / <code>updateAtlasConceptSets()</code> unconditionally <strong>before</strong> the import section, so every <code><a href="../reference/sourceInputBuilderScripts.html">sourceInputBuilderScripts()</a></code> run syncs registered definitions with ATLAS first. The one-time import section is skipped once the load CSV has been deleted (the documented post-import step), keeping <code>main.R</code> re-runs safe.</li>
+</ul></div>
+<div class="section level5">
+<h5 id="derived-cohorts-0-0-6">Derived Cohorts<a class="anchor" aria-label="anchor" href="#derived-cohorts-0-0-6"></a></h5>
+<ul><li>All eight builder functions (<code>buildUnionCohort</code>, <code>buildSubsetCohortTemporal</code>, <code>buildComplementCohort</code>, <code>buildCompositeCohort</code>, <code>buildDemographicCohort</code>, <code>buildOPriorT</code>, <code>buildTPriorO</code>, <code>buildCensorCohort</code>) plus <code>addDependentCustomCohort()</code> gain <code>stopIfExists = FALSE</code>: update parents, build parameters, and (for custom SQL) the file registration in place — SQL re-rendered, <code>depends_on</code>/<code>dependency_rule</code>/hash replaced, cohort marked <code>stale</code>, staleness cascaded to dependents.</li>
+<li>
+<code>dependentCohortIdList</code> entries now accept <strong>vectors of cohort IDs</strong> (rendered comma-separated by SqlRender for <code>IN (<a href="https://github.com/param" class="external-link">@param</a>)</code> clauses); all IDs flow into <code>depends_on</code>.</li>
+</ul></div>
+<div class="section level5">
+<h5 id="accidental-collision-guards-on-all-upserts-0-0-6">Accidental-Collision Guards on All Upserts<a class="anchor" aria-label="anchor" href="#accidental-collision-guards-on-all-upserts-0-0-6"></a></h5>
+<p>Every <code>stopIfExists = FALSE</code> upsert verifies identity before any mutation to prevent silently replacing an unrelated entry under a typo’d label: - <strong>ATLAS</strong> route: the registered <code>atlasId</code> tag must match the <code>atlasId</code> passed; entries without an <code>atlasId</code> tag cannot be updated via the ATLAS route. - <strong>Capr</strong> route: <code>updateCaprCohort()</code> requires <code>route = "capr"</code>; <code>updateCaprConceptSet()</code> refuses ATLAS-registered concept sets. - <strong>Derived builders</strong>: the existing cohort’s type must match the type the builder creates (a union can only be updated by <code>buildUnionCohort()</code>, etc.). - Intentional cross-boundary changes remain possible as an explicit two-step (retag then rebuild, or delete + rebuild); error messages state this.</p>
+</div>
+</div>
+<div class="section level4">
+<h4 id="deletion-and-dependency-integrity-0-0-6">Deletion and Dependency Integrity<a class="anchor" aria-label="anchor" href="#deletion-and-dependency-integrity-0-0-6"></a></h4>
+<ul><li>
+<code>$deleteCohort()</code> now refuses to orphan derived dependents; new <code>cascade = TRUE</code> parameter deletes the whole dependent subtree deepest-first (with optional <code>dropFromDBMS = TRUE</code> for DBMS cleanup).</li>
+<li>
+<code>$syncManifest()</code> cascades soft-deletion to dependents when a parent’s file has gone missing (new <code>cascade_deleted</code> action).</li>
+<li>Dependency-cycle guard: a cohort cannot be updated to depend on itself or one of its own dependents.</li>
+<li>
+<code>topological_sort()</code> now reports dangling parent references explicitly instead of a misleading “possible circular dependency” error.</li>
+</ul></div>
+<div class="section level4">
+<h4 id="pipeline-safety-0-0-6">Pipeline Safety<a class="anchor" aria-label="anchor" href="#pipeline-safety-0-0-6"></a></h4>
+<ul><li>
+<code><a href="../reference/sourceInputBuilderScripts.html">sourceInputBuilderScripts()</a></code> no longer swallows builder-script errors: failures are aggregated across all scripts and raised as a single abort, so a failed input build can never be followed by <code><a href="../reference/execStudyPipeline.html">execStudyPipeline()</a></code> running on an incomplete or stale manifest.</li>
+</ul></div>
 </div>
 <div class="section level3">
 <h3 id="bug-fixes-0-0-6">Bug Fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-0-6"></a></h3>
-<ul><li>In concept set manifest, check atlasId tag for existing entry in manifest. <code>$addAtlasConceptSet()</code> missing addition of atlasId tag</li>
-<li>Flag which cohort tables are missing for cohort generation. Interactive mode to build cohort tables within <code>$executeCohortGeneration()</code>
-</li>
-<li>change agent mode to correct github copilot format (i.e <code>/.github</code>)</li>
-<li>Clean vignettes and documentation to reflect current state of API</li>
-<li>Add option that <code>createBlank...</code> will open the file</li>
+<ul><li>Stale cohorts were unreachable by <code><a href="../reference/generateCohorts.html">generateCohorts()</a></code> — three <code>status = 'active'</code> filters dropped them from the dependency graph, the in-memory manifest, and dependency hashing, so the stale → regenerate → re-activate flow could never run.</li>
+<li>
+<code>checkAtlasConceptSets()</code> crashed on call due to undefined <code>cm_atlas_subset</code> / <code>atlas_id</code> variables and a nonexistent <code>filePath</code> column; <code>updateAtlasConceptSets()</code> targeted a nonexistent <code>timestamp</code> column.</li>
+<li>
+<code>updateAtlasCohorts()</code> never refreshed the in-memory manifest after updates; fetch-failure handlers in all four Atlas check/update methods didn’t skip failed iterations; early no-op exits fell through instead of returning.</li>
+<li>
+<code>deleteCohort()</code> fell through silently when the ID didn’t exist and never refreshed the in-memory manifest.</li>
+<li>
+<code>addCaprConceptSet()</code> now raises a clean duplicate-label error instead of a raw SQLite unique-index failure.</li>
+<li>
+<code><a href="../reference/sourceInputBuilderScripts.html">sourceInputBuilderScripts()</a></code> error handlers assigned to handler-local copies of the errors list (scoping bug), so <code>error_summary</code> never reported anything.</li>
+<li>In concept set manifest, check atlasId tag for existing entry in manifest. <code>$addAtlasConceptSet()</code> missing addition of atlasId tag.</li>
+<li>Flag which cohort tables are missing for cohort generation. Interactive mode to build cohort tables within <code>$executeCohortGeneration()</code>.</li>
+<li>Change agent mode to correct GitHub Copilot format (i.e. <code>/.github</code>).</li>
+<li>Clean vignettes and documentation to reflect current state of API.</li>
+<li>Add option that <code>createBlank...</code> will open the file.</li>
+</ul><div class="section level4">
+<h4 id="unit-tests-0-0-6">Unit Tests<a class="anchor" aria-label="anchor" href="#unit-tests-0-0-6"></a></h4>
+<ul><li>Expanded <code>test-CohortManifest-management.R</code> (80 passing tests).</li>
+<li>New <code>test-ConceptSetManifest-management.R</code> (33 passing tests).</li>
+<li>New <code>test-sourceInputBuilderScripts.R</code> (6 passing tests).</li>
+<li>New <code>test-CohortManifest-tags.R</code> covering the full tag manipulation and query API.</li>
 </ul></div>
+</div>
 </div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.0.5" id="picard-005">picard 0.0.5<a class="anchor" aria-label="anchor" href="#picard-005"></a></h2>
