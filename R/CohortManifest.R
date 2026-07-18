@@ -177,17 +177,9 @@ CohortManifest <- R6::R6Class(
 
     # Validate that a label is unique among active entries
     validate_label_unique = function(label) {
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
-      on.exit(DBI::dbDisconnect(conn))
-
-      existing <- DBI::dbGetQuery(
-        conn,
-        "SELECT id FROM cohort_manifest WHERE label = ? AND status = 'active'",
-        list(label)
-      )
-
-      if (nrow(existing) > 0) {
-        cli::cli_abort("Label '{label}' is already in use by cohort {existing$id[1]}")
+      existing_id <- private$find_active_id_by_label(label)
+      if (!is.na(existing_id)) {
+        cli::cli_abort("Label '{label}' is already in use by cohort {existing_id}")
       }
     },
 
