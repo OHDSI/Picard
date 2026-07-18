@@ -1,150 +1,127 @@
 # picard <img src="man/figures/picardLogo.png" width=150 alt="logo" align="right"/>
 
-This R package is designed to be an RWE Pipelining Tool favoring OHDSI tools. Like its namesake, the picard package will allow RWE researchers to explore strange new worlds within their data, seeking out new patterns and analyses, and boldly going where no researcher has gone before! 
+picard is an R package for building and running reproducible, pipeline-based RWE studies using OHDSI tools. It provides a standardized study repository structure, manifest-driven input management, and execution workflows from development through production.
 
-# Quick Start
 
-Install and load the picard package:
+## What picard Helps You Do
+
+picard helps analysts manage the full lifecycle of an RWE pipeline, from study
+bootstrap through execution and dissemination.
+
+### 1. Launch a Standard Study Repository (Ulysses)
+
+picard initializes a consistent repository structure and project scaffolding via
+the Ulysses setup flow.
+
+- Defines study metadata and contributors
+- Configures one or more database blocks
+- Creates standard folders, config files, and starter scripts
+- Supports Git and reproducibility setup during initialization
+
+### 2. Maintain Execution Settings
+
+picard centralizes DBMS connection and execution configuration through
+ExecutionSettings.
+
+- Builds execution settings directly or from config blocks
+- Separates schema settings from credential storage
+- Supports environment-specific runs and cohort table naming conventions
+
+### 3. Manage Inputs with Manifest Tools
+
+picard uses manifest objects to register and track cohort and concept set inputs
+as durable study assets.
+
+- Imports from ATLAS or adds programmatic definitions
+- Registers custom SQL and derived cohorts
+- Tracks metadata, hashes, dependencies, and status
+- Supports mid-cycle maintenance (check, update, delete, reset)
+
+### 4. Create Pipeline Files and Scripts
+
+picard provides file-generation helpers to reduce manual setup and enforce
+project conventions.
+
+- Creates task scripts and reusable source utility files
+- Creates SQL templates for analysis logic
+- Creates pre-pipeline builder scripts for cohorts and concept sets
+- Creates dissemination scripts for downstream reporting workflows
+
+### 5. Execute and Monitor the Pipeline
+
+picard supports consistent pipeline execution across study tasks and database
+targets.
+
+- Runs cohort generation and task pipelines with execution settings
+- Tracks task execution state, rerun logic, and summaries
+- Supports structured workflow from development to production runs
+
+### 6. Post-Processing and Dissemination
+
+picard includes tools for combining and formatting outputs into analyst-ready
+deliverables.
+
+- Binds results across database runs
+- Standardizes outputs for comparison and downstream consumption
+- Supports dissemination pipelines and print-friendly output generation
+
+## Install
 
 ```r
+# install.packages("remotes")
+remotes::install_github("OHDSI/Picard")
 library(picard)
 ```
 
-## Begin a new Ulysses Repo
-
-The `picard` package begins by initializing a Ulysses Repo. This is a standard repo structure to conduct an RWE pipeline using OHDSI tools. This is a maturation of the `Ulysses` package which was retired due to the technical advances and reframing of the use-case as a pipeline tool. 
-
-### Create Study Metadata
-
-Define your study with contributors and basic information:
+## Quick Start (Minimal)
 
 ```r
+library(picard)
+
 sm <- makeStudyMeta(
   studyTitle = "OMOP Characterization Study",
-  therapeuticArea = "Inflamation",
+  therapeuticArea = "Endocrinology",
   studyType = "Characterization",
   contributors = list(
     setContributor(
-      name = "Jean-Luc Picard",
-      email = "jeanluc.picard@ussenterprise.com",
-      role = "lead"
-    ),
-    setContributor(
-      name = "Data Spiner",
-      email = "data.spiner@ussenterprise.com",
-      role = "analyst"
+      name = "Jane Doe",
+      email = "jane.doe@institution.org",
+      role = "developer"
     )
-  ),
-  studyTags = c("OMOP", "OHDSI", "Analysis")
+  )
 )
-```
 
-### Configure Database Connection
-
-Set up your OMOP CDM database configuration:
-
-```r
-db <- setDbConfigBlock(
-  configBlockName = "omop_cdm",
-  cdmDatabaseSchema = "public_omop_cdm",
-  databaseName = "omop_database",
-  cohortTable = "study_cohort",
-  databaseLabel = "OMOP CDM Instance"
+db <- makeBlock(
+  configBlockName = "my_cdm",
+  cdmDatabaseSchema = "omop_cdm_schema",
+  cohortTable = "study_cohorts",
+  databaseName = "my_database_v1",
+  databaseLabel = "Primary CDM"
 )
-```
 
-### Initialize Project
-
-Create and initialize your study repository (the `dbConnectionBlocks` carry all DBMS/schema info from your config blocks):
-
-```r
 ulySt <- makeUlyssesStudySettings(
   repoName = "my_study_project",
-  repoFolder = "~/studies/my_study_project",
+  repoFolder = "~/studies",
   studyMeta = sm,
   dbConnectionBlocks = list(db)
 )
 
-# Initialize the repository structure
 ulySt$initUlyssesRepo(verbose = TRUE, openProject = FALSE)
 ```
 
-This will create a standardized directory structure for your study with all necessary configuration files and folders.
+For detailed usage examples and end-to-end workflows, see the package site and
+vignettes.
 
-## Cohort Management and Generation
+## Documentation
 
-Once your study environment is initialized, you can manage and generate cohorts using the CohortManifest.
+1. Package site and articles: [Articles](articles/index.html)
+2. Full function reference: [Reference](reference/index.html)
+3. Changelog: [NEWS](NEWS.md)
 
-### Load Execution Settings
+## Project Status
 
-Load your database configuration from the config file:
+picard is under active development. APIs may evolve as pipeline and manifest workflows mature. Review NEWS before upgrading long-running studies.
 
-```r
-settings <- createExecutionSettingsFromConfig(configBlock = "omop_cdm")
-```
+## Contributing
 
-
-### Import Cohorts from ATLAS
-
-Before importing cohorts, create a load list by running:
-
-```r
-createBlankCohortsLoadFile()
-```
-
-Edit `inputs/cohorts/cohortsLoad.csv` in Excel to add your ATLAS cohort IDs and metadata. Then import:
-
-```r
-cohortManifest <- CohortManifest$new(dbPath = here::here("inputs/cohorts/manifest.sqlite"))
-importAtlasCohorts(
-  manifest = cohortManifest,
-  atlasConnection = setAtlasConnection(),
-  cohortsLoadPath = here::here("inputs/cohorts/cohortsLoad.csv")
-)
-```
-
-For you to set up the atlas connection you need to provide your credentials for logging into webApi. Follow this template to add credentials to .Renviron file:
-
-```r
-templateAtlasCredentials()
-```
-
-### Load and View Cohort Manifest
-
-Create a CohortManifest and examine available cohorts:
-
-```r
-cm <- loadCohortManifest(executionSettings = settings)
-cm$getManifest()
-```
-
-### Create Cohort Tables
-
-Initialize the necessary database tables for cohort storage:
-
-```r
-cm$createCohortTables()
-```
-
-### Generate Cohorts
-
-Execute the cohort generation process:
-
-```r
-cm$generateCohorts()
-```
-
-### Retrieve Cohort Counts
-
-Get summary statistics for all generated cohorts:
-
-```r
-counts <- cm$retrieveCohortCounts()
-```
-
-This will return a data frame with:
-- `cohort_id`: The cohort definition ID
-- `label`: The cohort label
-- `tags`: Associated cohort tags
-- `cohort_entries`: Total number of cohort records
-- `cohort_subjects`: Number of distinct subjects in each cohort
+Contributions, issues, and suggestions are welcome. Open an issue or pull request in the repository.

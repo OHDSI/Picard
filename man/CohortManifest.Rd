@@ -36,8 +36,18 @@ Requires that executionSettings has been set and includes:
 \item A database connection (via getConnection()
 \item workDatabaseSchema for the target schema
 \item cohortTable with the desired table name
+}
+
+Requires that executionSettings has been set and includes:
+\itemize{
+\item A database connection (via getConnection()
+\item workDatabaseSchema for the target schema
+\item cohortTable with the desired table name
 \item tempEmulationSchema if needed for the database platform
 }
+
+Use \code{createAllCohortTables()} instead. This alias is kept for
+backward compatibility.
 
 Requires that executionSettings has been set and includes:
 \itemize{
@@ -91,11 +101,11 @@ Requires that executionSettings has been set and includes:
 \item \href{#method-CohortManifest-importAtlasCohorts}{\code{CohortManifest$importAtlasCohorts()}}
 \item \href{#method-CohortManifest-addCaprCohort}{\code{CohortManifest$addCaprCohort()}}
 \item \href{#method-CohortManifest-addSqlCohort}{\code{CohortManifest$addSqlCohort()}}
+\item \href{#method-CohortManifest-addDependentCustomCohort}{\code{CohortManifest$addDependentCustomCohort()}}
 \item \href{#method-CohortManifest-addCirceCohort}{\code{CohortManifest$addCirceCohort()}}
 \item \href{#method-CohortManifest-buildUnionCohort}{\code{CohortManifest$buildUnionCohort()}}
 \item \href{#method-CohortManifest-buildSubsetCohortTemporal}{\code{CohortManifest$buildSubsetCohortTemporal()}}
 \item \href{#method-CohortManifest-buildComplementCohort}{\code{CohortManifest$buildComplementCohort()}}
-\item \href{#method-CohortManifest-buildCustomDependentCohort}{\code{CohortManifest$buildCustomDependentCohort()}}
 \item \href{#method-CohortManifest-buildCompositeCohort}{\code{CohortManifest$buildCompositeCohort()}}
 \item \href{#method-CohortManifest-buildDemographicCohort}{\code{CohortManifest$buildDemographicCohort()}}
 \item \href{#method-CohortManifest-buildStratifiedCohorts}{\code{CohortManifest$buildStratifiedCohorts()}}
@@ -115,6 +125,9 @@ Requires that executionSettings has been set and includes:
 \item \href{#method-CohortManifest-updateAtlasCohorts}{\code{CohortManifest$updateAtlasCohorts()}}
 \item \href{#method-CohortManifest-statusReport}{\code{CohortManifest$statusReport()}}
 \item \href{#method-CohortManifest-print}{\code{CohortManifest$print()}}
+\item \href{#method-CohortManifest-checkCohortTables}{\code{CohortManifest$checkCohortTables()}}
+\item \href{#method-CohortManifest-createCohortTable}{\code{CohortManifest$createCohortTable()}}
+\item \href{#method-CohortManifest-createAllCohortTables}{\code{CohortManifest$createAllCohortTables()}}
 \item \href{#method-CohortManifest-createCohortTables}{\code{CohortManifest$createCohortTables()}}
 \item \href{#method-CohortManifest-dropCohortTables}{\code{CohortManifest$dropCohortTables()}}
 \item \href{#method-CohortManifest-syncManifest}{\code{CohortManifest$syncManifest()}}
@@ -168,9 +181,9 @@ Review dependent cohorts and their dependency metadata
 \if{latex}{\out{\hypertarget{method-CohortManifest-reviewDependentCohorts}{}}}
 \subsection{Method \code{reviewDependentCohorts()}}{
 Returns a summary tibble of all active derived cohorts (union, subset, complement,
-composite, oprior, tprior, censor) with parsed dependency information sourced
-directly from SQLite. Useful for quickly auditing what each derived cohort depends
-on and how it was built.
+composite, oprior, tprior, censor, custom_derived) with parsed dependency
+information sourced directly from SQLite. Useful for quickly auditing what
+each derived cohort depends on and how it was built.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$reviewDependentCohorts()}\if{html}{\out{</div>}}
 }
@@ -181,8 +194,7 @@ A tibble with columns:
 \item \code{id} - Cohort ID
 \item \code{label} - Cohort label
 \item \code{cohort_type} - One of 'union', 'subset', 'complement', 'composite',
-'oprior', 'tprior', 'censor'
-\item \code{category} - User-defined category
+'oprior', 'tprior', 'censor', 'custom_derived'
 \item \code{parent_cohorts} - Human-readable parent list, e.g. "Label A (1), Label B (2)"
 \item \code{rule_summary} - Compact summary of the dependency rule parameters
 \item \code{created_at} - Timestamp of creation
@@ -464,6 +476,47 @@ Invisible integer. The assigned cohort ID.
 }
 }
 \if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-addDependentCustomCohort"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-addDependentCustomCohort}{}}}
+\subsection{Method \code{addDependentCustomCohort()}}{
+Add a dependent custom SQL cohort
+
+Registers an existing SQL file in the manifest as a dependency-aware derived cohort.
+The SQL file must already exist on disk and must preserve the standard Picard
+cohort write contract using \.code{@target_database_schema.@target_cohort_table}
+and \.code{@target_cohort_id}.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$addDependentCustomCohort(
+  filePath,
+  label,
+  category,
+  dependentCohortIdList,
+  tags = list()
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{filePath}}{Character. Path to the SQL file.}
+
+\item{\code{label}}{Character. Display name for the cohort.}
+
+\item{\code{category}}{Character. Required classification.}
+
+\item{\code{dependentCohortIdList}}{Named list. Each name is a SqlRender parameter to expose
+in the SQL file and each value is the cohort ID to inject at runtime.
+Example: \.code{list(inc_cohort_id = 10L, exc_cohort_id = 12L)}.}
+
+\item{\code{tags}}{Named list. Optional metadata tags.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible integer. The assigned cohort ID.
+}
+}
+\if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-addCirceCohort"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-addCirceCohort}{}}}
 \subsection{Method \code{addCirceCohort()}}{
@@ -642,49 +695,6 @@ subjects should be excluded from the population.}
 \code{"exclude_all"}. \code{"exclude_any"} removes subjects present in ANY
 exclude cohort; \code{"exclude_all"} removes subjects only if they appear
 in ALL exclude cohorts.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible integer. The assigned cohort ID.
-}
-}
-\if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-CohortManifest-buildCustomDependentCohort"></a>}}
-\if{latex}{\out{\hypertarget{method-CohortManifest-buildCustomDependentCohort}{}}}
-\subsection{Method \code{buildCustomDependentCohort()}}{
-Build a custom dependent cohort from a user-supplied SQL file
-
-Registers an existing \code{.sql} file as a derived cohort with explicit
-dependencies on manifest cohorts. Unlike \code{addSqlCohort()} (which treats
-the file as a base cohort), this method copies the SQL into the
-\verb{derived/} directory and sets \code{depends_on}, so the skip-logic
-uses dependency-aware hashing (see Phase 1.1).
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildCustomDependentCohort(
-  filePath,
-  label,
-  category,
-  cohortIds,
-  tags = list()
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{filePath}}{Character. Path to the user's \code{.sql} file.
-The file is \strong{copied} into the \verb{derived/} directory — the original
-is not referenced after registration.}
-
-\item{\code{label}}{Character. Display name (must be unique in manifest).}
-
-\item{\code{category}}{Character. Required classification.}
-
-\item{\code{cohortIds}}{Integer vector (min. 1). Parent cohort IDs this SQL
-depends on. All must exist in the manifest.}
-
-\item{\code{tags}}{Named list. Optional metadata tags.}
 }
 \if{html}{\out{</div>}}
 }
@@ -1182,24 +1192,78 @@ Invisible tibble with columns: id, label, category, source_type, depends_on, sta
 Print a friendly view of the CohortManifest
 
 Displays key metadata about the manifest and its contents.
-Create cohort tables in the database
+Check cohort tables in the database
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$print()}\if{html}{\out{</div>}}
 }
 
 }
 \if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-checkCohortTables"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-checkCohortTables}{}}}
+\subsection{Method \code{checkCohortTables()}}{
+Checks if necessary tables have been created for execution
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$checkCohortTables()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+tibble with cohort tables and there exist status
+Create a single cohort table in the database
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-createCohortTable"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-createCohortTable}{}}}
+\subsection{Method \code{createCohortTable()}}{
+Creates one required cohort table by type using the current execution settings.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$createCohortTable(type, tableName = NULL)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{type}}{Character. One of "main", "inclusion", "inclusion_result",
+"inclusion_stats", "summary_stats", "censor_stats", or "checksum".}
+
+\item{\code{tableName}}{Character. Optional explicit table name. If NULL, defaults to
+the name derived from execution settings for the selected type.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible NULL.
+Create cohort tables in the database
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-createAllCohortTables"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-createAllCohortTables}{}}}
+\subsection{Method \code{createAllCohortTables()}}{
+Creates the necessary cohort tables in the target database using the execution settings.
+First checks if tables already exist before attempting creation.
+This is an advanced/manual setup function. Most users should run
+\code{executeCohortGeneration()} and let it create missing tables automatically.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$createAllCohortTables()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Invisible NULL. Creates tables in the database and prints status messages.
+}
+}
+\if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-createCohortTables"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-createCohortTables}{}}}
 \subsection{Method \code{createCohortTables()}}{
-Creates the necessary cohort tables in the target database using the execution settings.
-First checks if tables already exist before attempting creation.
+Deprecated alias for createAllCohortTables
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$createCohortTables()}\if{html}{\out{</div>}}
 }
 
 \subsection{Returns}{
-Invisible NULL. Creates tables in the database and prints status messages.
+Invisible NULL.
 Drop cohort tables from the database
 }
 }
@@ -1284,9 +1348,18 @@ Checks the hash of each cohort definition and skips generation if the hash match
 already stored in the cohort_checksum table. If hashes differ or the cohort is not yet in
 the checksum table, regenerates and updates the hash.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$executeCohortGeneration()}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$executeCohortGeneration(confirm = TRUE)}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{confirm}}{Logical. If TRUE and interactive, asks for confirmation before
+creating missing tables. If FALSE, missing tables are created without prompting.
+In non-interactive sessions, missing tables are not created automatically.}
+}
+\if{html}{\out{</div>}}
+}
 \subsection{Returns}{
 Data frame with execution results including:
 \itemize{

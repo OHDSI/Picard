@@ -27,9 +27,9 @@ Agent mode provides VS Code Copilot with study context through copilot-instructi
 \details{
 Agent mode setup consists of:
 \itemize{
-\item \verb{.agent/} folder with reference documentation
+\item \verb{.github/} folder with reference documentation
 \item \code{copilot-instructions.md} at workspace root (auto-loaded by VS Code Copilot)
-\item \code{.agent/copilot-instructions.md} (backup/reference)
+\item \code{.github/copilot-instructions.md} (backup/reference)
 }
 
 Study metadata is extracted from existing repo files:

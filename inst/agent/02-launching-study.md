@@ -1,6 +1,8 @@
-# Launching a Picard Study
+<!-- AUTO-GENERATED FILE. DO NOT EDIT DIRECTLY. -->
+<!-- Source: vignettes/launching_a_study.Rmd -->
 
-> **Note:** Documentation is subject to change.
+
+> **Note:** This vignette is currently in development and subject to change.
 
 ## Introduction
 
@@ -8,10 +10,10 @@ Launching a Picard study means initializing a new RWE study repository with the 
 
 There are two ways to start a Picard study:
 
-1. **Create a new study from scratch** - Use `makeUlyssesStudySettings()` to configure and initialize a new repository
+1. **Create a new study from scratch** (documented below) - Use `makeUlyssesStudySettings()` to configure and initialize a new repository
 2. **Clone an existing study repository** - Use `git clone` to download a pre-configured repository from a remote
 
-## Option 1: Create a New Study from Scratch
+### Option 1: Create a New Study from Scratch
 
 The launch process has four key steps:
 
@@ -20,7 +22,9 @@ The launch process has four key steps:
 3. Bundle everything into study settings
 4. Initialize the repository
 
-## Option 2: Clone an Existing Study Repository
+This vignette walks you through the complete workflow using the actual Picard functions.
+
+### Option 2: Clone an Existing Study Repository
 
 If your study repository already exists on GitHub, GitLab, or another Git hosting service, you can clone it directly:
 
@@ -33,7 +37,7 @@ After cloning, the repository has all configuration files, directory structure, 
 
 However, agent mode files are excluded from git (for security and customization). You'll need to restore them using `initAgentMode()`:
 
-```r
+```{r eval = FALSE}
 library(picard)
 
 # Restore agent mode configuration (if not already present)
@@ -68,7 +72,7 @@ Git tracks every change to your code and documentation throughout the project li
 - **Feature branches:** You can test new analysis approaches in isolated branches before merging into production.
 
 **Picard's Branching Model:**
-Picard enforces a strict branching workflow:
+Picard enforces a strict branching workflow that makes Git a requirement, not optional:
 
 - **Main branch:** Protected branch used only for release-ready code. Production pipelines are executed from release branches created off main.
 - **Develop branch:** Integration branch where team members merge tested features. All testing and QC happens here before code is ready for production.
@@ -84,29 +88,26 @@ Without Git and this disciplined branching approach, there is no safe way to run
 
 For studies where data security and reproducibility are paramount, Git is not optional—it's foundational.
 
+**Note:** Git is automatically initialized when you create the repository. If you did not specify a `gitRemote` during setup, you will need to manually connect your local repository to a remote and push your changes. See the [Setting Up Git Version Control](#setting-up-git-version-control) section below for instructions.
+
 ### renv for Package Management
 
 R packages are constantly updated. Different versions can produce different results, even with identical data and code. renv solves this by creating a snapshot of your R environment:
 
-- **Reproducibility across time:** renv.lock captures the exact package versions used during your analysis. Months or years later, you can restore the identical environment and reproduce every result.
+- **Reproducibility across time:** renv.lock captures the exact package versions used during your analysis. Six months or six years later, you can restore the identical environment and reproduce every result.
 - **Team consistency:** In collaborative studies, different team members might have different package versions installed. renv ensures everyone uses the same versions, eliminating "works on my machine" problems.
-- **Dependency management:** renv tracks not just your direct dependencies but all nested dependencies.
+- **Dependency management:** renv tracks not just your direct dependencies but all nested dependencies. If package A depends on package B version 1.2, renv captures that relationship.
 - **Production safety:** Before promoting analysis code to production, renv ensures all dependencies are compatible and tested together.
 - **Regulatory compliance:** For studies subject to validation requirements, renv provides documented evidence that all package versions have been captured and are reproducible.
 
-**Setting up renv:**
+In collaborative, regulated research environments, renv is essential for ensuring that results are truly reproducible by any team member at any point in the future.
 
-```r
-# In project root directory
-renv::init()
-```
+**Note:** Unlike Git, renv is NOT automatically initialized in your repository. You must set up renv yourself. This is **highly encouraged** as it:
+- Ensures your analysis produces consistent results when run by other team members
+- Protects against package updates that could silently break your pipeline
+- Creates an audit trail of which package versions were used for your study
 
-This captures your current R environment. Commit the resulting files to Git:
-
-```bash
-git add renv.lock .Rprofile
-git commit -m "Initialize renv for reproducibility"
-```
+See the [Setting Up renv for Reproducibility](#setting-up-renv-for-reproducibility) section below to get started.
 
 ---
 
@@ -114,7 +115,7 @@ git commit -m "Initialize renv for reproducibility"
 
 Study metadata describes the research project. Create a `StudyMeta` object with your project information using `makeStudyMeta()`:
 
-```r
+```{r eval = FALSE}
 library(picard)
 
 sm <- makeStudyMeta(
@@ -151,7 +152,7 @@ sm <- makeStudyMeta(
 
 If analyzing a database (toolType = "dbms"), create a database configuration block using `setDbConfigBlock()`:
 
-```r
+```{r eval = FALSE}
 db <- setDbConfigBlock(
   configBlockName = "my_cdm",
   cdmDatabaseSchema = "omop_cdm_schema",
@@ -170,7 +171,7 @@ db <- setDbConfigBlock(
 
 **For multiple databases**, create multiple blocks:
 
-```r
+```{r eval = FALSE}
 db1 <- setDbConfigBlock(
   configBlockName = "my_cdm",
   cdmDatabaseSchema = "omop_cdm_schema",
@@ -192,7 +193,7 @@ db2 <- setDbConfigBlock(
 
 Bundle study metadata and database configuration blocks into `UlyssesStudySettings` using `makeUlyssesStudySettings()`:
 
-```r
+```{r eval = FALSE}
 ulySt <- makeUlyssesStudySettings(
   repoName = "diabetes_study",
   repoFolder = "~/studies",
@@ -211,7 +212,7 @@ ulySt <- makeUlyssesStudySettings(
 
 You can also specify Git and renv configuration at setup time:
 
-```r
+```{r eval = FALSE}
 ulySt <- makeUlyssesStudySettings(
   repoName = "diabetes_study",
   repoFolder = "~/studies",
@@ -230,7 +231,7 @@ ulySt <- makeUlyssesStudySettings(
 
 Finally, initialize the repository with `initUlyssesRepo()`:
 
-```r
+```{r eval = FALSE}
 ulySt$initUlyssesRepo(verbose = TRUE, openProject = FALSE)
 ```
 
@@ -239,8 +240,6 @@ ulySt$initUlyssesRepo(verbose = TRUE, openProject = FALSE)
 - `openProject`: Automatically open the project in RStudio if TRUE
 
 This creates your complete repository structure at the location specified in repoFolder.
-
----
 
 ## Setting Up Git Version Control
 
@@ -300,8 +299,6 @@ Sync your local repository with the remote:
 git push -u origin main
 ```
 
----
-
 ## Setting Up renv for Reproducibility
 
 renv configuration is handled automatically during repository initialization.
@@ -310,18 +307,16 @@ renv configuration is handled automatically during repository initialization.
 - Your `renv.lock` file is automatically copied to the project root
 - Run `renv::restore()` in the project to install the locked packages
 
-```r
+```{r eval = FALSE}
 renv::restore(project = "~/studies/diabetes_study")
 ```
 
 **If you did NOT provide `renvLockFile` during setup:**
 Initialize renv in your project:
 
-```r
+```{r eval = FALSE}
 renv::init(project = "~/studies/diabetes_study")
 ```
-
----
 
 ## Setting Up Database Credentials
 
@@ -331,11 +326,12 @@ Before you can execute any pipelines, you need to configure database credentials
 
 Set up database server credentials interactively using `setupDbSecretsKeyring()`:
 
-```r
+```{r eval = FALSE}
 picard::setupDbSecretsKeyring(dbServerName = "my_cdm")
 ```
 
 This prompts you to:
+
 1. Select your DBMS type (e.g., PostgreSQL, SQL Server, Snowflake)
 2. Enter connection details (server, port, username, password)
 3. Store credentials securely in your OS keyring
@@ -347,7 +343,7 @@ The function automatically opens `editSecrets()` after setup so you can review t
 
 If you prefer to manually edit your secrets file:
 
-```r
+```{r eval = FALSE}
 picard::editSecrets()
 ```
 
@@ -368,13 +364,51 @@ my_cdm:
   password: !expr keyring::key_get("picard", "my_cdm_password")
 ```
 
----
+### Setting Up ATLAS Credentials
+
+If you plan to use ATLAS import builder scripts for cohorts or concept sets,
+configure ATLAS credentials in `~/.picard/secrets.yml`.
+
+```{r eval = FALSE}
+# Interactive setup for ATLAS credentials (stores secrets in keyring)
+picard::setupAtlasSecretsKeyring()
+
+# Open secrets file for manual review/edits
+picard::editSecrets()
+```
+
+**Example ATLAS entry in secrets.yml:**
+
+```yaml
+atlas:
+  baseUrl: "https://organization-atlas.com/WebAPI"
+  authMethod: "ad"
+  user: "atlas.user@company.com"
+  password: !expr keyring::key_get(service = "picard", username = "atlasPassword")
+```
+
+Recommended: use Keyring-backed values rather than plaintext passwords.
+
+### Credential Management Helpers
+
+Use these helpers to inspect and maintain credential configuration over time.
+
+```{r eval = FALSE}
+# Optional template helper for ATLAS credential structure
+picard::templateAtlasCredentials()
+
+# Review available keyring-backed credentials
+picard::reviewKeyringCredentials()
+```
+
+When credentials rotate, rerun `setupDbSecretsKeyring()` or
+`setupAtlasSecretsKeyring()`, or update values via `editSecrets()`.
 
 ## Complete Example
 
 Here's the full workflow combining all steps:
 
-```r
+```{r eval = FALSE}
 library(picard)
 
 # 1. Create study metadata
@@ -398,7 +432,7 @@ sm <- makeStudyMeta(
 )
 
 # 2. Configure database connection
-db <- setDbConfigBlock(
+db <- makeBlock(
   configBlockName = "my_cdm",
   cdmDatabaseSchema = "omop_cdm_schema",
   databaseName = "my_database_v1",
@@ -430,7 +464,7 @@ After successful initialization, your repository contains:
 - **README and documentation:** README.md, NEWS.md
 - **Git setup:** .gitignore configured for Picard projects
 
-For detailed information about the repository structure, see the repository structure documentation.
+For detailed information about the repository structure, see [The Picard Repository Structure](picard_repository_structure.html).
 
 ## What's Next?
 
@@ -441,4 +475,11 @@ Your repository is now initialized and ready for development. The next phase is 
 - Creating analysis tasks and supporting code
 - Testing your pipeline on the `develop` branch
 
-See the development guide for the complete development workflow.
+See [Developing the Pipeline](developing_the_pipeline.html) for the complete development workflow.
+
+## See Also
+
+- [The Picard Repository Structure](picard_repository_structure.html) - Complete guide to repository organization
+- [Developing the Pipeline](developing_the_pipeline.html) - Development workflow from code creation to testing
+- [Loading Inputs](loading_inputs.html) - Setting up cohorts and concept sets
+- [Running the Pipeline](running_the_pipeline.html) - Executing your study pipeline in production

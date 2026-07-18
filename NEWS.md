@@ -1,3 +1,37 @@
+# picard 0.0.6
+
+## New Features
+
+### Custom Dependent SQL Cohorts
+
+- Added `$addDependentCustomCohort(filePath, label, category, dependentCohortIdList, tags)` to register hand-written SQL cohorts that depend on one or more existing manifest cohorts.
+- Introduced `custom_derived` as an explicit cohort type for dependency-aware custom SQL, distinct from base `custom` SQL cohorts added with `$addSqlCohort()`.
+- Removed the older `buildCustomDependentCohort()` pathway in favor of a single add-style workflow for dependent custom SQL.
+- `dependentCohortIdList` is now stored as named dependency metadata and reused at execution time, so user-defined SqlRender placeholders such as `@inc_cohort_id`, `@exc_cohort_id`, or any other non-reserved parameter names can be injected from manifest metadata.
+- Dependency-aware custom SQL must preserve the standard Picard cohort write contract by deleting from and inserting into `@target_database_schema.@target_cohort_table` using `@target_cohort_id`.
+- Execution logic now treats `custom_derived` like other derived cohorts for dependency-hash comparison, checksum persistence, and stale-cascade behavior rather than using raw SQL hash logic.
+- Dependent cohort review and generation summaries now include `custom_derived` cohorts explicitly.
+- bug fix to deal with named list of dependent cohort ids
+
+### Derived Cohort Builder API (Entry-First)
+
+- **API CHANGE**: derived cohort builders in `build_dependent_cohorts.R` now support entry-row inputs (from `queryCohortsByLabel()` and similar query methods) as the preferred interface instead of raw cohort IDs.
+- Updated builders include: `$buildSubsetCohortTemporal()`, `$buildUnionCohort()`, `$buildComplementCohort()`, `$buildCompositeCohort()`, `$buildDemographicCohort()`, `$buildStratifiedCohorts()`, `$buildOPriorT()`, `$buildTPriorO()`, and `$buildCensorCohort()`.
+- Legacy ID-based arguments remain supported for backward compatibility, with migration guidance warnings when using ID routes.
+- Added input-route validation to enforce mutually exclusive usage of ID arguments vs entry arguments within each build call.
+
+## Bug Fixes
+
+- In concept set manifest, check atlasId tag for existing entry in manifest. `$addAtlasConceptSet()` missing addition of atlasId tag
+- Flag which cohort tables are missing for cohort generation. Interactive mode to build cohort tables within `$executeCohortGeneration()`
+- change agent mode to correct github copilot format (i.e `/.github`)
+- Clean vignettes and documentation to reflect current state of API
+- Add option that `createBlank...` will open the file
+
+### Unit Tests
+
+- Rebuild unit tests for cohort manifest. Split tests by series of functions
+
 # picard 0.0.5
 
 ## Manifest API Enhancements

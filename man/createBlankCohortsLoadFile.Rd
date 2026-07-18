@@ -4,11 +4,17 @@
 \alias{createBlankCohortsLoadFile}
 \title{Create Blank Cohorts Load File}
 \usage{
-createBlankCohortsLoadFile(cohortsFolderPath = here::here("inputs/cohorts"))
+createBlankCohortsLoadFile(
+  cohortsFolderPath = here::here("inputs/cohorts"),
+  openFile = TRUE
+)
 }
 \arguments{
 \item{cohortsFolderPath}{Character. Path where the blank file will be created.
 Defaults to \code{here::here("inputs/cohorts")}. Creates the folder if it doesn't exist.}
+
+\item{openFile}{Logical. If TRUE, opens the created file in the editor.
+Defaults to TRUE.}
 }
 \value{
 Invisibly returns the file path.

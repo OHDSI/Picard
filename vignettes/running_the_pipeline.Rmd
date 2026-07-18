@@ -42,6 +42,39 @@ Run `main.R` for:
 
 Production mode places versioned results in `exec/results/[database]/[version]/` (e.g., `1.0.0/`).
 
+## Test Mode Namespaces (Avoiding Multi-User `dev` Conflicts)
+
+When multiple users run test mode at the same time, sharing the default `dev`
+namespace can cause collisions in both result folders and cohort table names.
+
+Use `testStudyPipeline(testLabel = ...)` to isolate your test run:
+
+```{r eval = FALSE}
+# Default test namespace (legacy behavior)
+testStudyPipeline(configBlock = "primaryDB")
+
+# Custom namespace for your branch or feature
+testStudyPipeline(
+  configBlock = "primaryDB",
+  testLabel = "feature_ml_test"
+)
+```
+
+What `testLabel` controls:
+
+- **Results path namespace** under `exec/results/[database]/[testLabel]/...`
+- **Cohort table suffix** in execution settings (for example `_feature_ml_test`)
+
+Normalization rules for `testLabel`:
+
+- converted to lowercase
+- non-alphanumeric characters converted to `_`
+- repeated/edge underscores trimmed
+- truncated to 24 characters
+
+This behavior is **test mode only**. Production execution remains strict and
+uses semantic versioning with no custom suffix overrides.
+
 ## Running Production Mode
 
 ### Prerequisites
@@ -217,7 +250,7 @@ id,label,cohort_entries,cohort_subjects
 Picard runs tasks in alphabetical order. Ensure file names have numeric prefixes:
 
 ```
-01_buildCohorts.R          ✓ Runs first
+01_table1.R          ✓ Runs first
 02_descriptiveAnalysis.R   ✓ Runs second
 03_primaryAnalysis.R       ✓ Runs third
 analysis_task.R            ✗ Runs last (no prefix)

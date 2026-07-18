@@ -397,12 +397,16 @@ resetCohortManifest <- function(manifest = NULL,
 #'
 #' @param cohortsFolderPath Character. Path where the blank file will be created.
 #'   Defaults to `here::here("inputs/cohorts")`. Creates the folder if it doesn't exist.
+#' @param openFile Logical. If TRUE, opens the created file in the editor.
+#'   Defaults to TRUE.
 #'
 #' @return Invisibly returns the file path.
 #'
 #' @export
-createBlankCohortsLoadFile <- function(cohortsFolderPath = here::here("inputs/cohorts")) {
+createBlankCohortsLoadFile <- function(cohortsFolderPath = here::here("inputs/cohorts"),
+                                       openFile = TRUE) {
   checkmate::assert_string(cohortsFolderPath)
+  checkmate::assert_logical(openFile, len = 1)
 
   fs::dir_create(cohortsFolderPath)
 
@@ -448,6 +452,15 @@ createBlankCohortsLoadFile <- function(cohortsFolderPath = here::here("inputs/co
     "Use {.code importAtlasCohorts()} to import JSON definitions from ATLAS",
     "Use {.code loadCohortManifest()} to load into your study"
   ))
+
+  if (openFile) {
+    rstudioapi::navigateToFile(file = file_path)
+    cli::cat_bullet(
+      "Navigating to new cohorts load file",
+      bullet = "info",
+      bullet_col = "blue"
+    )
+  }
 
   invisible(file_path)
 }
@@ -839,12 +852,16 @@ resetConceptSetManifest <- function(manifest = NULL,
 #'
 #' @param conceptSetsFolderPath Character. Path to the conceptSets folder.
 #'   Defaults to `here::here("inputs/conceptSets")`.
+#' @param openFile Logical. If TRUE, opens the created file in the editor.
+#'   Defaults to TRUE.
 #'
 #' @return Invisibly returns the file path.
 #'
 #' @export
-createBlankConceptSetsLoadFile <- function(conceptSetsFolderPath = here::here("inputs/conceptSets")) {
+createBlankConceptSetsLoadFile <- function(conceptSetsFolderPath = here::here("inputs/conceptSets"),
+                                           openFile = TRUE) {
   checkmate::assert_string(conceptSetsFolderPath)
+  checkmate::assert_logical(openFile, len = 1)
 
   fs::dir_create(conceptSetsFolderPath)
 
@@ -896,43 +913,19 @@ createBlankConceptSetsLoadFile <- function(conceptSetsFolderPath = here::here("i
     "Use {.code loadConceptSetManifest()} to load into your study"
   ))
 
+  if (openFile) {
+    rstudioapi::navigateToFile(file = file_path)
+    cli::cat_bullet(
+      "Navigating to new concept sets load file",
+      bullet = "info",
+      bullet_col = "blue"
+    )
+  }
+
   invisible(file_path)
 }
 
 
-#' Import CIRCE Concept Sets from ATLAS
-#'
-#' @description
-#' **Deprecated.** Use [ConceptSetManifest]`$importAtlasConceptSets()` instead.
-#'
-#' @param conceptSetsFolderPath Character. Path to conceptSets folder.
-#' @param atlasConnection An ATLAS connection object.
-#'
-#' @return Invisibly returns the updated concept set load dataframe.
-#'
-#' @export
-importAtlasConceptSets <- function(conceptSetsFolderPath = here::here("inputs/conceptSets"),
-                                   atlasConnection) {
-  lifecycle::deprecate_warn(
-    when = "0.1.0",
-    what = "importAtlasConceptSets()",
-    details = c(
-      "i" = "Use ConceptSetManifest$importAtlasConceptSets() instead:",
-      "i" = "  manifest <- ConceptSetManifest$new(dbPath = '...')",
-      "i" = "  manifest$importAtlasConceptSets(atlasConnection)"
-    )
-  )
-
-  dbPath <- fs::path(conceptSetsFolderPath, "conceptSetManifest.sqlite")
-  manifest <- ConceptSetManifest$new(dbPath = dbPath)
-  conceptSetsLoadPath <- fs::path(conceptSetsFolderPath, "conceptSetsLoad.csv")
-  result <- manifest$importAtlasConceptSets(
-    atlasConnection = atlasConnection,
-    conceptSetsLoadPath = conceptSetsLoadPath
-  )
-
-  return(invisible(result))
-}
 
 tableExists <- function(connection, schema, tableName, dbms) {
   tryCatch({
@@ -944,8 +937,9 @@ tableExists <- function(connection, schema, tableName, dbms) {
   })
 }
 
+# ========== MAKE cohort tables ========================#
 
-createMainCohortTableSql <- function(schema, tableName, dbms, tempEmulationSchema = NULL) {
+create_main_cohort_table_sql <- function(schema, tableName, dbms, tempEmulationSchema) {
   sql <- "CREATE TABLE @schema.@table_name (
     cohort_definition_id BIGINT,
     subject_id BIGINT,
@@ -969,7 +963,7 @@ createMainCohortTableSql <- function(schema, tableName, dbms, tempEmulationSchem
 }
 
 
-createInclusionTableSql <- function(schema, tableName, dbms) {
+create_inclusion_table_sql <- function(schema, tableName, dbms, tempEmulationSchema) {
   sql <- "CREATE TABLE @schema.@table_name (
     cohort_definition_id BIGINT NOT NULL,
   	rule_sequence INT NOT NULL,
@@ -985,14 +979,15 @@ createInclusionTableSql <- function(schema, tableName, dbms) {
 
   sql <- SqlRender::translate(
     sql = sql,
-    targetDialect = dbms
+    targetDialect = dbms,
+    tempEmulationSchema = tempEmulationSchema
   )
 
   return(sql)
 }
 
 
-createInclusionResultTableSql <- function(schema, tableName, dbms) {
+create_inclusion_result_table_sql <- function(schema, tableName, dbms, tempEmulationSchema) {
   sql <- "CREATE TABLE @schema.@table_name (
     cohort_definition_id BIGINT NOT NULL,
   	inclusion_rule_mask BIGINT NOT NULL,
@@ -1008,14 +1003,15 @@ createInclusionResultTableSql <- function(schema, tableName, dbms) {
 
   sql <- SqlRender::translate(
     sql = sql,
-    targetDialect = dbms
+    targetDialect = dbms,
+    tempEmulationSchema = tempEmulationSchema
   )
 
   return(sql)
 }
 
 
-createInclusionStatsTableSql <- function(schema, tableName, dbms) {
+create_inclusion_stats_table_sql <- function(schema, tableName, dbms, tempEmulationSchema) {
   sql <- "CREATE TABLE @schema.@table_name (
     cohort_definition_id BIGINT NOT NULL,
   	rule_sequence INT NOT NULL,
@@ -1033,14 +1029,15 @@ createInclusionStatsTableSql <- function(schema, tableName, dbms) {
 
   sql <- SqlRender::translate(
     sql = sql,
-    targetDialect = dbms
+    targetDialect = dbms,
+    tempEmulationSchema = tempEmulationSchema
   )
 
   return(sql)
 }
 
 
-createSummaryStatsTableSql <- function(schema, tableName, dbms) {
+create_summary_stats_table_sql <- function(schema, tableName, dbms, tempEmulationSchema) {
   sql <- "CREATE TABLE @schema.@table_name (
     cohort_definition_id BIGINT NOT NULL,
   	base_count BIGINT NOT NULL,
@@ -1056,14 +1053,15 @@ createSummaryStatsTableSql <- function(schema, tableName, dbms) {
 
   sql <- SqlRender::translate(
     sql = sql,
-    targetDialect = dbms
+    targetDialect = dbms,
+    tempEmulationSchema = tempEmulationSchema
   )
 
   return(sql)
 }
 
 
-createCensorStatsTableSql <- function(schema, tableName, dbms) {
+create_censor_stats_table_sql <- function(schema, tableName, dbms, tempEmulationSchema) {
   sql <- "CREATE TABLE @schema.@table_name (
     cohort_definition_id BIGINT NOT NULL,
     lost_count BIGINT NOT NULL
@@ -1077,14 +1075,15 @@ createCensorStatsTableSql <- function(schema, tableName, dbms) {
 
   sql <- SqlRender::translate(
     sql = sql,
-    targetDialect = dbms
+    targetDialect = dbms,
+    tempEmulationSchema = tempEmulationSchema
   )
 
   return(sql)
 }
 
 
-createChecksumTableSql <- function(schema, tableName, dbms) {
+create_checksum_table_sql <- function(schema, tableName, dbms, tempEmulationSchema) {
   sql <- "CREATE TABLE @schema.@table_name (
     cohort_definition_id BIGINT NOT NULL,
     checksum varchar(500) NOT NULL,
@@ -1100,11 +1099,63 @@ createChecksumTableSql <- function(schema, tableName, dbms) {
 
   sql <- SqlRender::translate(
     sql = sql,
-    targetDialect = dbms
+    targetDialect = dbms,
+    tempEmulationSchema = tempEmulationSchema
   )
 
   return(sql)
 }
+
+create_cohort_table_sql <- function(type, schema, tableName, dbms, tempEmulationSchema) {
+  sql <- switch(type,
+    main = create_main_cohort_table_sql(
+      schema = schema,
+      tableName = tableName,
+      dbms = dbms,
+      tempEmulationSchema = tempEmulationSchema
+    ),
+    inclusion = create_inclusion_table_sql(
+      schema = schema,
+      tableName = tableName,
+      dbms = dbms,
+      tempEmulationSchema = tempEmulationSchema
+    ),
+    inclusion_result = create_inclusion_result_table_sql(
+      schema = schema,
+      tableName = tableName,
+      dbms = dbms,
+      tempEmulationSchema = tempEmulationSchema
+    ),
+    inclusion_stats = create_inclusion_stats_table_sql(
+      schema = schema,
+      tableName = tableName,
+      dbms = dbms,
+      tempEmulationSchema = tempEmulationSchema
+    ),
+    summary_stats = create_summary_stats_table_sql(
+      schema = schema,
+      tableName = tableName,
+      dbms = dbms,
+      tempEmulationSchema = tempEmulationSchema
+    ),
+    censor_stats = create_censor_stats_table_sql(
+      schema = schema,
+      tableName = tableName,
+      dbms = dbms,
+      tempEmulationSchema = tempEmulationSchema
+    ),
+    checksum = create_checksum_table_sql(
+      schema = schema,
+      tableName = tableName,
+      dbms = dbms,
+      tempEmulationSchema = tempEmulationSchema
+    ),
+    cli::cli_abort("Unknown cohort table type: {type}")
+  )
+
+  return(sql)
+}
+
 
 
 #' Expand JSON Tags to Columns

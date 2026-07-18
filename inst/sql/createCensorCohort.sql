@@ -7,10 +7,16 @@ event occurs, the original cohort_end_date is preserved.
 
 Parameters:
   target_cohort_id    The cohort definition ID for the cohort to censor
+  target_cohort_name  The cohort label for the target cohort (header metadata)
   censor_cohort_id    The cohort definition ID for the censoring event (e.g., death, exacerbation)
+  censor_cohort_name  The cohort label for the censoring cohort (header metadata)
   output_cohort_id    The new cohort definition ID for the censored output
   output_table        Schema.table to insert results into
   base_cohort_table   Schema.table containing the cohort definitions
+
+Cohort mapping
+  target cohort: id @target_cohort_id, name @target_cohort_name
+  censor cohort: id @censor_cohort_id, name @censor_cohort_name
 */
 
 DELETE FROM @output_table WHERE cohort_definition_id = @output_cohort_id;

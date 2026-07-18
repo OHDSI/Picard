@@ -116,7 +116,6 @@ reference:
       - formatPercentages
       - generateCohorts
       - importAndBind
-      - importAtlasConceptSets
       - migrateCohortManifest
       - migrateConceptSetManifest
       - pivotForComparison

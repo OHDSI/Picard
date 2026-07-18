@@ -292,7 +292,7 @@ issues <- validation[validation$validationStatus != "OK", ]
 
 ## Next Steps
 
-1. **Run orchestration:** Call `orchestratePipelineExport()` after production pipeline completes
+1. **Run post process merge:** Call `runPostProcessing()` after production pipeline completes
 2. **Review QC reports:** Check qc_cohortValidation.csv and qc_processMeta.csv
 3. **Examine schema:** Use schema_review.csv to understand data structure
 4. **Handle issues:** If cohorts are missing or zero, investigate in developing_the_pipeline

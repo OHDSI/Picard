@@ -2,8 +2,12 @@
 Extracts one stratum from a base cohort by applying a WHERE condition against the CDM
 person table. One SQL file is written per stratum by buildStratifiedCohorts().
 
+Cohort mapping
+  base cohort: id @base_cohort_id, name @base_cohort_name
+
 Build-time parameters (rendered into the file by buildStratifiedCohorts()):
   base_cohort_id       Cohort definition ID of the source cohort
+  base_cohort_name     Cohort label for the source cohort (header metadata)
   stratum_where_clause SQL boolean expression that filters subjects into this stratum.
                        May reference:
                          bc  - alias for the cohort table row (subject_id, cohort_start_date, etc.)

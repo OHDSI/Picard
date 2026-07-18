@@ -59,6 +59,10 @@ cohortManifest <- loadCohortManifest()
 # FROM @cdm_database_schema.condition_occurrence
 # WHERE condition_concept_id = 201820  -- Type 2 Diabetes
 
+# Note that users can build custom sql cohorts with templates via R functions. Any
+# code should be saved in inputs/cohorts/R/src. add another folder called /sql in here
+# for the templates! 
+
 
 # ================================================================================
 # C. ADD SQL COHORTS TO MANIFEST

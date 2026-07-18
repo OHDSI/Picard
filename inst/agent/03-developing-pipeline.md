@@ -1,11 +1,6 @@
----
-title: "Developing the Pipeline"
-output: rmarkdown::html_vignette
-vignette: >
-  %\VignetteIndexEntry{Developing the Pipeline}
-  %\VignetteEngine{knitr::rmarkdown}
-  %\VignetteEncoding{UTF-8}
----
+<!-- AUTO-GENERATED FILE. DO NOT EDIT DIRECTLY. -->
+<!-- Source: vignettes/developing_the_pipeline.Rmd -->
+
 
 > **Note:** This vignette is currently in development and subject to change.
 

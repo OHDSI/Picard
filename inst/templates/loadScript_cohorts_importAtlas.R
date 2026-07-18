@@ -22,7 +22,7 @@ library(picard)
 # ================================================================================
 
 # Uncomment to create a blank template CSV file:
-# createBlankCohortsLoadFile()
+createBlankCohortsLoadFile()
 
 # Now open inputs/cohorts/cohortsLoad.csv in Excel and fill in your entries:
 #   - atlasId: ATLAS cohort definition IDs (required)
@@ -38,7 +38,7 @@ library(picard)
 # ================================================================================
 
 # First time only: Initialize a new manifest (comment out after first run)
-# cohortManifest <- initCohortManifest()
+cohortManifest <- initCohortManifest()
 
 # Subsequent times: Load from existing SQLite database
 cohortManifest <- loadCohortManifest()

@@ -224,12 +224,199 @@ CohortManifest <- R6::R6Class(
       }
     },
 
+    # Resolve a single manifest entry (1-row data.frame/tibble with id) to cohort ID
+    resolve_single_entry_id = function(entry, arg_name) {
+      if (is.null(entry)) {
+        return(NULL)
+      }
+
+      if (!is.data.frame(entry)) {
+        cli::cli_abort(c(
+          "{.arg {arg_name}} must be a data.frame/tibble with an {.field id} column.",
+          i = "Use query methods like {.code queryCohortsByLabel()} and pass the returned row."
+        ))
+      }
+
+      if (!("id" %in% names(entry))) {
+        cli::cli_abort(c(
+          "{.arg {arg_name}} is missing required column {.field id}.",
+          i = "Expected a manifest entry with columns like id, label, category."
+        ))
+      }
+
+      if (nrow(entry) == 0) {
+        cli::cli_abort(c(
+          "{.arg {arg_name}} has 0 rows.",
+          i = "Provide exactly 1 manifest entry row."
+        ))
+      }
+
+      if (nrow(entry) > 1) {
+        cli::cli_abort(c(
+          "{.arg {arg_name}} has {nrow(entry)} rows.",
+          i = "Provide exactly 1 row for single-cohort inputs."
+        ))
+      }
+
+      id <- entry$id[[1]]
+      if (length(id) != 1 || is.na(id)) {
+        cli::cli_abort("{.arg {arg_name}} must contain one non-missing cohort ID in column {.field id}.")
+      }
+
+      checkmate::assert_integerish(id, len = 1, any.missing = FALSE)
+      return(as.integer(id))
+    },
+
+    # Resolve multi-row manifest entries (data.frame/tibble with id) to cohort IDs
+    resolve_multi_entry_ids = function(entries, arg_name, min_len = 1L) {
+      if (is.null(entries)) {
+        return(NULL)
+      }
+
+      if (!is.data.frame(entries)) {
+        cli::cli_abort(c(
+          "{.arg {arg_name}} must be a data.frame/tibble with an {.field id} column.",
+          i = "Use query methods like {.code queryCohortsByTag()} or {.code tabulateManifest()}."
+        ))
+      }
+
+      if (!("id" %in% names(entries))) {
+        cli::cli_abort(c(
+          "{.arg {arg_name}} is missing required column {.field id}.",
+          i = "Expected a manifest entry table including {.field id}."
+        ))
+      }
+
+      if (nrow(entries) < min_len) {
+        cli::cli_abort(c(
+          "{.arg {arg_name}} has {nrow(entries)} rows; expected at least {min_len}.",
+          i = "Provide more manifest entries."
+        ))
+      }
+
+      ids <- entries$id
+      if (any(is.na(ids))) {
+        cli::cli_abort("{.arg {arg_name}} contains missing values in {.field id}.")
+      }
+
+      checkmate::assert_integerish(ids, min.len = min_len, any.missing = FALSE, unique = TRUE)
+      return(as.integer(ids))
+    },
+
+    register_custom_sql_cohort = function(filePath, label, category, tags = list(),
+                                          stopIfExists = TRUE, dependentCohortIdList = NULL) {
+      checkmate::assert_file_exists(filePath)
+      checkmate::assert_string(label, min.chars = 1)
+      checkmate::assert_string(category, min.chars = 1)
+      checkmate::assert_list(tags, names = "named")
+      checkmate::assert_flag(stopIfExists)
+      checkmate::assert_list(dependentCohortIdList, null.ok = TRUE)
+
+      is_dependent <- !is.null(dependentCohortIdList)
+
+      if (is_dependent) {
+        if (length(dependentCohortIdList) == 0) {
+          cli::cli_abort("dependentCohortIdList must contain at least one named cohort ID")
+        }
+
+        dep_names <- names(dependentCohortIdList)
+        if (is.null(dep_names) || any(is.na(dep_names)) || any(trimws(dep_names) == "")) {
+          cli::cli_abort("dependentCohortIdList must be a named list of SqlRender parameter names to cohort IDs")
+        }
+
+        if (!all(lengths(dependentCohortIdList) == 1L)) {
+          cli::cli_abort("Each dependentCohortIdList entry must contain exactly one cohort ID")
+        }
+      }
+
+      ext <- tolower(tools::file_ext(filePath))
+      if (ext != "sql") {
+        cli::cli_abort("filePath must be a .sql file, got: .{ext}")
+      }
+
+      private$validate_label_unique(label)
+
+      rel_path <- fs::path_rel(filePath)
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      existing_cohort <- DBI::dbGetQuery(
+        conn,
+        "SELECT id FROM cohort_manifest WHERE file_path = ? AND status = 'active'",
+        list(rel_path)
+      )
+
+      if (nrow(existing_cohort) > 0) {
+        if (isTRUE(stopIfExists)) {
+          cli::cli_abort(c(
+            "File path already registered in manifest (cohort {existing_cohort$id[1]})",
+            i = "Set {.arg stopIfExists = FALSE} to replace registration"
+          ))
+        } else {
+          cli::cli_warn("Replacing existing manifest entry for {.file {rel_path}}")
+        }
+      }
+
+      sql_content <- readr::read_file(filePath)
+      .validateCustomSql(sql_content, label)
+
+      if (is_dependent) {
+        dependent_ids <- unlist(dependentCohortIdList, use.names = TRUE)
+        checkmate::assert_integerish(x = dependent_ids, min.len = 1, any.missing = FALSE, unique = TRUE)
+        private$validate_parent_cohorts_exist(as.integer(unname(dependent_ids)))
+
+        has_delete <- grepl(
+          "DELETE\\s+FROM\\s+@target_database_schema\\.@target_cohort_table\\s+WHERE\\s+cohort_definition_id\\s*=\\s*@target_cohort_id",
+          sql_content,
+          ignore.case = TRUE,
+          perl = TRUE
+        )
+        has_insert <- grepl(
+          "INSERT\\s+INTO\\s+@target_database_schema\\.@target_cohort_table\\s*\\(\\s*cohort_definition_id\\s*,\\s*subject_id\\s*,\\s*cohort_start_date\\s*,\\s*cohort_end_date\\s*\\)",
+          sql_content,
+          ignore.case = TRUE,
+          perl = TRUE
+        )
+
+        if (!has_delete || !has_insert) {
+          cli::cli_abort(c(
+            "custom_derived SQL must preserve the standard Picard cohort write contract.",
+            i = "Include a DELETE from {.code @target_database_schema.@target_cohort_table} using {.code @target_cohort_id}.",
+            i = "Include an INSERT into {.code @target_database_schema.@target_cohort_table} with columns {.code (cohort_definition_id, subject_id, cohort_start_date, cohort_end_date)}."
+          ))
+        }
+
+        cohort_type <- "custom_derived"
+        depends_on <- as.integer(unname(dependent_ids))
+        dependency_rule <- list(
+          dependentCohortIdList = as.list(dependentCohortIdList) # use a named list
+        )
+      } else {
+        cohort_type <- "custom"
+        depends_on <- NULL
+        dependency_rule <- NULL
+      }
+
+      cohort_id <- private$insert_cohort(
+        label = label,
+        category = category,
+        tags = tags,
+        file_path = rel_path,
+        source_type = "sql",
+        cohort_type = cohort_type,
+        depends_on = depends_on,
+        dependency_rule = dependency_rule
+      )
+
+      return(cohort_id)
+    },
+
     # Insert a new cohort into SQLite and refresh in-memory manifest
     # Returns the assigned cohort ID
     insert_cohort = function(label, category, tags, file_path, source_type, cohort_type,
                              depends_on = NULL, dependency_rule = NULL) {
       # Validate cohort_type vs depends_on consistency
-      derived_types <- c("subset", "union", "complement", "composite", "oprior", "tprior", "censor")
+      derived_types <- c("subset", "union", "complement", "composite", "oprior", "tprior", "censor", "custom_derived")
       has_depends <- !is.null(depends_on) && length(depends_on) > 0
 
       if (cohort_type %in% c("circe", "custom") && has_depends) {
@@ -408,17 +595,16 @@ CohortManifest <- R6::R6Class(
     #'
     #' @description
     #' Returns a summary tibble of all active derived cohorts (union, subset, complement,
-    #' composite, oprior, tprior, censor) with parsed dependency information sourced
-    #' directly from SQLite. Useful for quickly auditing what each derived cohort depends
-    #' on and how it was built.
+    #' composite, oprior, tprior, censor, custom_derived) with parsed dependency
+    #' information sourced directly from SQLite. Useful for quickly auditing what
+    #' each derived cohort depends on and how it was built.
     #'
     #' @return A tibble with columns:
     #'   \itemize{
     #'     \item \code{id} - Cohort ID
     #'     \item \code{label} - Cohort label
     #'     \item \code{cohort_type} - One of 'union', 'subset', 'complement', 'composite',
-    #'       'oprior', 'tprior', 'censor'
-    #'     \item \code{category} - User-defined category
+    #'       'oprior', 'tprior', 'censor', 'custom_derived'
     #'     \item \code{parent_cohorts} - Human-readable parent list, e.g. "Label A (1), Label B (2)"
     #'     \item \code{rule_summary} - Compact summary of the dependency rule parameters
     #'     \item \code{created_at} - Timestamp of creation
@@ -525,6 +711,23 @@ CohortManifest <- R6::R6Class(
             ),
             collapse = " | "
           ),
+          custom_derived = {
+            dep_map <- rule$dependentCohortIdList
+            if (is.null(dep_map) || length(dep_map) == 0) {
+              ""
+            } else {
+              dep_values <- unlist(dep_map, use.names = TRUE)
+              parts <- mapply(function(param_name, cohort_id) {
+                cohort_label <- label_map[[as.character(cohort_id)]]
+                if (is.null(cohort_label) || is.na(cohort_label)) {
+                  paste0(param_name, ": ", cohort_id)
+                } else {
+                  paste0(param_name, ": ", cohort_label, " (", cohort_id, ")")
+                }
+              }, names(dep_values), dep_values, USE.NAMES = FALSE)
+              paste(parts, collapse = " | ")
+            }
+          },
           ""
         )
       }
@@ -548,7 +751,7 @@ CohortManifest <- R6::R6Class(
     #'   \code{"active"} (default), \code{"deleted"}, or \code{"all"}.
     #'
     #' @return A tibble with columns: id, label, category, tags, file_path, hash,
-    #'   source_type, cohort_type, status, created_at, deleted_at
+    #'   source_type, cohort_type, status, depends_on, created_at, deleted_at
     tabulateManifest = function(filter = c("active", "deleted", "stale", "all")) {
       filter <- match.arg(filter)
 
@@ -564,7 +767,7 @@ CohortManifest <- R6::R6Class(
       on.exit(DBI::dbDisconnect(conn))
 
       sql <- paste(
-        "SELECT id, label, category, tags, file_path, hash, source_type, cohort_type, status, created_at, deleted_at",
+        "SELECT id, label, category, tags, file_path, hash, source_type, cohort_type, status, depends_on, created_at, deleted_at",
         "FROM cohort_manifest",
         where_clause,
         "ORDER BY id"
@@ -922,58 +1125,46 @@ CohortManifest <- R6::R6Class(
     #'
     #' @return Invisible integer. The assigned cohort ID.
     addSqlCohort = function(filePath, label, category, tags = list(), stopIfExists = TRUE) {
-      checkmate::assert_file_exists(filePath)
-      checkmate::assert_string(label, min.chars = 1)
-      checkmate::assert_string(category, min.chars = 1)
-      checkmate::assert_list(tags, names = "named")
-      checkmate::assert_flag(stopIfExists)
-
-      # Validate file is SQL
-      ext <- tolower(tools::file_ext(filePath))
-      if (ext != "sql") {
-        cli::cli_abort("filePath must be a .sql file, got: .{ext}")
-      }
-
-      # Validate label uniqueness
-      private$validate_label_unique(label)
-
-      # Check file path: query manifest to see if already registered
-      rel_path <- fs::path_rel(filePath)
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
-      on.exit(DBI::dbDisconnect(conn))
-
-      existing_cohort <- DBI::dbGetQuery(
-        conn,
-        "SELECT id FROM cohort_manifest WHERE file_path = ? AND status = 'active'",
-        list(rel_path)
-      )
-
-      if (nrow(existing_cohort) > 0) {
-        if (isTRUE(stopIfExists)) {
-          cli::cli_abort(c(
-            "File path already registered in manifest (cohort {existing_cohort$id[1]})",
-            i = "Set {.arg stopIfExists = FALSE} to replace registration"
-          ))
-        } else {
-          cli::cli_warn("Replacing existing manifest entry for {.file {rel_path}}")
-        }
-      }
-
-      # Run portability validation
-      sql_content <- readr::read_file(filePath)
-      .validateCustomSql(sql_content, label)
-
-      # Register in manifest
-      cohort_id <- private$insert_cohort(
+      cohort_id <- private$register_custom_sql_cohort(
+        filePath = filePath,
         label = label,
         category = category,
         tags = tags,
-        file_path = rel_path,
-        source_type = "sql",
-        cohort_type = "custom"
+        stopIfExists = stopIfExists,
+        dependentCohortIdList = NULL
       )
 
       cli::cli_alert_success("Added SQL cohort {cohort_id}: {label}")
+      invisible(cohort_id)
+    },
+
+    #' @description Add a dependent custom SQL cohort
+    #'
+    #' Registers an existing SQL file in the manifest as a dependency-aware derived cohort.
+    #' The SQL file must already exist on disk and must preserve the standard Picard
+    #' cohort write contract using \.code{@target_database_schema.@target_cohort_table}
+    #' and \.code{@target_cohort_id}.
+    #'
+    #' @param filePath Character. Path to the SQL file.
+    #' @param label Character. Display name for the cohort.
+    #' @param category Character. Required classification.
+    #' @param dependentCohortIdList Named list. Each name is a SqlRender parameter to expose
+    #'   in the SQL file and each value is the cohort ID to inject at runtime.
+    #'   Example: \.code{list(inc_cohort_id = 10L, exc_cohort_id = 12L)}.
+    #' @param tags Named list. Optional metadata tags.
+    #'
+    #' @return Invisible integer. The assigned cohort ID.
+    addDependentCustomCohort = function(filePath, label, category, dependentCohortIdList, tags = list()) {
+      cohort_id <- private$register_custom_sql_cohort(
+        filePath = filePath,
+        label = label,
+        category = category,
+        tags = tags,
+        stopIfExists = TRUE,
+        dependentCohortIdList = dependentCohortIdList
+      )
+
+      cli::cli_alert_success("Added dependent custom cohort {cohort_id}: {label}")
       invisible(cohort_id)
     },
 
@@ -1041,10 +1232,19 @@ CohortManifest <- R6::R6Class(
     #' Creates a derived cohort that is the union of specified parent cohorts.
     #' Delegates SQL generation to the internal builder function.
     #'
+    #' Input route policy:
+    #' - Preferred: provide \code{cohortEntries} (manifest query rows with \code{id})
+    #' - Backward compatible: provide \code{cohortIds}
+    #' - Exactly one route must be provided; passing both or neither is an error.
+    #'
     #' @param label Character. Display name for the derived cohort.
     #' @param category Character. Required classification.
     #' @param tags Named list. Optional metadata tags.
-    #' @param cohortIds Numeric vector (minimum 2). Cohort IDs to union.
+    #' @param cohortIds Numeric vector (minimum 2). Legacy ID route to union cohorts.
+    #'   Supported for backward compatibility and emits a migration warning unless
+    #'   \code{options(picard.suppressIdRouteWarning = TRUE)} is set.
+    #' @param cohortEntries Data frame/tibble with an \code{id} column (minimum 2 rows).
+    #'   Preferred route using manifest query results.
     #' @param gapDays Integer. Bridge eras separated by up to this many days. Default: 0 (only
     #'   overlapping periods collapse).
     #' @param eraPadDays Integer. Expand each source period by this many days on each end before
@@ -1062,7 +1262,8 @@ CohortManifest <- R6::R6Class(
       label, 
       category, 
       tags = list(),
-      cohortIds,
+      cohortIds = NULL,
+      cohortEntries = NULL,
       gapDays = 0L,
       eraPadDays = 0L,
       minEraDays = 0L,
@@ -1070,6 +1271,43 @@ CohortManifest <- R6::R6Class(
       washoutDays = 0L,
       firstEraOnly = FALSE
       ) {
+      use_id_route <- !is.null(cohortIds)
+      use_entry_route <- !is.null(cohortEntries)
+
+      if (use_id_route && use_entry_route) {
+        cli::cli_abort("Provide either {.arg cohortIds} or {.arg cohortEntries}, not both.")
+      }
+
+      if (!use_id_route && !use_entry_route) {
+        cli::cli_abort("Provide one of {.arg cohortIds} or {.arg cohortEntries}.")
+      }
+
+      if (use_entry_route) {
+        cohortIds <- private$resolve_multi_entry_ids(
+          entries = cohortEntries,
+          arg_name = "cohortEntries",
+          min_len = 2L
+        )
+      } else if (!isTRUE(getOption("picard.suppressIdRouteWarning", FALSE))) {
+        cli::cli_warn(c(
+          "Using {.arg cohortIds} is supported for backward compatibility.",
+          i = "Prefer {.arg cohortEntries} from manifest query results.",
+          i = "Set {.code options(picard.suppressIdRouteWarning = TRUE)} to suppress this warning in automation."
+        ))
+      }
+
+      cohortNames <- rep(NA_character_, length(cohortIds))
+      if (use_entry_route && "label" %in% names(cohortEntries)) {
+        cohortNames <- as.character(cohortEntries$label)
+      }
+
+      missing_cohort_names <- is.na(cohortNames) | !nzchar(cohortNames)
+      if (any(missing_cohort_names)) {
+        cohortNames[missing_cohort_names] <- as.character(glue::glue("cohort_{cohortIds[missing_cohort_names]}"))
+      }
+
+      cohortIdNameMapping <- paste0("id ", cohortIds, ", name ", cohortNames, collapse = " | ")
+
       checkmate::assert_string(label, min.chars = 1)
       checkmate::assert_integerish(cohortIds, min.len = 2, unique = TRUE)
       checkmate::assert_string(category, min.chars = 1)
@@ -1099,6 +1337,7 @@ CohortManifest <- R6::R6Class(
       derived_dir <- make_derived_folder(dirname(private$.dbPath))
       sql_path <- write_derived_template(derived_dir, label, "createUnionCohort.sql",
         cohort_ids = paste(cohortIds, collapse = ", "),
+        cohort_id_name_mapping = cohortIdNameMapping,
         gap_days = gapDays,
         era_pad_days = eraPadDays,
         min_era_days = minEraDays,
@@ -1129,11 +1368,20 @@ CohortManifest <- R6::R6Class(
     #' Creates a derived cohort that subsets a base cohort using temporal
     #' relationship to a filter cohort.
     #'
+    #' Input route policy:
+    #' - Preferred: provide \code{baseCohortEntry}/\code{filterCohortEntry}
+    #' - Backward compatible: provide \code{baseCohortId}/\code{filterCohortId}
+    #' - Exactly one route per role must be provided; both/neither is an error.
+    #'
     #' @param label Character. Display name.
     #' @param category Character. Required classification.
     #' @param tags Named list. Optional metadata tags.
-    #' @param baseCohortId Integer. The cohort ID to subset.
-    #' @param filterCohortId Integer. The cohort ID to use for temporal filtering.
+    #' @param baseCohortId Integer. Legacy ID route for the base cohort.
+    #' @param filterCohortId Integer. Legacy ID route for the filter cohort.
+    #' @param baseCohortEntry Data frame/tibble with one row and an \code{id} column.
+    #'   Preferred route using manifest query results for the base cohort.
+    #' @param filterCohortEntry Data frame/tibble with one row and an \code{id} column.
+    #'   Preferred route using manifest query results for the filter cohort.
     #' @param startWindow SubsetWindowOperator object. Defines the temporal window for the subset cohort start date
     #'   relative to the filter cohort event.
     #' @param endWindow SubsetWindowOperator object (optional, NULL allowed). Defines the temporal window for the 
@@ -1149,13 +1397,75 @@ CohortManifest <- R6::R6Class(
       label, 
       category,
       tags = list(),
-      baseCohortId, 
-      filterCohortId, 
+      baseCohortId = NULL, 
+      filterCohortId = NULL, 
+      baseCohortEntry = NULL,
+      filterCohortEntry = NULL,
       startWindow,
       endWindow = NULL,
       endDateType = "base",
       subsetLimit = "First"
     ) {
+      base_use_id <- !is.null(baseCohortId)
+      base_use_entry <- !is.null(baseCohortEntry)
+      filter_use_id <- !is.null(filterCohortId)
+      filter_use_entry <- !is.null(filterCohortEntry)
+
+      if (base_use_id && base_use_entry) {
+        cli::cli_abort("Provide either {.arg baseCohortId} or {.arg baseCohortEntry}, not both.")
+      }
+
+      if (!base_use_id && !base_use_entry) {
+        cli::cli_abort("Provide one of {.arg baseCohortId} or {.arg baseCohortEntry}.")
+      }
+
+      if (filter_use_id && filter_use_entry) {
+        cli::cli_abort("Provide either {.arg filterCohortId} or {.arg filterCohortEntry}, not both.")
+      }
+
+      if (!filter_use_id && !filter_use_entry) {
+        cli::cli_abort("Provide one of {.arg filterCohortId} or {.arg filterCohortEntry}.")
+      }
+
+
+      if (base_use_entry) {
+        if ("label" %in% names(baseCohortEntry) && nrow(baseCohortEntry) == 1) {
+          baseCohortName <- as.character(baseCohortEntry$label[1])
+        }
+
+        baseCohortId <- private$resolve_single_entry_id(
+          entry = baseCohortEntry,
+          arg_name = "baseCohortEntry"
+        )
+      }
+
+      if (filter_use_entry) {
+        if ("label" %in% names(filterCohortEntry) && nrow(filterCohortEntry) == 1) {
+          filterCohortName <- as.character(filterCohortEntry$label[1])
+        }
+
+        filterCohortId <- private$resolve_single_entry_id(
+          entry = filterCohortEntry,
+          arg_name = "filterCohortEntry"
+        )
+      }
+
+      if (is.null(baseCohortName) || is.na(baseCohortName) || !nzchar(baseCohortName)) {
+        baseCohortName <- as.character(glue::glue("cohort_{baseCohortId}"))
+      }
+
+      if (is.null(filterCohortName) || is.na(filterCohortName) || !nzchar(filterCohortName)) {
+        filterCohortName <- as.character(glue::glue("cohort_{filterCohortId}"))
+      }
+
+      if ((base_use_id || filter_use_id) && !isTRUE(getOption("picard.suppressIdRouteWarning", FALSE))) {
+        cli::cli_warn(c(
+          "Using {.arg baseCohortId}/{.arg filterCohortId} is supported for backward compatibility.",
+          i = "Prefer {.arg baseCohortEntry}/{.arg filterCohortEntry} from manifest query results.",
+          i = "Set {.code options(picard.suppressIdRouteWarning = TRUE)} to suppress this warning in automation."
+        ))
+      }
+
       checkmate::assert_string(label, min.chars = 1)
       checkmate::assert_int(baseCohortId)
       checkmate::assert_int(filterCohortId)
@@ -1197,7 +1507,9 @@ CohortManifest <- R6::R6Class(
       derived_dir <- make_derived_folder(dirname(private$.dbPath))
       sql_path <- write_derived_template(derived_dir, label, "createSubsetCohort_Cohort.sql",
         base_cohort_id = baseCohortId,
+        base_cohort_name = baseCohortName,
         filter_cohort_id = filterCohortId,
+        filter_cohort_name = filterCohortName,
         start_window = start_window_sql,
         end_window = end_window_sql,
         subset_limit = subsetLimit,
@@ -1226,10 +1538,19 @@ CohortManifest <- R6::R6Class(
     #' Creates a derived cohort containing all subjects from the population cohort who
     #' do NOT appear in any (or all) of the exclude cohorts.
     #'
+    #' Input route policy:
+    #' - Preferred: provide \code{populationCohortEntry}/\code{excludeCohortEntries}
+    #' - Backward compatible: provide \code{populationCohortId}/\code{excludeCohortIds}
+    #' - Exactly one route per role must be provided; both/neither is an error.
+    #'
     #' @param label Character. Display name.
-    #' @param populationCohortId Integer. ID of the population (base) cohort.
-    #' @param excludeCohortIds Integer vector (min length 1). IDs of cohorts whose
+    #' @param populationCohortId Integer. Legacy ID route for the population (base) cohort.
+    #' @param excludeCohortIds Integer vector (min length 1). Legacy ID route for cohorts whose
     #'   subjects should be excluded from the population.
+    #' @param populationCohortEntry Data frame/tibble with one row and an \code{id} column.
+    #'   Preferred route using manifest query results for the population cohort.
+    #' @param excludeCohortEntries Data frame/tibble with an \code{id} column (minimum 1 row).
+    #'   Preferred route using manifest query results for exclusion cohorts.
     #' @param category Character. Required classification.
     #' @param complementType Character. One of \code{"exclude_any"} (default) or
     #'   \code{"exclude_all"}. \code{"exclude_any"} removes subjects present in ANY
@@ -1242,10 +1563,79 @@ CohortManifest <- R6::R6Class(
       label, 
       category, 
       tags = list(),
-      populationCohortId, 
-      excludeCohortIds,
+      populationCohortId = NULL, 
+      excludeCohortIds = NULL,
+      populationCohortEntry = NULL,
+      excludeCohortEntries = NULL,
       complementType = "exclude_any"
     ) {
+      population_use_id <- !is.null(populationCohortId)
+      population_use_entry <- !is.null(populationCohortEntry)
+      exclude_use_id <- !is.null(excludeCohortIds)
+      exclude_use_entry <- !is.null(excludeCohortEntries)
+      populationCohortName <- NA_character_
+      excludeCohortNames <- rep(NA_character_, ifelse(is.null(excludeCohortIds), 0L, length(excludeCohortIds)))
+
+      if (population_use_id && population_use_entry) {
+        cli::cli_abort("Provide either {.arg populationCohortId} or {.arg populationCohortEntry}, not both.")
+      }
+
+      if (!population_use_id && !population_use_entry) {
+        cli::cli_abort("Provide one of {.arg populationCohortId} or {.arg populationCohortEntry}.")
+      }
+
+      if (exclude_use_id && exclude_use_entry) {
+        cli::cli_abort("Provide either {.arg excludeCohortIds} or {.arg excludeCohortEntries}, not both.")
+      }
+
+      if (!exclude_use_id && !exclude_use_entry) {
+        cli::cli_abort("Provide one of {.arg excludeCohortIds} or {.arg excludeCohortEntries}.")
+      }
+
+      if (population_use_entry) {
+        if ("label" %in% names(populationCohortEntry) && nrow(populationCohortEntry) == 1) {
+          populationCohortName <- as.character(populationCohortEntry$label[1])
+        }
+
+        populationCohortId <- private$resolve_single_entry_id(
+          entry = populationCohortEntry,
+          arg_name = "populationCohortEntry"
+        )
+      }
+
+      if (exclude_use_entry) {
+        if ("label" %in% names(excludeCohortEntries)) {
+          excludeCohortNames <- as.character(excludeCohortEntries$label)
+        }
+
+        excludeCohortIds <- private$resolve_multi_entry_ids(
+          entries = excludeCohortEntries,
+          arg_name = "excludeCohortEntries",
+          min_len = 1L
+        )
+      }
+
+      if ((population_use_id || exclude_use_id) && !isTRUE(getOption("picard.suppressIdRouteWarning", FALSE))) {
+        cli::cli_warn(c(
+          "Using {.arg populationCohortId}/{.arg excludeCohortIds} is supported for backward compatibility.",
+          i = "Prefer {.arg populationCohortEntry}/{.arg excludeCohortEntries} from manifest query results.",
+          i = "Set {.code options(picard.suppressIdRouteWarning = TRUE)} to suppress this warning in automation."
+        ))
+      }
+
+      if (is.null(populationCohortName) || is.na(populationCohortName) || !nzchar(populationCohortName)) {
+        populationCohortName <- as.character(glue::glue("cohort_{populationCohortId}"))
+      }
+
+      if (!exists("excludeCohortNames")) {
+        excludeCohortNames <- rep(NA_character_, length(excludeCohortIds))
+      }
+      missing_exclude_names <- is.na(excludeCohortNames) | !nzchar(excludeCohortNames)
+      if (any(missing_exclude_names)) {
+        excludeCohortNames[missing_exclude_names] <- as.character(glue::glue("cohort_{excludeCohortIds[missing_exclude_names]}"))
+      }
+      excludeCohortNameMapping <- paste0("id ", as.integer(excludeCohortIds), ", name ", excludeCohortNames, collapse = " | ")
+
       checkmate::assert_string(label, min.chars = 1)
       checkmate::assert_int(populationCohortId)
       checkmate::assert_integerish(excludeCohortIds, min.len = 1, unique = TRUE)
@@ -1269,7 +1659,9 @@ CohortManifest <- R6::R6Class(
       derived_dir <- make_derived_folder(dirname(private$.dbPath))
       sql_path <- write_derived_template(derived_dir, label, "createComplementCohort.sql",
         population_cohort_id = populationCohortId,
+        population_cohort_name = populationCohortName,
         exclude_cohort_ids = paste(as.integer(excludeCohortIds), collapse = ", "),
+        exclude_cohort_name_mapping = excludeCohortNameMapping,
         exclude_cohort_ids_count = length(excludeCohortIds),
         complement_type = complementType
       )
@@ -1291,82 +1683,23 @@ CohortManifest <- R6::R6Class(
       invisible(cohort_id)
     },
 
-    #' @description Build a custom dependent cohort from a user-supplied SQL file
-    #'
-    #' Registers an existing `.sql` file as a derived cohort with explicit
-    #' dependencies on manifest cohorts. Unlike `addSqlCohort()` (which treats
-    #' the file as a base cohort), this method copies the SQL into the
-    #' `derived/` directory and sets `depends_on`, so the skip-logic
-    #' uses dependency-aware hashing (see Phase 1.1).
-    #'
-    #' @param filePath Character. Path to the user's `.sql` file.
-    #'   The file is **copied** into the `derived/` directory — the original
-    #'   is not referenced after registration.
-    #' @param label Character. Display name (must be unique in manifest).
-    #' @param category Character. Required classification.
-    #' @param cohortIds Integer vector (min. 1). Parent cohort IDs this SQL
-    #'   depends on. All must exist in the manifest.
-    #' @param tags Named list. Optional metadata tags.
-    #'
-    #' @return Invisible integer. The assigned cohort ID.
-    buildCustomDependentCohort = function(filePath, label, category, cohortIds, tags = list()) {
-      checkmate::assert_file_exists(filePath)
-      checkmate::assert_string(label, min.chars = 1)
-      checkmate::assert_string(category, min.chars = 1)
-      checkmate::assert_integerish(cohortIds, min.len = 1, unique = TRUE)
-      checkmate::assert_list(tags, names = "named")
-
-      # Validate file is SQL
-      ext <- tolower(tools::file_ext(filePath))
-      if (ext != "sql") {
-        cli::cli_abort("filePath must be a .sql file, got: .{ext}")
-      }
-
-      # Validate label uniqueness
-      private$validate_label_unique(label)
-
-      # Validate parent cohorts exist
-      private$validate_parent_cohorts_exist(cohortIds)
-
-      # Run portability validation
-      sql_content <- readr::read_file(filePath)
-      .validateCustomSql(sql_content, label)
-
-      # Copy SQL to derived/ directory
-      derived_dir <- make_derived_folder(dirname(private$.dbPath))
-      safe_label <- gsub("[^a-zA-Z0-9_-]", "_", label)
-      dest_path <- fs::path(derived_dir, paste0(safe_label, ".sql"))
-      fs::file_copy(filePath, dest_path, overwrite = TRUE)
-
-      # Register in manifest
-      # Uses cohort_type = "custom" with depends_on — Phase 1.1 skip-logic
-      # handles this via length(parent_ids) > 0
-      cohort_id <- private$insert_cohort(
-        label = label,
-        category = category,
-        tags = tags,
-        file_path = fs::path_rel(dest_path),
-        source_type = "custom",
-        cohort_type = "custom",
-        depends_on = as.integer(cohortIds)
-      )
-
-      cli::cli_alert_success(
-        "Built custom dependent cohort {cohort_id}: {label} (depends on: {paste(cohortIds, collapse = ', ')})"
-      )
-      invisible(cohort_id)
-    },
-
     #' @description Build a composite cohort
     #'
     #' Creates a derived cohort that requires membership in multiple cohorts
     #' (intersection logic).
     #'
+    #' Input route policy:
+    #' - Preferred: provide \code{criteriaCohortEntries}
+    #' - Backward compatible: provide \code{criteriaCohortIds}
+    #' - Exactly one route must be provided; passing both or neither is an error.
+    #'
     #' @param label Character. Display name.
     #' @param category Character. Required classification.
     #' @param tags Named list. Optional metadata tags.
-    #' @param criteriaCohortIds Integer vector. The cohort IDs to include in the composite
+    #' @param criteriaCohortIds Integer vector. Legacy ID route for cohorts to include in the composite
     #'   (e.g., c(1, 2, 3) for Type 1 diabetes, Type 2 diabetes, and secondary diabetes).
+    #' @param criteriaCohortEntries Data frame/tibble with an \code{id} column (minimum 2 rows).
+    #'   Preferred route using manifest query results.
     #' @param minEventCount Integer. Minimum number of distinct cohort events required for a subject
     #'   to qualify for the composite. Default: 1 (any subject with at least 1 event qualifies).
     #' @param eventSelection Character. One of 'First', 'Last', or 'All'. Specifies which event(s) to
@@ -1382,10 +1715,48 @@ CohortManifest <- R6::R6Class(
         label, 
         category, 
         tags = list(),
-        criteriaCohortIds, 
+        criteriaCohortIds = NULL, 
+        criteriaCohortEntries = NULL,
         eventSelection = "First", 
         minEventCount = 1L
         ) {
+      use_id_route <- !is.null(criteriaCohortIds)
+      use_entry_route <- !is.null(criteriaCohortEntries)
+
+      if (use_id_route && use_entry_route) {
+        cli::cli_abort("Provide either {.arg criteriaCohortIds} or {.arg criteriaCohortEntries}, not both.")
+      }
+
+      if (!use_id_route && !use_entry_route) {
+        cli::cli_abort("Provide one of {.arg criteriaCohortIds} or {.arg criteriaCohortEntries}.")
+      }
+
+      if (use_entry_route) {
+        criteriaCohortIds <- private$resolve_multi_entry_ids(
+          entries = criteriaCohortEntries,
+          arg_name = "criteriaCohortEntries",
+          min_len = 2L
+        )
+      } else if (!isTRUE(getOption("picard.suppressIdRouteWarning", FALSE))) {
+        cli::cli_warn(c(
+          "Using {.arg criteriaCohortIds} is supported for backward compatibility.",
+          i = "Prefer {.arg criteriaCohortEntries} from manifest query results.",
+          i = "Set {.code options(picard.suppressIdRouteWarning = TRUE)} to suppress this warning in automation."
+        ))
+      }
+
+      criteriaCohortNames <- rep(NA_character_, length(criteriaCohortIds))
+      if (use_entry_route && "label" %in% names(criteriaCohortEntries)) {
+        criteriaCohortNames <- as.character(criteriaCohortEntries$label)
+      }
+
+      missing_criteria_names <- is.na(criteriaCohortNames) | !nzchar(criteriaCohortNames)
+      if (any(missing_criteria_names)) {
+        criteriaCohortNames[missing_criteria_names] <- as.character(glue::glue("cohort_{criteriaCohortIds[missing_criteria_names]}"))
+      }
+
+      criteriaCohortNameMapping <- paste0("id ", criteriaCohortIds, ", name ", criteriaCohortNames, collapse = " | ")
+
       checkmate::assert_string(label, min.chars = 1)
       checkmate::assert_integerish(criteriaCohortIds, min.len = 2, unique = TRUE)
       checkmate::assert_string(category, min.chars = 1)
@@ -1406,6 +1777,7 @@ CohortManifest <- R6::R6Class(
       cohort_ids_str <- paste(criteriaCohortIds, collapse = ",")
       sql_path <- write_derived_template(derived_dir, label, "createCompositeCohort.sql",
         criteria_cohort_ids = cohort_ids_str,
+        criteria_cohort_name_mapping = criteriaCohortNameMapping,
         minimum_event_count = minEventCount,
         event_selection = eventSelection
       )
@@ -1430,8 +1802,15 @@ CohortManifest <- R6::R6Class(
     #' Creates a derived cohort that subsets a base cohort by filtering on
     #' person-level demographic attributes (age, gender, race, ethnicity).
     #'
+    #' Input route policy:
+    #' - Preferred: provide \code{baseCohortEntry}
+    #' - Backward compatible: provide \code{baseCohortId}
+    #' - Exactly one route must be provided; passing both or neither is an error.
+    #'
     #' @param label Character. Display name (e.g., "CKD - Males 40-75").
-    #' @param baseCohortId Integer. ID of the base cohort to subset.
+    #' @param baseCohortId Integer. Legacy ID route for the base cohort.
+    #' @param baseCohortEntry Data frame/tibble with one row and an \code{id} column.
+    #'   Preferred route using manifest query results.
     #' @param category Character. Required classification.
     #' @param minAge Integer or NULL. Minimum age at cohort start. Default: NULL (no minimum).
     #' @param maxAge Integer or NULL. Maximum age at cohort start. Default: NULL (no maximum).
@@ -1442,12 +1821,46 @@ CohortManifest <- R6::R6Class(
     #' @param tags Named list. Optional metadata tags.
     #'
     #' @return Invisible integer. The assigned cohort ID.
-    buildDemographicCohort = function(label, baseCohortId, category,
+    buildDemographicCohort = function(label, baseCohortId = NULL, 
+                                      baseCohortEntry = NULL, category,
                                       minAge = NULL, maxAge = NULL,
                                       genderConceptIds = NULL,
                                       raceConceptIds = NULL,
                                       ethnicityConceptIds = NULL,
                                       tags = list()) {
+      use_id_route <- !is.null(baseCohortId)
+      use_entry_route <- !is.null(baseCohortEntry)
+      baseCohortName <- NA_character_
+
+      if (use_id_route && use_entry_route) {
+        cli::cli_abort("Provide either {.arg baseCohortId} or {.arg baseCohortEntry}, not both.")
+      }
+
+      if (!use_id_route && !use_entry_route) {
+        cli::cli_abort("Provide one of {.arg baseCohortId} or {.arg baseCohortEntry}.")
+      }
+
+      if (use_entry_route) {
+        if ("label" %in% names(baseCohortEntry) && nrow(baseCohortEntry) == 1) {
+          baseCohortName <- as.character(baseCohortEntry$label[1])
+        }
+
+        baseCohortId <- private$resolve_single_entry_id(
+          entry = baseCohortEntry,
+          arg_name = "baseCohortEntry"
+        )
+      } else if (!isTRUE(getOption("picard.suppressIdRouteWarning", FALSE))) {
+        cli::cli_warn(c(
+          "Using {.arg baseCohortId} is supported for backward compatibility.",
+          i = "Prefer {.arg baseCohortEntry} from manifest query results.",
+          i = "Set {.code options(picard.suppressIdRouteWarning = TRUE)} to suppress this warning in automation."
+        ))
+      }
+
+      if (is.null(baseCohortName) || is.na(baseCohortName) || !nzchar(baseCohortName)) {
+        baseCohortName <- as.character(glue::glue("cohort_{baseCohortId}"))
+      }
+
       checkmate::assert_string(label, min.chars = 1)
       checkmate::assert_int(baseCohortId)
       checkmate::assert_string(category, min.chars = 1)
@@ -1488,6 +1901,7 @@ CohortManifest <- R6::R6Class(
       rendered_sql <- readr::read_file(template_path) |>
         SqlRender::render(
           base_cohort_id        = baseCohortId,
+          base_cohort_name      = baseCohortName,
           min_age               = sql_min_age,
           max_age               = sql_max_age,
           gender_concept_ids    = sql_gender_ids,
@@ -1518,7 +1932,14 @@ CohortManifest <- R6::R6Class(
     #' strata. Each stratum is registered as a separate manifest entry with
     #' \code{cohort_type = "subset"}.
     #'
-    #' @param baseCohortId Integer. The cohort definition ID to split.
+    #' Input route policy:
+    #' - Preferred: provide \code{baseCohortEntry}
+    #' - Backward compatible: provide \code{baseCohortId}
+    #' - Exactly one route must be provided; passing both or neither is an error.
+    #'
+    #' @param baseCohortId Integer. Legacy ID route for the cohort definition ID to split.
+    #' @param baseCohortEntry Data frame/tibble with one row and an \code{id} column.
+    #'   Preferred route using manifest query results.
     #' @param strata Named list. Each element is either a named list of demographic
     #'   filters (keys: \code{genderConceptIds}, \code{raceConceptIds},
     #'   \code{ethnicityConceptIds}, \code{minAge}, \code{maxAge}) or a character
@@ -1530,8 +1951,42 @@ CohortManifest <- R6::R6Class(
     #' @param tags Named list. Optional metadata tags applied to every stratum cohort.
     #'
     #' @return Invisibly returns a named list of assigned cohort IDs, keyed by cohort label.
-    buildStratifiedCohorts = function(baseCohortId, strata, labelPrefix = NULL,
+    buildStratifiedCohorts = function(baseCohortId = NULL, baseCohortEntry = NULL, strata, labelPrefix = NULL,
                                       category = "derived", tags = list()) {
+
+      use_id_route <- !is.null(baseCohortId)
+      use_entry_route <- !is.null(baseCohortEntry)
+      baseCohortName <- NA_character_
+
+      if (use_id_route && use_entry_route) {
+        cli::cli_abort("Provide either {.arg baseCohortId} or {.arg baseCohortEntry}, not both.")
+      }
+
+      if (!use_id_route && !use_entry_route) {
+        cli::cli_abort("Provide one of {.arg baseCohortId} or {.arg baseCohortEntry}.")
+      }
+
+      if (use_entry_route) {
+        if ("label" %in% names(baseCohortEntry) && nrow(baseCohortEntry) == 1) {
+          baseCohortName <- as.character(baseCohortEntry$label[1])
+        }
+
+        baseCohortId <- private$resolve_single_entry_id(
+          entry = baseCohortEntry,
+          arg_name = "baseCohortEntry"
+        )
+      } else if (!isTRUE(getOption("picard.suppressIdRouteWarning", FALSE))) {
+        cli::cli_warn(c(
+          "Using {.arg baseCohortId} is supported for backward compatibility.",
+          i = "Prefer {.arg baseCohortEntry} from manifest query results.",
+          i = "Set {.code options(picard.suppressIdRouteWarning = TRUE)} to suppress this warning in automation."
+        ))
+      }
+
+      if (is.null(baseCohortName) || is.na(baseCohortName) || !nzchar(baseCohortName)) {
+        baseCohortName <- as.character(glue::glue("cohort_{baseCohortId}"))
+      }
+
       checkmate::assert_int(baseCohortId)
       checkmate::assert_list(strata, min.len = 1, names = "named")
       checkmate::assert_string(labelPrefix, null.ok = TRUE)
@@ -1578,6 +2033,7 @@ CohortManifest <- R6::R6Class(
         rendered_sql <- SqlRender::render(
           template_sql,
           base_cohort_id       = as.integer(baseCohortId),
+          base_cohort_name     = baseCohortName,
           stratum_where_clause = condition,
           warnOnMissingParameters = FALSE
         )
@@ -2283,11 +2739,193 @@ CohortManifest <- R6::R6Class(
       invisible(self)
     },
 
+    #' Check cohort tables in the database
+    #'
+    #' @description
+    #' Checks if necessary tables have been created for execution
+    #'
+    #' @details
+    #' Requires that executionSettings has been set and includes:
+    #' - A database connection (via getConnection()
+    #' - workDatabaseSchema for the target schema
+    #' - cohortTable with the desired table name
+    #'
+    #' @return tibble with cohort tables and there exist status
+    checkCohortTables = function() {
+      # Validate execution settings are available
+      private$validateExecutionSettings()
+
+      # Get execution parameters
+      settings <- private$.executionSettings
+      did_connect <- FALSE
+      conn <- settings$getConnection()
+      if (is.null(conn)) {
+        settings$connect()
+        conn <- settings$getConnection()
+        did_connect <- TRUE
+      }
+      on.exit({
+        if (did_connect) {
+          settings$disconnect()
+        }
+      }, add = TRUE)
+      
+      schema <- settings$workDatabaseSchema
+      if (is.null(schema) || is.na(schema)) {
+        stop("workDatabaseSchema must be set in execution settings")
+      }
+
+      cohort_table <- settings$cohortTable
+      if (is.null(cohort_table) || is.na(cohort_table)) {
+        stop("cohortTable must be set in execution settings")
+      }
+
+      dbms <- settings$getDbms()
+
+      # Get cohort table names
+      table_names <- getCohortTableNames(
+        cohortTable = cohort_table,
+        cohortSampleTable = cohort_table,
+        cohortInclusionTable = paste0(cohort_table, "_inclusion"),
+        cohortInclusionResultTable = paste0(cohort_table, "_inclusion_result"),
+        cohortInclusionStatsTable = paste0(cohort_table, "_inclusion_stats"),
+        cohortSummaryStatsTable = paste0(cohort_table, "_summary_stats"),
+        cohortCensorStatsTable = paste0(cohort_table, "_censor_stats")
+      )
+
+      cli::cli_rule("Checking Cohort Tables")
+      cli::cli_alert_info("Database: {settings$databaseName}")
+      cli::cli_alert_info("Schema: {schema}")
+      cli::cli_alert_info("Main table: {cohort_table}")
+
+      tables_to_check <- tibble::tibble(
+        cg_type = names(table_names),
+        name = purrr::map_chr(table_names, ~.x),
+        check =  NA_character_
+      ) |>
+        dplyr::filter(
+          !(cg_type %in% c("cohortSampleTable", "cohortSubsetAttritionTable"))
+        )
+      tables_to_check$type <- c("main", "inclusion", "inclusion_result", "inclusion_stats",
+                                "summary_stats", "censor_stats", "checksum")
+
+
+      for (i in seq_len(nrow(tables_to_check))) {
+        table_name <- tables_to_check$name[i]
+        check_results <- picard:::tableExists(conn, schema, table_name, dbms)
+        tables_to_check$check[i] <- ifelse(check_results, "exists", "missing")
+      }
+      
+      tables_to_check <- tables_to_check |>
+        dplyr::select(type, name, check)
+
+      return(tables_to_check)
+    },
+
+    #' Create a single cohort table in the database
+    #'
+    #' @description
+    #' Creates one required cohort table by type using the current execution settings.
+    #'
+    #' @param type Character. One of "main", "inclusion", "inclusion_result",
+    #'   "inclusion_stats", "summary_stats", "censor_stats", or "checksum".
+    #' @param tableName Character. Optional explicit table name. If NULL, defaults to
+    #'   the name derived from execution settings for the selected type.
+    #'
+    #' @return Invisible NULL.
+    createCohortTable = function(type, tableName = NULL) {
+      # Validate execution settings are available
+      private$validateExecutionSettings()
+
+      # Get execution parameters
+      settings <- private$.executionSettings
+      did_connect <- FALSE
+      conn <- settings$getConnection()
+      if (is.null(conn)) {
+        settings$connect()
+        conn <- settings$getConnection()
+        did_connect <- TRUE
+      }
+      on.exit({
+        if (did_connect) {
+          settings$disconnect()
+        }
+      }, add = TRUE)
+      
+      schema <- settings$workDatabaseSchema
+      if (is.null(schema) || is.na(schema)) {
+        stop("workDatabaseSchema must be set in execution settings")
+      }
+
+      cohort_table <- settings$cohortTable
+      if (is.null(cohort_table) || is.na(cohort_table)) {
+        stop("cohortTable must be set in execution settings")
+      }
+
+      temp_schema <- settings$tempEmulationSchema
+      dbms <- settings$getDbms()
+
+      checkmate::assert_choice(
+        x = type,
+        choices = c("main", "inclusion", "inclusion_result", "inclusion_stats", "summary_stats", "censor_stats", "checksum")
+      )
+
+      table_names <- getCohortTableNames(
+        cohortTable = cohort_table,
+        cohortSampleTable = cohort_table,
+        cohortInclusionTable = paste0(cohort_table, "_inclusion"),
+        cohortInclusionResultTable = paste0(cohort_table, "_inclusion_result"),
+        cohortInclusionStatsTable = paste0(cohort_table, "_inclusion_stats"),
+        cohortSummaryStatsTable = paste0(cohort_table, "_summary_stats"),
+        cohortCensorStatsTable = paste0(cohort_table, "_censor_stats")
+      )
+
+      default_table_name <- switch(
+        type,
+        main = cohort_table,
+        inclusion = table_names$cohortInclusionTable,
+        inclusion_result = table_names$cohortInclusionResultTable,
+        inclusion_stats = table_names$cohortInclusionStatsTable,
+        summary_stats = table_names$cohortSummaryStatsTable,
+        censor_stats = table_names$cohortCensorStatsTable,
+        checksum = table_names$cohortChecksumTable
+      )
+
+      if (is.null(tableName)) {
+        tableName <- default_table_name
+      }
+      checkmate::assert_string(tableName, min.chars = 1)
+
+      if (tableExists(conn, schema, tableName, dbms)) {
+        cli::cli_alert_warning("{type} table already exists: {tableName}")
+        return(invisible(NULL))
+      }
+
+      sql <- create_cohort_table_sql(
+        type = type,
+        schema = schema,
+        tableName = tableName,
+        dbms = dbms,
+        tempEmulationSchema = temp_schema
+      )
+
+      tryCatch({
+        DatabaseConnector::executeSql(conn, sql, progressBar = FALSE, reportOverallTime = FALSE)
+        cli::cli_alert_success("Created {type} table: {tableName}")
+      }, error = function(e) {
+        cli::cli_alert_danger("Failed to create {type} table {tableName}: {e$message}")
+      })
+
+      invisible(NULL)
+    },
+
     #' Create cohort tables in the database
     #'
     #' @description
     #' Creates the necessary cohort tables in the target database using the execution settings.
     #' First checks if tables already exist before attempting creation.
+    #' This is an advanced/manual setup function. Most users should run
+    #' `executeCohortGeneration()` and let it create missing tables automatically.
     #'
     #' @details
     #' Requires that executionSettings has been set and includes:
@@ -2297,18 +2935,24 @@ CohortManifest <- R6::R6Class(
     #' - tempEmulationSchema if needed for the database platform
     #'
     #' @return Invisible NULL. Creates tables in the database and prints status messages.
-    createCohortTables = function() {
+    createAllCohortTables = function() {
       # Validate execution settings are available
       private$validateExecutionSettings()
 
       # Get execution parameters
       settings <- private$.executionSettings
+      did_connect <- FALSE
       conn <- settings$getConnection()
       if (is.null(conn)) {
         settings$connect()
         conn <- settings$getConnection()
+        did_connect <- TRUE
       }
-      on.exit(settings$disconnect())
+      on.exit({
+        if (did_connect) {
+          settings$disconnect()
+        }
+      }, add = TRUE)
       
       schema <- settings$workDatabaseSchema
       if (is.null(schema) || is.na(schema)) {
@@ -2354,39 +2998,27 @@ CohortManifest <- R6::R6Class(
         table_name <- table_info$name
         table_type <- table_info$type
 
-        # Check if table exists
-        if (tableExists(conn, schema, table_name, dbms)) {
-          cli::cli_alert_warning("{table_type} table already exists: {table_name}")
-        } else {
-          # Create the table
-          if (table_type == "main") {
-            sql <- createMainCohortTableSql(schema, table_name, dbms, temp_schema)
-          } else if (table_type == "inclusion") {
-            sql <- createInclusionTableSql(schema, table_name, dbms)
-          } else if (table_type == "inclusion_result") {
-            sql <- createInclusionResultTableSql(schema, table_name, dbms)
-          } else if (table_type == "inclusion_stats") {
-            sql <- createInclusionStatsTableSql(schema, table_name, dbms)
-          } else if (table_type == "summary_stats") {
-            sql <- createSummaryStatsTableSql(schema, table_name, dbms)
-          } else if (table_type == "censor_stats") {
-            sql <- createCensorStatsTableSql(schema, table_name, dbms)
-          } else if (table_type == "checksum") {
-            sql <- createChecksumTableSql(schema, table_name, dbms)
-          }
-
-          tryCatch({
-            DatabaseConnector::executeSql(conn, sql, progressBar = FALSE, reportOverallTime = FALSE)
-            cli::cli_alert_success("Created {table_type} table: {table_name}")
-          }, error = function(e) {
-            cli::cli_alert_danger("Failed to create {table_type} table {table_name}: {e$message}")
-          })
-        }
+        self$createCohortTable(type = table_type, tableName = table_name)
       }
 
       cli::cli_rule()
       cli::cli_alert_success("Cohort tables setup complete")
 
+      invisible(NULL)
+    },
+
+    #' @description Deprecated alias for createAllCohortTables
+    #'
+    #' @details
+    #' Use `createAllCohortTables()` instead. This alias is kept for
+    #' backward compatibility.
+    #'
+    #' @return Invisible NULL.
+    createCohortTables = function() {
+      cli::cli_alert_warning(
+        "`createCohortTables()` is deprecated. Use `createAllCohortTables()` instead."
+      )
+      self$createAllCohortTables()
       invisible(NULL)
     },
 
@@ -2415,12 +3047,18 @@ CohortManifest <- R6::R6Class(
       }
 
       # Get execution parameters
+      did_connect <- FALSE
       conn <- settings$getConnection()
       if (is.null(conn)) {
         settings$connect()
         conn <- settings$getConnection()
+        did_connect <- TRUE
       }
-      on.exit(settings$disconnect())
+      on.exit({
+        if (did_connect) {
+          settings$disconnect()
+        }
+      }, add = TRUE)
 
       schema <- settings$workDatabaseSchema
       if (is.null(schema) || is.na(schema)) {
@@ -2562,7 +3200,7 @@ CohortManifest <- R6::R6Class(
         conn,
         "SELECT id, label, category, tags, file_path, hash, source_type, cohort_type, status
          FROM cohort_manifest
-         WHERE cohort_type IN ('circe', 'custom')"
+        WHERE cohort_type IN ('circe', 'custom', 'custom_derived')"
       )
 
       results <- data.frame(
@@ -2710,12 +3348,18 @@ CohortManifest <- R6::R6Class(
       private$validateExecutionSettings()
 
       settings <- private$.executionSettings
+      did_connect <- FALSE
       conn_db <- settings$getConnection()
       if (is.null(conn_db)) {
         settings$connect()
         conn_db <- settings$getConnection()
+        did_connect <- TRUE
       }
-      on.exit(settings$disconnect())
+      on.exit({
+        if (did_connect) {
+          settings$disconnect()
+        }
+      }, add = TRUE)
 
       cohort_schema <- settings$workDatabaseSchema
       if (is.null(cohort_schema) || is.na(cohort_schema)) {
@@ -2848,7 +3492,10 @@ CohortManifest <- R6::R6Class(
     #' - workDatabaseSchema (where cohort results are written)
     #' - cohortTable (destination table name)
     #' - tempEmulationSchema if needed for the database platform
-    #'
+    #' @param confirm Logical. If TRUE and interactive, asks for confirmation before
+    #'   creating missing tables. If FALSE, missing tables are created without prompting.
+    #'   In non-interactive sessions, missing tables are not created automatically.
+    #' 
     #' @return Data frame with execution results including:
     #'   - cohort_id: ID of the generated cohort
     #'   - label: Label of the cohort
@@ -2857,7 +3504,7 @@ CohortManifest <- R6::R6Class(
     #'   - execution_time_min: Time taken to generate (0 for skipped)
     #'   - status: 'Success', 'Skipped - already generated', 'Dependency skipped', or error message
     #'   - dependency_status: 'Not applicable' for circe, 'Parent changed' or 'Unchanged' for dependent
-    executeCohortGeneration = function() {
+    executeCohortGeneration = function(confirm = TRUE) {
 
       # ==== Prep Execution Settings ===== #
       # Validate execution settings are available
@@ -2865,15 +3512,71 @@ CohortManifest <- R6::R6Class(
 
       # Get connection
       settings <- private$.executionSettings
+      did_connect <- FALSE
       conn <- settings$getConnection()
       if (is.null(conn)) {
         settings$connect()
         conn <- settings$getConnection()
+        did_connect <- TRUE
       }
-      on.exit(settings$disconnect())
+      on.exit({
+        if (did_connect) {
+          settings$disconnect()
+        }
+      }, add = TRUE)
 
-      # get dbms
-      dbms <- settings$getDbms()
+      checkmate::assert_flag(confirm)
+
+      # ===== Check Cohort Tables =======#
+      check_tables <- self$checkCohortTables()
+      n_missing <- sum(check_tables$check == "missing")
+      which_missing <- which(check_tables$check == "missing")
+
+      if (n_missing == 0) {
+        cli::cli_alert_info("All Cohort Tables have already been created. Good to go!")
+      } else {
+        missing_tbl <- check_tables[which_missing, c("type", "name")]
+
+        cli::cli_alert_warning("Found {n_missing} missing cohort table(s).")
+        for (i in seq_len(nrow(missing_tbl))) {
+          cli::cli_bullets(c("!" = "{missing_tbl$type[i]}: {missing_tbl$name[i]}"))
+        }
+
+        if (!interactive()) {
+          cli::cli_abort(c(
+            "Required cohort tables are missing.",
+            i = "Non-interactive session detected. Create tables first with {.code $createAllCohortTables()} and rerun."
+          ))
+        }
+
+        should_prompt <- isTRUE(confirm)
+        if (should_prompt) {
+          answer <- readline("Missing cohort tables detected. Create now? (yes/no): ")
+          if (!identical(trimws(tolower(answer)), "yes")) {
+            cli::cli_abort(c(
+              "Cohort generation cancelled.",
+              i = "Missing cohort tables must be created before generation can continue."
+            ))
+          }
+        }
+
+        for (i in which_missing) {
+          row <- check_tables[i, ]
+          self$createCohortTable(type = row$type, tableName = row$name)
+        }
+
+        recheck_tables <- self$checkCohortTables()
+        remaining_missing <- sum(recheck_tables$check == "missing")
+        if (remaining_missing > 0) {
+          cli::cli_abort(c(
+            "Some cohort tables are still missing after attempted creation.",
+            i = "Review DB permissions/schema settings and rerun {.code $checkCohortTables()}."
+          ))
+        }
+
+        cli::cli_alert_success("All required cohort tables are available.")
+      }
+
 
       # Get checksum table name
       table_names <- getCohortTableNames(cohortTable = settings$cohortTable)
@@ -2962,12 +3665,13 @@ CohortManifest <- R6::R6Class(
             stringsAsFactors = FALSE
           )
           results_df <- rbind(results_df, new_row)
-          if (cohort_type %in% c("circe", "custom")) {
-            cohort_hashes[[as.character(cohort_id)]] <- cohort$getSqlHash()
-          } else {
+          dependency_hash_types <- c("subset", "union", "complement", "composite", "oprior", "tprior", "censor", "custom_derived")
+          if (cohort_type %in% dependency_hash_types) {
             cohort_hashes[[as.character(cohort_id)]] <- compute_dependency_hash(
               private$.dbPath, cohort, cohort_hashes
             )
+          } else {
+            cohort_hashes[[as.character(cohort_id)]] <- cohort$getSqlHash()
           }
           next
         }
@@ -3038,12 +3742,18 @@ CohortManifest <- R6::R6Class(
 
       # Get connection
       settings <- private$.executionSettings
+      did_connect <- FALSE
       conn <- settings$getConnection()
       if (is.null(conn)) {
         settings$connect()
         conn <- settings$getConnection()
+        did_connect <- TRUE
       }
-      on.exit(settings$disconnect())
+      on.exit({
+        if (did_connect) {
+          settings$disconnect()
+        }
+      }, add = TRUE)
 
       # Get execution parameters
       cohort_schema <- settings$workDatabaseSchema
@@ -3339,13 +4049,22 @@ CohortManifest <- R6::R6Class(
     #' outcome cohort and a target (exposure) cohort. Filters outcome events that
     #' have (or lack) a prior target event, optionally within a time window.
     #'
+    #' Input route policy:
+    #' - Preferred: provide \code{outcomeCohortEntry}/\code{targetCohortEntry}
+    #' - Backward compatible: provide \code{outcomeCohortId}/\code{targetCohortId}
+    #' - Exactly one route per role must be provided; both/neither is an error.
+    #'
     #' @param label Character. Display name (e.g., "GI Bleed - Prior NSAID").
     #' @param category Character. Required classification.
     #' @param tags Named list. Optional metadata tags.
-    #' @param outcomeCohortId Integer. The cohort definition ID for the outcome
+    #' @param outcomeCohortId Integer. Legacy ID route for the outcome cohort definition ID
     #'   (e.g., GI bleed).
-    #' @param targetCohortId Integer. The cohort definition ID for the target
+    #' @param targetCohortId Integer. Legacy ID route for the target cohort definition ID
     #'   (e.g., NSAID use).
+    #' @param outcomeCohortEntry Data frame/tibble with one row and an \code{id} column.
+    #'   Preferred route using manifest query results for the outcome cohort.
+    #' @param targetCohortEntry Data frame/tibble with one row and an \code{id} column.
+    #'   Preferred route using manifest query results for the target cohort.
     #' @param mode Character. One of 'prior' or 'no_prior':
     #'   - 'prior': Retain outcome events where a prior target event exists.
     #'   - 'no_prior': Retain outcome events where no prior target event exists.
@@ -3365,12 +4084,75 @@ CohortManifest <- R6::R6Class(
       label,
       category,
       tags = list(),
-      outcomeCohortId,
-      targetCohortId,
+      outcomeCohortId = NULL,
+      targetCohortId = NULL,
       mode = "prior",
       priorTimeWindowDays = NULL,
-      subsetLimit = "First"
+      subsetLimit = "First",
+      outcomeCohortEntry = NULL,
+      targetCohortEntry = NULL
     ) {
+      outcome_use_id <- !is.null(outcomeCohortId)
+      outcome_use_entry <- !is.null(outcomeCohortEntry)
+      target_use_id <- !is.null(targetCohortId)
+      target_use_entry <- !is.null(targetCohortEntry)
+      outcomeCohortName <- NA_character_
+      targetCohortName <- NA_character_
+
+      if (outcome_use_id && outcome_use_entry) {
+        cli::cli_abort("Provide either {.arg outcomeCohortId} or {.arg outcomeCohortEntry}, not both.")
+      }
+
+      if (!outcome_use_id && !outcome_use_entry) {
+        cli::cli_abort("Provide one of {.arg outcomeCohortId} or {.arg outcomeCohortEntry}.")
+      }
+
+      if (target_use_id && target_use_entry) {
+        cli::cli_abort("Provide either {.arg targetCohortId} or {.arg targetCohortEntry}, not both.")
+      }
+
+      if (!target_use_id && !target_use_entry) {
+        cli::cli_abort("Provide one of {.arg targetCohortId} or {.arg targetCohortEntry}.")
+      }
+
+      if (outcome_use_entry) {
+        if ("label" %in% names(outcomeCohortEntry) && nrow(outcomeCohortEntry) == 1) {
+          outcomeCohortName <- as.character(outcomeCohortEntry$label[1])
+        }
+
+        outcomeCohortId <- private$resolve_single_entry_id(
+          entry = outcomeCohortEntry,
+          arg_name = "outcomeCohortEntry"
+        )
+      }
+
+      if (target_use_entry) {
+        if ("label" %in% names(targetCohortEntry) && nrow(targetCohortEntry) == 1) {
+          targetCohortName <- as.character(targetCohortEntry$label[1])
+        }
+
+        targetCohortId <- private$resolve_single_entry_id(
+          entry = targetCohortEntry,
+          arg_name = "targetCohortEntry"
+        )
+      }
+
+      if ((outcome_use_id || target_use_id) && !isTRUE(getOption("picard.suppressIdRouteWarning", FALSE))) {
+        cli::cli_warn(c(
+          "Using {.arg outcomeCohortId}/{.arg targetCohortId} is supported for backward compatibility.",
+          i = "Prefer {.arg outcomeCohortEntry}/{.arg targetCohortEntry} from manifest query results.",
+          i = "Set {.code options(picard.suppressIdRouteWarning = TRUE)} to suppress this warning in automation."
+        ))
+      }
+
+      if (is.null(outcomeCohortName) || is.na(outcomeCohortName) || !nzchar(outcomeCohortName)) {
+        outcomeCohortName <- as.character(glue::glue("cohort_{outcomeCohortId}"))
+      }
+
+      if (is.null(targetCohortName) || is.na(targetCohortName) || !nzchar(targetCohortName)) {
+        targetCohortName <- as.character(glue::glue("cohort_{targetCohortId}"))
+      }
+
       checkmate::assert_string(label, min.chars = 1)
       checkmate::assert_string(category, min.chars = 1)
       checkmate::assert_list(tags, names = "named")
@@ -3394,7 +4176,9 @@ CohortManifest <- R6::R6Class(
       derived_dir <- make_derived_folder(dirname(private$.dbPath))
       sql_path <- write_derived_template(derived_dir, label, "createOPriorT.sql",
         outcome_cohort_id = outcomeCohortId,
+        outcome_cohort_name = outcomeCohortName,
         target_cohort_id = targetCohortId,
+        target_cohort_name = targetCohortName,
         mode = mode,
         use_prior_time_window = !is.null(priorTimeWindowDays),
         prior_time_window_days = if (is.null(priorTimeWindowDays)) 0L else as.integer(priorTimeWindowDays),
@@ -3425,13 +4209,22 @@ CohortManifest <- R6::R6Class(
     #' This is the reverse direction of \code{buildOPriorT()}: instead of
     #' filtering outcome by prior target, filter target by prior outcome.
     #'
+    #' Input route policy:
+    #' - Preferred: provide \code{targetCohortEntry}/\code{outcomeCohortEntry}
+    #' - Backward compatible: provide \code{targetCohortId}/\code{outcomeCohortId}
+    #' - Exactly one route per role must be provided; both/neither is an error.
+    #'
     #' @param label Character. Display name (e.g., "NSAID - Prior GI Bleed").
     #' @param category Character. Required classification.
     #' @param tags Named list. Optional metadata tags.
-    #' @param targetCohortId Integer. The cohort definition ID for the target
+    #' @param targetCohortId Integer. Legacy ID route for the target cohort definition ID
     #'   (e.g., NSAID use).
-    #' @param outcomeCohortId Integer. The cohort definition ID for the outcome
+    #' @param outcomeCohortId Integer. Legacy ID route for the outcome cohort definition ID
     #'   (e.g., GI bleed).
+    #' @param targetCohortEntry Data frame/tibble with one row and an \code{id} column.
+    #'   Preferred route using manifest query results for the target cohort.
+    #' @param outcomeCohortEntry Data frame/tibble with one row and an \code{id} column.
+    #'   Preferred route using manifest query results for the outcome cohort.
     #' @param mode Character. One of 'prior' or 'no_prior':
     #'   - 'prior': Retain target events where a prior outcome exists.
     #'   - 'no_prior': Retain target events where no prior outcome exists.
@@ -3451,12 +4244,75 @@ CohortManifest <- R6::R6Class(
       label,
       category,
       tags = list(),
-      targetCohortId,
-      outcomeCohortId,
+      targetCohortId = NULL,
+      outcomeCohortId = NULL,
       mode = "prior",
       priorTimeWindowDays = NULL,
-      subsetLimit = "First"
+      subsetLimit = "First",
+      targetCohortEntry = NULL,
+      outcomeCohortEntry = NULL
     ) {
+      target_use_id <- !is.null(targetCohortId)
+      target_use_entry <- !is.null(targetCohortEntry)
+      outcome_use_id <- !is.null(outcomeCohortId)
+      outcome_use_entry <- !is.null(outcomeCohortEntry)
+      targetCohortName <- NA_character_
+      outcomeCohortName <- NA_character_
+
+      if (target_use_id && target_use_entry) {
+        cli::cli_abort("Provide either {.arg targetCohortId} or {.arg targetCohortEntry}, not both.")
+      }
+
+      if (!target_use_id && !target_use_entry) {
+        cli::cli_abort("Provide one of {.arg targetCohortId} or {.arg targetCohortEntry}.")
+      }
+
+      if (outcome_use_id && outcome_use_entry) {
+        cli::cli_abort("Provide either {.arg outcomeCohortId} or {.arg outcomeCohortEntry}, not both.")
+      }
+
+      if (!outcome_use_id && !outcome_use_entry) {
+        cli::cli_abort("Provide one of {.arg outcomeCohortId} or {.arg outcomeCohortEntry}.")
+      }
+
+      if (target_use_entry) {
+        if ("label" %in% names(targetCohortEntry) && nrow(targetCohortEntry) == 1) {
+          targetCohortName <- as.character(targetCohortEntry$label[1])
+        }
+
+        targetCohortId <- private$resolve_single_entry_id(
+          entry = targetCohortEntry,
+          arg_name = "targetCohortEntry"
+        )
+      }
+
+      if (outcome_use_entry) {
+        if ("label" %in% names(outcomeCohortEntry) && nrow(outcomeCohortEntry) == 1) {
+          outcomeCohortName <- as.character(outcomeCohortEntry$label[1])
+        }
+
+        outcomeCohortId <- private$resolve_single_entry_id(
+          entry = outcomeCohortEntry,
+          arg_name = "outcomeCohortEntry"
+        )
+      }
+
+      if ((target_use_id || outcome_use_id) && !isTRUE(getOption("picard.suppressIdRouteWarning", FALSE))) {
+        cli::cli_warn(c(
+          "Using {.arg targetCohortId}/{.arg outcomeCohortId} is supported for backward compatibility.",
+          i = "Prefer {.arg targetCohortEntry}/{.arg outcomeCohortEntry} from manifest query results.",
+          i = "Set {.code options(picard.suppressIdRouteWarning = TRUE)} to suppress this warning in automation."
+        ))
+      }
+
+      if (is.null(targetCohortName) || is.na(targetCohortName) || !nzchar(targetCohortName)) {
+        targetCohortName <- as.character(glue::glue("cohort_{targetCohortId}"))
+      }
+
+      if (is.null(outcomeCohortName) || is.na(outcomeCohortName) || !nzchar(outcomeCohortName)) {
+        outcomeCohortName <- as.character(glue::glue("cohort_{outcomeCohortId}"))
+      }
+
       checkmate::assert_string(label, min.chars = 1)
       checkmate::assert_string(category, min.chars = 1)
       checkmate::assert_list(tags, names = "named")
@@ -3480,7 +4336,9 @@ CohortManifest <- R6::R6Class(
       derived_dir <- make_derived_folder(dirname(private$.dbPath))
       sql_path <- write_derived_template(derived_dir, label, "createTPriorO.sql",
         target_cohort_id = targetCohortId,
+        target_cohort_name = targetCohortName,
         outcome_cohort_id = outcomeCohortId,
+        outcome_cohort_name = outcomeCohortName,
         mode = mode,
         use_prior_time_window = !is.null(priorTimeWindowDays),
         prior_time_window_days = if (is.null(priorTimeWindowDays)) 0L else as.integer(priorTimeWindowDays),
@@ -3513,20 +4371,92 @@ CohortManifest <- R6::R6Class(
     #' - Censor a disease cohort at the date of disease exacerbation
     #' - Censor a treatment cohort at the date of a procedure (e.g., surgery)
     #'
+    #' Input route policy:
+    #' - Preferred: provide \code{targetCohortEntry}/\code{censorCohortEntry}
+    #' - Backward compatible: provide \code{targetCohortId}/\code{censorCohortId}
+    #' - Exactly one route per role must be provided; both/neither is an error.
+    #'
     #' @param label Character. Display name (e.g., "NSAID Use - Censored at Death").
     #' @param category Character. Required classification.
     #' @param tags Named list. Optional metadata tags.
-    #' @param targetCohortId Integer. The cohort definition ID for the cohort to censor.
-    #' @param censorCohortId Integer. The cohort definition ID for the censoring event.
+    #' @param targetCohortId Integer. Legacy ID route for the cohort definition ID to censor.
+    #' @param censorCohortId Integer. Legacy ID route for the cohort definition ID for the censoring event.
+    #' @param targetCohortEntry Data frame/tibble with one row and an \code{id} column.
+    #'   Preferred route using manifest query results for the target cohort.
+    #' @param censorCohortEntry Data frame/tibble with one row and an \code{id} column.
+    #'   Preferred route using manifest query results for the censor cohort.
     #'
     #' @return Invisible integer. The assigned cohort ID.
     buildCensorCohort = function(
       label,
       category,
       tags = list(),
-      targetCohortId,
-      censorCohortId
+      targetCohortId = NULL,
+      censorCohortId = NULL,
+      targetCohortEntry = NULL,
+      censorCohortEntry = NULL
     ) {
+      target_use_id <- !is.null(targetCohortId)
+      target_use_entry <- !is.null(targetCohortEntry)
+      censor_use_id <- !is.null(censorCohortId)
+      censor_use_entry <- !is.null(censorCohortEntry)
+      targetCohortName <- NA_character_
+      censorCohortName <- NA_character_
+
+      if (target_use_id && target_use_entry) {
+        cli::cli_abort("Provide either {.arg targetCohortId} or {.arg targetCohortEntry}, not both.")
+      }
+
+      if (!target_use_id && !target_use_entry) {
+        cli::cli_abort("Provide one of {.arg targetCohortId} or {.arg targetCohortEntry}.")
+      }
+
+      if (censor_use_id && censor_use_entry) {
+        cli::cli_abort("Provide either {.arg censorCohortId} or {.arg censorCohortEntry}, not both.")
+      }
+
+      if (!censor_use_id && !censor_use_entry) {
+        cli::cli_abort("Provide one of {.arg censorCohortId} or {.arg censorCohortEntry}.")
+      }
+
+      if (target_use_entry) {
+        if ("label" %in% names(targetCohortEntry) && nrow(targetCohortEntry) == 1) {
+          targetCohortName <- as.character(targetCohortEntry$label[1])
+        }
+
+        targetCohortId <- private$resolve_single_entry_id(
+          entry = targetCohortEntry,
+          arg_name = "targetCohortEntry"
+        )
+      }
+
+      if (censor_use_entry) {
+        if ("label" %in% names(censorCohortEntry) && nrow(censorCohortEntry) == 1) {
+          censorCohortName <- as.character(censorCohortEntry$label[1])
+        }
+
+        censorCohortId <- private$resolve_single_entry_id(
+          entry = censorCohortEntry,
+          arg_name = "censorCohortEntry"
+        )
+      }
+
+      if ((target_use_id || censor_use_id) && !isTRUE(getOption("picard.suppressIdRouteWarning", FALSE))) {
+        cli::cli_warn(c(
+          "Using {.arg targetCohortId}/{.arg censorCohortId} is supported for backward compatibility.",
+          i = "Prefer {.arg targetCohortEntry}/{.arg censorCohortEntry} from manifest query results.",
+          i = "Set {.code options(picard.suppressIdRouteWarning = TRUE)} to suppress this warning in automation."
+        ))
+      }
+
+      if (is.null(targetCohortName) || is.na(targetCohortName) || !nzchar(targetCohortName)) {
+        targetCohortName <- as.character(glue::glue("cohort_{targetCohortId}"))
+      }
+
+      if (is.null(censorCohortName) || is.na(censorCohortName) || !nzchar(censorCohortName)) {
+        censorCohortName <- as.character(glue::glue("cohort_{censorCohortId}"))
+      }
+
       checkmate::assert_string(label, min.chars = 1)
       checkmate::assert_string(category, min.chars = 1)
       checkmate::assert_list(tags, names = "named")
@@ -3549,7 +4479,9 @@ CohortManifest <- R6::R6Class(
         label = label,
         template_name = "createCensorCohort.sql",
         target_cohort_id = targetCohortId,
-        censor_cohort_id = censorCohortId
+        target_cohort_name = targetCohortName,
+        censor_cohort_id = censorCohortId,
+        censor_cohort_name = censorCohortName
       )
 
       cohort_id <- private$insert_cohort(

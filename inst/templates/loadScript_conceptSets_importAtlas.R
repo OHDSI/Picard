@@ -25,7 +25,7 @@ library(picard)
 # ================================================================================
 
 # Uncomment to create a blank template CSV file:
-# createBlankConceptSetsLoadFile()
+createBlankConceptSetsLoadFile()
 
 # Now open inputs/conceptSets/conceptSetsLoad.csv in Excel and fill in your entries:
 #   - atlasId: ATLAS concept set definition IDs (required)
@@ -65,12 +65,12 @@ conceptSetManifest$setAtlasConnection(atlasConnection)
 # Reads conceptSetsLoad.csv and downloads CIRCE JSON definitions from ATLAS
 # Place your conceptSetsLoad.csv in inputs/conceptSets/ before running this
 
-conceptSetLoad <- readr::read_csv(
-    here::here("inputs/conceptSets/conceptSetLoad.csv"), 
+conceptSetsLoad <- readr::read_csv(
+    here::here("inputs/conceptSets/conceptSetsLoad.csv"), 
     show_col_types = FALSE
 )
 
-conceptSetManifest$importAtlasCohorts(conceptSetLoad = conceptSetLoad)
+conceptSetManifest$importAtlasConceptSets(conceptSetsLoad = conceptSetsLoad)
 
 # ================================================================================
 # E. REVIEW IMPORTED CONCEPT SETS

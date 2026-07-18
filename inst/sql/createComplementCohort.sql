@@ -3,9 +3,15 @@ Creates a complement cohort: all subjects in the population cohort who are NOT f
 in the exclude cohort(s). Uses a LEFT JOIN anti-join for cross-DBMS compatibility.
 Dates are always taken from the population cohort (index dates are preserved).
 
+Cohort mapping
+  population cohort: id @population_cohort_id, name @population_cohort_name
+  exclude cohorts: @exclude_cohort_name_mapping
+
 Parameters
   population_cohort_id     The cohort definition ID representing the population
+  population_cohort_name   The cohort label for the population cohort (header metadata)
   exclude_cohort_ids       Comma-separated list of cohort definition IDs to exclude
+  exclude_cohort_name_mapping Exclusion cohort mapping in the form: id N, name Label
   exclude_cohort_ids_count Number of unique cohort IDs in exclude_cohort_ids
                            Required for 'exclude_all': subject must appear in ALL N cohorts
   complement_type          'exclude_any' - exclude if subject appears in ANY exclude cohort

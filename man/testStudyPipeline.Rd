@@ -4,10 +4,14 @@
 \alias{testStudyPipeline}
 \title{Test Study Pipeline}
 \usage{
-testStudyPipeline(configBlock, env = rlang::caller_env())
+testStudyPipeline(configBlock, testLabel = "dev", env = rlang::caller_env())
 }
 \arguments{
 \item{configBlock}{Character or character vector. Name(s) of config block(s) to use.}
+
+\item{testLabel}{Character. Label used for test output folder and cohort table suffix.
+Defaults to \code{"dev"}. Label is normalized to lowercase snake_case and
+truncated to 24 characters.}
 
 \item{env}{The execution environment. Defaults to caller environment.}
 }
@@ -23,5 +27,7 @@ testing during development.
 \dontrun{
 # Test full pipeline on develop branch
 testStudyPipeline(configBlock = "myConfig")
+# Test full pipeline with a custom namespace
+testStudyPipeline(configBlock = "myConfig", testLabel = "feature_ml_test")
 }
 }

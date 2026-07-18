@@ -22,9 +22,9 @@ Help the research team with:
 6. **Assisting with Development and Testing** - Help test tasks and debug code
 7. **Handling Results** - Support post-processing, validation, and dissemination
 
-## ⚠️ CRITICAL RESTRICTION: NO CODE EXECUTION
+## ⚠️ CRITICAL RESTRICTION: NO EXECUTING THE ANALYSIS PIPELINE.
 
-**YOU ARE PROHIBITED FROM EXECUTING ANY CODE.**
+**YOU ARE PROHIBITED FROM EXECUTING THE ANALYSIS PIPELINE.**
 
 This includes:
 - ❌ Running `source("main.R")` or any R script

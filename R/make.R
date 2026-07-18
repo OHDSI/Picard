@@ -241,6 +241,9 @@ createExecutionSettings <- function(connectionDetails,
 #' @param cohortTable Character. Override for cohort table name.
 #' @param databaseName Character. Override for human-readable database name.
 #' @param pipelineVersion Character. Pipeline version ("prod" for production table, "dev" or "0.0.1" etc.).
+#' @param cohortTableSuffix Character. Optional suffix for cohort table names in
+#'   non-semver (test) runs. Normalized to lowercase snake_case and truncated to
+#'   24 characters. If NULL, non-semver runs default to \code{"_dev"}.
 #'
 #' @details
 #' Credentials are loaded from secrets.yml (default \code{~/.picard/secrets.yml}).
@@ -265,7 +268,8 @@ createExecutionSettingsFromConfig <- function(
     tempEmulationSchema = NULL,
     cohortTable = NULL,
     databaseName = NULL,
-    pipelineVersion = "prod") {
+    pipelineVersion = "prod",
+    cohortTableSuffix = NULL) {
 
   if (!file.exists(configFilePath)) {
     stop("Config file not found: ", configFilePath)
@@ -330,7 +334,29 @@ createExecutionSettingsFromConfig <- function(
   # Route to dev cohort table for any non-semver pipeline version (e.g. "dev", "test").
   # Semantic versions ("1.0.0", "2.1.3") always use the production table from config.
   is_dev_version <- !grepl("^\\d+\\.\\d+\\.\\d+$", pipelineVersion)
-  if (is_dev_version) {
+
+  if (!is.null(cohortTableSuffix)) {
+    if (!is_dev_version) {
+      stop("cohortTableSuffix can only be used with non-semver test pipeline versions")
+    }
+
+    suffix <- tolower(trimws(cohortTableSuffix))
+    suffix <- gsub("[^a-z0-9]+", "_", suffix)
+    suffix <- gsub("^_+|_+$", "", suffix)
+    suffix <- gsub("_+", "_", suffix)
+
+    if (suffix == "") {
+      stop("cohortTableSuffix must contain at least one letter or number")
+    }
+
+    if (nchar(suffix) > 24) {
+      suffix <- substr(suffix, 1, 24)
+      cli::cli_alert_warning("cohortTableSuffix truncated to 24 characters: {.val {suffix}}")
+    }
+
+    cohortTable <- paste0(cohortTable, "_", suffix)
+    cli::cli_alert_info("Test pipeline version ({pipelineVersion}) — cohort table set to: {.val {cohortTable}}")
+  } else if (is_dev_version) {
     cohortTable <- paste0(cohortTable, "_dev")
     cli::cli_alert_info("Dev pipeline version ({pipelineVersion}) — cohort table set to: {.val {cohortTable}}")
   }
@@ -766,9 +792,9 @@ makePrintFriendlyFile <- function(cohorts_dir = "inputs/cohorts",
 #'
 #' @details
 #' Agent mode setup consists of:
-#' - `.agent/` folder with reference documentation
+#' - `.github/` folder with reference documentation
 #' - `copilot-instructions.md` at workspace root (auto-loaded by VS Code Copilot)
-#' - `.agent/copilot-instructions.md` (backup/reference)
+#' - `.github/copilot-instructions.md` (backup/reference)
 #'
 #' Study metadata is extracted from existing repo files:
 #' - Study title and project name from README.md
@@ -791,7 +817,7 @@ initAgentMode <- function(projectPath = here::here(), verbose = TRUE) {
   if (verbose) cli::cli_h2("Initializing Agent Mode Configuration")
 
   # Check if agent mode already exists
-  agent_folder <- fs::path(repoPath, ".agent")
+  agent_folder <- fs::path(repoPath, ".github")
   root_instructions <- fs::path(repoPath, "copilot-instructions.md")
   reference_docs_folder <- fs::path(agent_folder, "reference-docs")
 
@@ -877,7 +903,7 @@ initAgentMode <- function(projectPath = here::here(), verbose = TRUE) {
       ))
     }
 
-    # Create .agent folder
+    # Create .github folder
     fs::dir_create(agent_folder)
 
     # Read and substitute copilot-instructions.md template
@@ -887,7 +913,7 @@ initAgentMode <- function(projectPath = here::here(), verbose = TRUE) {
 
     instructions_content <- glue::glue(instructions_template, .open = "{{", .close = "}}")
 
-    # Write to .agent folder for reference
+    # Write to .github folder for reference
     instructions_file <- fs::path(agent_folder, "copilot-instructions.md")
     readr::write_file(x = instructions_content, file = instructions_file)
     cli::cli_alert_success("Created {.file {fs::path_rel(instructions_file)}}")
@@ -926,8 +952,8 @@ initAgentMode <- function(projectPath = here::here(), verbose = TRUE) {
 
     files_created <- c(
       "copilot-instructions.md",
-      ".agent/copilot-instructions.md",
-      paste0(".agent/reference-docs/", fs::path_file(reference_files))
+      ".github/copilot-instructions.md",
+      paste0(".github/reference-docs/", fs::path_file(reference_files))
     )
 
     invisible(list(

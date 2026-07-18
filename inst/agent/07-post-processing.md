@@ -1,4 +1,6 @@
-# Post-Processing and Dissemination
+<!-- AUTO-GENERATED FILE. DO NOT EDIT DIRECTLY. -->
+<!-- Source: vignettes/post_processing.Rmd -->
+
 
 ## Introduction
 
@@ -16,7 +18,7 @@ Results are saved to `dissemination/export/merge/v{version}/` with reference fil
 
 After your production pipeline completes, call `runPostProcessing()` to orchestrate the merge:
 
-```r
+```{r eval = FALSE}
 library(picard)
 
 # Merge results for version 1.0.0 across databases
@@ -45,7 +47,7 @@ This function:
 
 Pass `testMode = TRUE` for development versions (e.g., "dev", "test") to skip non-fatal QC checks:
 
-```r
+```{r eval = FALSE}
 runPostProcessing(
   pipelineVersion = "dev",
   dbIds = c("database_1"),
@@ -55,7 +57,7 @@ runPostProcessing(
 
 By default, test mode is auto-enabled for non-semver version strings.
 
-### Output Folder Structure
+## Output Folder Structure
 
 After processing, results are organized in `dissemination/export/merge/v{version}/`:
 
@@ -73,6 +75,16 @@ v1.0.0/
 
 ## Reference Files
 
+### databaseInfo.csv
+
+Documents which databases were included in the merge:
+
+```
+databaseId,databaseName,databaseLabel,cohortTable
+database_1,database_1,OMOP CDM - Site A,cohort
+database_2,database_2,OMOP CDM - Site B,cohort_table
+```
+
 ### cohortManifestSnapshot.csv
 
 Point-in-time snapshot of your cohort manifest at execution:
@@ -85,23 +97,9 @@ id,label,category,tags,file_path,hash,cohort_type,status,created_at,updated_at
 
 Enables recovery via git history: `git log -- <file_path>`
 
-### databaseInfo.csv
-
-Documents which databases were included in the merge:
-
-```
-databaseId,databaseName,databaseLabel,cohortTable
-database_1,database_1,OMOP CDM - Site A,cohort
-database_2,database_2,OMOP CDM - Site B,cohort_table
-```
-
 ### schema_review.csv
 
-Inspects the structure of all exported CSV files. Useful for identifying:
-
-- Column naming inconsistencies
-- Unexpected data types
-- Columns that need transformation
+Inspects the structure of all merged CSV files:
 
 ```
 fileName,columnName,dataType,rowCount
@@ -109,6 +107,11 @@ cohort_counts.csv,cohort_id,numeric,500
 cohort_counts.csv,cohort_subjects,numeric,500
 cohort_counts.csv,databaseId,character,500
 ```
+
+Useful for identifying:
+- Column naming inconsistencies
+- Unexpected data types requiring transformation
+- Data type mismatches across files
 
 ## Quality Control (QC) Reports
 
@@ -150,7 +153,7 @@ Tracks:
 
 After results are merged, format them for dissemination using numbered scripts in `dissemination/pretty/R/`:
 
-```r
+```{r eval = FALSE}
 # Create a new dissemination script
 makeDisseminationScript(
   name = "format_results",
@@ -168,7 +171,7 @@ This creates `01_format_results.R` with a template structure. Each script receiv
 
 ### Example Dissemination Script
 
-```r
+```{r eval = FALSE}
 # Access metadata from disseminationEnv
 cat("Pipeline version:", disseminationEnv$pipelineVersion, "\n")
 cat("Databases:", paste(disseminationEnv$databaseIds, collapse = ", "), "\n")
@@ -190,7 +193,7 @@ formatted <- results |>
 
 After creating scripts, source them all:
 
-```r
+```{r eval = FALSE}
 sourceDisseminationScripts(
   projectPath = here::here(),
   pipelineVersion = "1.0.0",
@@ -202,66 +205,11 @@ sourceDisseminationScripts(
 
 Scripts are numbered (01_, 02_, etc.) and sourced in alphabetical order.
 
-## Advanced: Manual Import and Binding
-
-If you need to merge results for a specific task only, use `importAndBind()`:
-
-```r
-library(picard)
-
-# Merge just the characterization task across all databases
-importAndBind(
-  version = "1.0.0",
-  taskName = "characterization",
-  dbIds = c("database_1", "database_2"),
-  resultsPath = here::here("exec/results"),
-  exportPath = here::here("dissemination/export/merge")
-)
-```
-
-This combines all CSV files from that task across databases and adds a `databaseId` column to identify the source.
-
-## Advanced: Schema Review
-
-To examine file structure without full orchestration:
-
-```r
-library(picard)
-
-# Review schema of exported files
-schema <- reviewExportSchema(
-  exportPath = here::here("dissemination/export/merge/v1.0.0")
-)
-
-# Check for specific data types
-character_cols <- schema[schema$dataType == "character", ]
-```
-
-## Advanced: Cohort Validation
-
-To validate cohort results independently:
-
-```r
-library(picard)
-
-# Validate cohorts in exported results
-validation <- validateCohortResults(
-  exportPath = here::here("dissemination/export/merge/v1.0.0"),
-  resultsFileName = "cohort_counts.csv"
-)
-
-# View validation results
-print(validation)
-
-# Check for issues
-issues <- validation[validation$validationStatus != "OK", ]
-```
-
 ## Integration into main.R
 
 The typical workflow in `main.R`:
 
-```r
+```{r eval = FALSE}
 # Phase 2: Execute pipeline
 execStudyPipeline(pipelineVersion = "1.0.0", ...)
 
@@ -282,12 +230,71 @@ sourceDisseminationScripts(
 )
 ```
 
+## Advanced: Manual Import and Binding
+
+If you need to merge results for a specific task only, use `importAndBind()`:
+
+```{r eval = FALSE}
+library(picard)
+
+# Merge just the descriptive statistics task across all databases
+importAndBind(
+  version = "1.0.0",
+  taskName = "01_descriptiveStats",
+  dbIds = c("omop_cdm", "another_cdm"),
+  resultsPath = here::here("exec/results"),
+  exportPath = here::here("dissemination/export/merge")
+)
+```
+
+This combines all CSV files from that task across databases and adds a `databaseId` column to identify the source.
+
+## Advanced: Schema Review
+
+To examine file structure without full orchestration:
+
+```{r eval = FALSE}
+library(picard)
+
+# Review schema of exported files
+schema <- reviewExportSchema(
+  exportPath = here::here("dissemination/export/merge/v1.0.0")
+)
+
+# Check for specific data types
+character_cols <- schema[schema$dataType == "character", ]
+```
+
+## Advanced: Cohort Validation
+
+To validate cohort results independently:
+
+```{r eval = FALSE}
+library(picard)
+
+# Validate cohorts in exported results
+validation <- validateCohortResults(
+  exportPath = here::here("dissemination/export/merge/v1.0.0"),
+  resultsFileName = "cohortCounts.csv"
+)
+
+# View validation results
+print(validation)
+
+# Check for issues
+issues <- validation[validation$validationStatus != "OK", ]
+```
+
 ## Next Steps
 
-1. **Run orchestration:** Call `runPostProcessing()` after production pipeline completes
+1. **Run post process merge:** Call `runPostProcessing()` after production pipeline completes
 2. **Review QC reports:** Check qc_cohortValidation.csv and qc_processMeta.csv
 3. **Examine schema:** Use schema_review.csv to understand data structure
-4. **Create dissemination scripts:** Use `makeDisseminationScript()` for custom formatting
-5. **Source scripts:** Call `sourceDisseminationScripts()` to run all dissemination scripts
-6. **Handle issues:** If cohorts are missing or zero, investigate in analysis tasks
-7. **Prepare dissemination:** Use exported results for publication or further analysis
+4. **Handle issues:** If cohorts are missing or zero, investigate in developing_the_pipeline
+5. **Continue dissemination:** Use exported results for publication or further analysis
+
+## See Also
+
+- [Running the Pipeline](running_the_pipeline.html) - Production execution
+- [Developing the Pipeline](developing_the_pipeline.html) - Testing and iteration during development
+- [Loading Inputs](loading_inputs.html) - Cohort and concept set setup
