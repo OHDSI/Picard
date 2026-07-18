@@ -159,7 +159,82 @@ All detailed guides are in `.agent/reference-docs/`:
 - **Follow the branching model** - Develop on feature branches, merge to develop, then to main via PR
 - **Document everything** - Keep README and NEWS updated as the study evolves
 
-## 🔒 Git Branch Enforcement
+## �️ Windows PowerShell: Running R Scripts Correctly
+
+**This project runs on Windows with PowerShell as the terminal.** When suggesting any PowerShell command that calls `Rscript`, you MUST follow these rules to avoid working-directory errors and wrong-version failures.
+
+### Rule 1 — Always `Set-Location` to the Project Root First
+
+`here::here()` anchors to the `.Rproj` file. If the working directory is wrong, all path resolution breaks.
+**Every** PowerShell snippet that runs R must begin with:
+
+```powershell
+Set-Location "C:\path\to\{{repoName}}"
+```
+
+Never assume the user is already in the right directory.
+
+### Rule 2 — Never Hardcode an R Version Path
+
+Do NOT write paths like `C:\Program Files\R\R-4.3.2\bin\Rscript.exe`. R versions change.
+Instead, use `Get-ChildItem` to discover and verify installed versions, then let the user confirm:
+
+```powershell
+# Step 1: List all installed R versions (newest first)
+Get-ChildItem "C:\Program Files\R" -Directory | Sort-Object Name -Descending
+
+# Step 2: Capture the path to the newest Rscript.exe
+$rDir = Get-ChildItem "C:\Program Files\R" -Directory |
+        Sort-Object Name -Descending |
+        Select-Object -First 1
+$rscript = Join-Path $rDir.FullName "bin\Rscript.exe"
+
+# Step 3: Confirm the version before running anything
+& $rscript --version
+```
+
+> ⚠️ **Always show the user the `Get-ChildItem` output and `--version` result and ask them to confirm the correct version before proceeding.** Do not assume the newest installed version is the active/renv-locked version.
+
+### Rule 3 — Cross-Check with renv.lock
+
+If the project has a `renv.lock` file, the required R version is declared in it:
+
+```powershell
+# Show the R version locked in renv
+Select-String -Path "renv.lock" -Pattern '"Version"' | Select-Object -First 1
+```
+
+The version shown in `renv.lock` under `"R"` must match the `Rscript.exe` you intend to use.
+
+### Standard Pattern for Running Any R Script in This Project
+
+```powershell
+# 1. Go to project root
+Set-Location "C:\path\to\{{repoName}}"
+
+# 2. Discover installed R versions
+$rDir = Get-ChildItem "C:\Program Files\R" -Directory |
+        Sort-Object Name -Descending |
+        Select-Object -First 1
+$rscript = Join-Path $rDir.FullName "bin\Rscript.exe"
+
+# 3. Confirm version matches renv.lock expectation
+& $rscript --version
+
+# 4. Run the script
+& $rscript -e "source('script.R')"
+```
+
+### Common Failure Modes to Prevent
+
+| Problem | Cause | Fix |
+|---|---|---|
+| `here()` resolves to wrong path | Missing `Set-Location` | Always set location first |
+| Wrong R version used | Hardcoded path or PATH order | Use `Get-ChildItem` to discover |
+| `renv` library not found | R version mismatch vs renv.lock | Cross-check renv.lock version |
+| `Rscript` not recognized | R not on PATH | Use full path via `Get-ChildItem` |
+
+## �🔒 Git Branch Enforcement
 
 **BEFORE providing any code suggestions or help, check the current git branch:**
 
