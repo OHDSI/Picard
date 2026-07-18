@@ -11,9 +11,14 @@
 # It is designed to be sourced as part of the pre-pipeline setup workflow.
 #
 # Workflow:
-#   1. Write Capr code to define your cohorts
-#   2. Use manifest$addCaprCohort() to add each cohort to the manifest
-#   3. Review the added cohorts in the manifest
+#   1. Write Capr code to define your cohorts (Section B)
+#   2. Use cohortManifest$addCaprCohort() to register each cohort (Section C)
+#   3. Review the added cohorts in the manifest (Section D)
+#
+# AI agent support: an agent skill for this workflow is available at
+# .agent/skills/picard-capr-cohorts/ (it wraps the Capr package's
+# capr-cohort-generation skill). Ask your coding agent to build the cohort;
+# only edit and source this script yourself.
 #
 # Note: Capr cohorts are powerful because they can be:
 #   - Generated dynamically in code
@@ -38,34 +43,32 @@ cohortManifest <- loadCohortManifest()
 # ================================================================================
 
 # Ensure Capr is loaded (you may need to install it first)
-# install.packages("Capr", repos = "http://ohdsi.github.io/drat")
+# remotes::install_github("OHDSI/Capr")
 library(Capr)
 
-# ---- Example 1: Simple condition cohort ----
-# myCohort <- cohort(
+# ---- Example: First-time Type 2 Diabetes diagnosis with 365d washout ----
+# Verify all concept ids in ATHENA (https://athena.ohdsi.org) before use.
+
+# t2dCs <- cs(descendants(201826), name = "Type 2 diabetes mellitus")
+#
+# t2dCohort <- cohort(
 #   entry = entry(
-#     condition(250171)  # Diabetes mellitus - ICD 250.1.7.1
+#     conditionOccurrence(t2dCs),
+#     observationWindow = continuousObservation(priorDays = 365L),
+#     primaryCriteriaLimit = "First"
 #   ),
-#   attrition(
-#     "Exclude prior observations" = exclude(
-#       observationWindow(
-#         startWindow = window(start = -Inf, end = 0)
+#   attrition = attrition(
+#     "No prior T2D diagnosis" = withAll(
+#       exactly(
+#         0L,
+#         conditionOccurrence(t2dCs),
+#         duringInterval(eventStarts(-Inf, -1))
 #       )
-#     )
-#   )
-# )
-
-
-# ---- Example 2: Drug exposure cohort ----
-# drugCohort <- cohort(
-#   entry = entry(
-#     drug(21600095)  # Metformin
+#     ),
+#     expressionLimit = "First"
 #   ),
-#   attrition(
-#     "Minimum 30 days observation" = exclude(
-#       observationWindow(minDays = 30)
-#     )
-#   )
+#   exit = exit(endStrategy = observationExit()),
+#   era = era(eraDays = 0L)
 # )
 
 
@@ -73,20 +76,15 @@ library(Capr)
 # C. ADD CAPR COHORTS TO THE MANIFEST
 # ================================================================================
 
-# Uncomment and modify as you add your Capr cohorts:
+# Registration writes the cohort JSON to inputs/cohorts/json/ and records it in
+# the manifest -- do NOT call Capr::writeCohort() yourself in this script.
+# Labels must be unique within the manifest.
 
 # cohortManifest$addCaprCohort(
-#   caprCohort = myCohort,
+#   caprCohort = t2dCohort,
 #   label = "Type 2 Diabetes",
-#   category = "Disease Populations",
+#   category = "Target",
 #   tags = list(source = "capr", domain = "condition")
-# )
-
-# cohortManifest$addCaprCohort(
-#   caprCohort = drugCohort,
-#   label = "Metformin Users",
-#   category = "Exposures",
-#   tags = list(source = "capr", domain = "drug")
 # )
 
 
@@ -108,14 +106,16 @@ cli::cli_alert_success("Capr cohorts added successfully to manifest!")
 # ================================================================================
 #
 # - Capr GitHub: https://github.com/OHDSI/Capr
-# - CirceR documentation (underlying CIRCE generation): ?CirceR
-# - CohortExpressionBuilder: For visual cohort building
+# - Capr documentation: https://ohdsi.github.io/Capr/
+# - Concept search (ATHENA): https://athena.ohdsi.org
+# - Agent skill bundle: .agent/skills/capr-cohort-generation/ (includes
+#   CAPR_REFERENCE.md, the full Capr API reference)
 #
 # Capr allows you to build complex cohorts with:
-#   - Entry criteria (condition, drug, procedure, etc.)
-#   - Inclusion/exclusion rules
-#   - Attrition criteria
-#   - Temporal relationships
-#   - Visit context specifications
+#   - Entry events per OMOP domain (conditionOccurrence, drugExposure, measurement, ...)
+#   - Inclusion/exclusion rules via attrition() with withAll()/withAny()/withAtLeast()
+#   - Occurrence counts via exactly()/atLeast()/atMost() and assessment windows
+#     via duringInterval(eventStarts(...), ...)
+#   - Exit strategies: observationExit(), fixedExit(), drugExit()
 #
-# See Capr documentation for advanced patterns and best practices.
+# See the Capr documentation for advanced patterns and best practices.
