@@ -70,13 +70,27 @@ conceptSetsLoad <- readr::read_csv(
     show_col_types = FALSE
 )
 
-# updateExisting = TRUE keeps the manifest in sync with ATLAS: concept sets
-# already registered are re-checked and changed definitions updated in place
-# (same ID). Set to FALSE to never touch existing concept sets.
-conceptSetManifest$importAtlasConceptSets(conceptSetsLoad = conceptSetsLoad, updateExisting = TRUE)
+# The load csv is for one-time imports only: rows already registered in the
+# manifest cause an error. After a successful import, clear or remove the csv.
+conceptSetManifest$importAtlasConceptSets(conceptSetsLoad = conceptSetsLoad)
+
 
 # ================================================================================
-# E. REVIEW IMPORTED CONCEPT SETS
+# E. SYNC REGISTERED ATLAS CONCEPT SETS
+# ================================================================================
+
+# Always run: re-checks every registered ATLAS concept set against ATLAS and
+# updates changed definitions in place (same ID). This is the step that
+# propagates ATLAS edits.
+conceptSetManifest$updateAtlasConceptSets()
+
+# To update a single concept set on demand instead, use:
+# conceptSetManifest$addAtlasConceptSet(atlasId = ..., label = "...",
+#                                       stopIfExists = FALSE)
+
+
+# ================================================================================
+# F. REVIEW IMPORTED CONCEPT SETS
 # ================================================================================
 
 # Display a table of all concept sets in the manifest

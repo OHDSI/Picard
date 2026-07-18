@@ -16,6 +16,12 @@ The ConceptSetManifest class manages multiple concept set definitions and stores
 metadata in a SQLite database located at inputs/conceptSets/conceptSetManifest.sqlite.
 Each ConceptSetDef is assigned a sequential ID based on its position in the manifest.
 
+The load file is a transient, one-time import mechanism: rows whose
+atlasId or label are already registered in the manifest are an error, not
+an update. To sync registered concept sets with ATLAS, run
+\code{updateAtlasConceptSets()}; to update a single concept set, use
+\code{addAtlasConceptSet(stopIfExists = FALSE)}.
+
 \strong{Processing Steps:}
 \enumerate{
 \item Validates that all concept set IDs exist and are active
@@ -372,7 +378,8 @@ Fetch a single concept set from ATLAS and register it in the manifest
   label,
   category = "init",
   tags = list(),
-  atlasConnection = NULL
+  atlasConnection = NULL,
+  stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -391,6 +398,13 @@ Fetch a single concept set from ATLAS and register it in the manifest
 \code{getConceptSetDefinition(conceptSetId)} method that returns a list with
 \code{expression} (CIRCE JSON string) and \code{saveName} elements.
 If \code{NULL}, falls back to the connection stored via \verb{$setAtlasConnection()}.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+active concept set with this label is already registered. If FALSE,
+fetches the current definition from ATLAS and updates the registered
+concept set in place — same ID and file path, hash refreshed,
+\code{category}/\code{tags}/atlasId replaced. An unchanged definition leaves the
+file untouched. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -476,8 +490,7 @@ a \code{tryCatch} so a single failure does not abort the entire batch.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$importAtlasConceptSets(
   conceptSetsLoad,
-  atlasConnection = NULL,
-  updateExisting = FALSE
+  atlasConnection = NULL
 )}\if{html}{\out{</div>}}
 }
 
@@ -489,13 +502,6 @@ a \code{tryCatch} so a single failure does not abort the entire batch.
 \item{\code{atlasConnection}}{An ATLAS connection object with a
 \code{getConceptSetDefinition(conceptSetId)} method.
 If \code{NULL}, falls back to the connection stored via \verb{$setAtlasConnection()}.}
-
-\item{\code{updateExisting}}{Logical. If FALSE (default), concept sets already in
-the manifest are left untouched and a reminder to run
-\code{updateAtlasConceptSets()} is printed. If TRUE, registered ATLAS concept
-sets are checked against ATLAS and changed definitions are updated in
-place via \code{updateAtlasConceptSets()} (same ID and file path), so
-re-running the import propagates ATLAS edits without a separate manual step.}
 }
 \if{html}{\out{</div>}}
 }

@@ -548,38 +548,101 @@ cm_test_fake_atlas_connection <- function(expressions) {
   )
 }
 
-# Testing: importAtlasCohorts updateExisting = TRUE upserts changed ATLAS definitions in place.
-testthat::test_that("importAtlasCohorts updateExisting TRUE updates changed definitions", {
-  setup <- cm_test_new_manifest("mgmt-atlas-upsert")
-  manifest <- setup$manifest
-
-  # Fake ATLAS payloads must be valid CIRCE JSON (CohortDef validates via CirceR)
+# Purpose: Read the two CIRCE fixtures used as fake ATLAS payloads (must be valid
+# CIRCE JSON because CohortDef validates via CirceR); skip if missing.
+cm_test_atlas_fixture_jsons <- function() {
   v1_path <- testthat::test_path("test_files", "ckd.json")
   v2_path <- testthat::test_path("test_files", "t2d.json")
   testthat::skip_if_not(fs::file_exists(v1_path) && fs::file_exists(v2_path),
                         message = "Missing CIRCE test fixtures")
-  v1_json <- readr::read_file(v1_path)
-  v2_json <- readr::read_file(v2_path)
+  list(v1 = readr::read_file(v1_path), v2 = readr::read_file(v2_path))
+}
+
+# Testing: importAtlasCohorts errors when load rows are already registered (transient csv).
+testthat::test_that("importAtlasCohorts errors on already-registered rows", {
+  setup <- cm_test_new_manifest("mgmt-atlas-import-dup")
+  manifest <- setup$manifest
+  jsons <- cm_test_atlas_fixture_jsons()
 
   load_df <- data.frame(atlasId = 100L, label = "Atlas Cohort", category = "Target")
+  conn_v1 <- cm_test_fake_atlas_connection(list("100" = jsons$v1))
 
-  conn_v1 <- cm_test_fake_atlas_connection(list("100" = v1_json))
   manifest$importAtlasCohorts(cohortsLoad = load_df, atlasConnection = conn_v1)
+  testthat::expect_equal(nrow(cm_test_get_manifest_row(manifest, "Atlas Cohort")), 1)
+
+  # Re-importing the same load file fails fast, and nothing is changed
   before <- cm_test_get_manifest_row(manifest, "Atlas Cohort")
-  testthat::expect_equal(nrow(before), 1)
+  testthat::expect_error(
+    manifest$importAtlasCohorts(cohortsLoad = load_df, atlasConnection = conn_v1),
+    regexp = "already registered"
+  )
+  after <- cm_test_get_manifest_row(manifest, "Atlas Cohort")
+  testthat::expect_equal(after$hash[[1]], before$hash[[1]])
 
-  conn_v2 <- cm_test_fake_atlas_connection(list("100" = v2_json))
+  # A new atlasId with a colliding label also fails fast
+  collide_df <- data.frame(atlasId = 200L, label = "Atlas Cohort", category = "Target")
+  conn_both <- cm_test_fake_atlas_connection(list("100" = jsons$v1, "200" = jsons$v2))
+  testthat::expect_error(
+    manifest$importAtlasCohorts(cohortsLoad = collide_df, atlasConnection = conn_both),
+    regexp = "already in use"
+  )
+})
 
-  # Default re-import leaves the registered definition untouched
-  manifest$importAtlasCohorts(cohortsLoad = load_df, atlasConnection = conn_v2)
+# Testing: addAtlasCohort stopIfExists = FALSE refreshes a single cohort from ATLAS in place.
+testthat::test_that("addAtlasCohort stopIfExists FALSE updates from ATLAS in place", {
+  setup <- cm_test_new_manifest("mgmt-atlas-add-upsert")
+  manifest <- setup$manifest
+  jsons <- cm_test_atlas_fixture_jsons()
+
+  conn_v1 <- cm_test_fake_atlas_connection(list("100" = jsons$v1))
+  manifest$addAtlasCohort(atlasId = 100L, label = "Atlas Cohort", category = "Target",
+                          atlasConnection = conn_v1)
+  before <- cm_test_get_manifest_row(manifest, "Atlas Cohort")
+
+  # Unchanged definition is a no-op
+  manifest$addAtlasCohort(atlasId = 100L, label = "Atlas Cohort", category = "Target",
+                          atlasConnection = conn_v1, stopIfExists = FALSE)
   unchanged <- cm_test_get_manifest_row(manifest, "Atlas Cohort")
   testthat::expect_equal(unchanged$hash[[1]], before$hash[[1]])
 
-  # updateExisting = TRUE fetches the new definition and updates in place
-  manifest$importAtlasCohorts(cohortsLoad = load_df, atlasConnection = conn_v2, updateExisting = TRUE)
+  # Changed definition updates in place, keeping ID and file path
+  conn_v2 <- cm_test_fake_atlas_connection(list("100" = jsons$v2))
+  returned_id <- manifest$addAtlasCohort(atlasId = 100L, label = "Atlas Cohort", category = "Comparator",
+                                         atlasConnection = conn_v2, stopIfExists = FALSE)
+  after <- cm_test_get_manifest_row(manifest, "Atlas Cohort")
+  testthat::expect_equal(as.integer(returned_id), as.integer(before$id[[1]]))
+  testthat::expect_equal(after$file_path[[1]], before$file_path[[1]])
+  testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
+  testthat::expect_equal(after$category[[1]], "Comparator")
+
+  # Default still errors on duplicate label
+  testthat::expect_error(
+    manifest$addAtlasCohort(atlasId = 100L, label = "Atlas Cohort", category = "Target",
+                            atlasConnection = conn_v2),
+    regexp = "already in use"
+  )
+})
+
+# Testing: updateAtlasCohorts syncs changed remote definitions (the always-run template step).
+testthat::test_that("updateAtlasCohorts syncs changed definitions in place", {
+  setup <- cm_test_new_manifest("mgmt-atlas-sync")
+  manifest <- setup$manifest
+  jsons <- cm_test_atlas_fixture_jsons()
+
+  conn_v1 <- cm_test_fake_atlas_connection(list("100" = jsons$v1))
+  manifest$addAtlasCohort(atlasId = 100L, label = "Atlas Cohort", category = "Target",
+                          atlasConnection = conn_v1)
+  before <- cm_test_get_manifest_row(manifest, "Atlas Cohort")
+
+  # Remote unchanged: nothing happens
+  manifest$updateAtlasCohorts(conn_v1)
+  testthat::expect_equal(cm_test_get_manifest_row(manifest, "Atlas Cohort")$hash[[1]], before$hash[[1]])
+
+  # Remote changed: definition updated in place
+  conn_v2 <- cm_test_fake_atlas_connection(list("100" = jsons$v2))
+  manifest$updateAtlasCohorts(conn_v2)
   after <- cm_test_get_manifest_row(manifest, "Atlas Cohort")
   testthat::expect_equal(after$id[[1]], before$id[[1]])
-  testthat::expect_equal(after$file_path[[1]], before$file_path[[1]])
   testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
 })
 

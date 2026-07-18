@@ -560,9 +560,15 @@ ConceptSetManifest <- R6::R6Class(
     #'   `getConceptSetDefinition(conceptSetId)` method that returns a list with
     #'   `expression` (CIRCE JSON string) and `saveName` elements.
     #'   If `NULL`, falls back to the connection stored via `$setAtlasConnection()`.
+    #' @param stopIfExists Logical. If TRUE (default), raises an error when an
+    #'   active concept set with this label is already registered. If FALSE,
+    #'   fetches the current definition from ATLAS and updates the registered
+    #'   concept set in place — same ID and file path, hash refreshed,
+    #'   `category`/`tags`/atlasId replaced. An unchanged definition leaves the
+    #'   file untouched. Default: TRUE (fail-safe).
     #'
     #' @return Invisible integer. The assigned concept set ID.
-    addAtlasConceptSet = function(atlasId, label, category = "init", tags = list(), atlasConnection = NULL) {
+    addAtlasConceptSet = function(atlasId, label, category = "init", tags = list(), atlasConnection = NULL, stopIfExists = TRUE) {
       if (is.null(atlasConnection)) {
         atlasConnection <- private$.atlasConnection
       }
@@ -581,9 +587,67 @@ ConceptSetManifest <- R6::R6Class(
       #                    "observation", "device_exposure", "visit_occurrence", "init")
       checkmate::assert_string(category, min.chars = 1)
       checkmate::assert_list(tags, names = "named")
+      checkmate::assert_flag(stopIfExists)
 
       # Ensure atlasId is always stored in tags for idempotent import matching
       tags$atlasId <- as.integer(atlasId)
+
+      existing_id <- private$find_active_id_by_label(label)
+      if (!is.na(existing_id)) {
+        if (stopIfExists) {
+          cli::cli_abort("Label '{label}' is already in use by concept set {existing_id}")
+        }
+
+        # Upsert path: refresh the registered concept set from ATLAS in place
+        cli::cli_alert_info("Concept set {.val {label}} already exists (ID {existing_id}) — updating from ATLAS in place")
+
+        conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+        on.exit(DBI::dbDisconnect(conn))
+
+        existing <- DBI::dbGetQuery(
+          conn,
+          "SELECT file_path, hash FROM concept_set_manifest WHERE id = ?",
+          list(existing_id)
+        )
+
+        cs_def <- tryCatch(
+          atlasConnection$getConceptSetDefinition(conceptSetId = atlasId),
+          error = function(e) cli::cli_abort("Failed to fetch concept set {atlasId} from ATLAS: {e$message}")
+        )
+
+        # Refresh metadata regardless of content change
+        private$update_concept_set_def(conceptSetId = existing_id, category = category, tags = tags)
+
+        # Write to a temp file first so a failed write cannot clobber the
+        # registered JSON, and unchanged definitions leave the file untouched
+        file_path <- existing$file_path[1]
+        tmp_json <- tempfile(fileext = ".json")
+        readr::write_lines(cs_def$expression[1], tmp_json)
+        new_hash <- rlang::hash(readr::read_file(tmp_json))
+
+        if (identical(new_hash, existing$hash[1])) {
+          unlink(tmp_json)
+          cli::cli_alert_info("Concept set {existing_id}: {label} definition is unchanged")
+          return(invisible(existing_id))
+        }
+
+        if (!dir.exists(dirname(file_path))) {
+          dir.create(dirname(file_path), recursive = TRUE)
+        }
+        file.copy(tmp_json, file_path, overwrite = TRUE)
+        unlink(tmp_json)
+
+        DBI::dbExecute(
+          conn,
+          "UPDATE concept_set_manifest SET hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+          list(new_hash, existing_id)
+        )
+
+        private$load_manifest_from_db()
+
+        cli::cli_alert_success("Updated ATLAS concept set {existing_id}: {label}")
+        return(invisible(existing_id))
+      }
 
       # Fetch concept set JSON from ATLAS
       cs_def <- tryCatch(
@@ -772,17 +836,17 @@ ConceptSetManifest <- R6::R6Class(
     #' @param atlasConnection An ATLAS connection object with a
     #'   `getConceptSetDefinition(conceptSetId)` method.
     #'   If `NULL`, falls back to the connection stored via `$setAtlasConnection()`.
-    #' @param updateExisting Logical. If FALSE (default), concept sets already in
-    #'   the manifest are left untouched and a reminder to run
-    #'   `updateAtlasConceptSets()` is printed. If TRUE, registered ATLAS concept
-    #'   sets are checked against ATLAS and changed definitions are updated in
-    #'   place via `updateAtlasConceptSets()` (same ID and file path), so
-    #'   re-running the import propagates ATLAS edits without a separate manual step.
+    #'
+    #' @details
+    #' The load file is a transient, one-time import mechanism: rows whose
+    #' atlasId or label are already registered in the manifest are an error, not
+    #' an update. To sync registered concept sets with ATLAS, run
+    #' `updateAtlasConceptSets()`; to update a single concept set, use
+    #' `addAtlasConceptSet(stopIfExists = FALSE)`.
     #'
     #' @return Invisible tibble imported concept sets.
     importAtlasConceptSets = function(conceptSetsLoad,
-                                      atlasConnection = NULL,
-                                      updateExisting = FALSE) {
+                                      atlasConnection = NULL) {
       if (is.null(atlasConnection)) {
         atlasConnection <- private$.atlasConnection
       }
@@ -798,7 +862,6 @@ ConceptSetManifest <- R6::R6Class(
       required_cols <- c("atlasId", "label", "category")
       # Validate data frame if provided directly
       checkmate::assert_data_frame(conceptSetsLoad, min.cols = 3)
-      checkmate::assert_flag(updateExisting)
       missing_cols <- setdiff(required_cols, names(conceptSetsLoad))
       if (length(missing_cols) > 0) {
         cli::cli_abort("conceptSetsLoad missing required columns: {paste(missing_cols, collapse = ', ')}")
@@ -819,6 +882,33 @@ ConceptSetManifest <- R6::R6Class(
       existing_concept_sets <- concept_set_load_2 |>
         dplyr::filter(status == "active")
 
+      # The load csv is a transient, one-time import file — registered rows are
+      # an error, not an update mechanism. Fail fast before importing anything.
+      if (nrow(existing_concept_sets) > 0) {
+        offending <- paste0(
+          "[", existing_concept_sets$id, "] ", existing_concept_sets$label,
+          " (atlasId ", existing_concept_sets$atlasId, ")"
+        )
+        cli::cli_abort(c(
+          "{nrow(existing_concept_sets)} concept set(s) in the load file are already registered in the manifest:",
+          stats::setNames(offending, rep("x", length(offending))),
+          i = "Remove them from the load csv — it is for one-time imports only.",
+          i = "To sync registered concept sets with ATLAS, run {.code updateAtlasConceptSets()}.",
+          i = "To update a single concept set, use {.code addAtlasConceptSet(stopIfExists = FALSE)}."
+        ))
+      }
+
+      # Fail fast on label collisions too, before any row is imported
+      colliding <- new_concept_sets$label[
+        vapply(new_concept_sets$label, function(l) !is.na(private$find_active_id_by_label(l)), logical(1))
+      ]
+      if (length(colliding) > 0) {
+        cli::cli_abort(c(
+          "{length(colliding)} label(s) in the load file are already in use: {paste(colliding, collapse = ', ')}.",
+          i = "Labels must be unique in the manifest. Rename them in the load csv or remove the rows."
+        ))
+      }
+
       # Process new concept sets
       if (nrow(new_concept_sets) > 0) {
         cli::cli_rule("Adding {nrow(new_concept_sets)} new concept set(s)")
@@ -836,28 +926,11 @@ ConceptSetManifest <- R6::R6Class(
         }
       }
 
-      # Process existing concept sets
-      if (nrow(existing_concept_sets) > 0) {
-        cli::cli_rule("Existing concept set(s) in manifest ({nrow(existing_concept_sets)})")
-        for (i in seq_len(nrow(existing_concept_sets))) {
-          row <- existing_concept_sets[i, ]
-          cli::cli_alert_warning("  ID {row$id}: {row$label} (atlasId: {row$atlasId})")
-        }
-        
-        if (updateExisting) {
-          self$updateAtlasConceptSets(atlasConnection)
-        } else {
-          cli::cli_alert_info("To check for ATLAS changes, run: {.code manifest$checkAtlasConceptSets(atlasConnection)}")
-          cli::cli_alert_info("To update ATLAS definitions, run: {.code manifest$updateAtlasConceptSets(atlasConnection)}")
-        }
-      }
-
       # Build and print final summary table
       summary_tbl <- concept_set_load_2 |>
         dplyr::mutate(
           message = dplyr::case_when(
             status == "new" ~ "Successfully added to manifest",
-            status == "active" ~ "Already in manifest",
             TRUE ~ "Unknown"
           )
         ) |>

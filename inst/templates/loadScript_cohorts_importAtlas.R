@@ -68,14 +68,27 @@ cohortsLoad <- readr::read_csv(
     show_col_types = FALSE
 )
 
-# updateExisting = TRUE keeps the manifest in sync with ATLAS: cohorts already
-# registered are re-checked and changed definitions updated in place (same ID,
-# derived cohorts marked stale). Set to FALSE to never touch existing cohorts.
-cohortManifest$importAtlasCohorts(cohortsLoad = cohortsLoad, updateExisting = TRUE)
+# The load csv is for one-time imports only: rows already registered in the
+# manifest cause an error. After a successful import, clear or remove the csv.
+cohortManifest$importAtlasCohorts(cohortsLoad = cohortsLoad)
 
 
 # ================================================================================
-# E. REVIEW IMPORTED COHORTS
+# E. SYNC REGISTERED ATLAS COHORTS
+# ================================================================================
+
+# Always run: re-checks every registered ATLAS cohort against ATLAS and updates
+# changed definitions in place (same ID; derived cohorts marked stale so the
+# pipeline regenerates them). This is the step that propagates ATLAS edits.
+cohortManifest$updateAtlasCohorts()
+
+# To update a single cohort on demand instead, use:
+# cohortManifest$addAtlasCohort(atlasId = ..., label = "...", category = "...",
+#                               stopIfExists = FALSE)
+
+
+# ================================================================================
+# F. REVIEW IMPORTED COHORTS
 # ================================================================================
 
 # Display a table of all cohorts in the manifest

@@ -142,13 +142,9 @@ csm_test_fake_atlas_connection <- function(expressions) {
   )
 }
 
-# Testing: importAtlasConceptSets updateExisting = TRUE upserts changed ATLAS definitions in place.
-testthat::test_that("importAtlasConceptSets updateExisting TRUE updates changed definitions", {
-  setup <- csm_test_new_manifest("csm-atlas-upsert")
-  manifest <- setup$manifest
-
-  # Fake ATLAS payloads must be valid CIRCE JSON (ConceptSetDef validates via
-  # CirceR), so generate two distinct definitions with Capr
+# Purpose: Generate two distinct valid concept set JSON payloads via Capr (fake
+# ATLAS payloads must be valid CIRCE JSON because ConceptSetDef validates via CirceR).
+csm_test_atlas_fixture_jsons <- function() {
   v1_tmp <- tempfile(fileext = ".json")
   Capr::writeConceptSet(csm_test_make_capr_concept_set(), v1_tmp)
   v1_json <- readr::read_file(v1_tmp)
@@ -156,26 +152,95 @@ testthat::test_that("importAtlasConceptSets updateExisting TRUE updates changed 
   Capr::writeConceptSet(csm_test_make_capr_concept_set(concept_ids = c(201826, 443238)), v2_tmp)
   v2_json <- readr::read_file(v2_tmp)
   unlink(c(v1_tmp, v2_tmp))
+  list(v1 = v1_json, v2 = v2_json)
+}
+
+# Testing: importAtlasConceptSets errors when load rows are already registered (transient csv).
+testthat::test_that("importAtlasConceptSets errors on already-registered rows", {
+  setup <- csm_test_new_manifest("csm-atlas-import-dup")
+  manifest <- setup$manifest
+  jsons <- csm_test_atlas_fixture_jsons()
 
   load_df <- data.frame(atlasId = 200L, label = "Atlas Concepts", category = "condition_occurrence")
+  conn_v1 <- csm_test_fake_atlas_connection(list("200" = jsons$v1))
 
-  conn_v1 <- csm_test_fake_atlas_connection(list("200" = v1_json))
   manifest$importAtlasConceptSets(conceptSetsLoad = load_df, atlasConnection = conn_v1)
   before <- csm_test_get_manifest_row(manifest, "Atlas Concepts")
   testthat::expect_equal(nrow(before), 1)
 
-  conn_v2 <- csm_test_fake_atlas_connection(list("200" = v2_json))
+  testthat::expect_error(
+    manifest$importAtlasConceptSets(conceptSetsLoad = load_df, atlasConnection = conn_v1),
+    regexp = "already registered"
+  )
+  after <- csm_test_get_manifest_row(manifest, "Atlas Concepts")
+  testthat::expect_equal(after$hash[[1]], before$hash[[1]])
 
-  # Default re-import leaves the registered definition untouched
-  manifest$importAtlasConceptSets(conceptSetsLoad = load_df, atlasConnection = conn_v2)
+  # A new atlasId with a colliding label also fails fast
+  collide_df <- data.frame(atlasId = 300L, label = "Atlas Concepts", category = "condition_occurrence")
+  conn_both <- csm_test_fake_atlas_connection(list("200" = jsons$v1, "300" = jsons$v2))
+  testthat::expect_error(
+    manifest$importAtlasConceptSets(conceptSetsLoad = collide_df, atlasConnection = conn_both),
+    regexp = "already in use"
+  )
+})
+
+# Testing: addAtlasConceptSet stopIfExists = FALSE refreshes a single concept set from ATLAS in place.
+testthat::test_that("addAtlasConceptSet stopIfExists FALSE updates from ATLAS in place", {
+  setup <- csm_test_new_manifest("csm-atlas-add-upsert")
+  manifest <- setup$manifest
+  jsons <- csm_test_atlas_fixture_jsons()
+
+  conn_v1 <- csm_test_fake_atlas_connection(list("200" = jsons$v1))
+  manifest$addAtlasConceptSet(atlasId = 200L, label = "Atlas Concepts",
+                              category = "condition_occurrence", atlasConnection = conn_v1)
+  before <- csm_test_get_manifest_row(manifest, "Atlas Concepts")
+
+  # Unchanged definition is a no-op
+  manifest$addAtlasConceptSet(atlasId = 200L, label = "Atlas Concepts",
+                              category = "condition_occurrence", atlasConnection = conn_v1,
+                              stopIfExists = FALSE)
   unchanged <- csm_test_get_manifest_row(manifest, "Atlas Concepts")
   testthat::expect_equal(unchanged$hash[[1]], before$hash[[1]])
 
-  # updateExisting = TRUE fetches the new definition and updates in place
-  manifest$importAtlasConceptSets(conceptSetsLoad = load_df, atlasConnection = conn_v2, updateExisting = TRUE)
+  # Changed definition updates in place, keeping ID and file path
+  conn_v2 <- csm_test_fake_atlas_connection(list("200" = jsons$v2))
+  returned_id <- manifest$addAtlasConceptSet(atlasId = 200L, label = "Atlas Concepts",
+                                             category = "observation", atlasConnection = conn_v2,
+                                             stopIfExists = FALSE)
+  after <- csm_test_get_manifest_row(manifest, "Atlas Concepts")
+  testthat::expect_equal(as.integer(returned_id), as.integer(before$id[[1]]))
+  testthat::expect_equal(after$file_path[[1]], before$file_path[[1]])
+  testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
+  testthat::expect_equal(after$category[[1]], "observation")
+
+  # Default still errors on duplicate label
+  testthat::expect_error(
+    manifest$addAtlasConceptSet(atlasId = 200L, label = "Atlas Concepts",
+                                category = "condition_occurrence", atlasConnection = conn_v2),
+    regexp = "already in use"
+  )
+})
+
+# Testing: updateAtlasConceptSets syncs changed remote definitions (the always-run template step).
+testthat::test_that("updateAtlasConceptSets syncs changed definitions in place", {
+  setup <- csm_test_new_manifest("csm-atlas-sync")
+  manifest <- setup$manifest
+  jsons <- csm_test_atlas_fixture_jsons()
+
+  conn_v1 <- csm_test_fake_atlas_connection(list("200" = jsons$v1))
+  manifest$addAtlasConceptSet(atlasId = 200L, label = "Atlas Concepts",
+                              category = "condition_occurrence", atlasConnection = conn_v1)
+  before <- csm_test_get_manifest_row(manifest, "Atlas Concepts")
+
+  # Remote unchanged: nothing happens
+  manifest$updateAtlasConceptSets(conn_v1)
+  testthat::expect_equal(csm_test_get_manifest_row(manifest, "Atlas Concepts")$hash[[1]], before$hash[[1]])
+
+  # Remote changed: definition updated in place
+  conn_v2 <- csm_test_fake_atlas_connection(list("200" = jsons$v2))
+  manifest$updateAtlasConceptSets(conn_v2)
   after <- csm_test_get_manifest_row(manifest, "Atlas Concepts")
   testthat::expect_equal(after$id[[1]], before$id[[1]])
-  testthat::expect_equal(after$file_path[[1]], before$file_path[[1]])
   testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
 })
 

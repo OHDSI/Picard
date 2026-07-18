@@ -1043,9 +1043,15 @@ CohortManifest <- R6::R6Class(
     #' @param atlasConnection An ATLAS connection object (e.g., from ROhdsiWebApi::createConnectionDetails)
     #'   with a method `getCohortDefinition(cohortId)` that returns a list with an `expression` element.
     #'   If `NULL`, falls back to the connection stored via `$setAtlasConnection()`.
+    #' @param stopIfExists Logical. If TRUE (default), raises an error when an
+    #'   active cohort with this label is already registered. If FALSE, fetches
+    #'   the current definition from ATLAS and updates the registered cohort in
+    #'   place — same ID and file path, hash refreshed, `category`/`tags`/atlasId
+    #'   replaced, derived dependents marked 'stale'. An unchanged definition
+    #'   leaves the file untouched. Default: TRUE (fail-safe).
     #'
     #' @return Invisible integer. The assigned cohort ID.
-    addAtlasCohort = function(atlasId, label, category, tags = list(), atlasConnection = NULL) {
+    addAtlasCohort = function(atlasId, label, category, tags = list(), atlasConnection = NULL, stopIfExists = TRUE) {
       if (is.null(atlasConnection)) {
         atlasConnection <- private$.atlasConnection
       }
@@ -1061,6 +1067,77 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_string(label, min.chars = 1)
       checkmate::assert_string(category, min.chars = 1)
       checkmate::assert_list(tags, names = "named")
+      checkmate::assert_flag(stopIfExists)
+
+      # Upsert path: refresh the registered cohort from ATLAS in place
+      if (!stopIfExists) {
+        existing_id <- private$find_active_id_by_label(label)
+        if (!is.na(existing_id)) {
+          cli::cli_alert_info("Cohort {.val {label}} already exists (ID {existing_id}) — updating from ATLAS in place")
+
+          conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+          on.exit(DBI::dbDisconnect(conn))
+
+          existing <- DBI::dbGetQuery(
+            conn,
+            "SELECT file_path, hash, cohort_type FROM cohort_manifest WHERE id = ?",
+            list(existing_id)
+          )
+
+          if (existing$cohort_type[1] != "circe") {
+            cli::cli_abort(c(
+              "Cohort {.val {label}} has cohort_type {.val {existing$cohort_type[1]}}, not {.val circe}.",
+              i = "addAtlasCohort() can only overwrite circe JSON cohorts."
+            ))
+          }
+
+          cohort_def <- tryCatch(
+            atlasConnection$getCohortDefinition(cohortId = atlasId),
+            error = function(e) {
+              cli::cli_abort("Failed to fetch cohort {atlasId} from ATLAS: {e$message}")
+            }
+          )
+
+          # Refresh metadata (category, tags, atlasId) regardless of content change
+          tags$route <- "atlas"
+          tags$atlasId <- as.integer(atlasId)
+          private$update_cohort_def(cohortId = existing_id, category = category, tags = tags)
+
+          # Write to a temp file first so a failed write cannot clobber the
+          # registered JSON, and unchanged definitions leave the file untouched
+          file_path <- existing$file_path[1]
+          tmp_json <- tempfile(fileext = ".json")
+          readr::write_lines(cohort_def$expression[1], tmp_json)
+          new_hash <- rlang::hash(readr::read_file(tmp_json))
+
+          if (identical(new_hash, existing$hash[1])) {
+            unlink(tmp_json)
+            cli::cli_alert_info("Cohort {existing_id}: {label} definition is unchanged")
+            return(invisible(existing_id))
+          }
+
+          if (!dir.exists(dirname(file_path))) {
+            dir.create(dirname(file_path), recursive = TRUE)
+          }
+          file.copy(tmp_json, file_path, overwrite = TRUE)
+          unlink(tmp_json)
+
+          DBI::dbExecute(
+            conn,
+            "UPDATE cohort_manifest SET hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            list(new_hash, existing_id)
+          )
+
+          # Derived cohorts built on this definition are now out of date
+          private$cascade_stale_downstream(existing_id)
+
+          # Refresh in-memory manifest
+          private$load_manifest_from_db()
+
+          cli::cli_alert_success("Updated ATLAS cohort {existing_id}: {label}")
+          return(invisible(existing_id))
+        }
+      }
 
       # Validate label uniqueness
       private$validate_label_unique(label)
@@ -1105,23 +1182,22 @@ CohortManifest <- R6::R6Class(
     },
 
     #' @description Batch-import cohorts from ATLAS via a cohortsLoad dataframe
-    #' 
+    #'
     #' Either create a dataframe or read in a csv file with columns `atlasId`, `label`, `category` (required) plus any
-    #' additional columns treated as tag key-value pairs for tags. Calls `addAtlasCohort()` for each row inside 
-    #' a `tryCatch` so a single failure does not abort the entire batch.
+    #' additional columns treated as tag key-value pairs for tags. Calls `addAtlasCohort()` for each row.
+    #'
+    #' The load file is a transient, one-time import mechanism: rows whose
+    #' atlasId or label are already registered in the manifest are an error, not
+    #' an update. To sync registered cohorts with ATLAS, run
+    #' `updateAtlasCohorts()`; to update a single cohort, use
+    #' `addAtlasCohort(stopIfExists = FALSE)`.
     #'
     #' @param cohortsLoad a data frame requiring the columns atlasId, label and category used to bulk add cohorts to the manifest
     #' @param atlasConnection An ATLAS connection object with a `getCohortDefinition(cohortId)` method.
     #'   If `NULL`, falls back to the connection stored via `$setAtlasConnection()`.
-    #' @param updateExisting Logical. If FALSE (default), cohorts already in the
-    #'   manifest are left untouched and a reminder to run `updateAtlasCohorts()`
-    #'   is printed. If TRUE, registered ATLAS cohorts are checked against ATLAS
-    #'   and changed definitions are updated in place via `updateAtlasCohorts()`
-    #'   (same ID and file path, derived dependents marked stale), so re-running
-    #'   the import propagates ATLAS edits without a separate manual step.
     #'
     #' @return Invisible tibble of imported cohorts.
-    importAtlasCohorts = function(cohortsLoad, atlasConnection = NULL, updateExisting = FALSE) {
+    importAtlasCohorts = function(cohortsLoad, atlasConnection = NULL) {
       if (is.null(atlasConnection)) {
         atlasConnection <- private$.atlasConnection
       }
@@ -1133,11 +1209,10 @@ CohortManifest <- R6::R6Class(
         ))
       }
 
-         
+
       # Validate required columns
       required_cols <- c("atlasId", "label", "category")
       checkmate::assert_data_frame(cohortsLoad, min.cols = 3)
-      checkmate::assert_flag(updateExisting)
       missing_cols <- setdiff(required_cols, names(cohortsLoad))
       if (length(missing_cols) > 0) {
         cli::cli_abort("cohortsLoad missing required columns: {paste(missing_cols, collapse = ', ')}")
@@ -1151,13 +1226,39 @@ CohortManifest <- R6::R6Class(
       cli::cli_rule("ATLAS Cohort Import")
       cli::cli_alert_info("Evaluating {nrow(cohortsLoad)} cohort(s) from load file")
 
-      # Subset New Cohorts 
+      # Subset New Cohorts
       new_cohorts <- cohort_load_2 |>
         dplyr::filter(status == "new")
 
       existing_cohorts <- cohort_load_2 |>
         dplyr::filter(status == "active")
 
+      # The load csv is a transient, one-time import file — registered rows are
+      # an error, not an update mechanism. Fail fast before importing anything.
+      if (nrow(existing_cohorts) > 0) {
+        offending <- paste0(
+          "[", existing_cohorts$id, "] ", existing_cohorts$label,
+          " (atlasId ", existing_cohorts$atlasId, ")"
+        )
+        cli::cli_abort(c(
+          "{nrow(existing_cohorts)} cohort(s) in the load file are already registered in the manifest:",
+          stats::setNames(offending, rep("x", length(offending))),
+          i = "Remove them from the load csv — it is for one-time imports only.",
+          i = "To sync registered cohorts with ATLAS, run {.code updateAtlasCohorts()}.",
+          i = "To update a single cohort, use {.code addAtlasCohort(stopIfExists = FALSE)}."
+        ))
+      }
+
+      # Fail fast on label collisions too, before any row is imported
+      colliding <- new_cohorts$label[
+        vapply(new_cohorts$label, function(l) !is.na(private$find_active_id_by_label(l)), logical(1))
+      ]
+      if (length(colliding) > 0) {
+        cli::cli_abort(c(
+          "{length(colliding)} label(s) in the load file are already in use: {paste(colliding, collapse = ', ')}.",
+          i = "Labels must be unique in the manifest. Rename them in the load csv or remove the rows."
+        ))
+      }
 
       # Process new cohorts
       if(nrow(new_cohorts) > 0) {
@@ -1176,28 +1277,11 @@ CohortManifest <- R6::R6Class(
         }
       }
 
-      # Process existing cohorts
-      if (nrow(existing_cohorts) > 0) {
-        cli::cli_rule("Existing cohort(s) in manifest ({nrow(existing_cohorts)})")
-        for (i in seq_len(nrow(existing_cohorts))) {
-          row <- existing_cohorts[i, ]
-          cli::cli_alert_warning("  ID {row$id}: {row$label} (atlasId: {row$atlasId})")
-        }
-
-        if (updateExisting) {
-          self$updateAtlasCohorts(atlasConnection)
-        } else {
-          cli::cli_alert_info("To check for ATLAS changes, run: {.code manifest$checkAtlasCohorts(atlasConnection)}")
-          cli::cli_alert_info("To update ATLAS definitions, run: {.code manifest$updateAtlasCohorts(atlasConnection)}")
-        }
-      }
-
       # Build and print final summary table
       summary_tbl <- cohort_load_2 |>
         dplyr::mutate(
           message = dplyr::case_when(
             status == "new" ~ "Successfully added to manifest",
-            status == "active" ~ "Already in manifest",
             TRUE ~ "Unknown"
           )
         ) |>
