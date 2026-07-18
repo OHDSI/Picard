@@ -5,12 +5,6 @@
 - initialization and file creation
 - manifest creation and management
 
-## Input Builder Loads
-
-- relax strictness of cohort builder scripts. Instead of strict list, user can add any file and set the order of the build
-- also on the source input build, add option to reset the manifest so it kills and rebuilds
-
-
 # Medium Priority
 
 ## better study hub integration to pipeline
@@ -26,7 +20,10 @@
 - ensure branch integrity is maintained
 - get to a point where can run a full run on the main.R file (inputs, exec, postProcess, egp)
 
+## Input Builder Loads
 
+- relax strictness of cohort builder scripts. Instead of strict list, user can add any file and set the order of the build
+- also on the source input build, add option to reset the manifest so it kills and rebuilds
 
 ## Consider adding python entry points
 
