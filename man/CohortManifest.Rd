@@ -544,7 +544,8 @@ and \.code{@target_cohort_id}.
   label,
   category,
   dependentCohortIdList,
-  tags = list()
+  tags = list(),
+  stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -562,6 +563,13 @@ in the SQL file and each value is the cohort ID to inject at runtime.
 Example: \.code{list(inc_cohort_id = 10L, exc_cohort_id = 12L)}.}
 
 \item{\code{tags}}{Named list. Optional metadata tags.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+active or stale cohort with this label is already registered. If FALSE,
+updates the registered cohort in place (same ID): the dependent cohort
+IDs and the SQL file registration (path and content hash) are replaced,
+the cohort is marked 'stale' for regeneration, and its own dependents
+are marked stale too. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }

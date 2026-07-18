@@ -358,6 +358,95 @@ testthat::test_that("derived upsert rejects parents that would create a cycle", 
   )
 })
 
+# Testing: addDependentCustomCohort stopIfExists = FALSE updates dependent IDs and SQL in place.
+testthat::test_that("addDependentCustomCohort stopIfExists FALSE updates deps and SQL in place", {
+  setup <- cm_test_new_manifest("mgmt-depcustom-upsert")
+  manifest <- setup$manifest
+
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "Chronic Kidney Disease", fixture_name = "ckd.json")
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "Type 2 Diabetes", fixture_name = "t2d.json")
+  rows <- manifest$tabulateManifest(filter = "active")
+  ckd_id <- as.integer(rows$id[rows$label == "Chronic Kidney Disease"][1])
+  t2d_id <- as.integer(rows$id[rows$label == "Type 2 Diabetes"][1])
+
+  # Copy the fixture into the temp repo so edits never touch the checked-in file
+  fixture <- cm_test_sql_fixture_path("my_custom_dependent.sql")
+  local_sql <- fs::path(setup$paths$sql_dir, "my_custom_dependent.sql")
+  fs::file_copy(fixture, local_sql)
+
+  manifest$addDependentCustomCohort(
+    filePath = local_sql,
+    label = "Dep Custom",
+    category = "Derived Cohorts",
+    dependentCohortIdList = list(inc_cohort_id = ckd_id, exc_cohort_id = t2d_id)
+  )
+  before <- cm_test_get_manifest_row(manifest, "Dep Custom")
+  testthat::expect_equal(
+    jsonlite::fromJSON(before$depends_on[[1]]),
+    c(ckd_id, t2d_id)
+  )
+
+  # Edit the SQL (append a comment) and swap the dependent IDs, then upsert
+  writeLines(c(readLines(local_sql), "-- revised for upsert test"), local_sql)
+  returned_id <- manifest$addDependentCustomCohort(
+    filePath = local_sql,
+    label = "Dep Custom",
+    category = "Derived Cohorts",
+    dependentCohortIdList = list(inc_cohort_id = t2d_id, exc_cohort_id = ckd_id),
+    stopIfExists = FALSE
+  )
+
+  after <- cm_test_get_manifest_row(manifest, "Dep Custom")
+  testthat::expect_equal(nrow(after), 1)
+  testthat::expect_equal(as.integer(returned_id), as.integer(before$id[[1]]))
+  testthat::expect_equal(
+    jsonlite::fromJSON(after$depends_on[[1]]),
+    c(t2d_id, ckd_id)
+  )
+  testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
+  testthat::expect_equal(after$status[[1]], "stale")
+  testthat::expect_equal(after$source_type[[1]], "sql")
+  testthat::expect_equal(after$cohort_type[[1]], "custom_derived")
+
+  # The dependency rule carries the swapped parameter mapping
+  rule <- jsonlite::fromJSON(after$dependency_rule[[1]])
+  testthat::expect_equal(as.integer(rule$dependentCohortIdList$inc_cohort_id), t2d_id)
+  testthat::expect_equal(as.integer(rule$dependentCohortIdList$exc_cohort_id), ckd_id)
+})
+
+# Testing: addDependentCustomCohort default stopIfExists = TRUE errors on duplicate labels.
+testthat::test_that("addDependentCustomCohort errors on duplicate label by default", {
+  setup <- cm_test_new_manifest("mgmt-depcustom-dup")
+  manifest <- setup$manifest
+
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "Chronic Kidney Disease", fixture_name = "ckd.json")
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "Type 2 Diabetes", fixture_name = "t2d.json")
+  rows <- manifest$tabulateManifest(filter = "active")
+  ckd_id <- as.integer(rows$id[rows$label == "Chronic Kidney Disease"][1])
+  t2d_id <- as.integer(rows$id[rows$label == "Type 2 Diabetes"][1])
+
+  fixture <- cm_test_sql_fixture_path("my_custom_dependent.sql")
+  local_sql <- fs::path(setup$paths$sql_dir, "my_custom_dependent.sql")
+  fs::file_copy(fixture, local_sql)
+
+  manifest$addDependentCustomCohort(
+    filePath = local_sql,
+    label = "Dep Custom",
+    category = "Derived Cohorts",
+    dependentCohortIdList = list(inc_cohort_id = ckd_id, exc_cohort_id = t2d_id)
+  )
+
+  testthat::expect_error(
+    manifest$addDependentCustomCohort(
+      filePath = local_sql,
+      label = "Dep Custom",
+      category = "Derived Cohorts",
+      dependentCohortIdList = list(inc_cohort_id = ckd_id, exc_cohort_id = t2d_id)
+    ),
+    regexp = "already in use"
+  )
+})
+
 # Testing: topological_sort distinguishes dangling parent references from genuine cycles.
 testthat::test_that("topological_sort reports dangling and circular dependencies distinctly", {
   testthat::expect_error(

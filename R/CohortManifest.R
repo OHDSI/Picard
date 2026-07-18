@@ -258,14 +258,15 @@ CohortManifest <- R6::R6Class(
     # generateCohorts() run regenerates it, and stale cascades to its own
     # dependents. Tags are replaced only when supplied.
     upsert_derived_cohort = function(existingId, label, category, tags, file_path,
-                                     cohort_type, depends_on, dependency_rule) {
+                                     cohort_type, depends_on, dependency_rule,
+                                     source_type = "derived") {
       if (is.na(existingId)) {
         return(private$insert_cohort(
           label = label,
           category = category,
           tags = tags,
           file_path = file_path,
-          source_type = "derived",
+          source_type = source_type,
           cohort_type = cohort_type,
           depends_on = depends_on,
           dependency_rule = dependency_rule
@@ -289,11 +290,11 @@ CohortManifest <- R6::R6Class(
       }
 
       set_clauses <- paste(
-        "category = ?, file_path = ?, hash = ?, cohort_type = ?,",
+        "category = ?, file_path = ?, hash = ?, source_type = ?, cohort_type = ?,",
         "depends_on = ?, dependency_rule = ?, status = 'stale',",
         "updated_at = CURRENT_TIMESTAMP"
       )
-      params <- list(category, file_path, hash, cohort_type, depends_on_json, dep_rule_json)
+      params <- list(category, file_path, hash, source_type, cohort_type, depends_on_json, dep_rule_json)
 
       if (length(tags) > 0) {
         set_clauses <- paste(set_clauses, ", tags = ?")
@@ -452,6 +453,9 @@ CohortManifest <- R6::R6Class(
         if (!all(lengths(dependentCohortIdList) == 1L)) {
           cli::cli_abort("Each dependentCohortIdList entry must contain exactly one cohort ID")
         }
+
+        dependent_ids <- unlist(dependentCohortIdList, use.names = TRUE)
+        checkmate::assert_integerish(x = dependent_ids, min.len = 1, any.missing = FALSE, unique = TRUE)
       }
 
       ext <- tolower(tools::file_ext(filePath))
@@ -459,7 +463,16 @@ CohortManifest <- R6::R6Class(
         cli::cli_abort("filePath must be a .sql file, got: .{ext}")
       }
 
-      private$validate_label_unique(label)
+      # Dependent cohorts support label-keyed upsert (same ID, definition
+      # replaced); plain custom cohorts keep the original label uniqueness rule
+      existing_id <- NA_integer_
+      if (is_dependent) {
+        existing_id <- private$resolve_derived_upsert(
+          label, stopIfExists, as.integer(unname(dependent_ids))
+        )
+      } else {
+        private$validate_label_unique(label)
+      }
 
       rel_path <- fs::path_rel(filePath)
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
@@ -471,7 +484,11 @@ CohortManifest <- R6::R6Class(
         list(rel_path)
       )
 
-      if (nrow(existing_cohort) > 0) {
+      # A file-path conflict with the upsert target itself is not a conflict
+      is_self <- nrow(existing_cohort) > 0 && !is.na(existing_id) &&
+        as.integer(existing_cohort$id[1]) == existing_id
+
+      if (nrow(existing_cohort) > 0 && !is_self) {
         if (isTRUE(stopIfExists)) {
           cli::cli_abort(c(
             "File path already registered in manifest (cohort {existing_cohort$id[1]})",
@@ -486,8 +503,6 @@ CohortManifest <- R6::R6Class(
       .validateCustomSql(sql_content, label)
 
       if (is_dependent) {
-        dependent_ids <- unlist(dependentCohortIdList, use.names = TRUE)
-        checkmate::assert_integerish(x = dependent_ids, min.len = 1, any.missing = FALSE, unique = TRUE)
         private$validate_parent_cohorts_exist(as.integer(unname(dependent_ids)))
 
         has_delete <- grepl(
@@ -511,27 +526,31 @@ CohortManifest <- R6::R6Class(
           ))
         }
 
-        cohort_type <- "custom_derived"
-        depends_on <- as.integer(unname(dependent_ids))
-        dependency_rule <- list(
-          dependentCohortIdList = as.list(dependentCohortIdList) # use a named list
+        cohort_id <- private$upsert_derived_cohort(
+          existingId = existing_id,
+          label = label,
+          category = category,
+          tags = tags,
+          file_path = rel_path,
+          cohort_type = "custom_derived",
+          depends_on = as.integer(unname(dependent_ids)),
+          dependency_rule = list(
+            dependentCohortIdList = as.list(dependentCohortIdList) # use a named list
+          ),
+          source_type = "sql"
         )
       } else {
-        cohort_type <- "custom"
-        depends_on <- NULL
-        dependency_rule <- NULL
+        cohort_id <- private$insert_cohort(
+          label = label,
+          category = category,
+          tags = tags,
+          file_path = rel_path,
+          source_type = "sql",
+          cohort_type = "custom",
+          depends_on = NULL,
+          dependency_rule = NULL
+        )
       }
-
-      cohort_id <- private$insert_cohort(
-        label = label,
-        category = category,
-        tags = tags,
-        file_path = rel_path,
-        source_type = "sql",
-        cohort_type = cohort_type,
-        depends_on = depends_on,
-        dependency_rule = dependency_rule
-      )
 
       return(cohort_id)
     },
@@ -1399,15 +1418,21 @@ CohortManifest <- R6::R6Class(
     #'   in the SQL file and each value is the cohort ID to inject at runtime.
     #'   Example: \.code{list(inc_cohort_id = 10L, exc_cohort_id = 12L)}.
     #' @param tags Named list. Optional metadata tags.
+    #' @param stopIfExists Logical. If TRUE (default), raises an error when an
+    #'   active or stale cohort with this label is already registered. If FALSE,
+    #'   updates the registered cohort in place (same ID): the dependent cohort
+    #'   IDs and the SQL file registration (path and content hash) are replaced,
+    #'   the cohort is marked 'stale' for regeneration, and its own dependents
+    #'   are marked stale too. Default: TRUE (fail-safe).
     #'
     #' @return Invisible integer. The assigned cohort ID.
-    addDependentCustomCohort = function(filePath, label, category, dependentCohortIdList, tags = list()) {
+    addDependentCustomCohort = function(filePath, label, category, dependentCohortIdList, tags = list(), stopIfExists = TRUE) {
       cohort_id <- private$register_custom_sql_cohort(
         filePath = filePath,
         label = label,
         category = category,
         tags = tags,
-        stopIfExists = TRUE,
+        stopIfExists = stopIfExists,
         dependentCohortIdList = dependentCohortIdList
       )
 
