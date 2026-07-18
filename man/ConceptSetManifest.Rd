@@ -16,6 +16,12 @@ The ConceptSetManifest class manages multiple concept set definitions and stores
 metadata in a SQLite database located at inputs/conceptSets/conceptSetManifest.sqlite.
 Each ConceptSetDef is assigned a sequential ID based on its position in the manifest.
 
+The load file is a transient, one-time import mechanism: rows whose
+atlasId or label are already registered in the manifest are an error, not
+an update. To sync registered concept sets with ATLAS, run
+\code{updateAtlasConceptSets()}; to update a single concept set, use
+\code{addAtlasConceptSet(stopIfExists = FALSE)}.
+
 \strong{Processing Steps:}
 \enumerate{
 \item Validates that all concept set IDs exist and are active
@@ -167,6 +173,7 @@ by finding the reverse mapping relationship. For each concept set:
 \item \href{#method-ConceptSetManifest-addConceptSetFile}{\code{ConceptSetManifest$addConceptSetFile()}}
 \item \href{#method-ConceptSetManifest-addAtlasConceptSet}{\code{ConceptSetManifest$addAtlasConceptSet()}}
 \item \href{#method-ConceptSetManifest-addCaprConceptSet}{\code{ConceptSetManifest$addCaprConceptSet()}}
+\item \href{#method-ConceptSetManifest-updateCaprConceptSet}{\code{ConceptSetManifest$updateCaprConceptSet()}}
 \item \href{#method-ConceptSetManifest-importAtlasConceptSets}{\code{ConceptSetManifest$importAtlasConceptSets()}}
 \item \href{#method-ConceptSetManifest-queryConceptSetsByIds}{\code{ConceptSetManifest$queryConceptSetsByIds()}}
 \item \href{#method-ConceptSetManifest-queryConceptSetsByTag}{\code{ConceptSetManifest$queryConceptSetsByTag()}}
@@ -383,7 +390,8 @@ Fetch a single concept set from ATLAS and register it in the manifest
   label,
   category = "init",
   tags = list(),
-  atlasConnection = NULL
+  atlasConnection = NULL,
+  stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -402,6 +410,13 @@ Fetch a single concept set from ATLAS and register it in the manifest
 \code{getConceptSetDefinition(conceptSetId)} method that returns a list with
 \code{expression} (CIRCE JSON string) and \code{saveName} elements.
 If \code{NULL}, falls back to the connection stored via \verb{$setAtlasConnection()}.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+active concept set with this label is already registered. If FALSE,
+fetches the current definition from ATLAS and updates the registered
+concept set in place — same ID and file path, hash refreshed,
+\code{category}/\code{tags}/atlasId replaced. An unchanged definition leaves the
+file untouched. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -419,7 +434,8 @@ Export a Capr ConceptSet to JSON and register it in the manifest
   caprConceptSet,
   label,
   category = "init",
-  tags = list()
+  tags = list(),
+  stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -433,11 +449,45 @@ Export a Capr ConceptSet to JSON and register it in the manifest
 \item{\code{category}}{Character. Category for the concept set. Defaults to \code{"init"}.}
 
 \item{\code{tags}}{Named list. Optional extra metadata tags. Defaults to \code{list()}.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+active concept set with this label is already registered. If FALSE,
+updates the existing concept set in place via \code{updateCaprConceptSet()}
+— it keeps its ID and file path, and \code{category} (and \code{tags}, when
+supplied) replace the registered metadata. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
 Invisible integer. The assigned concept set ID.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-updateCaprConceptSet"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-updateCaprConceptSet}{}}}
+\subsection{Method \code{updateCaprConceptSet()}}{
+Update an existing Capr concept set's JSON definition
+
+Takes a revised Capr ConceptSet object and upserts it over a concept set
+already registered via \code{addCaprConceptSet()}: the JSON file recorded in
+the manifest is overwritten in place and the manifest hash is refreshed,
+so the concept set keeps its ID and file path. If the new definition is
+identical to the registered one, nothing is changed.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$updateCaprConceptSet(caprConceptSet, label)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{caprConceptSet}}{A Capr \code{ConceptSet} object.}
+
+\item{\code{label}}{Character. Label of the active concept set to update.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible integer. The concept set ID.
 }
 }
 \if{html}{\out{<hr>}}

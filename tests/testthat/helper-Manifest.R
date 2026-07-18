@@ -76,7 +76,8 @@ cm_test_add_circe_cohort <- function(manifest, paths, label, category = "Test", 
 }
 
 # Purpose: Build a minimal Capr cohort object for tests; skip when Capr is unavailable.
-cm_test_make_minimal_capr_cohort <- function() {
+# prior_days varies the observation window so tests can produce distinct definitions.
+cm_test_make_minimal_capr_cohort <- function(prior_days = 0L) {
   testthat::skip_if_not_installed("Capr")
 
   capr_ns <- asNamespace("Capr")
@@ -100,7 +101,7 @@ cm_test_make_minimal_capr_cohort <- function() {
       cohort_fn(
         entry = entry_fn(
           condition_fn(cs_obj),
-          observationWindow = continuous_observation_fn(priorDays = 0L, postDays = 0L),
+          observationWindow = continuous_observation_fn(priorDays = prior_days, postDays = 0L),
           primaryCriteriaLimit = "First"
         )
       )

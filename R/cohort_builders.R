@@ -29,7 +29,7 @@ build_dependency_graph = function(dbPath) {
 
     rows <- DBI::dbGetQuery(
     conn,
-    "SELECT id, depends_on FROM cohort_manifest WHERE status = 'active'"
+    "SELECT id, depends_on FROM cohort_manifest WHERE status IN ('active', 'stale')"
     )
 
     graph <- list()
@@ -159,6 +159,30 @@ topological_sort = function(graph) {
 
     # Verify all nodes were processed
     if (length(sorted_order) != length(graph)) {
+    unprocessed <- setdiff(as.integer(names(graph)), sorted_order)
+
+    # Distinguish dangling references (parent deleted/missing from the graph)
+    # from genuine cycles so the error points at the real problem
+    dangling <- character()
+    for (node_id in as.character(unprocessed)) {
+        missing_parents <- setdiff(graph[[node_id]], as.integer(names(graph)))
+        if (length(missing_parents) > 0) {
+        dangling <- c(dangling, paste0(
+            "cohort ", node_id, " depends on missing/deleted cohort(s) ",
+            paste(missing_parents, collapse = ", ")
+        ))
+        }
+    }
+
+    if (length(dangling) > 0) {
+        cli::cli_abort(c(
+        "Cohort dependency graph has dangling references:",
+        stats::setNames(dangling, rep("x", length(dangling))),
+        i = "The referenced parent cohorts are no longer active in the manifest.",
+        i = "Delete the orphaned dependents or restore their parents, then re-run."
+        ))
+    }
+
     cli::cli_abort("Topological sort failed - possible circular dependency")
     }
 
@@ -175,7 +199,7 @@ compute_dependency_hash = function(dbPath, cohort, parent_hashes) {
     cohort_id <- cohort$getId()
     row <- DBI::dbGetQuery(
     conn,
-    "SELECT depends_on, dependency_rule FROM cohort_manifest WHERE id = ? AND status = 'active'",
+    "SELECT depends_on, dependency_rule FROM cohort_manifest WHERE id = ? AND status IN ('active', 'stale')",
     list(cohort_id)
     )
 
@@ -334,6 +358,9 @@ get_custom_derived_sql_params <- function(sqlite_conn, cohort_id) {
   )
 
   custom_params <- dep_rule$dependentCohortIdList
+  # Vector-valued entries come back from JSON as lists; flatten each to an
+  # atomic vector so SqlRender renders them comma-separated (IN clauses)
+  custom_params <- lapply(custom_params, function(x) unlist(x, use.names = FALSE))
   if (is.null(custom_params) || length(custom_params) == 0) {
     cli::cli_abort("custom_derived cohort {cohort_id} is missing dependentCohortIdList metadata")
   }

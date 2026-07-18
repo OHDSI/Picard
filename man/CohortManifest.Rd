@@ -100,6 +100,7 @@ Requires that executionSettings has been set and includes:
 \item \href{#method-CohortManifest-addAtlasCohort}{\code{CohortManifest$addAtlasCohort()}}
 \item \href{#method-CohortManifest-importAtlasCohorts}{\code{CohortManifest$importAtlasCohorts()}}
 \item \href{#method-CohortManifest-addCaprCohort}{\code{CohortManifest$addCaprCohort()}}
+\item \href{#method-CohortManifest-updateCaprCohort}{\code{CohortManifest$updateCaprCohort()}}
 \item \href{#method-CohortManifest-addSqlCohort}{\code{CohortManifest$addSqlCohort()}}
 \item \href{#method-CohortManifest-addDependentCustomCohort}{\code{CohortManifest$addDependentCustomCohort()}}
 \item \href{#method-CohortManifest-addCirceCohort}{\code{CohortManifest$addCirceCohort()}}
@@ -367,7 +368,8 @@ the cohort in the manifest.
   label,
   category,
   tags = list(),
-  atlasConnection = NULL
+  atlasConnection = NULL,
+  stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -385,6 +387,13 @@ the cohort in the manifest.
 \item{\code{atlasConnection}}{An ATLAS connection object (e.g., from ROhdsiWebApi::createConnectionDetails)
 with a method \code{getCohortDefinition(cohortId)} that returns a list with an \code{expression} element.
 If \code{NULL}, falls back to the connection stored via \verb{$setAtlasConnection()}.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+active cohort with this label is already registered. If FALSE, fetches
+the current definition from ATLAS and updates the registered cohort in
+place — same ID and file path, hash refreshed, \code{category}/\code{tags}/atlasId
+replaced, derived dependents marked 'stale'. An unchanged definition
+leaves the file untouched. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -399,8 +408,13 @@ Invisible integer. The assigned cohort ID.
 Batch-import cohorts from ATLAS via a cohortsLoad dataframe
 
 Either create a dataframe or read in a csv file with columns \code{atlasId}, \code{label}, \code{category} (required) plus any
-additional columns treated as tag key-value pairs for tags. Calls \code{addAtlasCohort()} for each row inside
-a \code{tryCatch} so a single failure does not abort the entire batch.
+additional columns treated as tag key-value pairs for tags. Calls \code{addAtlasCohort()} for each row.
+
+The load file is a transient, one-time import mechanism: rows whose
+atlasId or label are already registered in the manifest are an error, not
+an update. To sync registered cohorts with ATLAS, run
+\code{updateAtlasCohorts()}; to update a single cohort, use
+\code{addAtlasCohort(stopIfExists = FALSE)}.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$importAtlasCohorts(cohortsLoad, atlasConnection = NULL)}\if{html}{\out{</div>}}
 }
@@ -428,7 +442,13 @@ Add a Capr cohort
 Takes a Capr Cohort object, exports it to JSON in \verb{json/}, and registers
 the cohort in the manifest.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$addCaprCohort(caprCohort, label, category, tags = list())}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$addCaprCohort(
+  caprCohort,
+  label,
+  category,
+  tags = list(),
+  stopIfExists = TRUE
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -441,11 +461,46 @@ the cohort in the manifest.
 \item{\code{category}}{Character. Required classification.}
 
 \item{\code{tags}}{Named list. Optional metadata tags.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+active cohort with this label is already registered. If FALSE, updates
+the existing cohort in place via \code{updateCaprCohort()} — the cohort
+keeps its ID and file path, and \code{category} (and \code{tags}, when supplied)
+replace the registered metadata. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
 Invisible integer. The assigned cohort ID.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-updateCaprCohort"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-updateCaprCohort}{}}}
+\subsection{Method \code{updateCaprCohort()}}{
+Update an existing Capr cohort's JSON definition
+
+Takes a revised Capr Cohort object and upserts it over a cohort already
+registered via \code{addCaprCohort()}: the JSON file recorded in the manifest
+is overwritten in place and the manifest hash is refreshed, so the cohort
+keeps its ID and file path. Any derived cohorts that depend on it are
+marked 'stale'. If the new definition is identical to the registered one,
+nothing is changed.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$updateCaprCohort(caprCohort, label)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{caprCohort}}{A Capr Cohort object (inherits from "Cohort").}
+
+\item{\code{label}}{Character. Label of the active cohort to update.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible integer. The cohort ID.
 }
 }
 \if{html}{\out{<hr>}}
@@ -503,7 +558,8 @@ and \.code{@target_cohort_id}.
   label,
   category,
   dependentCohortIdList,
-  tags = list()
+  tags = list(),
+  stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -517,10 +573,19 @@ and \.code{@target_cohort_id}.
 \item{\code{category}}{Character. Required classification.}
 
 \item{\code{dependentCohortIdList}}{Named list. Each name is a SqlRender parameter to expose
-in the SQL file and each value is the cohort ID to inject at runtime.
-Example: \.code{list(inc_cohort_id = 10L, exc_cohort_id = 12L)}.}
+in the SQL file and each value is the cohort ID — or an integer vector of
+cohort IDs — to inject at runtime. Vectors render comma-separated, for use
+in \.code{IN (@param)} clauses.
+Example: \.code{list(inc_cohort_id = 10L, exc_cohort_ids = c(12L, 14L))}.}
 
 \item{\code{tags}}{Named list. Optional metadata tags.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+active or stale cohort with this label is already registered. If FALSE,
+updates the registered cohort in place (same ID): the dependent cohort
+IDs and the SQL file registration (path and content hash) are replaced,
+the cohort is marked 'stale' for regeneration, and its own dependents
+are marked stale too. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -585,7 +650,8 @@ Input route policy:
   minEraDays = 0L,
   minCohorts = 1L,
   washoutDays = 0L,
-  firstEraOnly = FALSE
+  firstEraOnly = FALSE,
+  stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -622,6 +688,13 @@ new era can open. Subjects must have no source cohort membership for this period
 Default: 0.}
 
 \item{\code{firstEraOnly}}{Logical. Return only the first collapsed era per subject. Default: FALSE.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+active or stale cohort with this label is already registered. If FALSE,
+updates the registered derived cohort in place (same ID and file path):
+the SQL is re-rendered, parents and build parameters are replaced, the
+cohort is marked 'stale' for regeneration, and its own dependents are
+marked stale too. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -656,7 +729,8 @@ Input route policy:
   startWindow,
   endWindow = NULL,
   endDateType = "base",
-  subsetLimit = "First"
+  subsetLimit = "First",
+  stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -691,6 +765,13 @@ as the cohort end date in the output subset cohort. Default: 'base'.}
 \item{\code{subsetLimit}}{Character. One of 'First', 'Last', or 'All'. Specifies which qualifying filter cohort event(s)
 to retain per subject. 'First' keeps the earliest event, 'Last' keeps the most recent event, 'All' keeps all
 qualifying events. Default: 'First'.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+active or stale cohort with this label is already registered. If FALSE,
+updates the registered derived cohort in place (same ID and file path):
+the SQL is re-rendered, parents and build parameters are replaced, the
+cohort is marked 'stale' for regeneration, and its own dependents are
+marked stale too. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -722,7 +803,8 @@ Input route policy:
   excludeCohortIds = NULL,
   populationCohortEntry = NULL,
   excludeCohortEntries = NULL,
-  complementType = "exclude_any"
+  complementType = "exclude_any",
+  stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -750,6 +832,13 @@ Preferred route using manifest query results for exclusion cohorts.}
 \code{"exclude_all"}. \code{"exclude_any"} removes subjects present in ANY
 exclude cohort; \code{"exclude_all"} removes subjects only if they appear
 in ALL exclude cohorts.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+active or stale cohort with this label is already registered. If FALSE,
+updates the registered derived cohort in place (same ID and file path):
+the SQL is re-rendered, parents and build parameters are replaced, the
+cohort is marked 'stale' for regeneration, and its own dependents are
+marked stale too. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -780,7 +869,8 @@ Input route policy:
   criteriaCohortIds = NULL,
   criteriaCohortEntries = NULL,
   eventSelection = "First",
-  minEventCount = 1L
+  minEventCount = 1L,
+  stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -810,6 +900,13 @@ Default: 'First'.
 
 \item{\code{minEventCount}}{Integer. Minimum number of distinct cohort events required for a subject
 to qualify for the composite. Default: 1 (any subject with at least 1 event qualifies).}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+active or stale cohort with this label is already registered. If FALSE,
+updates the registered derived cohort in place (same ID and file path):
+the SQL is re-rendered, parents and build parameters are replaced, the
+cohort is marked 'stale' for regeneration, and its own dependents are
+marked stale too. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -843,7 +940,8 @@ Input route policy:
   genderConceptIds = NULL,
   raceConceptIds = NULL,
   ethnicityConceptIds = NULL,
-  tags = list()
+  tags = list(),
+  stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -871,6 +969,13 @@ Common values: 8507 = Male, 8532 = Female. Default: NULL (all genders).}
 \item{\code{ethnicityConceptIds}}{Integer vector or NULL. Ethnicity concept IDs to include. Default: NULL.}
 
 \item{\code{tags}}{Named list. Optional metadata tags.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+active or stale cohort with this label is already registered. If FALSE,
+updates the registered derived cohort in place (same ID and file path):
+the SQL is re-rendered, parents and build parameters are replaced, the
+cohort is marked 'stale' for regeneration, and its own dependents are
+marked stale too. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -1645,7 +1750,8 @@ Sync the manifest against cohort files on disk
 Scans the \code{json/} and \code{sql/} subdirectories of the cohorts folder, reconciles
 them against the SQLite manifest, and updates both the database and the in-memory list:
 \itemize{
-\item Active manifest records whose file no longer exists are soft-deleted.
+\item Active manifest records whose file no longer exists are soft-deleted,
+along with their derived dependents (which cannot generate without the parent).
 \item Existing files whose SQL hash has changed are updated in the manifest.
 \item Orphaned files on disk not in manifest are automatically deleted.
 }
@@ -1665,8 +1771,8 @@ on disk. If FALSE, only warns about them without deletion. Default: TRUE.}
 }
 \subsection{Returns}{
 Data frame with columns: id, label, action
-(\code{"hash_updated"}, \code{"missing_flagged"}, \code{"unchanged"},
-\code{"auto_removed_orphan"}).
+(\code{"hash_updated"}, \code{"missing_flagged"}, \code{"cascade_deleted"},
+\code{"unchanged"}, \code{"auto_removed_orphan"}).
 Clean cohort data from the DBMS for deleted manifest entries
 }
 }
@@ -1792,7 +1898,12 @@ When a manifest is loaded, only active cohorts are loaded into memory.
 This enforces strict 1:1 correspondence between active manifest entries
 and files on disk.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$deleteCohort(id, confirm = FALSE, dropFromDBMS = FALSE)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$deleteCohort(
+  id,
+  confirm = FALSE,
+  dropFromDBMS = FALSE,
+  cascade = FALSE
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -1806,6 +1917,11 @@ Pass TRUE to skip the prompt (suitable for scripts).}
 \item{\code{dropFromDBMS}}{Logical. If TRUE, also deletes the cohort from the DBMS
 cohort table and checksum table. Requires \code{executionSettings} to be set.
 Default: FALSE (filesystem/manifest cleanup only).}
+
+\item{\code{cascade}}{Logical. If FALSE (default), deletion is refused when the
+cohort has derived dependents (deleting it would orphan them and break
+cohort generation). If TRUE, all transitive dependents are deleted too,
+deepest-first. Default: FALSE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -1843,7 +1959,8 @@ Input route policy:
   priorTimeWindowDays = NULL,
   subsetLimit = "First",
   outcomeCohortEntry = NULL,
-  targetCohortEntry = NULL
+  targetCohortEntry = NULL,
+  stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -1888,6 +2005,13 @@ Preferred route using manifest query results for the outcome cohort.}
 \item{\code{targetCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
 Preferred route using manifest query results for the target cohort.}
 
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+active or stale cohort with this label is already registered. If FALSE,
+updates the registered derived cohort in place (same ID and file path):
+the SQL is re-rendered, parents and build parameters are replaced, the
+cohort is marked 'stale' for regeneration, and its own dependents are
+marked stale too. Default: TRUE (fail-safe).}
+
 \item{\code{keep_trace}}{Logical. If TRUE, marks missing as deleted with timestamp (soft delete).
 If FALSE, permanently removes from database (hard delete). Defaults to TRUE.}
 }
@@ -1927,7 +2051,8 @@ Input route policy:
   priorTimeWindowDays = NULL,
   subsetLimit = "First",
   targetCohortEntry = NULL,
-  outcomeCohortEntry = NULL
+  outcomeCohortEntry = NULL,
+  stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -1971,6 +2096,13 @@ Preferred route using manifest query results for the target cohort.}
 
 \item{\code{outcomeCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
 Preferred route using manifest query results for the outcome cohort.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+active or stale cohort with this label is already registered. If FALSE,
+updates the registered derived cohort in place (same ID and file path):
+the SQL is re-rendered, parents and build parameters are replaced, the
+cohort is marked 'stale' for regeneration, and its own dependents are
+marked stale too. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -2009,7 +2141,8 @@ Input route policy:
   targetCohortId = NULL,
   censorCohortId = NULL,
   targetCohortEntry = NULL,
-  censorCohortEntry = NULL
+  censorCohortEntry = NULL,
+  stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -2031,6 +2164,13 @@ Preferred route using manifest query results for the target cohort.}
 
 \item{\code{censorCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
 Preferred route using manifest query results for the censor cohort.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+active or stale cohort with this label is already registered. If FALSE,
+updates the registered derived cohort in place (same ID and file path):
+the SQL is re-rendered, parents and build parameters are replaced, the
+cohort is marked 'stale' for regeneration, and its own dependents are
+marked stale too. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }

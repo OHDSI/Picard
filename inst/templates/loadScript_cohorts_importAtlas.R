@@ -57,22 +57,45 @@ cohortManifest$setAtlasConnection(atlasConnection)
 
 
 # ================================================================================
-# D. IMPORT COHORTS FROM ATLAS
+# D. SYNC REGISTERED ATLAS COHORTS
+# ================================================================================
+
+# Runs first, before any import: re-checks every registered ATLAS cohort
+# against ATLAS and updates changed definitions in place (same ID; derived
+# cohorts marked stale so the pipeline regenerates them). This is the step
+# that propagates ATLAS edits, and running it before the import means even a
+# stale load csv cannot prevent the manifest from syncing.
+cohortManifest$updateAtlasCohorts()
+
+# To update a single cohort on demand instead, use:
+# cohortManifest$addAtlasCohort(atlasId = ..., label = "...", category = "...",
+#                               stopIfExists = FALSE)
+
+
+# ================================================================================
+# E. IMPORT NEW COHORTS FROM ATLAS
 # ================================================================================
 
 # Reads cohortsLoad.csv and downloads CIRCE JSON definitions from ATLAS
 # Place your cohortsLoad.csv in inputs/cohorts/ before running this
 
-cohortsLoad <- readr::read_csv(
-    here::here("inputs/cohorts/cohortsLoad.csv"), 
-    show_col_types = FALSE
-)
+# The load csv is for one-time imports only: rows already registered in the
+# manifest cause an error (delete the csv after a successful import). The
+# import is skipped when the csv is absent, so re-running main.R stays safe.
+# NOTE: no curly braces in this template (it is populated via glue).
+cohortsLoadPath <- here::here("inputs/cohorts/cohortsLoad.csv")
 
-cohortManifest$importAtlasCohorts(cohortsLoad = cohortsLoad)
+if (fs::file_exists(cohortsLoadPath))
+  cohortManifest$importAtlasCohorts(
+    cohortsLoad = readr::read_csv(cohortsLoadPath, show_col_types = FALSE)
+  )
+
+if (!fs::file_exists(cohortsLoadPath))
+  cli::cli_alert_info("No cohortsLoad.csv found - skipping one-time import")
 
 
 # ================================================================================
-# E. REVIEW IMPORTED COHORTS
+# F. REVIEW IMPORTED COHORTS
 # ================================================================================
 
 # Display a table of all cohorts in the manifest

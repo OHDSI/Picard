@@ -1270,17 +1270,17 @@ getCohortTableNames <- function(cohortTable = "cohort",
 # ATLAS IMPORT HELPERS
 # ============================================================
 
-#' Cascade stale status to downstream dependents
+#' Find all transitive downstream dependents of the given cohorts
 #'
-#' Given a set of cohort IDs whose definitions changed, marks all transitive
-#' dependent cohorts as 'stale' in the manifest database. Uses BFS through
-#' the reverse dependency graph stored in cohort_manifest.depends_on.
+#' BFS through the reverse dependency graph stored in
+#' cohort_manifest.depends_on, considering active and stale rows only.
 #'
 #' @param dbPath Character. Path to the manifest SQLite database.
-#' @param cohort_ids Integer vector. The seed cohort IDs that changed.
-#' @return Invisibly returns the integer vector of IDs marked stale.
+#' @param cohort_ids Integer vector. The seed cohort IDs.
+#' @return Integer vector of transitive dependent IDs in BFS (parent-first)
+#'   order, excluding the seeds themselves.
 #' @keywords internal
-cascadeStaleDownstream <- function(dbPath, cohort_ids) {
+findTransitiveDependents <- function(dbPath, cohort_ids) {
   cohort_ids <- as.integer(cohort_ids)
 
   conn <- DBI::dbConnect(RSQLite::SQLite(), dbPath)
@@ -1293,7 +1293,7 @@ cascadeStaleDownstream <- function(dbPath, cohort_ids) {
   )
 
   if (nrow(rows) == 0) {
-    return(invisible(integer(0)))
+    return(integer(0))
   }
 
   # Build reverse graph: parent_id -> vector of child_ids
@@ -1331,6 +1331,25 @@ cascadeStaleDownstream <- function(dbPath, cohort_ids) {
       queue   <- c(queue, new_children)
     }
   }
+
+  return(visited)
+}
+
+#' Cascade stale status to downstream dependents
+#'
+#' Given a set of cohort IDs whose definitions changed, marks all transitive
+#' dependent cohorts as 'stale' in the manifest database. Uses BFS through
+#' the reverse dependency graph stored in cohort_manifest.depends_on.
+#'
+#' @param dbPath Character. Path to the manifest SQLite database.
+#' @param cohort_ids Integer vector. The seed cohort IDs that changed.
+#' @return Invisibly returns the integer vector of IDs marked stale.
+#' @keywords internal
+cascadeStaleDownstream <- function(dbPath, cohort_ids) {
+  visited <- findTransitiveDependents(dbPath, cohort_ids)
+
+  conn <- DBI::dbConnect(RSQLite::SQLite(), dbPath)
+  on.exit(DBI::dbDisconnect(conn))
 
   if (length(visited) == 0) {
     return(invisible(integer(0)))
