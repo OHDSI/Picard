@@ -29,7 +29,7 @@ build_dependency_graph = function(dbPath) {
 
     rows <- DBI::dbGetQuery(
     conn,
-    "SELECT id, depends_on FROM cohort_manifest WHERE status = 'active'"
+    "SELECT id, depends_on FROM cohort_manifest WHERE status IN ('active', 'stale')"
     )
 
     graph <- list()
@@ -175,7 +175,7 @@ compute_dependency_hash = function(dbPath, cohort, parent_hashes) {
     cohort_id <- cohort$getId()
     row <- DBI::dbGetQuery(
     conn,
-    "SELECT depends_on, dependency_rule FROM cohort_manifest WHERE id = ? AND status = 'active'",
+    "SELECT depends_on, dependency_rule FROM cohort_manifest WHERE id = ? AND status IN ('active', 'stale')",
     list(cohort_id)
     )
 

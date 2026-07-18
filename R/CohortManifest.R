@@ -84,11 +84,14 @@ CohortManifest <- R6::R6Class(
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
       on.exit(DBI::dbDisconnect(conn))
 
+      # Stale cohorts stay loaded: their definition is still current, only the
+      # DBMS generation is outdated, and generateCohorts() needs them in memory
+      # to regenerate and re-activate them
       rows <- DBI::dbGetQuery(
         conn,
         "SELECT id, label, category, tags, file_path, hash, source_type, cohort_type
          FROM cohort_manifest
-         WHERE status = 'active'"
+         WHERE status IN ('active', 'stale')"
       )
 
       if (nrow(rows) == 0) {

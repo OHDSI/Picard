@@ -192,6 +192,13 @@ testthat::test_that("updateCaprCohort cascades stale to derived dependents", {
 
   stale <- manifest$tabulateManifest(filter = "stale")
   testthat::expect_true(any(stale$label == "Capr_T2D_or_CKD"))
+
+  # Stale cohorts must stay reachable by the generation machinery so they can
+  # be regenerated and re-activated on the next generateCohorts() run
+  stale_id <- as.integer(stale$id[stale$label == "Capr_T2D_or_CKD"][[1]])
+  graph <- build_dependency_graph(manifest$getDbPath())
+  testthat::expect_true(as.character(stale_id) %in% names(graph))
+  testthat::expect_false(is.null(manifest$getCohortById(stale_id)))
 })
 
 # Testing: addCaprCohort with stopIfExists = FALSE upserts the existing cohort in place.
