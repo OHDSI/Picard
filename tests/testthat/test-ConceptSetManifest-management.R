@@ -221,6 +221,41 @@ testthat::test_that("addAtlasConceptSet stopIfExists FALSE updates from ATLAS in
   )
 })
 
+# Testing: upsert identity guards catch accidental label collisions across routes.
+testthat::test_that("concept set upsert guards reject accidental label collisions", {
+  setup <- csm_test_new_manifest("csm-collision-guards")
+  manifest <- setup$manifest
+  jsons <- csm_test_atlas_fixture_jsons()
+
+  conn_atlas <- csm_test_fake_atlas_connection(list("200" = jsons$v1, "300" = jsons$v2))
+  manifest$addAtlasConceptSet(atlasId = 200L, label = "Atlas Concepts",
+                              category = "condition_occurrence", atlasConnection = conn_atlas)
+  before <- csm_test_get_manifest_row(manifest, "Atlas Concepts")
+
+  # Different atlasId under an existing label: rejected, nothing changed
+  testthat::expect_error(
+    manifest$addAtlasConceptSet(atlasId = 300L, label = "Atlas Concepts",
+                                category = "condition_occurrence", atlasConnection = conn_atlas,
+                                stopIfExists = FALSE),
+    regexp = "registered as ATLAS id"
+  )
+  testthat::expect_equal(csm_test_get_manifest_row(manifest, "Atlas Concepts")$hash[[1]], before$hash[[1]])
+
+  # Same atlasId under a new label: rejected as a duplicate import
+  testthat::expect_error(
+    manifest$addAtlasConceptSet(atlasId = 200L, label = "Different Name",
+                                category = "condition_occurrence", atlasConnection = conn_atlas),
+    regexp = "already registered"
+  )
+
+  # Capr update targeting an ATLAS-registered concept set: rejected
+  capr_cs <- csm_test_make_capr_concept_set()
+  testthat::expect_error(
+    manifest$updateCaprConceptSet(capr_cs, label = "Atlas Concepts"),
+    regexp = "registered from ATLAS"
+  )
+})
+
 # Testing: updateAtlasConceptSets syncs changed remote definitions (the always-run template step).
 testthat::test_that("updateAtlasConceptSets syncs changed definitions in place", {
   setup <- csm_test_new_manifest("csm-atlas-sync")

@@ -203,12 +203,34 @@ CohortManifest <- R6::R6Class(
       as.integer(existing$id[1])
     },
 
+    # Find the active cohort registered with this ATLAS id (via the atlasId
+    # tag). Returns a one-row data frame (id, label), or zero rows if none.
+    find_active_atlas_registration = function(atlasId) {
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      rows <- DBI::dbGetQuery(
+        conn,
+        "SELECT id, label, tags FROM cohort_manifest
+         WHERE status = 'active' AND tags IS NOT NULL"
+      )
+
+      for (i in seq_len(nrow(rows))) {
+        parsed <- tryCatch(jsonlite::fromJSON(rows$tags[i]), error = function(e) NULL)
+        if (!is.null(parsed$atlasId) && as.integer(parsed$atlasId) == as.integer(atlasId)) {
+          return(rows[i, c("id", "label")])
+        }
+      }
+      rows[0, c("id", "label")]
+    },
+
     # Resolve the upsert target for a derived build. Returns the existing
     # active/stale cohort id for this label, or NA when the label is new.
     # Aborts when the label exists and stopIfExists is TRUE, when it belongs
-    # to a source (non-derived) cohort, or when the new parents would create
-    # a dependency cycle.
-    resolve_derived_upsert = function(label, stopIfExists, parent_ids) {
+    # to a source (non-derived) cohort, when its cohort_type differs from the
+    # type this builder creates (accidental label collision), or when the new
+    # parents would create a dependency cycle.
+    resolve_derived_upsert = function(label, stopIfExists, parent_ids, cohort_type) {
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
       on.exit(DBI::dbDisconnect(conn))
 
@@ -236,6 +258,14 @@ CohortManifest <- R6::R6Class(
         cli::cli_abort(c(
           "Cohort {existing_id} ({label}) is a source cohort ({.val {existing$cohort_type[1]}}), not a derived cohort.",
           i = "Build methods can only update derived cohorts in place."
+        ))
+      }
+
+      if (existing$cohort_type[1] != cohort_type) {
+        cli::cli_abort(c(
+          "Cohort {existing_id} ({label}) is a {.val {existing$cohort_type[1]}} cohort; this builder creates {.val {cohort_type}} cohorts.",
+          i = "This looks like an accidental label collision — nothing was changed.",
+          i = "To intentionally change the cohort's type, delete it and rebuild."
         ))
       }
 
@@ -470,7 +500,8 @@ CohortManifest <- R6::R6Class(
       existing_id <- NA_integer_
       if (is_dependent) {
         existing_id <- private$resolve_derived_upsert(
-          label, stopIfExists, as.integer(unname(dependent_ids))
+          label, stopIfExists, as.integer(unname(dependent_ids)),
+          cohort_type = "custom_derived"
         )
       } else {
         private$validate_label_unique(label)
@@ -1080,7 +1111,7 @@ CohortManifest <- R6::R6Class(
 
           existing <- DBI::dbGetQuery(
             conn,
-            "SELECT file_path, hash, cohort_type FROM cohort_manifest WHERE id = ?",
+            "SELECT file_path, hash, cohort_type, tags FROM cohort_manifest WHERE id = ?",
             list(existing_id)
           )
 
@@ -1088,6 +1119,27 @@ CohortManifest <- R6::R6Class(
             cli::cli_abort(c(
               "Cohort {.val {label}} has cohort_type {.val {existing$cohort_type[1]}}, not {.val circe}.",
               i = "addAtlasCohort() can only overwrite circe JSON cohorts."
+            ))
+          }
+
+          # Identity guard: the registered cohort must be the same ATLAS cohort,
+          # otherwise this is almost certainly an accidental label collision
+          registered_tags <- tryCatch(
+            jsonlite::fromJSON(existing$tags[1]),
+            error = function(e) NULL
+          )
+          registered_atlas_id <- registered_tags$atlasId
+          if (is.null(registered_atlas_id)) {
+            cli::cli_abort(c(
+              "Cohort {.val {label}} (ID {existing_id}) was not registered from ATLAS (no atlasId tag).",
+              i = "addAtlasCohort() only updates cohorts it registered — check the label, or update the cohort via its original route."
+            ))
+          }
+          if (as.integer(registered_atlas_id) != as.integer(atlasId)) {
+            cli::cli_abort(c(
+              "Cohort {.val {label}} (ID {existing_id}) is registered as ATLAS id {registered_atlas_id}, but atlasId {atlasId} was passed.",
+              i = "This looks like an accidental label collision — nothing was changed.",
+              i = "To intentionally repoint the cohort to a different ATLAS id, first update its atlasId tag with {.code updateCohortTags()}."
             ))
           }
 
@@ -1141,6 +1193,16 @@ CohortManifest <- R6::R6Class(
 
       # Validate label uniqueness
       private$validate_label_unique(label)
+
+      # Guard: the same ATLAS cohort must not be imported twice under
+      # different labels
+      dup <- private$find_active_atlas_registration(atlasId)
+      if (nrow(dup) > 0) {
+        cli::cli_abort(c(
+          "ATLAS cohort {atlasId} is already registered as cohort {dup$id[1]} ({dup$label[1]}).",
+          i = "To update it, call addAtlasCohort() with that label and {.code stopIfExists = FALSE}, or run {.code updateAtlasCohorts()}."
+        ))
+      }
 
       # Fetch cohort JSON from ATLAS via connection object
       tryCatch({
@@ -1406,7 +1468,7 @@ CohortManifest <- R6::R6Class(
 
       existing <- DBI::dbGetQuery(
         conn,
-        "SELECT id, file_path, hash, cohort_type FROM cohort_manifest
+        "SELECT id, file_path, hash, cohort_type, tags FROM cohort_manifest
          WHERE label = ? AND status = 'active'",
         list(label)
       )
@@ -1422,6 +1484,21 @@ CohortManifest <- R6::R6Class(
         cli::cli_abort(c(
           "Cohort {.val {label}} has cohort_type {.val {existing$cohort_type[1]}}, not {.val circe}.",
           "i" = "updateCaprCohort() can only overwrite circe JSON cohorts."
+        ))
+      }
+
+      # Ownership guard: only cohorts registered via Capr may be updated here,
+      # otherwise a reused label would silently clobber e.g. an ATLAS cohort
+      registered_tags <- tryCatch(
+        jsonlite::fromJSON(existing$tags[1]),
+        error = function(e) NULL
+      )
+      registered_route <- if (is.null(registered_tags$route)) "none" else as.character(registered_tags$route)
+      if (!identical(registered_route, "capr")) {
+        cli::cli_abort(c(
+          "Cohort {.val {label}} (ID {existing$id[1]}) was not registered via Capr (route: {.val {registered_route}}).",
+          "i" = "This looks like an accidental label collision — nothing was changed.",
+          "i" = "updateCaprCohort() only updates cohorts added by addCaprCohort() — check the label, or update the cohort via its original route."
         ))
       }
 
@@ -1687,7 +1764,7 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_logical(x = firstEraOnly, len = 1)
 
       checkmate::assert_flag(stopIfExists)
-      existing_id <- private$resolve_derived_upsert(label, stopIfExists, cohortIds)
+      existing_id <- private$resolve_derived_upsert(label, stopIfExists, cohortIds, cohort_type = "union")
       private$validate_parent_cohorts_exist(cohortIds)
 
       # Build dependency rule
@@ -1852,7 +1929,7 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_list(tags, names = "named")
 
       checkmate::assert_flag(stopIfExists)
-      existing_id <- private$resolve_derived_upsert(label, stopIfExists, c(baseCohortId, filterCohortId))
+      existing_id <- private$resolve_derived_upsert(label, stopIfExists, c(baseCohortId, filterCohortId), cohort_type = "subset")
       private$validate_parent_cohorts_exist(c(baseCohortId, filterCohortId))
 
       # Generate SQL snippets from SubsetWindowOperator objects
@@ -2031,7 +2108,7 @@ CohortManifest <- R6::R6Class(
       }
 
       checkmate::assert_flag(stopIfExists)
-      existing_id <- private$resolve_derived_upsert(label, stopIfExists, c(populationCohortId, as.integer(excludeCohortIds)))
+      existing_id <- private$resolve_derived_upsert(label, stopIfExists, c(populationCohortId, as.integer(excludeCohortIds)), cohort_type = "complement")
       private$validate_parent_cohorts_exist(c(populationCohortId, as.integer(excludeCohortIds)))
 
       dependency_rule <- list(
@@ -2156,7 +2233,7 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_integerish(minEventCount, lower = 1, upper = length(criteriaCohortIds))
 
       checkmate::assert_flag(stopIfExists)
-      existing_id <- private$resolve_derived_upsert(label, stopIfExists, criteriaCohortIds)
+      existing_id <- private$resolve_derived_upsert(label, stopIfExists, criteriaCohortIds, cohort_type = "composite")
       private$validate_parent_cohorts_exist(criteriaCohortIds)
 
       dependency_rule <- list(
@@ -2271,7 +2348,7 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_list(tags, names = "named")
 
       checkmate::assert_flag(stopIfExists)
-      existing_id <- private$resolve_derived_upsert(label, stopIfExists, baseCohortId)
+      existing_id <- private$resolve_derived_upsert(label, stopIfExists, baseCohortId, cohort_type = "subset")
       private$validate_parent_cohorts_exist(baseCohortId)
 
       # Convert NULLs to "" for SqlRender conditional blocks
@@ -5071,7 +5148,7 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_choice(subsetLimit, choices = c("First", "Last", "All"))
 
       checkmate::assert_flag(stopIfExists)
-      existing_id <- private$resolve_derived_upsert(label, stopIfExists, c(outcomeCohortId, targetCohortId))
+      existing_id <- private$resolve_derived_upsert(label, stopIfExists, c(outcomeCohortId, targetCohortId), cohort_type = "oprior")
       private$validate_parent_cohorts_exist(c(outcomeCohortId, targetCohortId))
 
       dependency_rule <- list(
@@ -5239,7 +5316,7 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_choice(subsetLimit, choices = c("First", "Last", "All"))
 
       checkmate::assert_flag(stopIfExists)
-      existing_id <- private$resolve_derived_upsert(label, stopIfExists, c(targetCohortId, outcomeCohortId))
+      existing_id <- private$resolve_derived_upsert(label, stopIfExists, c(targetCohortId, outcomeCohortId), cohort_type = "tprior")
       private$validate_parent_cohorts_exist(c(targetCohortId, outcomeCohortId))
 
       dependency_rule <- list(
@@ -5388,7 +5465,7 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_int(censorCohortId)
 
       checkmate::assert_flag(stopIfExists)
-      existing_id <- private$resolve_derived_upsert(label, stopIfExists, c(targetCohortId, censorCohortId))
+      existing_id <- private$resolve_derived_upsert(label, stopIfExists, c(targetCohortId, censorCohortId), cohort_type = "censor")
       private$validate_parent_cohorts_exist(c(targetCohortId, censorCohortId))
 
       dependency_rule <- list(

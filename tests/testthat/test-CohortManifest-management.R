@@ -623,6 +623,60 @@ testthat::test_that("addAtlasCohort stopIfExists FALSE updates from ATLAS in pla
   )
 })
 
+# Testing: upsert identity guards catch accidental label collisions across routes and types.
+testthat::test_that("upsert guards reject accidental label collisions", {
+  setup <- cm_test_new_manifest("mgmt-collision-guards")
+  manifest <- setup$manifest
+  jsons <- cm_test_atlas_fixture_jsons()
+
+  conn_atlas <- cm_test_fake_atlas_connection(list("100" = jsons$v1, "200" = jsons$v2))
+  manifest$addAtlasCohort(atlasId = 100L, label = "Atlas Cohort", category = "Target",
+                          atlasConnection = conn_atlas)
+  before <- cm_test_get_manifest_row(manifest, "Atlas Cohort")
+
+  # Different atlasId under an existing label: rejected, nothing changed
+  testthat::expect_error(
+    manifest$addAtlasCohort(atlasId = 200L, label = "Atlas Cohort", category = "Target",
+                            atlasConnection = conn_atlas, stopIfExists = FALSE),
+    regexp = "registered as ATLAS id"
+  )
+  testthat::expect_equal(cm_test_get_manifest_row(manifest, "Atlas Cohort")$hash[[1]], before$hash[[1]])
+
+  # Same atlasId under a new label: rejected as a duplicate import
+  testthat::expect_error(
+    manifest$addAtlasCohort(atlasId = 100L, label = "Different Name", category = "Target",
+                            atlasConnection = conn_atlas),
+    regexp = "already registered"
+  )
+
+  # Capr update targeting an ATLAS-registered cohort: rejected
+  capr_cohort <- cm_test_make_minimal_capr_cohort()
+  testthat::expect_error(
+    manifest$updateCaprCohort(capr_cohort, label = "Atlas Cohort"),
+    regexp = "not registered via Capr"
+  )
+})
+
+# Testing: derived upsert rejects a build under an existing label of a different cohort type.
+testthat::test_that("derived upsert rejects cohort type change", {
+  setup <- cm_test_seed_parent_with_union("mgmt-type-guard")
+  manifest <- setup$manifest
+
+  population <- manifest$queryCohortsByLabel("Capr T2D", matchType = "exact")
+  exclude <- manifest$queryCohortsByLabel("Chronic Kidney Disease", matchType = "exact")
+
+  testthat::expect_error(
+    manifest$buildComplementCohort(
+      label = "Capr_T2D_or_CKD",
+      category = "Derived Cohorts",
+      populationCohortEntry = population,
+      excludeCohortEntries = exclude,
+      stopIfExists = FALSE
+    ),
+    regexp = "this builder creates"
+  )
+})
+
 # Testing: updateAtlasCohorts syncs changed remote definitions (the always-run template step).
 testthat::test_that("updateAtlasCohorts syncs changed definitions in place", {
   setup <- cm_test_new_manifest("mgmt-atlas-sync")

@@ -107,6 +107,27 @@ ConceptSetManifest <- R6::R6Class(
       invisible(NULL)
     },
 
+    # Find the active concept set registered with this ATLAS id (via the
+    # atlasId tag). Returns a one-row data frame (id, label), or zero rows.
+    find_active_atlas_registration = function(atlasId) {
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      rows <- DBI::dbGetQuery(
+        conn,
+        "SELECT id, label, tags FROM concept_set_manifest
+         WHERE status = 'active' AND tags IS NOT NULL"
+      )
+
+      for (i in seq_len(nrow(rows))) {
+        parsed <- tryCatch(jsonlite::fromJSON(rows$tags[i]), error = function(e) NULL)
+        if (!is.null(parsed$atlasId) && as.integer(parsed$atlasId) == as.integer(atlasId)) {
+          return(rows[i, c("id", "label")])
+        }
+      }
+      rows[0, c("id", "label")]
+    },
+
     # Return the id of the active concept set with this label, or NA if none exists
     find_active_id_by_label = function(label) {
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
@@ -606,9 +627,31 @@ ConceptSetManifest <- R6::R6Class(
 
         existing <- DBI::dbGetQuery(
           conn,
-          "SELECT file_path, hash FROM concept_set_manifest WHERE id = ?",
+          "SELECT file_path, hash, tags FROM concept_set_manifest WHERE id = ?",
           list(existing_id)
         )
+
+        # Identity guard: the registered concept set must be the same ATLAS
+        # concept set, otherwise this is almost certainly an accidental
+        # label collision
+        registered_tags <- tryCatch(
+          jsonlite::fromJSON(existing$tags[1]),
+          error = function(e) NULL
+        )
+        registered_atlas_id <- registered_tags$atlasId
+        if (is.null(registered_atlas_id)) {
+          cli::cli_abort(c(
+            "Concept set {.val {label}} (ID {existing_id}) was not registered from ATLAS (no atlasId tag).",
+            i = "addAtlasConceptSet() only updates concept sets it registered — check the label, or update it via its original route."
+          ))
+        }
+        if (as.integer(registered_atlas_id) != as.integer(atlasId)) {
+          cli::cli_abort(c(
+            "Concept set {.val {label}} (ID {existing_id}) is registered as ATLAS id {registered_atlas_id}, but atlasId {atlasId} was passed.",
+            i = "This looks like an accidental label collision — nothing was changed.",
+            i = "To intentionally repoint the concept set to a different ATLAS id, first update its atlasId tag with {.code updateConceptSetTags()}."
+          ))
+        }
 
         cs_def <- tryCatch(
           atlasConnection$getConceptSetDefinition(conceptSetId = atlasId),
@@ -647,6 +690,16 @@ ConceptSetManifest <- R6::R6Class(
 
         cli::cli_alert_success("Updated ATLAS concept set {existing_id}: {label}")
         return(invisible(existing_id))
+      }
+
+      # Guard: the same ATLAS concept set must not be imported twice under
+      # different labels
+      dup <- private$find_active_atlas_registration(atlasId)
+      if (nrow(dup) > 0) {
+        cli::cli_abort(c(
+          "ATLAS concept set {atlasId} is already registered as concept set {dup$id[1]} ({dup$label[1]}).",
+          i = "To update it, call addAtlasConceptSet() with that label and {.code stopIfExists = FALSE}, or run {.code updateAtlasConceptSets()}."
+        ))
       }
 
       # Fetch concept set JSON from ATLAS
@@ -721,12 +774,16 @@ ConceptSetManifest <- R6::R6Class(
         cli::cli_alert_info("Concept set {.val {label}} already exists (ID {existing_id}) — updating in place")
         self$updateCaprConceptSet(caprConceptSet, label = label)
         if (length(tags) > 0) {
+          tags$route <- "capr"
           private$update_concept_set_def(conceptSetId = existing_id, category = category, tags = tags)
         } else {
           private$update_concept_set_def(conceptSetId = existing_id, category = category)
         }
         return(invisible(existing_id))
       }
+
+      # Tag the route for provenance
+      tags$route <- "capr"
 
       concept_sets_dir <- dirname(private$.dbPath)
       json_dir <- fs::path(concept_sets_dir, "json")
@@ -781,7 +838,7 @@ ConceptSetManifest <- R6::R6Class(
 
       existing <- DBI::dbGetQuery(
         conn,
-        "SELECT id, file_path, hash FROM concept_set_manifest
+        "SELECT id, file_path, hash, tags FROM concept_set_manifest
          WHERE label = ? AND status = 'active'",
         list(label)
       )
@@ -790,6 +847,20 @@ ConceptSetManifest <- R6::R6Class(
         cli::cli_abort(c(
           "No active concept set with label {.val {label}} found in the manifest.",
           "i" = "Use {.code addCaprConceptSet()} to register a new concept set."
+        ))
+      }
+
+      # Ownership guard: an ATLAS-registered concept set must not be silently
+      # clobbered by a Capr update under a reused label
+      registered_tags <- tryCatch(
+        jsonlite::fromJSON(existing$tags[1]),
+        error = function(e) NULL
+      )
+      if (!is.null(registered_tags$atlasId)) {
+        cli::cli_abort(c(
+          "Concept set {.val {label}} (ID {existing$id[1]}) is registered from ATLAS (atlasId {registered_tags$atlasId}).",
+          "i" = "This looks like an accidental label collision — nothing was changed.",
+          "i" = "Update it with {.code addAtlasConceptSet(stopIfExists = FALSE)} or {.code updateAtlasConceptSets()} instead."
         ))
       }
 
