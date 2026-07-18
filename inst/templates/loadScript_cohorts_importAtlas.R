@@ -68,7 +68,10 @@ cohortsLoad <- readr::read_csv(
     show_col_types = FALSE
 )
 
-cohortManifest$importAtlasCohorts(cohortsLoad = cohortsLoad)
+# updateExisting = TRUE keeps the manifest in sync with ATLAS: cohorts already
+# registered are re-checked and changed definitions updated in place (same ID,
+# derived cohorts marked stale). Set to FALSE to never touch existing cohorts.
+cohortManifest$importAtlasCohorts(cohortsLoad = cohortsLoad, updateExisting = TRUE)
 
 
 # ================================================================================

@@ -391,7 +391,11 @@ Either create a dataframe or read in a csv file with columns \code{atlasId}, \co
 additional columns treated as tag key-value pairs for tags. Calls \code{addAtlasCohort()} for each row inside
 a \code{tryCatch} so a single failure does not abort the entire batch.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$importAtlasCohorts(cohortsLoad, atlasConnection = NULL)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$importAtlasCohorts(
+  cohortsLoad,
+  atlasConnection = NULL,
+  updateExisting = FALSE
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -401,6 +405,13 @@ a \code{tryCatch} so a single failure does not abort the entire batch.
 
 \item{\code{atlasConnection}}{An ATLAS connection object with a \code{getCohortDefinition(cohortId)} method.
 If \code{NULL}, falls back to the connection stored via \verb{$setAtlasConnection()}.}
+
+\item{\code{updateExisting}}{Logical. If FALSE (default), cohorts already in the
+manifest are left untouched and a reminder to run \code{updateAtlasCohorts()}
+is printed. If TRUE, registered ATLAS cohorts are checked against ATLAS
+and changed definitions are updated in place via \code{updateAtlasCohorts()}
+(same ID and file path, derived dependents marked stale), so re-running
+the import propagates ATLAS edits without a separate manual step.}
 }
 \if{html}{\out{</div>}}
 }

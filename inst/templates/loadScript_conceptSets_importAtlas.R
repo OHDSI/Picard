@@ -70,7 +70,10 @@ conceptSetsLoad <- readr::read_csv(
     show_col_types = FALSE
 )
 
-conceptSetManifest$importAtlasConceptSets(conceptSetsLoad = conceptSetsLoad)
+# updateExisting = TRUE keeps the manifest in sync with ATLAS: concept sets
+# already registered are re-checked and changed definitions updated in place
+# (same ID). Set to FALSE to never touch existing concept sets.
+conceptSetManifest$importAtlasConceptSets(conceptSetsLoad = conceptSetsLoad, updateExisting = TRUE)
 
 # ================================================================================
 # E. REVIEW IMPORTED CONCEPT SETS

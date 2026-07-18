@@ -976,9 +976,15 @@ CohortManifest <- R6::R6Class(
     #' @param cohortsLoad a data frame requiring the columns atlasId, label and category used to bulk add cohorts to the manifest
     #' @param atlasConnection An ATLAS connection object with a `getCohortDefinition(cohortId)` method.
     #'   If `NULL`, falls back to the connection stored via `$setAtlasConnection()`.
+    #' @param updateExisting Logical. If FALSE (default), cohorts already in the
+    #'   manifest are left untouched and a reminder to run `updateAtlasCohorts()`
+    #'   is printed. If TRUE, registered ATLAS cohorts are checked against ATLAS
+    #'   and changed definitions are updated in place via `updateAtlasCohorts()`
+    #'   (same ID and file path, derived dependents marked stale), so re-running
+    #'   the import propagates ATLAS edits without a separate manual step.
     #'
     #' @return Invisible tibble of imported cohorts.
-    importAtlasCohorts = function(cohortsLoad, atlasConnection = NULL) {
+    importAtlasCohorts = function(cohortsLoad, atlasConnection = NULL, updateExisting = FALSE) {
       if (is.null(atlasConnection)) {
         atlasConnection <- private$.atlasConnection
       }
@@ -993,7 +999,8 @@ CohortManifest <- R6::R6Class(
          
       # Validate required columns
       required_cols <- c("atlasId", "label", "category")
-      checkmate::assert_data_frame(cohortsLoad, min.cols = 3) 
+      checkmate::assert_data_frame(cohortsLoad, min.cols = 3)
+      checkmate::assert_flag(updateExisting)
       missing_cols <- setdiff(required_cols, names(cohortsLoad))
       if (length(missing_cols) > 0) {
         cli::cli_abort("cohortsLoad missing required columns: {paste(missing_cols, collapse = ', ')}")
@@ -1039,9 +1046,13 @@ CohortManifest <- R6::R6Class(
           row <- existing_cohorts[i, ]
           cli::cli_alert_warning("  ID {row$id}: {row$label} (atlasId: {row$atlasId})")
         }
-        
-        cli::cli_alert_info("To check for ATLAS changes, run: {.code manifest$checkAtlasCohorts(atlasConnection)}")
-        cli::cli_alert_info("To update ATLAS definitions, run: {.code manifest$updateAtlasCohorts(atlasConnection)}")
+
+        if (updateExisting) {
+          self$updateAtlasCohorts(atlasConnection)
+        } else {
+          cli::cli_alert_info("To check for ATLAS changes, run: {.code manifest$checkAtlasCohorts(atlasConnection)}")
+          cli::cli_alert_info("To update ATLAS definitions, run: {.code manifest$updateAtlasCohorts(atlasConnection)}")
+        }
       }
 
       # Build and print final summary table
@@ -2634,7 +2645,7 @@ CohortManifest <- R6::R6Class(
       
       if (is.null(cm_atlas_subset) || nrow(cm_atlas_subset) == 0) {
         cli::cli_alert_info("No ATLAS cohorts found in manifest")
-        invisible(NULL)
+        return(invisible(NULL))
       }
 
       res <- vector('list', length = nrow(cm_atlas_subset))
@@ -2647,12 +2658,16 @@ CohortManifest <- R6::R6Class(
         row_file_path <- cm_atlas_subset$file_path[i]
 
         # Fetch JSON from ATLAS and compare hashes
-        tryCatch({
-          cohort_def <- atlasConnection$getCohortDefinition(row_atlas_id)
-        }, error = function(e) {
-          cli::cli_warn("Failed to fetch atlasId {row_atlas_id}: {e$message}")
-          return(NULL)
-        })
+        cohort_def <- tryCatch(
+          atlasConnection$getCohortDefinition(row_atlas_id),
+          error = function(e) {
+            cli::cli_warn("Failed to fetch atlasId {row_atlas_id}: {e$message}")
+            NULL
+          }
+        )
+        if (is.null(cohort_def)) {
+          next
+        }
 
         expression_json <- c(cohort_def$expression[1], "\n") |> paste(collapse = "") # make sure matches file read
         remote_hash <- rlang::hash(expression_json)
@@ -2673,6 +2688,12 @@ CohortManifest <- R6::R6Class(
           localHash = current_hash,
           remoteHash = remote_hash
         )
+      }
+
+      res <- Filter(Negate(is.null), res)
+      if (length(res) == 0) {
+        cli::cli_alert_warning("No ATLAS cohorts could be checked")
+        return(invisible(NULL))
       }
 
       res_final <- do.call('rbind', res) |>
@@ -2719,9 +2740,9 @@ CohortManifest <- R6::R6Class(
       check_atlas_changes <- self$checkAtlasCohorts(atlasConnection) |>
         dplyr::filter(hasChanged)
 
-      if (nrow(check_atlas_changes) == 0) {
-        cli::cli_alert_info("No changed ATLAS cohorts found. All {nrow(check_atlas_changes)} cohort(s) are current.")
-        invisible(NULL)
+      if (is.null(check_atlas_changes) || nrow(check_atlas_changes) == 0) {
+        cli::cli_alert_info("No changed ATLAS cohorts found. All cohort(s) are current.")
+        return(invisible(NULL))
       }
 
       # get sqlite
@@ -2743,12 +2764,16 @@ CohortManifest <- R6::R6Class(
         existing_id <- check_atlas_changes$id[i]
 
         # Fetch JSON from ATLAS and compare hashes
-        tryCatch({
-          cohort_def <- atlasConnection$getCohortDefinition(row_atlas_id)
-        }, error = function(e) {
-          cli::cli_warn("Failed to fetch atlasId {row_atlas_id}: {e$message}")
-          return(NULL)
-        })
+        cohort_def <- tryCatch(
+          atlasConnection$getCohortDefinition(row_atlas_id),
+          error = function(e) {
+            cli::cli_warn("Failed to fetch atlasId {row_atlas_id}: {e$message}")
+            NULL
+          }
+        )
+        if (is.null(cohort_def)) {
+          next
+        }
         expression_json <- cohort_def$expression[1]
         expression_json_file <- c(expression_json, "\n") |> paste(collapse = "") # make sure matches file read line ending
         new_hash <- rlang::hash(expression_json_file)
@@ -2770,14 +2795,14 @@ CohortManifest <- R6::R6Class(
           list(new_hash, existing_id)
         )
 
-        #update in-memory manifest TODO
-        #private$.manifest
-
         cli::cli_alert_success("Updated {row_label} (ID {existing_id})")
-        # cascade dependency  
+        # cascade dependency
         cascadeStaleDownstream(dbPath, existing_id)
 
       }
+
+      # Refresh in-memory manifest
+      private$load_manifest_from_db()
 
       invisible(check_atlas_changes)
 

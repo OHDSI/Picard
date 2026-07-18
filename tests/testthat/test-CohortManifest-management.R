@@ -220,6 +220,53 @@ testthat::test_that("addCaprCohort stopIfExists FALSE updates existing cohort", 
   testthat::expect_true(grepl("revision", after$tags[[1]]))
 })
 
+# Purpose: Build a fake ATLAS connection returning fixed expression JSON keyed by atlasId.
+cm_test_fake_atlas_connection <- function(expressions) {
+  list(
+    getCohortDefinition = function(cohortId) {
+      list(
+        expression = expressions[[as.character(cohortId)]],
+        saveName = paste0("atlas_cohort_", cohortId)
+      )
+    }
+  )
+}
+
+# Testing: importAtlasCohorts updateExisting = TRUE upserts changed ATLAS definitions in place.
+testthat::test_that("importAtlasCohorts updateExisting TRUE updates changed definitions", {
+  setup <- cm_test_new_manifest("mgmt-atlas-upsert")
+  manifest <- setup$manifest
+
+  # Fake ATLAS payloads must be valid CIRCE JSON (CohortDef validates via CirceR)
+  v1_path <- testthat::test_path("test_files", "ckd.json")
+  v2_path <- testthat::test_path("test_files", "t2d.json")
+  testthat::skip_if_not(fs::file_exists(v1_path) && fs::file_exists(v2_path),
+                        message = "Missing CIRCE test fixtures")
+  v1_json <- readr::read_file(v1_path)
+  v2_json <- readr::read_file(v2_path)
+
+  load_df <- data.frame(atlasId = 100L, label = "Atlas Cohort", category = "Target")
+
+  conn_v1 <- cm_test_fake_atlas_connection(list("100" = v1_json))
+  manifest$importAtlasCohorts(cohortsLoad = load_df, atlasConnection = conn_v1)
+  before <- cm_test_get_manifest_row(manifest, "Atlas Cohort")
+  testthat::expect_equal(nrow(before), 1)
+
+  conn_v2 <- cm_test_fake_atlas_connection(list("100" = v2_json))
+
+  # Default re-import leaves the registered definition untouched
+  manifest$importAtlasCohorts(cohortsLoad = load_df, atlasConnection = conn_v2)
+  unchanged <- cm_test_get_manifest_row(manifest, "Atlas Cohort")
+  testthat::expect_equal(unchanged$hash[[1]], before$hash[[1]])
+
+  # updateExisting = TRUE fetches the new definition and updates in place
+  manifest$importAtlasCohorts(cohortsLoad = load_df, atlasConnection = conn_v2, updateExisting = TRUE)
+  after <- cm_test_get_manifest_row(manifest, "Atlas Cohort")
+  testthat::expect_equal(after$id[[1]], before$id[[1]])
+  testthat::expect_equal(after$file_path[[1]], before$file_path[[1]])
+  testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
+})
+
 # Testing: addCaprCohort default stopIfExists = TRUE still errors on duplicate labels.
 testthat::test_that("addCaprCohort errors on duplicate label by default", {
   setup <- cm_test_new_manifest("mgmt-add-capr-dup")

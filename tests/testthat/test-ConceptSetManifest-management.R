@@ -130,6 +130,55 @@ testthat::test_that("addCaprConceptSet stopIfExists FALSE updates existing conce
   testthat::expect_equal(after$category[[1]], "observation")
 })
 
+# Purpose: Build a fake ATLAS connection returning fixed expression JSON keyed by atlasId.
+csm_test_fake_atlas_connection <- function(expressions) {
+  list(
+    getConceptSetDefinition = function(conceptSetId) {
+      list(
+        expression = expressions[[as.character(conceptSetId)]],
+        saveName = paste0("atlas_cs_", conceptSetId)
+      )
+    }
+  )
+}
+
+# Testing: importAtlasConceptSets updateExisting = TRUE upserts changed ATLAS definitions in place.
+testthat::test_that("importAtlasConceptSets updateExisting TRUE updates changed definitions", {
+  setup <- csm_test_new_manifest("csm-atlas-upsert")
+  manifest <- setup$manifest
+
+  # Fake ATLAS payloads must be valid CIRCE JSON (ConceptSetDef validates via
+  # CirceR), so generate two distinct definitions with Capr
+  v1_tmp <- tempfile(fileext = ".json")
+  Capr::writeConceptSet(csm_test_make_capr_concept_set(), v1_tmp)
+  v1_json <- readr::read_file(v1_tmp)
+  v2_tmp <- tempfile(fileext = ".json")
+  Capr::writeConceptSet(csm_test_make_capr_concept_set(concept_ids = c(201826, 443238)), v2_tmp)
+  v2_json <- readr::read_file(v2_tmp)
+  unlink(c(v1_tmp, v2_tmp))
+
+  load_df <- data.frame(atlasId = 200L, label = "Atlas Concepts", category = "condition_occurrence")
+
+  conn_v1 <- csm_test_fake_atlas_connection(list("200" = v1_json))
+  manifest$importAtlasConceptSets(conceptSetsLoad = load_df, atlasConnection = conn_v1)
+  before <- csm_test_get_manifest_row(manifest, "Atlas Concepts")
+  testthat::expect_equal(nrow(before), 1)
+
+  conn_v2 <- csm_test_fake_atlas_connection(list("200" = v2_json))
+
+  # Default re-import leaves the registered definition untouched
+  manifest$importAtlasConceptSets(conceptSetsLoad = load_df, atlasConnection = conn_v2)
+  unchanged <- csm_test_get_manifest_row(manifest, "Atlas Concepts")
+  testthat::expect_equal(unchanged$hash[[1]], before$hash[[1]])
+
+  # updateExisting = TRUE fetches the new definition and updates in place
+  manifest$importAtlasConceptSets(conceptSetsLoad = load_df, atlasConnection = conn_v2, updateExisting = TRUE)
+  after <- csm_test_get_manifest_row(manifest, "Atlas Concepts")
+  testthat::expect_equal(after$id[[1]], before$id[[1]])
+  testthat::expect_equal(after$file_path[[1]], before$file_path[[1]])
+  testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
+})
+
 # Testing: addCaprConceptSet default stopIfExists = TRUE errors cleanly on duplicate labels.
 testthat::test_that("addCaprConceptSet errors on duplicate label by default", {
   setup <- csm_test_new_manifest("csm-add-capr-dup")

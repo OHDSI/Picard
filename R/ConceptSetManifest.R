@@ -772,10 +772,17 @@ ConceptSetManifest <- R6::R6Class(
     #' @param atlasConnection An ATLAS connection object with a
     #'   `getConceptSetDefinition(conceptSetId)` method.
     #'   If `NULL`, falls back to the connection stored via `$setAtlasConnection()`.
+    #' @param updateExisting Logical. If FALSE (default), concept sets already in
+    #'   the manifest are left untouched and a reminder to run
+    #'   `updateAtlasConceptSets()` is printed. If TRUE, registered ATLAS concept
+    #'   sets are checked against ATLAS and changed definitions are updated in
+    #'   place via `updateAtlasConceptSets()` (same ID and file path), so
+    #'   re-running the import propagates ATLAS edits without a separate manual step.
     #'
     #' @return Invisible tibble imported concept sets.
     importAtlasConceptSets = function(conceptSetsLoad,
-                                      atlasConnection = NULL) {
+                                      atlasConnection = NULL,
+                                      updateExisting = FALSE) {
       if (is.null(atlasConnection)) {
         atlasConnection <- private$.atlasConnection
       }
@@ -791,6 +798,7 @@ ConceptSetManifest <- R6::R6Class(
       required_cols <- c("atlasId", "label", "category")
       # Validate data frame if provided directly
       checkmate::assert_data_frame(conceptSetsLoad, min.cols = 3)
+      checkmate::assert_flag(updateExisting)
       missing_cols <- setdiff(required_cols, names(conceptSetsLoad))
       if (length(missing_cols) > 0) {
         cli::cli_abort("conceptSetsLoad missing required columns: {paste(missing_cols, collapse = ', ')}")
@@ -836,8 +844,12 @@ ConceptSetManifest <- R6::R6Class(
           cli::cli_alert_warning("  ID {row$id}: {row$label} (atlasId: {row$atlasId})")
         }
         
-        cli::cli_alert_info("To check for ATLAS changes, run: {.code manifest$checkAtlasConceptSets(atlasConnection)}")
-        cli::cli_alert_info("To update ATLAS definitions, run: {.code manifest$updateAtlasConceptSets(atlasConnection)}")
+        if (updateExisting) {
+          self$updateAtlasConceptSets(atlasConnection)
+        } else {
+          cli::cli_alert_info("To check for ATLAS changes, run: {.code manifest$checkAtlasConceptSets(atlasConnection)}")
+          cli::cli_alert_info("To update ATLAS definitions, run: {.code manifest$updateAtlasConceptSets(atlasConnection)}")
+        }
       }
 
       # Build and print final summary table
@@ -1507,31 +1519,35 @@ ConceptSetManifest <- R6::R6Class(
           atlasId = purrr::map_int(tags_list, ~.x$atlasId)
         ) |>
         dplyr::select(
-          id, atlasId, label, category, hash, filePath
+          id, atlasId, label, category, hash, file_path
         )
 
       if (is.null(atlas_subset) || nrow(atlas_subset) == 0) {
         cli::cli_alert_info("No ATLAS concept sets found in manifest")
-        invisible(NULL)
+        return(invisible(NULL))
       }
 
 
       res <- vector('list', length = nrow(atlas_subset))
-      # go through each atlas cohort row and check if any change to the definition
-      for (i in seq_len(nrow(cm_atlas_subset))) {
+      # go through each atlas concept set row and check if any change to the definition
+      for (i in seq_len(nrow(atlas_subset))) {
         row_atlas_id <- atlas_subset$atlasId[i]
         row_label <- atlas_subset$label[i]
         existing_id <- atlas_subset$id[i]
         current_hash <- atlas_subset$hash[i]
-        row_file_path <- atlas_subset$filePath[i] #note bug in CSM that filePath is snakecase
+        row_file_path <- atlas_subset$file_path[i]
 
         # Fetch JSON from ATLAS and compare hashes
-        tryCatch({
-          cs_def <- atlasConnection$getConceptSetDefinition(conceptSetId = atlas_id)
-        }, error = function(e) {
-          cli::cli_warn("Failed to fetch atlasId {row_atlas_id}: {e$message}")
-          return(NULL)
-        })
+        cs_def <- tryCatch(
+          atlasConnection$getConceptSetDefinition(conceptSetId = row_atlas_id),
+          error = function(e) {
+            cli::cli_warn("Failed to fetch atlasId {row_atlas_id}: {e$message}")
+            NULL
+          }
+        )
+        if (is.null(cs_def)) {
+          next
+        }
 
         expression_json <- c(cs_def$expression[1], "\n") |> paste(collapse = "") # make sure matches file read
         remote_hash <- rlang::hash(expression_json)
@@ -1552,6 +1568,12 @@ ConceptSetManifest <- R6::R6Class(
           localHash = current_hash,
           remoteHash = remote_hash
         )
+      }
+
+      res <- Filter(Negate(is.null), res)
+      if (length(res) == 0) {
+        cli::cli_alert_warning("No ATLAS concept sets could be checked")
+        return(invisible(NULL))
       }
 
       res_final <- do.call('rbind', res) |>
@@ -1600,9 +1622,9 @@ ConceptSetManifest <- R6::R6Class(
       check_atlas_changes <- self$checkAtlasConceptSets(atlasConnection) |>
         dplyr::filter(hasChanged)
 
-      if (nrow(check_atlas_changes) == 0) {
+      if (is.null(check_atlas_changes) || nrow(check_atlas_changes) == 0) {
         cli::cli_alert_info("No changed ATLAS concept sets found. All concept sets are current.")
-        invisible(NULL)
+        return(invisible(NULL))
       }
 
       # Get SQLite connection
@@ -1622,12 +1644,16 @@ ConceptSetManifest <- R6::R6Class(
         existing_id <- check_atlas_changes$id[i]
 
         # Fetch JSON from ATLAS
-        tryCatch({
-          cs_def <- atlasConnection$getConceptSetDefinition(conceptSetId = row_atlas_id)
-        }, error = function(e) {
-          cli::cli_warn("Failed to fetch atlasId {row_atlas_id}: {e$message}")
-          return(NULL)
-        })
+        cs_def <- tryCatch(
+          atlasConnection$getConceptSetDefinition(conceptSetId = row_atlas_id),
+          error = function(e) {
+            cli::cli_warn("Failed to fetch atlasId {row_atlas_id}: {e$message}")
+            NULL
+          }
+        )
+        if (is.null(cs_def)) {
+          next
+        }
 
         expression_json <- cs_def$expression[1]
         expression_json_file <- c(expression_json, "\n") |> paste(collapse = "")
@@ -1643,7 +1669,7 @@ ConceptSetManifest <- R6::R6Class(
         # Update SQLite manifest
         DBI::dbExecute(
           sqlite_conn,
-          "UPDATE concept_set_manifest SET hash = ?, timestamp = CURRENT_TIMESTAMP WHERE id = ?",
+          "UPDATE concept_set_manifest SET hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
           list(new_hash, existing_id)
         )
 

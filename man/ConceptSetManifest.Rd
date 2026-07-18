@@ -476,7 +476,8 @@ a \code{tryCatch} so a single failure does not abort the entire batch.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$importAtlasConceptSets(
   conceptSetsLoad,
-  atlasConnection = NULL
+  atlasConnection = NULL,
+  updateExisting = FALSE
 )}\if{html}{\out{</div>}}
 }
 
@@ -488,6 +489,13 @@ a \code{tryCatch} so a single failure does not abort the entire batch.
 \item{\code{atlasConnection}}{An ATLAS connection object with a
 \code{getConceptSetDefinition(conceptSetId)} method.
 If \code{NULL}, falls back to the connection stored via \verb{$setAtlasConnection()}.}
+
+\item{\code{updateExisting}}{Logical. If FALSE (default), concept sets already in
+the manifest are left untouched and a reminder to run
+\code{updateAtlasConceptSets()} is printed. If TRUE, registered ATLAS concept
+sets are checked against ATLAS and changed definitions are updated in
+place via \code{updateAtlasConceptSets()} (same ID and file path), so
+re-running the import propagates ATLAS edits without a separate manual step.}
 }
 \if{html}{\out{</div>}}
 }
