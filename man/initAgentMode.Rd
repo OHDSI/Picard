@@ -22,14 +22,16 @@ Invisibly returns a list with:
 \description{
 When a Picard repository is cloned, agent mode files (.gitignored) won't be present.
 This function checks if agent mode is available and restores it using metadata from existing repo files.
-Agent mode provides VS Code Copilot with study context through copilot-instructions.md and reference docs.
+Agent mode provides any coding agent (Claude Code, GitHub Copilot, Cursor, etc.) with study
+context through a root AGENTS.md file plus reference docs and skills in \verb{.agent/}.
 }
 \details{
 Agent mode setup consists of:
 \itemize{
-\item \verb{.github/} folder with reference documentation
-\item \code{copilot-instructions.md} at workspace root (auto-loaded by VS Code Copilot)
-\item \code{.github/copilot-instructions.md} (backup/reference)
+\item \code{AGENTS.md} at the workspace root (tool-agnostic agent instructions)
+\item \verb{.agent/reference-docs/} with detailed study-framework documentation
+\item \verb{.agent/skills/} with task-specific skills, including \code{picard-capr-cohorts} and,
+when the Capr package is installed, its \code{capr-cohort-generation} skill bundle
 }
 
 Study metadata is extracted from existing repo files:

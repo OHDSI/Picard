@@ -110,8 +110,9 @@ testthat::test_that("makeUlyssesStudySettings initializes a standard repository 
     "README.md",
     "NEWS.md",
     "main.R",
-    "copilot-instructions.md",
-    ".github/copilot-instructions.md",
+    "AGENTS.md",
+    ".agent/reference-docs/01-repository-structure.md",
+    ".agent/skills/picard-capr-cohorts/SKILL.md",
     "test_repo.Rproj"
   )
 
