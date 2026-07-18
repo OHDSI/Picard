@@ -42,7 +42,23 @@ ask the user to run `picard::makeInputBuilderScript(type = "importCapr", categor
 (or `category = "conceptSets"`), or create the file following the existing scripts' section
 layout.
 
-### 2. Manifest registration, not `writeCohort()`
+### 2. Ask for registration metadata before writing any code
+
+Registration needs metadata the Capr skill's Step 1 questions do not cover. Extend the Step 1
+clarification message with these Picard fields and get the user's answers **before** writing
+the cohort-building function or the registration call:
+
+- **label** — display name; must not collide with an existing manifest label (see the label
+  check in the next section).
+- **category** — required classification (e.g. `"Target"`, `"Comparator"`, `"Outcome"`);
+  never invent one — ask which category the study uses.
+- **tags** — optional named list of metadata; ask whether the user wants any (for cohorts, a
+  `route = "capr"` provenance tag is added automatically, so it never needs to be supplied).
+
+Do not guess these values or deliver code with placeholder metadata. If the user leaves tags
+unspecified after being asked, omit the `tags` argument rather than inventing entries.
+
+### 3. Manifest registration, not `writeCohort()`
 
 Never call `Capr::writeCohort()` (or `writeConceptSet()`) in the builder script. Registration
 goes through the manifest API, which serializes the JSON into `inputs/cohorts/json/` (or
@@ -54,9 +70,10 @@ cohortDef <- createT2dmCohort(t2dmCs, insulinCs)
 
 cohortManifest$addCaprCohort(
   caprCohort = cohortDef,
-  label = "Type 2 Diabetes",          # must be unique in the manifest
-  category = "Target",                # required classification, ask user if unclear
-  tags = list(source = "capr")        # optional named list
+  label = "Type 2 Diabetes",          # ask the user; see registration metadata above
+  category = "Target",                # ask the user; required classification
+  tags = list(source = "phenotype library"),  # ask the user; optional named list
+  stopIfExists = FALSE                # upsert: re-sourcing updates the definition in place
 )
 ```
 
@@ -67,16 +84,27 @@ conceptSetManifest$addCaprConceptSet(
   caprConceptSet = t2dmCs,
   label = "Type 2 Diabetes Mellitus",
   category = "Conditions",
-  tags = list(source = "capr")
+  tags = list(source = "phenotype library"),
+  stopIfExists = FALSE
 )
 ```
 
-Labels must be unique — `addCaprCohort()` aborts on duplicates. Check existing labels by
-listing `inputs/cohorts/json/` and reading the registrations already in the builder scripts.
+**Always pass `stopIfExists = FALSE`** in registrations you write. With the default
+(`stopIfExists = TRUE`) the call aborts if the label is already registered, so a definition
+could never be revised after its first registration. With `FALSE`, editing the function in the
+builder script and re-sourcing updates the registered definition in place: the cohort keeps its
+ID and JSON file path, an unchanged definition is a no-op, derived cohorts that depend on it are
+marked stale, and `category` (plus `tags`, when supplied) replace the registered metadata. This
+is what makes it possible to fix a definition later if validation or review turns up a problem.
+
+Because a matching label now updates rather than errors, an accidental label collision would
+silently overwrite an unrelated cohort. Still check existing labels before registering a **new**
+definition by listing `inputs/cohorts/json/` and reading the registrations already in the
+builder scripts; if the label is taken by a different cohort, ask the user for another label.
 Do **not** call `loadCohortManifest()` yourself to check: it auto-registers stray JSON files,
 which mutates the manifest.
 
-### 3. Concept sets: check the study before placeholdering
+### 4. Concept sets: check the study before placeholdering
 
 A Picard study usually already has concept sets (imported from ATLAS or defined in
 `inputs/conceptSets/R/`). Before creating a `[PLACEHOLDER]` concept set per the Capr skill's
@@ -84,7 +112,7 @@ pattern, check `inputs/conceptSets/json/` and the concept set builder scripts, a
 whether an existing concept set covers the criterion. Only fall back to the placeholder pattern
 (distinct incrementing ids, `[PLACEHOLDER]` name suffix) when nothing suitable exists.
 
-### 4. Validation on a scratch copy, never by sourcing the builder script
+### 5. Validation on a scratch copy, never by sourcing the builder script
 
 The builder script mutates the manifest SQLite database when sourced, so it is **user-run only**
 (see the Code Execution Policy in `AGENTS.md`). Validate per the Capr skill's Step 3 on a
@@ -98,14 +126,15 @@ scratch copy instead:
 
 Do not deliver a definition whose scratch copy has not passed both checks.
 
-### 5. Delivery report
+### 6. Delivery report
 
 Follow the Capr skill's Step 4 report (what was built, assumptions, placeholders), plus two
 Picard-specific items:
 
-- Remind the user that the definition is **not yet registered**: they must source the builder
+- Remind the user that the change is **not yet registered**: they must source the builder
   script (or run the pre-pipeline section of `main.R`) to add it to the manifest and write the
-  JSON.
+  JSON. Because registrations use `stopIfExists = FALSE`, re-sourcing is safe: new definitions
+  are added and revised ones are updated in place.
 - If any concept set is a placeholder, note that real concept sets can come from the study's
   existing concept set manifest, ATLAS import, or ATHENA lookup — see
   `.agent/reference-docs/04-loading-inputs.md`.
