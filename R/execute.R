@@ -1225,13 +1225,19 @@ clearPendingPR <- function() {
 #' Use \code{\link{makeInputBuilderScript}} to create scripts with the correct naming convention.
 #' Missing scripts are silently skipped, allowing flexible configurations.
 #'
+#' Errors inside builder scripts are collected across all scripts (so they can
+#' be fixed in one pass) and then raised as a single error: input building is a
+#' hard precondition of pipeline execution, so a failed script stops the run
+#' before \code{execStudyPipeline()} can be reached.
+#'
 #' @param projectPath Character. Path to the project root. Defaults to current project.
 #' @param verbose Logical. If TRUE (default), displays which scripts are being sourced.
 #' @param warnMissing Logical. If TRUE (default), warns when directories don't exist.
 #' @return Invisibly returns a list with:
 #'   - `sourced_files`: Character vector of sourced files (absolute paths)
 #'   - `directories_checked`: Character vector of directories checked
-#'   - `error_summary`: List of any errors encountered
+#'   - `error_summary`: List of any errors encountered (always empty on
+#'     successful return; a non-empty list raises an error instead)
 #'
 #' @export 
 sourceInputBuilderScripts <- function(
@@ -1287,10 +1293,10 @@ sourceInputBuilderScripts <- function(
         sourced_files <- c(sourced_files, file)
       }, error = function(e) {
         error_msg <- paste0(
-          "Error sourcing {fs::path_rel(file)}: ",
+          "Error sourcing ", fs::path_rel(file), ": ",
           e$message
         )
-        errors[[fs::path_rel(file)]] <- error_msg
+        errors[[fs::path_rel(file)]] <<- error_msg
         cli::cli_alert_danger(error_msg)
       })
     }
@@ -1309,8 +1315,20 @@ sourceInputBuilderScripts <- function(
     cli::cli_alert_danger(
       "Error in sourceInputBuilderScripts(): {e$message}"
     )
-    errors[["critical"]] <- e$message
+    errors[["critical"]] <<- e$message
   })
+
+  # Input building is a hard precondition of pipeline execution: a failed
+  # builder script means the manifest may be incomplete or stale, so abort
+  # rather than letting the caller proceed to execStudyPipeline(). All script
+  # errors are reported together so they can be fixed in one pass.
+  if (length(errors) > 0) {
+    cli::cli_abort(c(
+      "{length(errors)} input builder script(s) failed:",
+      stats::setNames(unlist(errors), rep("x", length(errors))),
+      i = "Fix the errors above and re-run. Do not execute the pipeline until input building succeeds."
+    ))
+  }
 
   ll <- list(
     sourced_files = sourced_files,

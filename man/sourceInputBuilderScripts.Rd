@@ -22,7 +22,8 @@ Invisibly returns a list with:
 \itemize{
 \item \code{sourced_files}: Character vector of sourced files (absolute paths)
 \item \code{directories_checked}: Character vector of directories checked
-\item \code{error_summary}: List of any errors encountered
+\item \code{error_summary}: List of any errors encountered (always empty on
+successful return; a non-empty list raises an error instead)
 }
 }
 \description{
@@ -51,4 +52,9 @@ This order is enforced to guarantee dependencies are satisfied:
 
 Use \code{\link{makeInputBuilderScript}} to create scripts with the correct naming convention.
 Missing scripts are silently skipped, allowing flexible configurations.
+
+Errors inside builder scripts are collected across all scripts (so they can
+be fixed in one pass) and then raised as a single error: input building is a
+hard precondition of pipeline execution, so a failed script stops the run
+before \code{execStudyPipeline()} can be reached.
 }
