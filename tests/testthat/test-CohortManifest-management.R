@@ -580,6 +580,53 @@ testthat::test_that("addCaprCohort stopIfExists FALSE without tags drops prior t
   testthat::expect_true(grepl("route", after$tags[[1]]))
 })
 
+# Testing: addSqlCohort with stopIfExists = FALSE upserts the existing cohort in place.
+testthat::test_that("addSqlCohort stopIfExists FALSE updates existing cohort in place", {
+  setup <- cm_test_new_manifest("mgmt-add-sql-upsert")
+  manifest <- setup$manifest
+
+  cm_test_add_sql_cohort(manifest, setup$paths, label = "Custom SQL Cohort",
+                         category = "Target", tags = list(revision = "v1"))
+  before <- cm_test_get_manifest_row(manifest, "Custom SQL Cohort")
+
+  # Revised SQL registered from a new file path
+  revised_sql <- fs::path(setup$paths$sql_dir, "my_custom_cohort_v2.sql")
+  writeLines(c(readr::read_file(before$file_path[[1]]), "-- revised"), revised_sql)
+  returned_id <- manifest$addSqlCohort(
+    filePath = revised_sql,
+    label = "Custom SQL Cohort",
+    category = "Comparator",
+    stopIfExists = FALSE
+  )
+
+  after <- cm_test_get_manifest_row(manifest, "Custom SQL Cohort")
+  testthat::expect_equal(nrow(after), 1)
+  testthat::expect_equal(as.integer(returned_id), as.integer(before$id[[1]]))
+  testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
+  testthat::expect_equal(after$file_path[[1]], as.character(fs::path_rel(revised_sql)))
+  testthat::expect_equal(after$category[[1]], "Comparator")
+  testthat::expect_true(is.na(after$tags[[1]]))
+})
+
+# Testing: addSqlCohort upsert refuses to overwrite a non-custom cohort.
+testthat::test_that("addSqlCohort stopIfExists FALSE rejects non-custom targets", {
+  setup <- cm_test_new_manifest("mgmt-add-sql-upsert-guard")
+  manifest <- setup$manifest
+
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "Circe Cohort", fixture_name = "ckd.json")
+  sql_path <- cm_test_sql_fixture_path()
+
+  testthat::expect_error(
+    manifest$addSqlCohort(
+      filePath = sql_path,
+      label = "Circe Cohort",
+      category = "Target",
+      stopIfExists = FALSE
+    ),
+    regexp = "custom"
+  )
+})
+
 # Purpose: Build a fake ATLAS connection returning fixed expression JSON keyed by atlasId.
 cm_test_fake_atlas_connection <- function(expressions) {
   list(

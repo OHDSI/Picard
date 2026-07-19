@@ -496,14 +496,16 @@ CohortManifest <- R6::R6Class(
         cli::cli_abort("filePath must be a .sql file, got: .{ext}")
       }
 
-      # Dependent cohorts support label-keyed upsert (same ID, definition
-      # replaced); plain custom cohorts keep the original label uniqueness rule
+      # Both flavors support label-keyed upsert (same ID, definition replaced)
+      # when stopIfExists = FALSE
       existing_id <- NA_integer_
       if (is_dependent) {
         existing_id <- private$resolve_derived_upsert(
           label, stopIfExists, as.integer(unname(dependent_ids)),
           cohort_type = "custom_derived"
         )
+      } else if (!stopIfExists) {
+        existing_id <- private$find_active_id_by_label(label)
       } else {
         private$validate_label_unique(label)
       }
@@ -511,6 +513,22 @@ CohortManifest <- R6::R6Class(
       rel_path <- fs::path_rel(filePath)
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
       on.exit(DBI::dbDisconnect(conn))
+
+      # A plain upsert can only overwrite another custom SQL cohort
+      if (!is_dependent && !is.na(existing_id)) {
+        upsert_target <- DBI::dbGetQuery(
+          conn,
+          "SELECT cohort_type, file_path, hash FROM cohort_manifest WHERE id = ?",
+          list(existing_id)
+        )
+        if (upsert_target$cohort_type[1] != "custom") {
+          cli::cli_abort(c(
+            "Cohort {.val {label}} has cohort_type {.val {upsert_target$cohort_type[1]}}, not {.val custom}.",
+            i = "addSqlCohort() can only overwrite custom SQL cohorts."
+          ))
+        }
+        cli::cli_alert_info("Cohort {.val {label}} already exists (ID {existing_id}) — updating in place")
+      }
 
       existing_cohort <- DBI::dbGetQuery(
         conn,
@@ -573,6 +591,27 @@ CohortManifest <- R6::R6Class(
           ),
           source_type = "sql"
         )
+      } else if (!is.na(existing_id)) {
+        # Replace metadata wholesale (matching the other upsert routes): tags
+        # not re-supplied here are dropped
+        private$update_cohort_def(cohortId = existing_id, category = category, tags = tags)
+
+        new_hash <- rlang::hash(sql_content)
+        if (identical(new_hash, upsert_target$hash[1]) &&
+            identical(as.character(rel_path), upsert_target$file_path[1])) {
+          cli::cli_alert_info("Cohort {existing_id}: {label} definition is unchanged")
+        } else {
+          DBI::dbExecute(
+            conn,
+            "UPDATE cohort_manifest SET file_path = ?, hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            list(as.character(rel_path), new_hash, existing_id)
+          )
+          # Derived cohorts built on this definition are now out of date
+          private$cascade_stale_downstream(existing_id)
+        }
+
+        private$load_manifest_from_db()
+        cohort_id <- existing_id
       } else {
         cohort_id <- private$insert_cohort(
           label = label,
@@ -1548,9 +1587,13 @@ CohortManifest <- R6::R6Class(
     #' @param label Character. Display name for the cohort.
     #' @param category Character. Required classification.
     #' @param tags Named list. Optional metadata tags.
-    #' @param stopIfExists Logical. If TRUE (default), raises an error if the file
-    #'   already exists on disk or is already registered in the manifest. If FALSE,
-    #'   overwrites silently with a warning. Default: TRUE (fail-safe).
+    #' @param stopIfExists Logical. If TRUE (default), raises an error when an
+    #'   active cohort with this label is already registered, or the file path
+    #'   is registered to another cohort. If FALSE, updates the registered
+    #'   cohort in place — same ID, file path registration and content hash
+    #'   refreshed, `category`/`tags` replace the registered metadata (previous
+    #'   tags are dropped if none are supplied), and derived dependents are
+    #'   marked 'stale' when the definition changed. Default: TRUE (fail-safe).
     #'
     #' @return Invisible integer. The assigned cohort ID.
     addSqlCohort = function(filePath, label, category, tags = list(), stopIfExists = TRUE) {
