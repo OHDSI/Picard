@@ -861,11 +861,71 @@ write_agent_files <- function(repoPath,
       "Package {.pkg Capr} (with its skill bundle) is not installed; skipped copying the capr-cohort-generation skill."
     ))
     cli::cli_alert_info(
-      "Install with {.code remotes::install_github('OHDSI/Capr')} and re-run {.code initAgentMode()} to add it."
+      "Install with {.code remotes::install_github('OHDSI/Capr')} and run {.code initAgentMode(reset = TRUE)} to add it."
     )
   }
 
   invisible(files_created)
+}
+
+# Remove agent files from the pre-v0.0.7 copilot layout (root copilot-instructions.md,
+# .github/copilot-instructions.md, .github/reference-docs/) and drop their .gitignore
+# entries. `.github/` itself is only deleted when left empty, since it may hold
+# user-managed content such as workflows. Returns the removed paths.
+cleanup_legacy_agent_files <- function(repoPath, verbose = TRUE) {
+  files_removed <- character(0)
+
+  legacy_paths <- c(
+    fs::path(repoPath, "copilot-instructions.md"),
+    fs::path(repoPath, ".github", "copilot-instructions.md"),
+    fs::path(repoPath, ".github", "reference-docs")
+  )
+
+  for (legacy_path in legacy_paths) {
+    if (fs::file_exists(legacy_path) || fs::dir_exists(legacy_path)) {
+      if (fs::is_dir(legacy_path)) fs::dir_delete(legacy_path) else fs::file_delete(legacy_path)
+      files_removed <- c(files_removed, as.character(fs::path_rel(legacy_path, start = repoPath)))
+    }
+  }
+
+  github_folder <- fs::path(repoPath, ".github")
+  if (fs::dir_exists(github_folder) && length(fs::dir_ls(github_folder, all = TRUE)) == 0) {
+    fs::dir_delete(github_folder)
+    files_removed <- c(files_removed, ".github/")
+  }
+
+  if (length(files_removed) > 0) {
+    gitignore_path <- fs::path(repoPath, ".gitignore")
+    if (fs::file_exists(gitignore_path)) {
+      ignore_lines <- readr::read_lines(gitignore_path)
+      legacy_entries <- c(".github/", "copilot-instructions.md")
+      kept_lines <- ignore_lines[!trimws(ignore_lines) %in% legacy_entries]
+      if (length(kept_lines) < length(ignore_lines)) {
+        readr::write_lines(kept_lines, gitignore_path)
+      }
+    }
+    if (verbose) {
+      cli::cli_alert_info(
+        "Removed legacy agent files from previous picard version: {.file {files_removed}}"
+      )
+    }
+  }
+
+  invisible(files_removed)
+}
+
+# Append `.agent/` and `AGENTS.md` to .gitignore if missing, so agent files
+# restored into pre-existing repos stay untracked (initAgentMode() runs outside
+# a usethis project, so entries are managed directly rather than via usethis).
+ensure_agent_gitignore <- function(repoPath) {
+  gitignore_path <- fs::path(repoPath, ".gitignore")
+  ignore_lines <- if (fs::file_exists(gitignore_path)) readr::read_lines(gitignore_path) else character(0)
+  agent_entries <- c(".agent/", "AGENTS.md")
+  missing_entries <- setdiff(agent_entries, trimws(ignore_lines))
+  if (length(missing_entries) > 0) {
+    readr::write_lines(c(ignore_lines, missing_entries), gitignore_path)
+  }
+  invisible(missing_entries)
 }
 
 #' @title Initialize or Restore Agent Mode for Cloned Repository
@@ -876,10 +936,15 @@ write_agent_files <- function(repoPath,
 #'
 #' @param projectPath Character. Path to the Picard repository. Defaults to current working directory.
 #' @param verbose Logical. Display informative messages during initialization. Default: TRUE
+#' @param reset Logical. If TRUE, replace any existing agent files with fresh copies from
+#'   the installed picard (and Capr) version. This deletes `AGENTS.md` and the entire
+#'   `.agent/` folder — including any custom files added there — before rewriting them.
+#'   Use after upgrading picard to pick up new or relocated agent files. Default: FALSE
 #'
 #' @return Invisibly returns a list with:
 #'   - `agent_mode_active`: Logical. TRUE if agent mode files are now available
 #'   - `files_created`: Character vector of files that were created/restored
+#'   - `files_removed`: Character vector of legacy agent files that were deleted
 #'   - `already_existed`: Logical. TRUE if agent mode files already existed
 #'
 #' @details
@@ -894,6 +959,11 @@ write_agent_files <- function(repoPath,
 #' - Tool type from config.yml
 #' - Repository name from the repo folder name
 #'
+#' Repositories created with picard versions before the `.agent/` layout (which used
+#' `copilot-instructions.md` and `.github/reference-docs/`) are migrated automatically:
+#' the legacy files and their `.gitignore` entries are removed whenever this function
+#' writes the new layout, and `.agent/`/`AGENTS.md` are added to `.gitignore` if missing.
+#'
 #' @export
 #' @examples
 #' \dontrun{
@@ -902,8 +972,12 @@ write_agent_files <- function(repoPath,
 #'
 #'   # Restore in specific repository
 #'   initAgentMode(projectPath = "/path/to/study_repo")
+#'
+#'   # After upgrading picard, refresh agent files to the installed version
+#'   initAgentMode(reset = TRUE)
 #' }
-initAgentMode <- function(projectPath = here::here(), verbose = TRUE) {
+initAgentMode <- function(projectPath = here::here(), verbose = TRUE, reset = FALSE) {
+  checkmate::assert_flag(reset)
   projectPath <- fs::path_expand(projectPath)
   repoPath <- projectPath
 
@@ -918,17 +992,29 @@ initAgentMode <- function(projectPath = here::here(), verbose = TRUE) {
     fs::file_exists(root_instructions) &&
     fs::dir_exists(reference_docs_folder)
 
-  if (agent_mode_exists) {
-    if (verbose) cli::cli_alert_info("Agent mode already initialized")
+  if (agent_mode_exists && !reset) {
+    if (verbose) {
+      cli::cli_alert_info("Agent mode already initialized")
+      cli::cli_alert_info(
+        "Run {.code initAgentMode(reset = TRUE)} to replace existing agent files with the installed picard version."
+      )
+    }
     ll <- list(
       agent_mode_active = TRUE,
       files_created = character(0),
+      files_removed = character(0),
       already_existed = TRUE
     )
     return(ll)
   }
 
-  if (verbose) cli::cli_inform("Agent mode not found. Restoring from package templates...")
+  if (agent_mode_exists && reset) {
+    if (verbose) cli::cli_inform("Resetting agent files to the installed picard version...")
+    if (fs::file_exists(root_instructions)) fs::file_delete(root_instructions)
+    if (fs::dir_exists(agent_folder)) fs::dir_delete(agent_folder)
+  } else if (verbose) {
+    cli::cli_inform("Agent mode not found. Restoring from package templates...")
+  }
 
   tryCatch({
     # Extract study metadata from repository
@@ -1008,11 +1094,15 @@ initAgentMode <- function(projectPath = here::here(), verbose = TRUE) {
       verbose = verbose
     )
 
+    files_removed <- cleanup_legacy_agent_files(repoPath, verbose = verbose)
+    ensure_agent_gitignore(repoPath)
+
     if (verbose) cli::cli_alert_success("Agent mode successfully initialized")
 
     invisible(list(
       agent_mode_active = TRUE,
       files_created = files_created,
+      files_removed = files_removed,
       already_existed = FALSE
     ))
   }, error = function(e) {

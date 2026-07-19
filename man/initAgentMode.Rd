@@ -4,18 +4,24 @@
 \alias{initAgentMode}
 \title{Initialize or Restore Agent Mode for Cloned Repository}
 \usage{
-initAgentMode(projectPath = here::here(), verbose = TRUE)
+initAgentMode(projectPath = here::here(), verbose = TRUE, reset = FALSE)
 }
 \arguments{
 \item{projectPath}{Character. Path to the Picard repository. Defaults to current working directory.}
 
 \item{verbose}{Logical. Display informative messages during initialization. Default: TRUE}
+
+\item{reset}{Logical. If TRUE, replace any existing agent files with fresh copies from
+the installed picard (and Capr) version. This deletes \code{AGENTS.md} and the entire
+\verb{.agent/} folder — including any custom files added there — before rewriting them.
+Use after upgrading picard to pick up new or relocated agent files. Default: FALSE}
 }
 \value{
 Invisibly returns a list with:
 \itemize{
 \item \code{agent_mode_active}: Logical. TRUE if agent mode files are now available
 \item \code{files_created}: Character vector of files that were created/restored
+\item \code{files_removed}: Character vector of legacy agent files that were deleted
 \item \code{already_existed}: Logical. TRUE if agent mode files already existed
 }
 }
@@ -40,6 +46,11 @@ Study metadata is extracted from existing repo files:
 \item Tool type from config.yml
 \item Repository name from the repo folder name
 }
+
+Repositories created with picard versions before the \verb{.agent/} layout (which used
+\code{copilot-instructions.md} and \verb{.github/reference-docs/}) are migrated automatically:
+the legacy files and their \code{.gitignore} entries are removed whenever this function
+writes the new layout, and \verb{.agent/}/\code{AGENTS.md} are added to \code{.gitignore} if missing.
 }
 \examples{
 \dontrun{
@@ -48,5 +59,8 @@ Study metadata is extracted from existing repo files:
 
   # Restore in specific repository
   initAgentMode(projectPath = "/path/to/study_repo")
+
+  # After upgrading picard, refresh agent files to the installed version
+  initAgentMode(reset = TRUE)
 }
 }

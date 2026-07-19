@@ -356,3 +356,79 @@ testthat::test_that("makePrintFriendlyFile generates Rmd output from cohort JSON
   out_file <- fs::path(output_base, "printFriendly/target/death - cohort_print_friendly.Rmd")
   testthat::expect_true(fs::file_exists(out_file))
 })
+
+testthat::test_that("initAgentMode is a no-op when agent files exist and reset = FALSE", {
+  repo_ctx <- make_test_repo_for_file_creation("agent_noop_repo")
+  on.exit(fs::dir_delete(repo_ctx$root_dir), add = TRUE)
+
+  instructions_file <- fs::path(repo_ctx$repo_path, "AGENTS.md")
+  readr::write_file("user-modified instructions", instructions_file)
+
+  res <- initAgentMode(projectPath = repo_ctx$repo_path, verbose = FALSE)
+
+  testthat::expect_true(res$already_existed)
+  testthat::expect_equal(res$files_created, character(0))
+  testthat::expect_equal(readr::read_file(instructions_file), "user-modified instructions")
+})
+
+testthat::test_that("initAgentMode reset = TRUE replaces existing agent files", {
+  repo_ctx <- make_test_repo_for_file_creation("agent_reset_repo")
+  on.exit(fs::dir_delete(repo_ctx$root_dir), add = TRUE)
+
+  instructions_file <- fs::path(repo_ctx$repo_path, "AGENTS.md")
+  readr::write_file("stale instructions from an old picard version", instructions_file)
+
+  stale_doc <- fs::path(repo_ctx$repo_path, ".agent", "reference-docs", "99-removed-doc.md")
+  readr::write_file("doc removed in newer picard versions", stale_doc)
+
+  res <- initAgentMode(projectPath = repo_ctx$repo_path, verbose = FALSE, reset = TRUE)
+
+  testthat::expect_false(res$already_existed)
+  testthat::expect_true("AGENTS.md" %in% res$files_created)
+  testthat::expect_false(
+    grepl("stale instructions", readr::read_file(instructions_file), fixed = TRUE)
+  )
+  testthat::expect_false(fs::file_exists(stale_doc))
+  testthat::expect_true(
+    fs::file_exists(fs::path(repo_ctx$repo_path, ".agent", "reference-docs", "01-repository-structure.md"))
+  )
+})
+
+testthat::test_that("initAgentMode migrates the legacy copilot layout", {
+  repo_ctx <- make_test_repo_for_file_creation("agent_legacy_repo")
+  on.exit(fs::dir_delete(repo_ctx$root_dir), add = TRUE)
+
+  repo_path <- repo_ctx$repo_path
+
+  # Simulate a repo created by a pre-.agent picard version
+  fs::file_delete(fs::path(repo_path, "AGENTS.md"))
+  fs::dir_delete(fs::path(repo_path, ".agent"))
+  readr::write_file("legacy root instructions", fs::path(repo_path, "copilot-instructions.md"))
+  fs::dir_create(fs::path(repo_path, ".github", "reference-docs"))
+  readr::write_file("legacy copy", fs::path(repo_path, ".github", "copilot-instructions.md"))
+  readr::write_file("legacy doc", fs::path(repo_path, ".github", "reference-docs", "01-old.md"))
+  fs::dir_create(fs::path(repo_path, ".github", "workflows"))
+  readr::write_file("user workflow", fs::path(repo_path, ".github", "workflows", "check.yml"))
+  readr::write_lines(
+    c(".Rhistory", ".github/", "copilot-instructions.md", "exec/"),
+    fs::path(repo_path, ".gitignore")
+  )
+
+  res <- initAgentMode(projectPath = repo_path, verbose = FALSE)
+
+  testthat::expect_false(res$already_existed)
+  testthat::expect_true("copilot-instructions.md" %in% res$files_removed)
+  testthat::expect_true(fs::file_exists(fs::path(repo_path, "AGENTS.md")))
+  testthat::expect_true(fs::dir_exists(fs::path(repo_path, ".agent", "reference-docs")))
+  testthat::expect_false(fs::file_exists(fs::path(repo_path, "copilot-instructions.md")))
+  testthat::expect_false(fs::file_exists(fs::path(repo_path, ".github", "copilot-instructions.md")))
+  testthat::expect_false(fs::dir_exists(fs::path(repo_path, ".github", "reference-docs")))
+  # user-managed .github content is preserved
+  testthat::expect_true(fs::file_exists(fs::path(repo_path, ".github", "workflows", "check.yml")))
+
+  ignore_lines <- trimws(readr::read_lines(fs::path(repo_path, ".gitignore")))
+  testthat::expect_false(".github/" %in% ignore_lines)
+  testthat::expect_false("copilot-instructions.md" %in% ignore_lines)
+  testthat::expect_true(".agent/" %in% ignore_lines)
+  testthat::expect_true("AGENTS.md" %in% ignore_lines)
+})
