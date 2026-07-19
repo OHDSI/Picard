@@ -465,8 +465,9 @@ the cohort in the manifest.
 \item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
 active cohort with this label is already registered. If FALSE, updates
 the existing cohort in place via \code{updateCaprCohort()} — the cohort
-keeps its ID and file path, and \code{category} (and \code{tags}, when supplied)
-replace the registered metadata. Default: TRUE (fail-safe).}
+keeps its ID and file path, and \code{category}/\code{tags} replace the
+registered metadata (previous tags are dropped if none are supplied).
+Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -532,9 +533,13 @@ on disk (typically in \verb{sql/}).
 
 \item{\code{tags}}{Named list. Optional metadata tags.}
 
-\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error if the file
-already exists on disk or is already registered in the manifest. If FALSE,
-overwrites silently with a warning. Default: TRUE (fail-safe).}
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+active cohort with this label is already registered, or the file path
+is registered to another cohort. If FALSE, updates the registered
+cohort in place — same ID, file path registration and content hash
+refreshed, \code{category}/\code{tags} replace the registered metadata (previous
+tags are dropped if none are supplied), and derived dependents are
+marked 'stale' when the definition changed. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }

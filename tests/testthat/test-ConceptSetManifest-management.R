@@ -52,6 +52,25 @@ testthat::test_that("addCaprConceptSet registers Capr concept set", {
   testthat::expect_true(fs::file_exists(row$file_path[[1]]))
 })
 
+# Testing: addCaprConceptSet stopIfExists FALSE upserts in place and drops prior tags when none supplied.
+testthat::test_that("addCaprConceptSet stopIfExists FALSE without tags drops prior tags", {
+  setup <- csm_test_new_manifest("csm-add-capr-upsert-notags")
+  manifest <- setup$manifest
+
+  capr_cs <- csm_test_make_capr_concept_set()
+  manifest$addCaprConceptSet(capr_cs, label = "T2D Concepts", category = "condition_occurrence",
+                             tags = list(revision = "v1"))
+
+  revised <- csm_test_make_capr_concept_set(concept_ids = c(201826, 443238))
+  returned_id <- manifest$addCaprConceptSet(revised, label = "T2D Concepts",
+                                            category = "condition_occurrence", stopIfExists = FALSE)
+
+  after <- csm_test_get_manifest_row(manifest, "T2D Concepts")
+  testthat::expect_equal(nrow(after), 1)
+  testthat::expect_equal(as.integer(returned_id), as.integer(after$id[[1]]))
+  testthat::expect_true(is.na(after$tags[[1]]))
+})
+
 # Testing: updateCaprConceptSet overwrites the registered JSON and refreshes the hash in place.
 testthat::test_that("updateCaprConceptSet updates definition keeping id and file path", {
   setup <- csm_test_new_manifest("csm-update-capr")

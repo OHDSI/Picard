@@ -133,7 +133,7 @@ testthat::test_that("renameTagKey renames tag across cohorts", {
   manifest$addCohortTag(t2d_id, "old_name", "value2")
 
   # Rename the tag
-  result <- manifest$renameTagKey("old_name", "new_name", conceptSetIds = c(ckd_id, t2d_id))
+  result <- manifest$renameTagKey("old_name", "new_name", cohortIds = c(ckd_id, t2d_id))
 
   ckd_tags <- manifest$getCohortTags(ckd_id)
   t2d_tags <- manifest$getCohortTags(t2d_id)
