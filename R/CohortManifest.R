@@ -286,7 +286,7 @@ CohortManifest <- R6::R6Class(
     # registered one in place (same id and label). On update the definition
     # columns are replaced, the cohort is marked 'stale' so the next
     # generateCohorts() run regenerates it, and stale cascades to its own
-    # dependents. Tags are replaced only when supplied.
+    # dependents. Tags are replaced wholesale (cleared when none supplied).
     upsert_derived_cohort = function(existingId, label, category, tags, file_path,
                                      cohort_type, depends_on, dependency_rule,
                                      source_type = "derived") {
@@ -319,17 +319,18 @@ CohortManifest <- R6::R6Class(
         NA_character_
       }
 
+      tags_json <- if (length(tags) > 0) {
+        jsonlite::toJSON(tags, auto_unbox = TRUE)
+      } else {
+        NA_character_
+      }
+
       set_clauses <- paste(
         "category = ?, file_path = ?, hash = ?, source_type = ?, cohort_type = ?,",
-        "depends_on = ?, dependency_rule = ?, status = 'stale',",
+        "depends_on = ?, dependency_rule = ?, tags = ?, status = 'stale',",
         "updated_at = CURRENT_TIMESTAMP"
       )
-      params <- list(category, file_path, hash, source_type, cohort_type, depends_on_json, dep_rule_json)
-
-      if (length(tags) > 0) {
-        set_clauses <- paste(set_clauses, ", tags = ?")
-        params <- c(params, list(jsonlite::toJSON(tags, auto_unbox = TRUE)))
-      }
+      params <- list(category, file_path, hash, source_type, cohort_type, depends_on_json, dep_rule_json, tags_json)
 
       DBI::dbExecute(
         conn,

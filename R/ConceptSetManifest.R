@@ -741,8 +741,9 @@ ConceptSetManifest <- R6::R6Class(
     #' @param stopIfExists Logical. If TRUE (default), raises an error when an
     #'   active concept set with this label is already registered. If FALSE,
     #'   updates the existing concept set in place via `updateCaprConceptSet()`
-    #'   — it keeps its ID and file path, and `category` (and `tags`, when
-    #'   supplied) replace the registered metadata. Default: TRUE (fail-safe).
+    #'   — it keeps its ID and file path, and `category`/`tags` replace the
+    #'   registered metadata (previous tags are dropped if none are supplied).
+    #'   Default: TRUE (fail-safe).
     #'
     #' @return Invisible integer. The assigned concept set ID.
     addCaprConceptSet = function(caprConceptSet, label, category = "init", tags = list(), stopIfExists = TRUE) {
@@ -773,12 +774,10 @@ ConceptSetManifest <- R6::R6Class(
         # Upsert path: update the existing concept set in place
         cli::cli_alert_info("Concept set {.val {label}} already exists (ID {existing_id}) — updating in place")
         self$updateCaprConceptSet(caprConceptSet, label = label)
-        if (length(tags) > 0) {
-          tags$route <- "capr"
-          private$update_concept_set_def(conceptSetId = existing_id, category = category, tags = tags)
-        } else {
-          private$update_concept_set_def(conceptSetId = existing_id, category = category)
-        }
+
+        # Replace metadata wholesale (matching addAtlasConceptSet): tags not
+        # re-supplied here are dropped
+        private$update_concept_set_def(conceptSetId = existing_id, category = category, tags = tags)
         return(invisible(existing_id))
       }
 

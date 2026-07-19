@@ -305,6 +305,30 @@ testthat::test_that("buildUnionCohort stopIfExists FALSE updates parent list in 
   testthat::expect_equal(after$hash[[1]], disk_hash)
 })
 
+# Testing: derived-cohort upsert replaces tags wholesale (cleared when none supplied).
+testthat::test_that("buildUnionCohort stopIfExists FALSE without tags drops prior tags", {
+  setup <- cm_test_seed_parent_with_union("mgmt-union-upsert-notags")
+  manifest <- setup$manifest
+
+  union_row <- cm_test_get_manifest_row(manifest, "Capr_T2D_or_CKD")
+  manifest$updateCohortTags(as.integer(union_row$id[[1]]), list(revision = "v1"))
+
+  parents <- manifest$queryCohortsByLabel(
+    labels = c("Capr T2D", "Chronic Kidney Disease"),
+    matchType = "exact"
+  )
+  manifest$buildUnionCohort(
+    label = "Capr_T2D_or_CKD",
+    category = "Derived Cohorts",
+    cohortEntries = parents,
+    stopIfExists = FALSE
+  )
+
+  after <- cm_test_get_manifest_row(manifest, "Capr_T2D_or_CKD")
+  testthat::expect_equal(nrow(after), 1)
+  testthat::expect_true(is.na(after$tags[[1]]))
+})
+
 # Testing: build methods still error on duplicate labels by default.
 testthat::test_that("buildUnionCohort errors on duplicate label by default", {
   setup <- cm_test_seed_parent_with_union("mgmt-union-dup")
