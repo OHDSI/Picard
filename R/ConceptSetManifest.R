@@ -2261,7 +2261,7 @@ ConceptSetManifest <- R6::R6Class(
       
       if (nrow(missing_conceptsets) == 0) {
         cli::cli_alert_success("No missing concept sets to clean up")
-        invisible(NULL)
+        return(invisible(NULL))
       }
       
       cli::cli_rule("Cleaning Up Missing Concept Sets")
@@ -2272,7 +2272,7 @@ ConceptSetManifest <- R6::R6Class(
         label <- missing_conceptsets$label[i]
         
         if (keep_trace) {
-          self$deleteConceptSet(cs_id, reason = "missing file")
+          self$deleteConceptSet(as.integer(cs_id), confirm = TRUE)
         } else {
           self$permanentlyDeleteConceptSet(cs_id, confirm = TRUE)
         }

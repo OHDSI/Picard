@@ -4768,7 +4768,7 @@ CohortManifest <- R6::R6Class(
       db_records <- tryCatch({
         DBI::dbGetQuery(
           conn,
-          "SELECT id, label, filePath, status, deleted_at FROM cohort_manifest ORDER BY id"
+          "SELECT id, label, file_path, status, deleted_at FROM cohort_manifest ORDER BY id"
         )
       }, error = function(e) {
         cli::cli_alert_danger("Failed to query manifest: {e$message}")
@@ -4781,7 +4781,7 @@ CohortManifest <- R6::R6Class(
       }
       
       # Add file_exists column
-      db_records$file_exists <- sapply(db_records$filePath, file.exists)
+      db_records$file_exists <- sapply(db_records$file_path, file.exists)
       
       # Convert to tibble and select columns
       result <- tibble::tibble(
@@ -5511,7 +5511,7 @@ CohortManifest <- R6::R6Class(
       
       if (nrow(missing_cohorts) == 0) {
         cli::cli_alert_success("No missing cohorts to clean up")
-        invisible(NULL)
+        return(invisible(NULL))
       }
       
       cli::cli_rule("Cleaning Up Missing Cohorts")
@@ -5522,7 +5522,7 @@ CohortManifest <- R6::R6Class(
         label <- missing_cohorts$label[i]
         
         if (keep_trace) {
-          self$deleteCohort(cohort_id, reason = "missing file")
+          self$deleteCohort(as.integer(cohort_id), confirm = TRUE)
         } else {
           self$removeCohort(cohort_id, deleteFile = FALSE, confirm = TRUE)
         }

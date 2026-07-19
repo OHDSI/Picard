@@ -61,8 +61,6 @@ testthat::test_that("validateManifest returns status dataframe", {
 
 # Testing: getManifestStatus returns summary counters and next available id.
 testthat::test_that("getManifestStatus returns summary list", {
-  testthat::skip("Known bug: active_count miscount pending fix")
-
   setup <- cm_test_seed_manifest_for_queries("mgmt-status")
   manifest <- setup$manifest
 
