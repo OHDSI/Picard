@@ -536,6 +536,28 @@ testthat::test_that("addCaprCohort stopIfExists FALSE updates existing cohort", 
   testthat::expect_true(grepl("revision", after$tags[[1]]))
 })
 
+# Testing: addCaprCohort stopIfExists = FALSE with no tags clears prior tags (matching ATLAS behavior).
+testthat::test_that("addCaprCohort stopIfExists FALSE without tags drops prior tags", {
+  setup <- cm_test_new_manifest("mgmt-add-capr-upsert-notags")
+  manifest <- setup$manifest
+
+  cm_test_add_capr_cohort(manifest, label = "Capr T2D", category = "Target",
+                          tags = list(source = "capr", revision = "v1"))
+
+  revised <- cm_test_make_minimal_capr_cohort(prior_days = 365L)
+  manifest$addCaprCohort(
+    caprCohort = revised,
+    label = "Capr T2D",
+    category = "Target",
+    stopIfExists = FALSE
+  )
+
+  after <- cm_test_get_manifest_row(manifest, "Capr T2D")
+  testthat::expect_equal(nrow(after), 1)
+  testthat::expect_false(grepl("revision", after$tags[[1]]))
+  testthat::expect_true(grepl("route", after$tags[[1]]))
+})
+
 # Purpose: Build a fake ATLAS connection returning fixed expression JSON keyed by atlasId.
 cm_test_fake_atlas_connection <- function(expressions) {
   list(

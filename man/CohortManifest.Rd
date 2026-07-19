@@ -465,8 +465,9 @@ the cohort in the manifest.
 \item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
 active cohort with this label is already registered. If FALSE, updates
 the existing cohort in place via \code{updateCaprCohort()} — the cohort
-keeps its ID and file path, and \code{category} (and \code{tags}, when supplied)
-replace the registered metadata. Default: TRUE (fail-safe).}
+keeps its ID and file path, and \code{category}/\code{tags} replace the
+registered metadata (previous tags are dropped if none are supplied).
+Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }

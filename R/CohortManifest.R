@@ -1367,8 +1367,9 @@ CohortManifest <- R6::R6Class(
     #' @param stopIfExists Logical. If TRUE (default), raises an error when an
     #'   active cohort with this label is already registered. If FALSE, updates
     #'   the existing cohort in place via `updateCaprCohort()` — the cohort
-    #'   keeps its ID and file path, and `category` (and `tags`, when supplied)
-    #'   replace the registered metadata. Default: TRUE (fail-safe).
+    #'   keeps its ID and file path, and `category`/`tags` replace the
+    #'   registered metadata (previous tags are dropped if none are supplied).
+    #'   Default: TRUE (fail-safe).
     #'
     #' @return Invisible integer. The assigned cohort ID.
     addCaprCohort = function(caprCohort, label, category, tags = list(), stopIfExists = TRUE) {
@@ -1395,12 +1396,10 @@ CohortManifest <- R6::R6Class(
         if (!is.na(existing_id)) {
           cli::cli_alert_info("Cohort {.val {label}} already exists (ID {existing_id}) — updating in place")
           self$updateCaprCohort(caprCohort, label = label)
-          if (length(tags) > 0) {
-            tags$route <- "capr"
-            private$update_cohort_def(cohortId = existing_id, category = category, tags = tags)
-          } else {
-            private$update_cohort_def(cohortId = existing_id, category = category)
-          }
+          # Replace metadata wholesale (matching addAtlasCohort): tags not
+          # re-supplied here are dropped, keeping only the route provenance
+          tags$route <- "capr"
+          private$update_cohort_def(cohortId = existing_id, category = category, tags = tags)
           return(invisible(existing_id))
         }
       }
