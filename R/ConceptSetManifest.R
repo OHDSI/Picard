@@ -2289,16 +2289,17 @@ ConceptSetManifest <- R6::R6Class(
     #' Scans the \code{json/} subdirectory of the concept sets folder, reconciles it against
     #' the SQLite manifest, and updates both the database and the in-memory list:
     #' \itemize{
-    #'   \item New files found on disk are added (new ConceptSetDef + manifest entry).
     #'   \item Active manifest records whose file no longer exists are soft-deleted.
     #'   \item Existing files whose JSON hash has changed are updated in the manifest.
+    #'   \item Orphaned files on disk not in manifest are automatically deleted.
     #' }
-    #' 
+    #'
     #' @param strict_mode Logical. If TRUE (default), automatically removes orphaned files found
     #'   on disk. If FALSE, only warns about them without deletion. Default: TRUE.
-    #' 
+    #'
     #' @return Data frame with columns: id, label, action
-    #'   (\code{"added"}, \code{"hash_updated"}, \code{"missing_flagged"}, or \code{"unchanged"}).
+    #'   (\code{"hash_updated"}, \code{"missing_flagged"}, \code{"unchanged"}, or
+    #'    \code{"auto_removed_orphan"}).
     syncManifest = function(strict_mode = TRUE) {
       checkmate::assert_flag(strict_mode)
       
@@ -2398,42 +2399,7 @@ ConceptSetManifest <- R6::R6Class(
         })
       }
 
-      # ── Step 2: discover new files not yet in the manifest ───────────────────
-      existing_rel <- db_records$file_path  # stored as relative paths
-      new_files    <- on_disk[!(on_disk_rel %in% existing_rel)]
-
-      if (length(new_files) > 0) {
-        cli::cli_alert_info("Found {length(new_files)} new concept set file(s)")
-      }
-
-      for (file_path in new_files) {
-        label <- tools::file_path_sans_ext(basename(file_path))
-        tryCatch({
-          new_def <- ConceptSetDef$new(label = label, tags = list(), filePath = file_path)
-
-          # Determine next ID
-          max_id_result <- DBI::dbGetQuery(conn, "SELECT MAX(id) as max_id FROM concept_set_manifest")
-          max_id  <- ifelse(!is.na(max_id_result$max_id[1]), max_id_result$max_id[1], 0)
-          next_id <- as.integer(max_id + 1)
-          new_def$setId(next_id)
-
-          DBI::dbExecute(
-            conn,
-            "INSERT INTO concept_set_manifest (id, label, category, tags, file_path, hash, created_at, updated_at, status)
-             VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'active')",
-            list(next_id, label, "init", NA_character_, fs::path_rel(file_path), new_def$getHash())
-          )
-
-          private$.manifest[[length(private$.manifest) + 1]] <- new_def
-          cli::cli_alert_success("Added: {label} (ID {next_id})")
-          results <- rbind(results, data.frame(id = next_id, label = label,
-                                               action = "added", stringsAsFactors = FALSE))
-        }, error = function(e) {
-          cli::cli_alert_danger("Error adding {label}: {e$message}")
-        })
-      }
-
-      # ── Step 3: Auto-remove orphaned files not in manifest ──────────────────
+      # ── Step 2: Auto-remove orphaned files not in manifest ──────────────────
       existing_rel <- db_records$file_path
       orphaned_files <- on_disk[!(on_disk_rel %in% existing_rel)]
 
@@ -2469,15 +2435,14 @@ ConceptSetManifest <- R6::R6Class(
       }
 
       # ── Summary ──────────────────────────────────────────────────────────────
-      n_added   <- sum(results$action == "added")
       n_updated <- sum(results$action == "hash_updated")
       n_missing <- sum(results$action == "missing_flagged")
       n_orphan_removed <- sum(results$action == "auto_removed_orphan")
       n_same    <- sum(results$action == "unchanged")
-      
+
       cli::cli_rule()
       cli::cli_alert_success(
-        "Sync complete — Added: {n_added} | Updated: {n_updated} | Missing: {n_missing} | Orphaned removed: {n_orphan_removed} | Unchanged: {n_same}"
+        "Sync complete — Updated: {n_updated} | Missing: {n_missing} | Orphaned removed: {n_orphan_removed} | Unchanged: {n_same}"
       )
 
       return(results)

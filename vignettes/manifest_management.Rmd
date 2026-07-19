@@ -310,8 +310,8 @@ timestamp before being deleted, allowing recovery if needed.
 ### Concept set manifest reset
 
 ```{r}
-# Delete only the SQLite DB; json/ files are preserved and auto-re-registered
-# on the next loadConceptSetManifest() call
+# Delete only the SQLite DB; json/ files are archived (or deleted, if archive = FALSE) —
+# re-register them explicitly with $addConceptSetFile() afterward, they are not auto-restored
 resetConceptSetManifest(scope = "manifest")
 
 # Delete everything

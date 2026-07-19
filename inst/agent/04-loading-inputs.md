@@ -135,10 +135,14 @@ conceptSetManifest <- loadConceptSetManifest()
 conceptSetManifest$tabulateManifest()
 ```
 
-**Auto-discovery:** `loadConceptSetManifest()` scans `inputs/conceptSets/json/`
-and auto-registers any `.json` files not yet in the database. Drop new concept
-set JSON files there and re-run `loadConceptSetManifest()` to pick them up
-without any additional import step.
+**Auto-sync:** `loadConceptSetManifest()` scans `inputs/conceptSets/json/` and
+reconciles it against the database — updated hashes are picked up, records
+whose file has disappeared are flagged as missing, and any `.json` file that
+isn't already registered in the manifest is treated as an orphan and deleted.
+Register new concept sets explicitly (e.g. `$addConceptSetFile()`,
+`$addCaprConceptSet()`, or `importAtlasConceptSets()`) rather than dropping
+JSON files directly into `json/` — an unregistered file will be removed the
+next time the manifest is loaded.
 
 ### Other import patterns for Concept Sets
 

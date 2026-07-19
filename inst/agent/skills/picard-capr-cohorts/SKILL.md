@@ -101,8 +101,9 @@ Because a matching label now updates rather than errors, an accidental label col
 silently overwrite an unrelated cohort. Still check existing labels before registering a **new**
 definition by listing `inputs/cohorts/json/` and reading the registrations already in the
 builder scripts; if the label is taken by a different cohort, ask the user for another label.
-Do **not** call `loadCohortManifest()` yourself to check: it auto-registers stray JSON files,
-which mutates the manifest.
+Do **not** call `loadCohortManifest()` yourself to check: it auto-syncs by default, which
+**deletes** any stray JSON file in `inputs/cohorts/json/` that isn't already registered in the
+manifest — including a cohort file you're about to register.
 
 ### 4. Concept sets: check the study before placeholdering
 
