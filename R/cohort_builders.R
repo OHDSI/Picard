@@ -788,6 +788,24 @@ createSubsetStartWindow <- function(
     endDays,
     baseCohortWindowAnchor = "cohort_start_date") {
 
+  # Inf/-Inf are common proxies for "all time" — convert to large integers
+  # before passing to the class so assert_integerish does not reject them.
+  if (is.infinite(startDays)) {
+    if (startDays > 0) {
+      startDays <- 99999L
+    } else {
+      startDays <-  -99999L
+    }
+  }
+
+  if (is.infinite(endDays)) {
+    if (endDays > 0) {
+      endDays <- 99999L
+    } else {
+      endDays <- -99999L
+    }
+  }
+
   SubsetWindowOperator$new(
     windowType = "startWindow",
     subsetCohortWindowAnchor = subsetCohortWindowAnchor,
@@ -831,6 +849,24 @@ createSubsetEndWindow <- function(
     startDays,
     endDays,
     baseCohortWindowAnchor = "cohort_end_date") {
+
+  # Inf/-Inf are common proxies for "all time" — convert to large integers
+  # before passing to the class so assert_integerish does not reject them.
+  if (is.infinite(startDays)) {
+    if (startDays > 0) {
+      startDays <- 99999L
+    } else {
+      startDays <-  -99999L
+    }
+  }
+
+  if (is.infinite(endDays)) {
+    if (endDays > 0) {
+      endDays <- 99999L
+    } else {
+      endDays <- -99999L
+    }
+  }
 
   SubsetWindowOperator$new(
     windowType = "endWindow",
