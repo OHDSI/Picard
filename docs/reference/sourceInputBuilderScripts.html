@@ -16,7 +16,7 @@ and dependent cohorts can reference already-loaded cohort definitions."><!-- mat
     
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.5</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.6</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -96,7 +96,8 @@ and dependent cohorts can reference already-loaded cohort definitions.</p>
 
 <p>Invisibly returns a list with:</p><ul><li><p><code>sourced_files</code>: Character vector of sourced files (absolute paths)</p></li>
 <li><p><code>directories_checked</code>: Character vector of directories checked</p></li>
-<li><p><code>error_summary</code>: List of any errors encountered</p></li>
+<li><p><code>error_summary</code>: List of any errors encountered (always empty on
+successful return; a non-empty list raises an error instead)</p></li>
 </ul></div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -111,6 +112,10 @@ and dependent cohorts can reference already-loaded cohort definitions.</p>
 <li><p>Dependent cohorts load last (can reference base cohorts)</p></li>
 </ul><p>Use <code><a href="makeInputBuilderScript.html">makeInputBuilderScript</a></code> to create scripts with the correct naming convention.
 Missing scripts are silently skipped, allowing flexible configurations.</p>
+<p>Errors inside builder scripts are collected across all scripts (so they can
+be fixed in one pass) and then raised as a single error: input building is a
+hard precondition of pipeline execution, so a failed script stops the run
+before <code><a href="execStudyPipeline.html">execStudyPipeline()</a></code> can be reached.</p>
     </div>
 
   </main><aside class="col-md-3"><nav id="toc"><h2>On this page</h2>

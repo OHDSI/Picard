@@ -39,12 +39,21 @@ cohortManifest$tabulateManifest()
 # B. BUILD DEPENDENT COHORTS
 # ================================================================================
 
-# Note: Replace cohort IDs with actual IDs from your manifest
-# Base cohorts must already exist in the manifest before building dependents
+# Preferred approach: look up cohorts by label to get entry rows, then pass those
+# to the builder functions. This avoids hardcoding IDs that may change.
+# Base cohorts must already exist in the manifest before building dependents.
+
+# ---- Look up base cohort entries ----
+# Replace labels with the actual cohort labels in your manifest.
+
+# ckdEntry    <- cohortManifest$queryCohortsByLabel("Chronic Kidney Disease", matchType = "exact")
+# t2dEntry    <- cohortManifest$queryCohortsByLabel("Type 2 Diabetes", matchType = "exact")
+# bleedEntry  <- cohortManifest$queryCohortsByLabel("Major Bleeding Outcome", matchType = "exact")
+# deathEntry  <- cohortManifest$queryCohortsByLabel("All-Cause Death", matchType = "exact")
 
 
 # ---- Example: Temporal Relationship ----
-# Build "CKD given prior diabetes" using a start-window definition.
+# Build "CKD given prior T2D" using a start-window definition.
 
 # startWindow <- createSubsetStartWindow(
 #   subsetCohortWindowAnchor = "cohort_start_date",
@@ -56,19 +65,19 @@ cohortManifest$tabulateManifest()
 # cohortManifest$buildSubsetCohortTemporal(
 #   label = "CKD given prior T2D",
 #   category = "Derived Cohorts",
-#   baseCohortId = 1L,                  # CKD cohort ID
-#   filterCohortId = 2L,                # T2D cohort ID
+#   baseCohortEntry = ckdEntry,
+#   filterCohortEntry = t2dEntry,
 #   startWindow = startWindow
 # )
 
 
 # ---- Example: Union ----
-# Combine two cohorts (Diabetes OR Hypertension)
+# Combine two cohorts (CKD OR T2D)
 
 # cohortManifest$buildUnionCohort(
-#   label = "Diabetes or Hypertension",
+#   label = "CKD or T2D",
 #   category = "Disease Populations",
-#   cohortIds = c(1L, 3L),
+#   cohortEntries = dplyr::bind_rows(ckdEntry, t2dEntry),
 #   gapDays = 0L
 # )
 
@@ -77,10 +86,10 @@ cohortManifest$tabulateManifest()
 # All patients in a population cohort excluding one or more comparator cohorts.
 
 # cohortManifest$buildComplementCohort(
-#   label = "No CKD",
+#   label = "CKD Without T2D",
 #   category = "Control Populations",
-#   populationCohortId = 1L,
-#   excludeCohortIds = c(2L),
+#   populationCohortEntry = ckdEntry,
+#   excludeCohortEntries = t2dEntry,
 #   complementType = "exclude_any"
 # )
 
@@ -91,7 +100,7 @@ cohortManifest$tabulateManifest()
 # cohortManifest$buildCompositeCohort(
 #   label = "CKD and T2D Composite",
 #   category = "Derived Cohorts",
-#   criteriaCohortIds = c(1L, 2L),
+#   criteriaCohortEntries = dplyr::bind_rows(ckdEntry, t2dEntry),
 #   minEventCount = 2L,
 #   eventSelection = "First"
 # )
@@ -102,7 +111,7 @@ cohortManifest$tabulateManifest()
 
 # cohortManifest$buildDemographicCohort(
 #   label = "CKD in Males Aged 65+",
-#   baseCohortId = 1L,
+#   baseCohortEntry = ckdEntry,
 #   category = "Disease Populations",
 #   minAge = 65L,
 #   genderConceptIds = c(8507L)  # Male
@@ -119,7 +128,7 @@ cohortManifest$tabulateManifest()
 # )
 #
 # cohortManifest$buildStratifiedCohorts(
-#   baseCohortId = 1L,
+#   baseCohortEntry = ckdEntry,
 #   strata = strata,
 #   labelPrefix = "CKD",
 #   category = "Derived Cohorts"
@@ -128,44 +137,43 @@ cohortManifest$tabulateManifest()
 
 # ---- Example: Outcome Prior Target (O-Prior-T) ----
 # Events where outcome occurs before target exposure
-# e.g., "GI Bleed in patients with prior NSAID use"
+# e.g., "Bleeding in patients with prior T2D"
 
 # cohortManifest$buildOPriorT(
-#   label = "GI Bleed - Prior NSAID",
+#   label = "Bleed - Prior T2D",
 #   category = "Outcomes",
-#   outcomeCohortId = 1L,
-#   targetCohortId = 2L,
+#   outcomeCohortEntry = bleedEntry,
+#   targetCohortEntry = t2dEntry,
 #   mode = "prior",
-#   priorTimeWindowDays = 365,
+#   priorTimeWindowDays = 365L,
 #   subsetLimit = "First"
 # )
 
 
 # ---- Example: Target Prior Outcome (T-Prior-O) ----
 # Events where target exposure occurs before outcome
-# e.g., "NSAID use in patients with prior GI Bleed"
+# e.g., "T2D in patients with prior bleeding event"
 
 # cohortManifest$buildTPriorO(
-#   label = "NSAID - Prior GI Bleed",
+#   label = "T2D - Prior Bleed",
 #   category = "Exposures",
-#   targetCohortId = 2L,
-#   outcomeCohortId = 1L,
+#   targetCohortEntry = t2dEntry,
+#   outcomeCohortEntry = bleedEntry,
 #   mode = "prior",
-#   priorTimeWindowDays = NULL,
+#   priorTimeWindowDays = 365L,
 #   subsetLimit = "First"
 # )
 
 
 # ---- Example: Censor at Event ----
 # Censor target cohort when a censoring event occurs
-# e.g., "NSAID use censored at death"
+# e.g., "T2D censored at All-Cause Death"
 
 # cohortManifest$buildCensorCohort(
-#   label = "NSAID - Censored at Death",
+#   label = "T2D - Censored at Death",
 #   category = "Exposures",
-#   targetCohortId = 2L,
-#   censorCohortId = 3L,
-#   tags = list(censored = TRUE)
+#   targetCohortEntry = t2dEntry,
+#   censorCohortEntry = deathEntry
 # )
 
 
@@ -214,11 +222,12 @@ cli::cli_alert_success("Dependent cohorts built successfully!")
 # ================================================================================
 #
 # Important reminders:
-#   1. Base cohorts (referenced by ID) must exist in the manifest first
-#   2. Cohort IDs can be found by running: cohortManifest$tabulateManifest()
-#   3. Tag dependent cohorts appropriately for filtering/analysis
-#   4. Document the logic behind each dependent cohort (comments)
-#   5. Test dependent cohort logic in smaller database first
+#   1. Base cohorts must exist in the manifest before building dependents
+#   2. Use queryCohortsByLabel() to retrieve entry rows by name — avoid hardcoding IDs
+#   3. Pass entry rows via baseCohortEntry/cohortEntries/etc. instead of Id arguments
+#   4. Tag dependent cohorts appropriately for filtering/analysis
+#   5. Document the logic behind each dependent cohort (comments)
+#   6. Test dependent cohort logic in a smaller database first
 #
 # See picard documentation for:
 #   - Advanced temporal relationships

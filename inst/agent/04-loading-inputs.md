@@ -135,10 +135,14 @@ conceptSetManifest <- loadConceptSetManifest()
 conceptSetManifest$tabulateManifest()
 ```
 
-**Auto-discovery:** `loadConceptSetManifest()` scans `inputs/conceptSets/json/`
-and auto-registers any `.json` files not yet in the database. Drop new concept
-set JSON files there and re-run `loadConceptSetManifest()` to pick them up
-without any additional import step.
+**Auto-sync:** `loadConceptSetManifest()` scans `inputs/conceptSets/json/` and
+reconciles it against the database — updated hashes are picked up, records
+whose file has disappeared are flagged as missing, and any `.json` file that
+isn't already registered in the manifest is treated as an orphan and deleted.
+Register new concept sets explicitly (e.g. `$addConceptSetFile()`,
+`$addCaprConceptSet()`, or `importAtlasConceptSets()`) rather than dropping
+JSON files directly into `json/` — an unregistered file will be removed the
+next time the manifest is loaded.
 
 ### Other import patterns for Concept Sets
 
@@ -190,7 +194,7 @@ conceptSetManifest$tabulateManifest()
 
 ## Cohort Import
 
-### Importing Cohorts from ATLAS
+### Builder Pattern 1: Importing Cohorts from ATLAS
 
 This pattern uses `inputs/cohorts/R/import_atlas_cohort.R`.
 
@@ -232,48 +236,15 @@ cohortManifest$tabulateManifest()
 
 ---
 
-## Builder Pattern 2: Capr-Based Building
+### Builder Pattern 2: Capr-Based Building
 
-### Building Concept Sets with Capr
-
-This pattern uses `inputs/conceptSets/R/import_capr_concept_set.R` and requires the Capr package.
-
-Capr provides an R interface for building OMOP concept sets programmatically:
-
-```{r}
-library(Capr)
-
-conceptSetManifest <- loadConceptSetManifest()
-
-# Example 1: Diabetes mellitus concepts
-diabetesConcepts <- cs(
-  descendants(201820),  # Type 2 diabetes mellitus
-  descendants(443238)   # Insulin-dependent diabetes mellitus
-)
-conceptSetManifest$addCaprConceptSet(
-  conceptSetName = "Diabetes",
-  conceptSet = diabetesConcepts
-)
-
-# Example 2: Antidiabetic drugs
-antidiabeticDrugs <- cs(
-  descendants(21600960),  # Metformin
-  descendants(21601389),  # Sulfonylureas
-  descendants(21602722),  # SGLT2 inhibitors
-  sourceCode = TRUE
-)
-conceptSetManifest$addCaprConceptSet(
-  conceptSetName = "AntidiabeticDrugs",
-  conceptSet = antidiabeticDrugs
-)
-```
-
-See the [Capr documentation](https://ohdsi.github.io/Capr/) for detailed syntax
-and more complex concept set definitions.
-
-### Building Cohorts with Capr
 
 This pattern uses `inputs/cohorts/R/import_capr_cohort.R` and requires the Capr package.
+
+**AI agent support:** study repos ship with a `picard-capr-cohorts` skill in
+`.agent/skills/` that wraps Capr's own `capr-cohort-generation` skill. A coding
+agent (Claude Code, Copilot, Cursor, ...) can generate the validated Capr code and
+append it to the builder script; you review and source the script yourself.
 
 Capr provides a fluent interface for building cohort definitions in R:
 
@@ -282,31 +253,46 @@ library(Capr)
 
 cohortManifest <- loadCohortManifest()
 
-# Example: Type 2 Diabetes cohort with washout period
-t2dCohort <- cohort(
+# ckd concept set 
+ckdCs <- cs(descendants(46271022),  name = "Chronic Kidney Disease")
+t2dCs <- cs(descendants(201826),  name = "Type 2 diabetes")
+
+# Example: Chronic Kidney Disease with no prior Type 2 Diabetes cohort
+# 2 CKD codes 365d apart no prior T2D
+ckdCohort <- cohort(
   entry = entry(
-    condition(
-      descendants(201820),  # Type 2 diabetes
-      on = "conditionStart"
-    ) %>%
-      filter(
-        relationshipDomain(
-          "measurement",
-          descendants(3002962)  # HbA1c measurement
-        ),
-        duringInterval(daysBefore = 365, daysAfter = 1)
-      )
+    conditionOccurrence(ckdCs,
+      nestedWithAll(
+					atLeast(
+						1L,
+						conditionOccurrence(ckdCs),
+						aperture = duringInterval(eventStarts(-365, -1))
+					)
+				)
+    ),
+			observationWindow = continuousObservation(priorDays = 0L, postDays = 0L),
+			primaryCriteriaLimit = "First"
   ),
-  attrition(
-    "No prior T2D",
-    !condition(descendants(201820), on = "conditionStart") %>%
-      during(daysBefore = 365)
-  )
+  	attrition = attrition(
+			"No T2D on or before index" = withAll(
+				exactly(
+					0L,
+					conditionOccurrence(t2dCs),
+					aperture = duringInterval(eventStarts(-Inf, 0))
+				)
+			),
+			expressionLimit = "First"
+		),
+		exit = exit(
+			endStrategy = observationExit()
+		),
+		era = era(eraDays = 0L)
 )
 
 cohortManifest$addCaprCohort(
-  cohortName = "Type2Diabetes_HbA1c",
-  cohort = t2dCohort
+  caprCohort = ckdCohort,
+  label = "Chronic Kidney Disease",
+  category = "Target"
 )
 ```
 
@@ -314,7 +300,7 @@ See the [Capr documentation](https://ohdsi.github.io/Capr/) for detailed example
 
 ---
 
-## Builder Pattern 3: Custom SQL Cohorts
+### Builder Pattern 3: Custom SQL Cohorts
 
 This pattern uses `inputs/cohorts/R/import_sql_cohort.R`.
 
@@ -324,13 +310,12 @@ your SQL files in `inputs/cohorts/sql/`:
 ```{r}
 cohortManifest <- loadCohortManifest()
 
-# Add a custom SQL cohort
+# Add a custom SQL cohort (the file must already exist in inputs/cohorts/sql/)
 cohortManifest$addSqlCohort(
-  cohortName = "MyCustomCohort",
-  sqlPath = here::here("inputs/cohorts/sql/my_custom_cohort.sql"),
-  # SqlRender parameters (will substitute @param in the SQL file)
-  targetCohortId = 1001,
-  cdmDatabaseSchema = "cdm"
+  filePath = here::here("inputs/cohorts/sql/my_custom_cohort.sql"),
+  label = "My Custom Cohort",
+  category = "Custom",
+  tags = list(source = "sql")
 )
 ```
 
@@ -362,7 +347,210 @@ Key SqlRender parameters:
 > Always use `DELETE` before `INSERT` to make your cohort idempotent
 > (can be re-run without duplication).
 
-### Custom Dependent SQL Cohorts 
+
+---
+
+### Builder Pattern 4: Derived Cohorts
+
+This pattern uses `inputs/cohorts/R/build_dependent_cohorts.R`.
+
+Derived cohorts are relationships between existing base cohorts. All base cohorts
+must be imported first (via ATLAS, Capr, or SQL).
+
+Start by loading the cohort manifest.
+
+```{r derived_setup}
+cohortManifest <- loadCohortManifest()
+```
+
+Assume these base cohorts already exist in your manifest:
+
+- CohortId 1: Chronic Kidney Disease
+- CohortId 2: Type 2 Diabetes
+- CohortId 3: Major Bleeding Outcome
+- CohortId 4: All-Cause Death
+
+For derived builders, prefer passing manifest query rows (entries)
+instead of raw IDs.
+
+```{r derived_entry_lookup}
+ckdEntry <- cohortManifest$queryCohortsByLabel(
+  labels = "Chronic Kidney Disease",
+  matchType = "exact"
+)
+
+t2dEntry <- cohortManifest$queryCohortsByLabel(
+  labels = "Type 2 Diabetes",
+  matchType = "exact"
+)
+
+bleedEntry <- cohortManifest$queryCohortsByLabel(
+  labels = "Major Bleeding Outcome",
+  matchType = "exact"
+)
+
+deathEntry <- cohortManifest$queryCohortsByLabel(
+  labels = "All-Cause Death",
+  matchType = "exact"
+)
+```
+
+#### Example 1: Temporal Subset
+
+Build a cohort of CKD patients with a T2D event in a start-date window from 365 days before to 0 days after the base cohort start date.
+
+```{r derived_temporal_subset}
+startWindow <- createSubsetStartWindow(
+  subsetCohortWindowAnchor = "cohort_start_date",
+  startDays = -365,
+  endDays = 0,
+  baseCohortWindowAnchor = "cohort_start_date"
+)
+
+cohortManifest$buildSubsetCohortTemporal(
+  label = "CKD_With_Prior_T2D",
+  category = "Derived Cohorts",
+  baseCohortEntry = ckdEntry,
+  filterCohortEntry = t2dEntry,
+  startWindow = startWindow
+)
+```
+
+#### Example 2: Union Cohort
+
+Build a cohort that includes anyone in either CKD or T2D.
+
+```{r derived_union}
+cohortManifest$buildUnionCohort(
+  label = "CKD_or_T2D",
+  category = "Derived Cohorts",
+  cohortEntries = dplyr::bind_rows(ckdEntry, t2dEntry),
+  gapDays = 0L
+)
+```
+
+#### Example 3: Complement Cohort
+
+Build a CKD cohort that excludes patients in T2D.
+
+```{r derived_complement}
+cohortManifest$buildComplementCohort(
+  label = "CKD_Without_T2D",
+  category = "Derived Cohorts",
+  populationCohortEntry = ckdEntry,
+  excludeCohortEntries = t2dEntry
+)
+```
+
+#### Example 4: Composite Cohort
+
+Build a cohort requiring membership in multiple component cohorts (intersection style criteria).
+
+```{r derived_composite}
+cohortManifest$buildCompositeCohort(
+  label = "CKD_and_T2D_Composite",
+  category = "Derived Cohorts",
+  criteriaCohortEntries = dplyr::bind_rows(ckdEntry, t2dEntry),
+  minEventCount = 2L,
+  eventSelection = "First"
+)
+```
+
+#### Example 5: Demographic Subset Cohort
+
+Build a demographic subset of CKD patients (for example, age and sex criteria).
+
+```{r derived_demographic}
+cohortManifest$buildDemographicCohort(
+  label = "CKD_Males_40_to_75",
+  baseCohortEntry = ckdEntry,
+  category = "Derived Cohorts",
+  minAge = 40L,
+  maxAge = 75L,
+  genderConceptIds = c(8507)
+)
+```
+
+#### Example 6: Stratified Cohorts
+
+Split one base cohort into multiple strata plus an automatic Unclassified cohort.
+
+```{r derived_stratified}
+strata <- list(
+  "Female" = list(genderConceptIds = c(8532)),
+  "Male" = list(genderConceptIds = c(8507)),
+  "Age_65_plus" = list(minAge = 65L)
+)
+
+cohortManifest$buildStratifiedCohorts(
+  baseCohortEntry = ckdEntry,
+  strata = strata,
+  labelPrefix = "CKD",
+  category = "Derived Cohorts"
+)
+```
+
+#### Example 7: O-Prior-T Cohort
+
+Filter outcome events to those with prior target exposure in a 30-day lookback window.
+
+```{r derived_opriort}
+cohortManifest$buildOPriorT(
+  label = "Outcome_Prior_Target",
+  category = "Derived Cohorts",
+  outcomeCohortEntry = bleedEntry,
+  targetCohortEntry = t2dEntry,
+  mode = "prior",
+  priorTimeWindowDays = 30L
+)
+```
+
+#### Example 8: T-Prior-O Cohort
+
+Filter target events to those with prior outcome occurrence in a 30-day lookback window.
+
+```{r derived_tprioro}
+cohortManifest$buildTPriorO(
+  label = "Target_Prior_Outcome",
+  category = "Derived Cohorts",
+  targetCohortEntry = t2dEntry,
+  outcomeCohortEntry = bleedEntry,
+  mode = "prior",
+  priorTimeWindowDays = 30L
+)
+```
+
+#### Example 9: Censor Cohort
+
+Create a censored version of a target cohort using a censoring event cohort.
+
+```{r derived_censor}
+cohortManifest$buildCensorCohort(
+  label = "T2D_Censored_At_Death",
+  category = "Derived Cohorts",
+  targetCohortEntry = t2dEntry,
+  censorCohortEntry = deathEntry
+)
+```
+
+Legacy ID inputs remain supported for backward compatibility, but entry-based
+inputs are recommended for new code.
+
+Build methods shown above:
+- `buildSubsetCohortTemporal()`
+- `buildUnionCohort()`
+- `buildComplementCohort()`
+- `buildCompositeCohort()`
+- `buildDemographicCohort()`
+- `buildStratifiedCohorts()`
+- `buildOPriorT()`
+- `buildTPriorO()`
+- `buildCensorCohort()`
+
+See [Manifest Management](manifest_management.html)
+for comprehensive examples of all derived cohort types.
+
+### Build Pattern 5: Custom Dependent SQL Cohorts 
 
 Use this pattern when a custom SQL cohort depends on one or more previously
 defined cohorts (for example inclusion/exclusion cohorts). This registers the
@@ -431,179 +619,135 @@ For dependency internals (dependency graph ordering, `dependency_rule` storage,
 and stale/hash behavior), see
 [Manifest Management](manifest_management.html).
 
----
+#### Templating Strategies
 
-## Builder Pattern 4: Derived Cohorts
+A common workflow for custom cohorts is to template the sql file and build multiple variations of a custom cohort with the template.
+When doing this the user needs to make two folders:
 
-This pattern uses `inputs/cohorts/R/build_dependent_cohorts.R`.
+- `inputs/cohorts/R/src` - folder holding R functions to put templates together
+- `inputs/cohorts/R/src/sql` - folder holding the sql templates to render in the R function. 
 
-Derived cohorts are relationships between existing base cohorts. All base cohorts
-must be imported first (via ATLAS, Capr, or SQL).
+Here is an example. In a study I needed to create a derived custom cohort called a censored complement. 
+First I provide the custom sql I need and place it in the `inputs/cohorts/R/src/sql` folder.
 
-Start by loading the cohort manifest.
+```{sql}
+/*
+Make a censored complement. This means find all persons who do not have the exclusion ever or
+track them until the day before the exculsion criteria occurs.
 
-```{r derived_setup}
-cohortManifest <- loadCohortManifest()
+For example I want exclude anyone with CKD prior to T2D. But include T2D persons who had CKD after index date
+up till the day before CKD index. 
+*/
+
+DELETE FROM @target_database_schema.@target_cohort_table WHERE cohort_definition_id = @target_cohort_id;
+
+INSERT INTO @target_database_schema.@target_cohort_table (cohort_definition_id, subject_id, cohort_start_date, cohort_end_date)
+
+WITH T1 AS (
+/*
+Find the persons where the exclusion is after the inclusion start date
+Adjust the end date to the day before the combination of three occurs
+*/
+SELECT
+    a.subject_id,
+    a.inc_cohort_start_date AS cohort_start_date,
+    a.exc_cohort_start_date - 1 AS cohort_end_date
+FROM (
+  SELECT
+    inc.subject_id,
+    inc.cohort_start_date AS inc_cohort_start_date,
+    inc.cohort_end_date AS inc_cohort_end_date,
+    exc.cohort_start_date AS exc_cohort_start_date,
+    exc.cohort_end_date AS exc_cohort_end_date,
+    ROW_NUMBER() OVER (PARTITION BY inc.subject_id ORDER BY inc.cohort_start_date) AS rn
+  FROM @target_database_schema.@target_cohort_table inc
+  INNER JOIN @target_database_schema.@target_cohort_table exc
+    ON inc.subject_id = exc.subject_id AND exc.cohort_definition_id = @inc_cohort_id
+  WHERE inc.cohort_definition_id = @exc_cohort_id
+    AND exc.cohort_start_date >= inc.cohort_start_date
+) a
+
+UNION ALL
+
+/*
+Find the persons where the exclusion never occurs to those with the inclusion
+*/
+SELECT
+  pop.subject_id,
+  pop.cohort_start_date,
+  pop.cohort_end_date
+FROM @target_database_schema.@target_cohort_table pop
+LEFT JOIN (
+  SELECT
+    subject_id
+  FROM @target_database_schema.@target_cohort_table
+  WHERE cohort_definition_id IN (@exc_cohort_id)
+  GROUP BY subject_id
+  HAVING COUNT(DISTINCT cohort_definition_id) >= 1
+) excluded
+  ON pop.subject_id = excluded.subject_id
+WHERE pop.cohort_definition_id = @inc_cohort_id
+  AND excluded.subject_id IS NULL
+)
+SELECT
+  @target_cohort_id AS cohort_definition_id,
+  subject_id,
+  cohort_start_date,
+  cohort_end_date
+FROM T1;
+
+```
+Notice that in this template I am using cohort I have already created but building a custom derivation to analyze. I want to do this for several cohorts in my manifest. 
+I apply this sql template in an R function to create each custom derived cohort and add it to the manifest. 
+
+```{r}
+
+buildCensoredComplement <- function(
+  cohortManifest,
+  inclusionCohortId,
+  inclusionCohortLabel,
+  exclusionCohortId,
+  exclusionCohortLabel,
+  inputsDir = here::here("inputs/cohorts/R"),
+  outputPath = here::here("inputs/cohorts/sql")
+) {
+
+  sqlTemplatePath <- fs::path(inputsDir, "src/sql/censored_complement.sql")
+  sqlTemplate <- SqlRender::readSql(sqlTemplatePath)
+
+  # make the save label
+  cohortLabel <- glue::glue("{inclusionCohortLabel} - {exclusionCohortLabel} exclusion")
+  outputLabel <- snakecase::to_snake_case(cohortLabel)
+
+  sqlOutputPath <- fs::path(outputPath, outputLabel, ext = "sql")
+  SqlRender::writeSql(sqlTemplate, sqlOutputPath)
+
+  check_if_there <- is.null(cohortManifest$queryCohortsByLabel(cohortLabel))
+  if (!check_if_there) {
+    cli::cli_alert_warning("Censored Complement {.val {cohortLabel}} already exists. Skipped!")
+  } else {
+    cli::cli_alert_info("Create Censored Complement for {.val {cohortLabel}}")
+    cli::cli_alert_success("Save Censored Complement to {.file {sqlOutputPath}}")
+    cohortManifest$addDependentCustomCohort(
+      filePath = sqlOutputPath,
+      label = cohortLabel,
+      category = "Target Sub Pop",
+      dependentCohortIdList = list(
+        inc_cohort_id = inclusionCohortId,
+        exc_cohort_id = exclusionCohortId
+      )
+    )
+  }
+
+  invisible(sqlOutputPath)
+}
 ```
 
-Assume these base cohorts already exist in your manifest:
+In the derived cohort template, I do not replace the `@inc_cohort_id`
+or `@exc_cohort_id`. The `$addDependentCustomCohort` keeps track of these labels and renders them at execution time. 
 
-- CohortId 1: Chronic Kidney Disease
-- CohortId 2: Type 2 Diabetes
-- CohortId 3: Major Bleeding Outcome
-- CohortId 4: All-Cause Death
-
-### Example 1: Temporal Subset
-
-Build a cohort of CKD patients with a T2D event in a start-date window from 365 days before to 0 days after the base cohort start date.
-
-```{r derived_temporal_subset}
-startWindow <- createSubsetStartWindow(
-  subsetCohortWindowAnchor = "cohort_start_date",
-  startDays = -365,
-  endDays = 0,
-  baseCohortWindowAnchor = "cohort_start_date"
-)
-
-cohortManifest$buildSubsetCohortTemporal(
-  label = "CKD_With_Prior_T2D",
-  category = "Derived Cohorts",
-  baseCohortId = 1,
-  filterCohortId = 2,
-  startWindow = startWindow
-)
-```
-
-### Example 2: Union Cohort
-
-Build a cohort that includes anyone in either CKD or T2D.
-
-```{r derived_union}
-cohortManifest$buildUnionCohort(
-  label = "CKD_or_T2D",
-  category = "Derived Cohorts",
-  cohortIds = c(1, 2),
-  gapDays = 0L
-)
-```
-
-### Example 3: Complement Cohort
-
-Build a CKD cohort that excludes patients in T2D.
-
-```{r derived_complement}
-cohortManifest$buildComplementCohort(
-  label = "CKD_Without_T2D",
-  category = "Derived Cohorts",
-  populationCohortId = 1,
-  excludeCohortIds = c(2)
-)
-```
-
-### Example 4: Composite Cohort
-
-Build a cohort requiring membership in multiple component cohorts (intersection style criteria).
-
-```{r derived_composite}
-cohortManifest$buildCompositeCohort(
-  label = "CKD_and_T2D_Composite",
-  category = "Derived Cohorts",
-  criteriaCohortIds = c(1, 2),
-  minEventCount = 2L,
-  eventSelection = "First"
-)
-```
-
-### Example 5: Demographic Subset Cohort
-
-Build a demographic subset of CKD patients (for example, age and sex criteria).
-
-```{r derived_demographic}
-cohortManifest$buildDemographicCohort(
-  label = "CKD_Males_40_to_75",
-  baseCohortId = 1,
-  category = "Derived Cohorts",
-  minAge = 40L,
-  maxAge = 75L,
-  genderConceptIds = c(8507)
-)
-```
-
-### Example 6: Stratified Cohorts
-
-Split one base cohort into multiple strata plus an automatic Unclassified cohort.
-
-```{r derived_stratified}
-strata <- list(
-  "Female" = list(genderConceptIds = c(8532)),
-  "Male" = list(genderConceptIds = c(8507)),
-  "Age_65_plus" = list(minAge = 65L)
-)
-
-cohortManifest$buildStratifiedCohorts(
-  baseCohortId = 1,
-  strata = strata,
-  labelPrefix = "CKD",
-  category = "Derived Cohorts"
-)
-```
-
-### Example 7: O-Prior-T Cohort
-
-Filter outcome events to those with prior target exposure in a 30-day lookback window.
-
-```{r derived_opriort}
-cohortManifest$buildOPriorT(
-  label = "Outcome_Prior_Target",
-  category = "Derived Cohorts",
-  outcomeCohortId = 3,
-  targetCohortId = 2,
-  mode = "prior",
-  priorTimeWindowDays = 30L
-)
-```
-
-### Example 8: T-Prior-O Cohort
-
-Filter target events to those with prior outcome occurrence in a 30-day lookback window.
-
-```{r derived_tprioro}
-cohortManifest$buildTPriorO(
-  label = "Target_Prior_Outcome",
-  category = "Derived Cohorts",
-  targetCohortId = 2,
-  outcomeCohortId = 3,
-  mode = "prior",
-  priorTimeWindowDays = 30L
-)
-```
-
-### Example 9: Censor Cohort
-
-Create a censored version of a target cohort using a censoring event cohort.
-
-```{r derived_censor}
-cohortManifest$buildCensorCohort(
-  label = "T2D_Censored_At_Death",
-  category = "Derived Cohorts",
-  targetCohortId = 2,
-  censorCohortId = 4
-)
-```
-
-Build methods shown above:
-- `buildSubsetCohortTemporal()`
-- `buildUnionCohort()`
-- `buildComplementCohort()`
-- `buildCompositeCohort()`
-- `buildDemographicCohort()`
-- `buildStratifiedCohorts()`
-- `buildOPriorT()`
-- `buildTPriorO()`
-- `buildCensorCohort()`
-
-See [Manifest Management](manifest_management.html)
-for comprehensive examples of all derived cohort types.
+These same templating strategies can be applied to `$addSqlCohort`. Ensure that the template is in the `inputs/cohorts/R/src/sql` folder
+and the R script to render the template is in `inputs/cohorts/R/src`.
 
 ---
 

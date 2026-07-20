@@ -84,11 +84,14 @@ CohortManifest <- R6::R6Class(
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
       on.exit(DBI::dbDisconnect(conn))
 
+      # Stale cohorts stay loaded: their definition is still current, only the
+      # DBMS generation is outdated, and generateCohorts() needs them in memory
+      # to regenerate and re-activate them
       rows <- DBI::dbGetQuery(
         conn,
         "SELECT id, label, category, tags, file_path, hash, source_type, cohort_type
          FROM cohort_manifest
-         WHERE status = 'active'"
+         WHERE status IN ('active', 'stale')"
       )
 
       if (nrow(rows) == 0) {
@@ -177,6 +180,14 @@ CohortManifest <- R6::R6Class(
 
     # Validate that a label is unique among active entries
     validate_label_unique = function(label) {
+      existing_id <- private$find_active_id_by_label(label)
+      if (!is.na(existing_id)) {
+        cli::cli_abort("Label '{label}' is already in use by cohort {existing_id}")
+      }
+    },
+
+    # Return the id of the active cohort with this label, or NA if none exists
+    find_active_id_by_label = function(label) {
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
       on.exit(DBI::dbDisconnect(conn))
 
@@ -186,9 +197,155 @@ CohortManifest <- R6::R6Class(
         list(label)
       )
 
-      if (nrow(existing) > 0) {
-        cli::cli_abort("Label '{label}' is already in use by cohort {existing$id[1]}")
+      if (nrow(existing) == 0) {
+        return(NA_integer_)
       }
+      as.integer(existing$id[1])
+    },
+
+    # Find the active cohort registered with this ATLAS id (via the atlasId
+    # tag). Returns a one-row data frame (id, label), or zero rows if none.
+    find_active_atlas_registration = function(atlasId) {
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      rows <- DBI::dbGetQuery(
+        conn,
+        "SELECT id, label, tags FROM cohort_manifest
+         WHERE status = 'active' AND tags IS NOT NULL"
+      )
+
+      for (i in seq_len(nrow(rows))) {
+        parsed <- tryCatch(jsonlite::fromJSON(rows$tags[i]), error = function(e) NULL)
+        if (!is.null(parsed$atlasId) && as.integer(parsed$atlasId) == as.integer(atlasId)) {
+          return(rows[i, c("id", "label")])
+        }
+      }
+      rows[0, c("id", "label")]
+    },
+
+    # Resolve the upsert target for a derived build. Returns the existing
+    # active/stale cohort id for this label, or NA when the label is new.
+    # Aborts when the label exists and stopIfExists is TRUE, when it belongs
+    # to a source (non-derived) cohort, when its cohort_type differs from the
+    # type this builder creates (accidental label collision), or when the new
+    # parents would create a dependency cycle.
+    resolve_derived_upsert = function(label, stopIfExists, parent_ids, cohort_type) {
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      existing <- DBI::dbGetQuery(
+        conn,
+        "SELECT id, cohort_type FROM cohort_manifest
+         WHERE label = ? AND status IN ('active', 'stale')",
+        list(label)
+      )
+
+      if (nrow(existing) == 0) {
+        return(NA_integer_)
+      }
+
+      existing_id <- as.integer(existing$id[1])
+
+      if (stopIfExists) {
+        cli::cli_abort(c(
+          "Label '{label}' is already in use by cohort {existing_id}.",
+          i = "Re-run with {.code stopIfExists = FALSE} to update the derived cohort in place."
+        ))
+      }
+
+      if (existing$cohort_type[1] %in% c("circe", "custom")) {
+        cli::cli_abort(c(
+          "Cohort {existing_id} ({label}) is a source cohort ({.val {existing$cohort_type[1]}}), not a derived cohort.",
+          i = "Build methods can only update derived cohorts in place."
+        ))
+      }
+
+      if (existing$cohort_type[1] != cohort_type) {
+        cli::cli_abort(c(
+          "Cohort {existing_id} ({label}) is a {.val {existing$cohort_type[1]}} cohort; this builder creates {.val {cohort_type}} cohorts.",
+          i = "This looks like an accidental label collision — nothing was changed.",
+          i = "To intentionally change the cohort's type, delete it and rebuild."
+        ))
+      }
+
+      # Guard against cycles: the new parents must not include the cohort
+      # itself or anything derived from it
+      forbidden <- c(existing_id, findTransitiveDependents(private$.dbPath, existing_id))
+      bad_parents <- intersect(as.integer(parent_ids), forbidden)
+      if (length(bad_parents) > 0) {
+        cli::cli_abort(
+          "Updating cohort {existing_id} ({label}) with parent(s) {paste(bad_parents, collapse = ', ')} would create a dependency cycle."
+        )
+      }
+
+      return(existing_id)
+    },
+
+    # Insert a new derived cohort, or — when existingId is not NA — update the
+    # registered one in place (same id and label). On update the definition
+    # columns are replaced, the cohort is marked 'stale' so the next
+    # generateCohorts() run regenerates it, and stale cascades to its own
+    # dependents. Tags are replaced wholesale (cleared when none supplied).
+    upsert_derived_cohort = function(existingId, label, category, tags, file_path,
+                                     cohort_type, depends_on, dependency_rule,
+                                     source_type = "derived") {
+      if (is.na(existingId)) {
+        return(private$insert_cohort(
+          label = label,
+          category = category,
+          tags = tags,
+          file_path = file_path,
+          source_type = source_type,
+          cohort_type = cohort_type,
+          depends_on = depends_on,
+          dependency_rule = dependency_rule
+        ))
+      }
+
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      hash <- if (file.exists(file_path)) {
+        rlang::hash(readr::read_file(file_path))
+      } else {
+        rlang::hash(label)
+      }
+
+      depends_on_json <- jsonlite::toJSON(as.integer(depends_on), auto_unbox = FALSE)
+      dep_rule_json <- if (!is.null(dependency_rule) && length(dependency_rule) > 0) {
+        jsonlite::toJSON(dependency_rule, auto_unbox = TRUE)
+      } else {
+        NA_character_
+      }
+
+      tags_json <- if (length(tags) > 0) {
+        jsonlite::toJSON(tags, auto_unbox = TRUE)
+      } else {
+        NA_character_
+      }
+
+      set_clauses <- paste(
+        "category = ?, file_path = ?, hash = ?, source_type = ?, cohort_type = ?,",
+        "depends_on = ?, dependency_rule = ?, tags = ?, status = 'stale',",
+        "updated_at = CURRENT_TIMESTAMP"
+      )
+      params <- list(category, file_path, hash, source_type, cohort_type, depends_on_json, dep_rule_json, tags_json)
+
+      DBI::dbExecute(
+        conn,
+        paste0("UPDATE cohort_manifest SET ", set_clauses, " WHERE id = ?"),
+        c(params, list(existingId))
+      )
+
+      # This cohort's own dependents are now out of date too
+      cascadeStaleDownstream(private$.dbPath, existingId)
+
+      # Refresh in-memory manifest
+      private$load_manifest_from_db()
+
+      cli::cli_alert_info("Updated derived cohort {existingId}: {label} in place (marked stale for regeneration)")
+      return(existingId)
     },
 
     # Validate that a file_path is unique among active entries
@@ -324,9 +481,14 @@ CohortManifest <- R6::R6Class(
           cli::cli_abort("dependentCohortIdList must be a named list of SqlRender parameter names to cohort IDs")
         }
 
-        if (!all(lengths(dependentCohortIdList) == 1L)) {
-          cli::cli_abort("Each dependentCohortIdList entry must contain exactly one cohort ID")
+        if (!all(lengths(dependentCohortIdList) >= 1L)) {
+          cli::cli_abort("Each dependentCohortIdList entry must contain at least one cohort ID")
         }
+
+        # Entries may hold a single cohort ID or a vector of IDs (rendered
+        # comma-separated by SqlRender, e.g. for IN (@param) clauses)
+        dependent_ids <- unlist(dependentCohortIdList, use.names = TRUE)
+        checkmate::assert_integerish(x = dependent_ids, min.len = 1, any.missing = FALSE, unique = TRUE)
       }
 
       ext <- tolower(tools::file_ext(filePath))
@@ -334,11 +496,39 @@ CohortManifest <- R6::R6Class(
         cli::cli_abort("filePath must be a .sql file, got: .{ext}")
       }
 
-      private$validate_label_unique(label)
+      # Both flavors support label-keyed upsert (same ID, definition replaced)
+      # when stopIfExists = FALSE
+      existing_id <- NA_integer_
+      if (is_dependent) {
+        existing_id <- private$resolve_derived_upsert(
+          label, stopIfExists, as.integer(unname(dependent_ids)),
+          cohort_type = "custom_derived"
+        )
+      } else if (!stopIfExists) {
+        existing_id <- private$find_active_id_by_label(label)
+      } else {
+        private$validate_label_unique(label)
+      }
 
       rel_path <- fs::path_rel(filePath)
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
       on.exit(DBI::dbDisconnect(conn))
+
+      # A plain upsert can only overwrite another custom SQL cohort
+      if (!is_dependent && !is.na(existing_id)) {
+        upsert_target <- DBI::dbGetQuery(
+          conn,
+          "SELECT cohort_type, file_path, hash FROM cohort_manifest WHERE id = ?",
+          list(existing_id)
+        )
+        if (upsert_target$cohort_type[1] != "custom") {
+          cli::cli_abort(c(
+            "Cohort {.val {label}} has cohort_type {.val {upsert_target$cohort_type[1]}}, not {.val custom}.",
+            i = "addSqlCohort() can only overwrite custom SQL cohorts."
+          ))
+        }
+        cli::cli_alert_info("Cohort {.val {label}} already exists (ID {existing_id}) — updating in place")
+      }
 
       existing_cohort <- DBI::dbGetQuery(
         conn,
@@ -346,7 +536,11 @@ CohortManifest <- R6::R6Class(
         list(rel_path)
       )
 
-      if (nrow(existing_cohort) > 0) {
+      # A file-path conflict with the upsert target itself is not a conflict
+      is_self <- nrow(existing_cohort) > 0 && !is.na(existing_id) &&
+        as.integer(existing_cohort$id[1]) == existing_id
+
+      if (nrow(existing_cohort) > 0 && !is_self) {
         if (isTRUE(stopIfExists)) {
           cli::cli_abort(c(
             "File path already registered in manifest (cohort {existing_cohort$id[1]})",
@@ -361,8 +555,6 @@ CohortManifest <- R6::R6Class(
       .validateCustomSql(sql_content, label)
 
       if (is_dependent) {
-        dependent_ids <- unlist(dependentCohortIdList, use.names = TRUE)
-        checkmate::assert_integerish(x = dependent_ids, min.len = 1, any.missing = FALSE, unique = TRUE)
         private$validate_parent_cohorts_exist(as.integer(unname(dependent_ids)))
 
         has_delete <- grepl(
@@ -386,27 +578,52 @@ CohortManifest <- R6::R6Class(
           ))
         }
 
-        cohort_type <- "custom_derived"
-        depends_on <- as.integer(unname(dependent_ids))
-        dependency_rule <- list(
-          dependentCohortIdList = as.list(dependentCohortIdList) # use a named list
+        cohort_id <- private$upsert_derived_cohort(
+          existingId = existing_id,
+          label = label,
+          category = category,
+          tags = tags,
+          file_path = rel_path,
+          cohort_type = "custom_derived",
+          depends_on = as.integer(unname(dependent_ids)),
+          dependency_rule = list(
+            dependentCohortIdList = as.list(dependentCohortIdList) # use a named list
+          ),
+          source_type = "sql"
         )
-      } else {
-        cohort_type <- "custom"
-        depends_on <- NULL
-        dependency_rule <- NULL
-      }
+      } else if (!is.na(existing_id)) {
+        # Replace metadata wholesale (matching the other upsert routes): tags
+        # not re-supplied here are dropped
+        private$update_cohort_def(cohortId = existing_id, category = category, tags = tags)
 
-      cohort_id <- private$insert_cohort(
-        label = label,
-        category = category,
-        tags = tags,
-        file_path = rel_path,
-        source_type = "sql",
-        cohort_type = cohort_type,
-        depends_on = depends_on,
-        dependency_rule = dependency_rule
-      )
+        new_hash <- rlang::hash(sql_content)
+        if (identical(new_hash, upsert_target$hash[1]) &&
+            identical(as.character(rel_path), upsert_target$file_path[1])) {
+          cli::cli_alert_info("Cohort {existing_id}: {label} definition is unchanged")
+        } else {
+          DBI::dbExecute(
+            conn,
+            "UPDATE cohort_manifest SET file_path = ?, hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            list(as.character(rel_path), new_hash, existing_id)
+          )
+          # Derived cohorts built on this definition are now out of date
+          private$cascade_stale_downstream(existing_id)
+        }
+
+        private$load_manifest_from_db()
+        cohort_id <- existing_id
+      } else {
+        cohort_id <- private$insert_cohort(
+          label = label,
+          category = category,
+          tags = tags,
+          file_path = rel_path,
+          source_type = "sql",
+          cohort_type = "custom",
+          depends_on = NULL,
+          dependency_rule = NULL
+        )
+      }
 
       return(cohort_id)
     },
@@ -897,9 +1114,15 @@ CohortManifest <- R6::R6Class(
     #' @param atlasConnection An ATLAS connection object (e.g., from ROhdsiWebApi::createConnectionDetails)
     #'   with a method `getCohortDefinition(cohortId)` that returns a list with an `expression` element.
     #'   If `NULL`, falls back to the connection stored via `$setAtlasConnection()`.
+    #' @param stopIfExists Logical. If TRUE (default), raises an error when an
+    #'   active cohort with this label is already registered. If FALSE, fetches
+    #'   the current definition from ATLAS and updates the registered cohort in
+    #'   place — same ID and file path, hash refreshed, `category`/`tags`/atlasId
+    #'   replaced, derived dependents marked 'stale'. An unchanged definition
+    #'   leaves the file untouched. Default: TRUE (fail-safe).
     #'
     #' @return Invisible integer. The assigned cohort ID.
-    addAtlasCohort = function(atlasId, label, category, tags = list(), atlasConnection = NULL) {
+    addAtlasCohort = function(atlasId, label, category, tags = list(), atlasConnection = NULL, stopIfExists = TRUE) {
       if (is.null(atlasConnection)) {
         atlasConnection <- private$.atlasConnection
       }
@@ -915,9 +1138,111 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_string(label, min.chars = 1)
       checkmate::assert_string(category, min.chars = 1)
       checkmate::assert_list(tags, names = "named")
+      checkmate::assert_flag(stopIfExists)
+
+      # Upsert path: refresh the registered cohort from ATLAS in place
+      if (!stopIfExists) {
+        existing_id <- private$find_active_id_by_label(label)
+        if (!is.na(existing_id)) {
+          cli::cli_alert_info("Cohort {.val {label}} already exists (ID {existing_id}) — updating from ATLAS in place")
+
+          conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+          on.exit(DBI::dbDisconnect(conn))
+
+          existing <- DBI::dbGetQuery(
+            conn,
+            "SELECT file_path, hash, cohort_type, tags FROM cohort_manifest WHERE id = ?",
+            list(existing_id)
+          )
+
+          if (existing$cohort_type[1] != "circe") {
+            cli::cli_abort(c(
+              "Cohort {.val {label}} has cohort_type {.val {existing$cohort_type[1]}}, not {.val circe}.",
+              i = "addAtlasCohort() can only overwrite circe JSON cohorts."
+            ))
+          }
+
+          # Identity guard: the registered cohort must be the same ATLAS cohort,
+          # otherwise this is almost certainly an accidental label collision
+          registered_tags <- tryCatch(
+            jsonlite::fromJSON(existing$tags[1]),
+            error = function(e) NULL
+          )
+          registered_atlas_id <- registered_tags$atlasId
+          if (is.null(registered_atlas_id)) {
+            cli::cli_abort(c(
+              "Cohort {.val {label}} (ID {existing_id}) was not registered from ATLAS (no atlasId tag).",
+              i = "addAtlasCohort() only updates cohorts it registered — check the label, or update the cohort via its original route."
+            ))
+          }
+          if (as.integer(registered_atlas_id) != as.integer(atlasId)) {
+            cli::cli_abort(c(
+              "Cohort {.val {label}} (ID {existing_id}) is registered as ATLAS id {registered_atlas_id}, but atlasId {atlasId} was passed.",
+              i = "This looks like an accidental label collision — nothing was changed.",
+              i = "To intentionally repoint the cohort to a different ATLAS id, first update its atlasId tag with {.code updateCohortTags()}."
+            ))
+          }
+
+          cohort_def <- tryCatch(
+            atlasConnection$getCohortDefinition(cohortId = atlasId),
+            error = function(e) {
+              cli::cli_abort("Failed to fetch cohort {atlasId} from ATLAS: {e$message}")
+            }
+          )
+
+          # Refresh metadata (category, tags, atlasId) regardless of content change
+          tags$route <- "atlas"
+          tags$atlasId <- as.integer(atlasId)
+          private$update_cohort_def(cohortId = existing_id, category = category, tags = tags)
+
+          # Write to a temp file first so a failed write cannot clobber the
+          # registered JSON, and unchanged definitions leave the file untouched
+          file_path <- existing$file_path[1]
+          tmp_json <- tempfile(fileext = ".json")
+          readr::write_lines(cohort_def$expression[1], tmp_json)
+          new_hash <- rlang::hash(readr::read_file(tmp_json))
+
+          if (identical(new_hash, existing$hash[1])) {
+            unlink(tmp_json)
+            cli::cli_alert_info("Cohort {existing_id}: {label} definition is unchanged")
+            return(invisible(existing_id))
+          }
+
+          if (!dir.exists(dirname(file_path))) {
+            dir.create(dirname(file_path), recursive = TRUE)
+          }
+          file.copy(tmp_json, file_path, overwrite = TRUE)
+          unlink(tmp_json)
+
+          DBI::dbExecute(
+            conn,
+            "UPDATE cohort_manifest SET hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            list(new_hash, existing_id)
+          )
+
+          # Derived cohorts built on this definition are now out of date
+          private$cascade_stale_downstream(existing_id)
+
+          # Refresh in-memory manifest
+          private$load_manifest_from_db()
+
+          cli::cli_alert_success("Updated ATLAS cohort {existing_id}: {label}")
+          return(invisible(existing_id))
+        }
+      }
 
       # Validate label uniqueness
       private$validate_label_unique(label)
+
+      # Guard: the same ATLAS cohort must not be imported twice under
+      # different labels
+      dup <- private$find_active_atlas_registration(atlasId)
+      if (nrow(dup) > 0) {
+        cli::cli_abort(c(
+          "ATLAS cohort {atlasId} is already registered as cohort {dup$id[1]} ({dup$label[1]}).",
+          i = "To update it, call addAtlasCohort() with that label and {.code stopIfExists = FALSE}, or run {.code updateAtlasCohorts()}."
+        ))
+      }
 
       # Fetch cohort JSON from ATLAS via connection object
       tryCatch({
@@ -959,10 +1284,15 @@ CohortManifest <- R6::R6Class(
     },
 
     #' @description Batch-import cohorts from ATLAS via a cohortsLoad dataframe
-    #' 
+    #'
     #' Either create a dataframe or read in a csv file with columns `atlasId`, `label`, `category` (required) plus any
-    #' additional columns treated as tag key-value pairs for tags. Calls `addAtlasCohort()` for each row inside 
-    #' a `tryCatch` so a single failure does not abort the entire batch.
+    #' additional columns treated as tag key-value pairs for tags. Calls `addAtlasCohort()` for each row.
+    #'
+    #' The load file is a transient, one-time import mechanism: rows whose
+    #' atlasId or label are already registered in the manifest are an error, not
+    #' an update. To sync registered cohorts with ATLAS, run
+    #' `updateAtlasCohorts()`; to update a single cohort, use
+    #' `addAtlasCohort(stopIfExists = FALSE)`.
     #'
     #' @param cohortsLoad a data frame requiring the columns atlasId, label and category used to bulk add cohorts to the manifest
     #' @param atlasConnection An ATLAS connection object with a `getCohortDefinition(cohortId)` method.
@@ -981,10 +1311,10 @@ CohortManifest <- R6::R6Class(
         ))
       }
 
-         
+
       # Validate required columns
       required_cols <- c("atlasId", "label", "category")
-      checkmate::assert_data_frame(cohortsLoad, min.cols = 3) 
+      checkmate::assert_data_frame(cohortsLoad, min.cols = 3)
       missing_cols <- setdiff(required_cols, names(cohortsLoad))
       if (length(missing_cols) > 0) {
         cli::cli_abort("cohortsLoad missing required columns: {paste(missing_cols, collapse = ', ')}")
@@ -998,13 +1328,39 @@ CohortManifest <- R6::R6Class(
       cli::cli_rule("ATLAS Cohort Import")
       cli::cli_alert_info("Evaluating {nrow(cohortsLoad)} cohort(s) from load file")
 
-      # Subset New Cohorts 
+      # Subset New Cohorts
       new_cohorts <- cohort_load_2 |>
         dplyr::filter(status == "new")
 
       existing_cohorts <- cohort_load_2 |>
         dplyr::filter(status == "active")
 
+      # The load csv is a transient, one-time import file — registered rows are
+      # an error, not an update mechanism. Fail fast before importing anything.
+      if (nrow(existing_cohorts) > 0) {
+        offending <- paste0(
+          "[", existing_cohorts$id, "] ", existing_cohorts$label,
+          " (atlasId ", existing_cohorts$atlasId, ")"
+        )
+        cli::cli_abort(c(
+          "{nrow(existing_cohorts)} cohort(s) in the load file are already registered in the manifest:",
+          stats::setNames(offending, rep("x", length(offending))),
+          i = "Remove them from the load csv — it is for one-time imports only.",
+          i = "To sync registered cohorts with ATLAS, run {.code updateAtlasCohorts()}.",
+          i = "To update a single cohort, use {.code addAtlasCohort(stopIfExists = FALSE)}."
+        ))
+      }
+
+      # Fail fast on label collisions too, before any row is imported
+      colliding <- new_cohorts$label[
+        vapply(new_cohorts$label, function(l) !is.na(private$find_active_id_by_label(l)), logical(1))
+      ]
+      if (length(colliding) > 0) {
+        cli::cli_abort(c(
+          "{length(colliding)} label(s) in the load file are already in use: {paste(colliding, collapse = ', ')}.",
+          i = "Labels must be unique in the manifest. Rename them in the load csv or remove the rows."
+        ))
+      }
 
       # Process new cohorts
       if(nrow(new_cohorts) > 0) {
@@ -1023,24 +1379,11 @@ CohortManifest <- R6::R6Class(
         }
       }
 
-      # Process existing cohorts
-      if (nrow(existing_cohorts) > 0) {
-        cli::cli_rule("Existing cohort(s) in manifest ({nrow(existing_cohorts)})")
-        for (i in seq_len(nrow(existing_cohorts))) {
-          row <- existing_cohorts[i, ]
-          cli::cli_alert_warning("  ID {row$id}: {row$label} (atlasId: {row$atlasId})")
-        }
-        
-        cli::cli_alert_info("To check for ATLAS changes, run: {.code manifest$checkAtlasCohorts(atlasConnection)}")
-        cli::cli_alert_info("To update ATLAS definitions, run: {.code manifest$updateAtlasCohorts(atlasConnection)}")
-      }
-
       # Build and print final summary table
       summary_tbl <- cohort_load_2 |>
         dplyr::mutate(
           message = dplyr::case_when(
             status == "new" ~ "Successfully added to manifest",
-            status == "active" ~ "Already in manifest",
             TRUE ~ "Unknown"
           )
         ) |>
@@ -1061,9 +1404,15 @@ CohortManifest <- R6::R6Class(
     #' @param label Character. Display name for the cohort.
     #' @param category Character. Required classification.
     #' @param tags Named list. Optional metadata tags.
+    #' @param stopIfExists Logical. If TRUE (default), raises an error when an
+    #'   active cohort with this label is already registered. If FALSE, updates
+    #'   the existing cohort in place via `updateCaprCohort()` — the cohort
+    #'   keeps its ID and file path, and `category`/`tags` replace the
+    #'   registered metadata (previous tags are dropped if none are supplied).
+    #'   Default: TRUE (fail-safe).
     #'
     #' @return Invisible integer. The assigned cohort ID.
-    addCaprCohort = function(caprCohort, label, category, tags = list()) {
+    addCaprCohort = function(caprCohort, label, category, tags = list(), stopIfExists = TRUE) {
       if (!requireNamespace("Capr", quietly = TRUE)) {
         cli::cli_abort(c(
           "Package {.pkg Capr} is required for addCaprCohort().",
@@ -1079,6 +1428,21 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_string(label, min.chars = 1)
       checkmate::assert_string(category, min.chars = 1)
       checkmate::assert_list(tags, names = "named")
+      checkmate::assert_flag(stopIfExists)
+
+      # Upsert path: update the existing cohort in place instead of erroring
+      if (!stopIfExists) {
+        existing_id <- private$find_active_id_by_label(label)
+        if (!is.na(existing_id)) {
+          cli::cli_alert_info("Cohort {.val {label}} already exists (ID {existing_id}) — updating in place")
+          self$updateCaprCohort(caprCohort, label = label)
+          # Replace metadata wholesale (matching addAtlasCohort): tags not
+          # re-supplied here are dropped, keeping only the route provenance
+          tags$route <- "capr"
+          private$update_cohort_def(cohortId = existing_id, category = category, tags = tags)
+          return(invisible(existing_id))
+        }
+      }
 
       # Validate label uniqueness
       private$validate_label_unique(label)
@@ -1110,6 +1474,110 @@ CohortManifest <- R6::R6Class(
       invisible(cohort_id)
     },
 
+    #' @description Update an existing Capr cohort's JSON definition
+    #'
+    #' Takes a revised Capr Cohort object and upserts it over a cohort already
+    #' registered via `addCaprCohort()`: the JSON file recorded in the manifest
+    #' is overwritten in place and the manifest hash is refreshed, so the cohort
+    #' keeps its ID and file path. Any derived cohorts that depend on it are
+    #' marked 'stale'. If the new definition is identical to the registered one,
+    #' nothing is changed.
+    #'
+    #' @param caprCohort A Capr Cohort object (inherits from "Cohort").
+    #' @param label Character. Label of the active cohort to update.
+    #'
+    #' @return Invisible integer. The cohort ID.
+    updateCaprCohort = function(caprCohort, label) {
+      if (!requireNamespace("Capr", quietly = TRUE)) {
+        cli::cli_abort(c(
+          "Package {.pkg Capr} is required for updateCaprCohort().",
+          "i" = "Install with: {.code remotes::install_github('ohdsi/Capr')}"
+        )
+        )
+      }
+
+      if (!inherits(caprCohort, "Cohort")) {
+        cli::cli_abort("caprCohort must be a Capr Cohort object (inherits from 'Cohort')")
+      }
+
+      checkmate::assert_string(label, min.chars = 1)
+
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      existing <- DBI::dbGetQuery(
+        conn,
+        "SELECT id, file_path, hash, cohort_type, tags FROM cohort_manifest
+         WHERE label = ? AND status = 'active'",
+        list(label)
+      )
+
+      if (nrow(existing) == 0) {
+        cli::cli_abort(c(
+          "No active cohort with label {.val {label}} found in the manifest.",
+          "i" = "Use {.code addCaprCohort()} to register a new cohort."
+        ))
+      }
+
+      if (existing$cohort_type[1] != "circe") {
+        cli::cli_abort(c(
+          "Cohort {.val {label}} has cohort_type {.val {existing$cohort_type[1]}}, not {.val circe}.",
+          "i" = "updateCaprCohort() can only overwrite circe JSON cohorts."
+        ))
+      }
+
+      # Ownership guard: only cohorts registered via Capr may be updated here,
+      # otherwise a reused label would silently clobber e.g. an ATLAS cohort
+      registered_tags <- tryCatch(
+        jsonlite::fromJSON(existing$tags[1]),
+        error = function(e) NULL
+      )
+      registered_route <- if (is.null(registered_tags$route)) "none" else as.character(registered_tags$route)
+      if (!identical(registered_route, "capr")) {
+        cli::cli_abort(c(
+          "Cohort {.val {label}} (ID {existing$id[1]}) was not registered via Capr (route: {.val {registered_route}}).",
+          "i" = "This looks like an accidental label collision — nothing was changed.",
+          "i" = "updateCaprCohort() only updates cohorts added by addCaprCohort() — check the label, or update the cohort via its original route."
+        ))
+      }
+
+      cohort_id <- as.integer(existing$id[1])
+      file_path <- existing$file_path[1]
+
+      # Export to a temp file first so a failed write cannot clobber the
+      # registered JSON, and unchanged definitions leave the file untouched
+      tmp_json <- tempfile(fileext = ".json")
+      Capr::writeCohort(caprCohort, tmp_json)
+      new_hash <- rlang::hash(readr::read_file(tmp_json))
+
+      if (identical(new_hash, existing$hash[1])) {
+        unlink(tmp_json)
+        cli::cli_alert_info("Cohort {cohort_id}: {label} is unchanged")
+        return(invisible(cohort_id))
+      }
+
+      if (!dir.exists(dirname(file_path))) {
+        dir.create(dirname(file_path), recursive = TRUE)
+      }
+      file.copy(tmp_json, file_path, overwrite = TRUE)
+      unlink(tmp_json)
+
+      DBI::dbExecute(
+        conn,
+        "UPDATE cohort_manifest SET hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        list(new_hash, cohort_id)
+      )
+
+      # Derived cohorts built on this definition are now out of date
+      private$cascade_stale_downstream(cohort_id)
+
+      # Refresh in-memory manifest
+      private$load_manifest_from_db()
+
+      cli::cli_alert_success("Updated Capr cohort {cohort_id}: {label}")
+      invisible(cohort_id)
+    },
+
     #' @description Add a custom SQL cohort
     #'
     #' Registers an existing SQL file in the manifest. The file must already exist
@@ -1119,9 +1587,13 @@ CohortManifest <- R6::R6Class(
     #' @param label Character. Display name for the cohort.
     #' @param category Character. Required classification.
     #' @param tags Named list. Optional metadata tags.
-    #' @param stopIfExists Logical. If TRUE (default), raises an error if the file
-    #'   already exists on disk or is already registered in the manifest. If FALSE,
-    #'   overwrites silently with a warning. Default: TRUE (fail-safe).
+    #' @param stopIfExists Logical. If TRUE (default), raises an error when an
+    #'   active cohort with this label is already registered, or the file path
+    #'   is registered to another cohort. If FALSE, updates the registered
+    #'   cohort in place — same ID, file path registration and content hash
+    #'   refreshed, `category`/`tags` replace the registered metadata (previous
+    #'   tags are dropped if none are supplied), and derived dependents are
+    #'   marked 'stale' when the definition changed. Default: TRUE (fail-safe).
     #'
     #' @return Invisible integer. The assigned cohort ID.
     addSqlCohort = function(filePath, label, category, tags = list(), stopIfExists = TRUE) {
@@ -1149,18 +1621,26 @@ CohortManifest <- R6::R6Class(
     #' @param label Character. Display name for the cohort.
     #' @param category Character. Required classification.
     #' @param dependentCohortIdList Named list. Each name is a SqlRender parameter to expose
-    #'   in the SQL file and each value is the cohort ID to inject at runtime.
-    #'   Example: \.code{list(inc_cohort_id = 10L, exc_cohort_id = 12L)}.
+    #'   in the SQL file and each value is the cohort ID — or an integer vector of
+    #'   cohort IDs — to inject at runtime. Vectors render comma-separated, for use
+    #'   in \.code{IN (@param)} clauses.
+    #'   Example: \.code{list(inc_cohort_id = 10L, exc_cohort_ids = c(12L, 14L))}.
     #' @param tags Named list. Optional metadata tags.
+    #' @param stopIfExists Logical. If TRUE (default), raises an error when an
+    #'   active or stale cohort with this label is already registered. If FALSE,
+    #'   updates the registered cohort in place (same ID): the dependent cohort
+    #'   IDs and the SQL file registration (path and content hash) are replaced,
+    #'   the cohort is marked 'stale' for regeneration, and its own dependents
+    #'   are marked stale too. Default: TRUE (fail-safe).
     #'
     #' @return Invisible integer. The assigned cohort ID.
-    addDependentCustomCohort = function(filePath, label, category, dependentCohortIdList, tags = list()) {
+    addDependentCustomCohort = function(filePath, label, category, dependentCohortIdList, tags = list(), stopIfExists = TRUE) {
       cohort_id <- private$register_custom_sql_cohort(
         filePath = filePath,
         label = label,
         category = category,
         tags = tags,
-        stopIfExists = TRUE,
+        stopIfExists = stopIfExists,
         dependentCohortIdList = dependentCohortIdList
       )
 
@@ -1257,6 +1737,12 @@ CohortManifest <- R6::R6Class(
     #'   new era can open. Subjects must have no source cohort membership for this period.
     #'   Default: 0.
     #' @param firstEraOnly Logical. Return only the first collapsed era per subject. Default: FALSE.
+    #' @param stopIfExists Logical. If TRUE (default), raises an error when an
+    #'   active or stale cohort with this label is already registered. If FALSE,
+    #'   updates the registered derived cohort in place (same ID and file path):
+    #'   the SQL is re-rendered, parents and build parameters are replaced, the
+    #'   cohort is marked 'stale' for regeneration, and its own dependents are
+    #'   marked stale too. Default: TRUE (fail-safe).
     #' @return Invisible integer. The assigned cohort ID.
     buildUnionCohort = function(
       label, 
@@ -1269,7 +1755,8 @@ CohortManifest <- R6::R6Class(
       minEraDays = 0L,
       minCohorts = 1L,
       washoutDays = 0L,
-      firstEraOnly = FALSE
+      firstEraOnly = FALSE,
+      stopIfExists = TRUE
       ) {
       use_id_route <- !is.null(cohortIds)
       use_entry_route <- !is.null(cohortEntries)
@@ -1319,7 +1806,8 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_integerish(x = washoutDays, len = 1, lower = 0)
       checkmate::assert_logical(x = firstEraOnly, len = 1)
 
-      private$validate_label_unique(label)
+      checkmate::assert_flag(stopIfExists)
+      existing_id <- private$resolve_derived_upsert(label, stopIfExists, cohortIds, cohort_type = "union")
       private$validate_parent_cohorts_exist(cohortIds)
 
       # Build dependency rule
@@ -1348,12 +1836,12 @@ CohortManifest <- R6::R6Class(
       )
 
       # Register in manifest
-      cohort_id <- private$insert_cohort(
+      cohort_id <- private$upsert_derived_cohort(
+        existingId = existing_id,
         label = label,
         category = category,
         tags = tags,
         file_path = fs::path_rel(sql_path),
-        source_type = "derived",
         cohort_type = "union",
         depends_on = as.integer(cohortIds),
         dependency_rule = dependency_rule
@@ -1392,6 +1880,12 @@ CohortManifest <- R6::R6Class(
     #'   to retain per subject. 'First' keeps the earliest event, 'Last' keeps the most recent event, 'All' keeps all 
     #'   qualifying events. Default: 'First'.
     #'
+    #' @param stopIfExists Logical. If TRUE (default), raises an error when an
+    #'   active or stale cohort with this label is already registered. If FALSE,
+    #'   updates the registered derived cohort in place (same ID and file path):
+    #'   the SQL is re-rendered, parents and build parameters are replaced, the
+    #'   cohort is marked 'stale' for regeneration, and its own dependents are
+    #'   marked stale too. Default: TRUE (fail-safe).
     #' @return Invisible integer. The assigned cohort ID.
     buildSubsetCohortTemporal = function(
       label, 
@@ -1404,7 +1898,8 @@ CohortManifest <- R6::R6Class(
       startWindow,
       endWindow = NULL,
       endDateType = "base",
-      subsetLimit = "First"
+      subsetLimit = "First",
+      stopIfExists = TRUE
     ) {
       base_use_id <- !is.null(baseCohortId)
       base_use_entry <- !is.null(baseCohortEntry)
@@ -1476,7 +1971,8 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_choice(subsetLimit, choices = c("First", "Last", "All"))
       checkmate::assert_list(tags, names = "named")
 
-      private$validate_label_unique(label)
+      checkmate::assert_flag(stopIfExists)
+      existing_id <- private$resolve_derived_upsert(label, stopIfExists, c(baseCohortId, filterCohortId), cohort_type = "subset")
       private$validate_parent_cohorts_exist(c(baseCohortId, filterCohortId))
 
       # Generate SQL snippets from SubsetWindowOperator objects
@@ -1518,12 +2014,12 @@ CohortManifest <- R6::R6Class(
 
       parent_ids <- unique(c(baseCohortId, filterCohortId))
 
-      cohort_id <- private$insert_cohort(
+      cohort_id <- private$upsert_derived_cohort(
+        existingId = existing_id,
         label = label,
         category = category,
         tags = tags,
         file_path = fs::path_rel(sql_path),
-        source_type = "derived",
         cohort_type = "subset",
         depends_on = as.integer(parent_ids),
         dependency_rule = dependency_rule
@@ -1558,6 +2054,12 @@ CohortManifest <- R6::R6Class(
     #'   in ALL exclude cohorts.
     #' @param tags Named list. Optional metadata tags.
     #'
+    #' @param stopIfExists Logical. If TRUE (default), raises an error when an
+    #'   active or stale cohort with this label is already registered. If FALSE,
+    #'   updates the registered derived cohort in place (same ID and file path):
+    #'   the SQL is re-rendered, parents and build parameters are replaced, the
+    #'   cohort is marked 'stale' for regeneration, and its own dependents are
+    #'   marked stale too. Default: TRUE (fail-safe).
     #' @return Invisible integer. The assigned cohort ID.
     buildComplementCohort = function(
       label, 
@@ -1567,7 +2069,8 @@ CohortManifest <- R6::R6Class(
       excludeCohortIds = NULL,
       populationCohortEntry = NULL,
       excludeCohortEntries = NULL,
-      complementType = "exclude_any"
+      complementType = "exclude_any",
+      stopIfExists = TRUE
     ) {
       population_use_id <- !is.null(populationCohortId)
       population_use_entry <- !is.null(populationCohortEntry)
@@ -1647,7 +2150,8 @@ CohortManifest <- R6::R6Class(
         cli::cli_abort("populationCohortId {populationCohortId} cannot also appear in excludeCohortIds")
       }
 
-      private$validate_label_unique(label)
+      checkmate::assert_flag(stopIfExists)
+      existing_id <- private$resolve_derived_upsert(label, stopIfExists, c(populationCohortId, as.integer(excludeCohortIds)), cohort_type = "complement")
       private$validate_parent_cohorts_exist(c(populationCohortId, as.integer(excludeCohortIds)))
 
       dependency_rule <- list(
@@ -1668,12 +2172,12 @@ CohortManifest <- R6::R6Class(
 
       parent_ids <- unique(c(as.integer(populationCohortId), as.integer(excludeCohortIds)))
 
-      cohort_id <- private$insert_cohort(
+      cohort_id <- private$upsert_derived_cohort(
+        existingId = existing_id,
         label = label,
         category = category,
         tags = tags,
         file_path = fs::path_rel(sql_path),
-        source_type = "derived",
         cohort_type = "complement",
         depends_on = parent_ids,
         dependency_rule = dependency_rule
@@ -1710,6 +2214,12 @@ CohortManifest <- R6::R6Class(
     #'   Default: 'First'.
     #' 
     #'
+    #' @param stopIfExists Logical. If TRUE (default), raises an error when an
+    #'   active or stale cohort with this label is already registered. If FALSE,
+    #'   updates the registered derived cohort in place (same ID and file path):
+    #'   the SQL is re-rendered, parents and build parameters are replaced, the
+    #'   cohort is marked 'stale' for regeneration, and its own dependents are
+    #'   marked stale too. Default: TRUE (fail-safe).
     #' @return Invisible integer. The assigned cohort ID.
     buildCompositeCohort = function(
         label, 
@@ -1718,7 +2228,8 @@ CohortManifest <- R6::R6Class(
         criteriaCohortIds = NULL, 
         criteriaCohortEntries = NULL,
         eventSelection = "First", 
-        minEventCount = 1L
+        minEventCount = 1L,
+        stopIfExists = TRUE
         ) {
       use_id_route <- !is.null(criteriaCohortIds)
       use_entry_route <- !is.null(criteriaCohortEntries)
@@ -1764,7 +2275,8 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_choice(x = eventSelection, choices = c("First", "Last", "All"))
       checkmate::assert_integerish(minEventCount, lower = 1, upper = length(criteriaCohortIds))
 
-      private$validate_label_unique(label)
+      checkmate::assert_flag(stopIfExists)
+      existing_id <- private$resolve_derived_upsert(label, stopIfExists, criteriaCohortIds, cohort_type = "composite")
       private$validate_parent_cohorts_exist(criteriaCohortIds)
 
       dependency_rule <- list(
@@ -1782,12 +2294,12 @@ CohortManifest <- R6::R6Class(
         event_selection = eventSelection
       )
 
-      cohort_id <- private$insert_cohort(
+      cohort_id <- private$upsert_derived_cohort(
+        existingId = existing_id,
         label = label,
         category = category,
         tags = tags,
         file_path = fs::path_rel(sql_path),
-        source_type = "derived",
         cohort_type = "composite",
         depends_on = as.integer(criteriaCohortIds),
         dependency_rule = dependency_rule
@@ -1820,6 +2332,12 @@ CohortManifest <- R6::R6Class(
     #' @param ethnicityConceptIds Integer vector or NULL. Ethnicity concept IDs to include. Default: NULL.
     #' @param tags Named list. Optional metadata tags.
     #'
+    #' @param stopIfExists Logical. If TRUE (default), raises an error when an
+    #'   active or stale cohort with this label is already registered. If FALSE,
+    #'   updates the registered derived cohort in place (same ID and file path):
+    #'   the SQL is re-rendered, parents and build parameters are replaced, the
+    #'   cohort is marked 'stale' for regeneration, and its own dependents are
+    #'   marked stale too. Default: TRUE (fail-safe).
     #' @return Invisible integer. The assigned cohort ID.
     buildDemographicCohort = function(label, baseCohortId = NULL, 
                                       baseCohortEntry = NULL, category,
@@ -1827,7 +2345,8 @@ CohortManifest <- R6::R6Class(
                                       genderConceptIds = NULL,
                                       raceConceptIds = NULL,
                                       ethnicityConceptIds = NULL,
-                                      tags = list()) {
+                                      tags = list(),
+                                      stopIfExists = TRUE) {
       use_id_route <- !is.null(baseCohortId)
       use_entry_route <- !is.null(baseCohortEntry)
       baseCohortName <- NA_character_
@@ -1871,7 +2390,8 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_integerish(ethnicityConceptIds, min.len = 1, null.ok = TRUE)
       checkmate::assert_list(tags, names = "named")
 
-      private$validate_label_unique(label)
+      checkmate::assert_flag(stopIfExists)
+      existing_id <- private$resolve_derived_upsert(label, stopIfExists, baseCohortId, cohort_type = "subset")
       private$validate_parent_cohorts_exist(baseCohortId)
 
       # Convert NULLs to "" for SqlRender conditional blocks
@@ -1910,12 +2430,12 @@ CohortManifest <- R6::R6Class(
         )
       writeLines(rendered_sql, sql_path)
 
-      cohort_id <- private$insert_cohort(
+      cohort_id <- private$upsert_derived_cohort(
+        existingId      = existing_id,
         label           = label,
         category        = category,
         tags            = tags,
         file_path       = fs::path_rel(sql_path),
-        source_type     = "derived",
         cohort_type     = "subset",
         depends_on      = as.integer(baseCohortId),
         dependency_rule = dependency_rule
@@ -2309,6 +2829,83 @@ CohortManifest <- R6::R6Class(
       return(tcm)
     },
 
+    #' @description Query cohorts missing a specific tag
+    #'
+    #' @param tagName Character. The name of the tag to check for absence.
+    #'
+    #' @return Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
+    #'   Returns NULL if all cohorts have the tag.
+    queryCohortsMissingTag = function(tagName) {
+      checkmate::assert_character(x = tagName, len = 1, min.chars = 1)
+
+      tcm <- self$tabulateManifest() |>
+        dplyr::mutate(
+          tags_list = purrr::map(tags, ~jsonlite::fromJSON(.x))
+        ) |>
+        dplyr::filter(
+          !purrr::map_lgl(tags_list, ~tagName %in% names(.))
+        ) |>
+        dplyr::select(-c(tags_list))
+
+      if (nrow(tcm) == 0) {
+        cli::cli_alert_warning("No cohorts missing tag '{tagName}' — all have it.")
+        return(NULL)
+      }
+
+      return(tcm)
+    },
+
+    #' @description Query cohorts by tag value mapping
+    #'
+    #' @param tagValueMapping Named list. Keys are tag names, values are tag values to match.
+    #'   Example: \code{list(status = "approved", type = "primary")} requires both conditions (AND logic).
+    #'
+    #' @return Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
+    #'   Returns NULL if no cohorts match all tag conditions.
+    queryCohortsWithTagValues = function(tagValueMapping) {
+      checkmate::assert_list(tagValueMapping, names = "named", min.len = 1)
+
+      # Convert to tagStrings format for existing query method
+      tagStrings <- paste0(names(tagValueMapping), ": ", unlist(tagValueMapping))
+
+      # Use existing queryCohortsByTag with match = "all"
+      result <- self$queryCohortsByTag(tagStrings = tagStrings, match = "all")
+
+      return(result)
+    },
+
+    #' @description Get a summary of all unique values for a specific tag
+    #'
+    #' @param tagName Character. The name of the tag to summarize.
+    #'
+    #' @return Tibble with columns: value, count, cohorts (comma-separated IDs).
+    #'   Returns NULL if no cohorts have the tag.
+    getTagValuesSummary = function(tagName) {
+      checkmate::assert_character(x = tagName, len = 1, min.chars = 1)
+
+      tcm <- self$tabulateManifest() |>
+        dplyr::mutate(
+          tags_list = purrr::map(tags, ~jsonlite::fromJSON(.x)),
+          tag_value = purrr::map_chr(tags_list, ~.x[[tagName]] %||% NA_character_)
+        ) |>
+        dplyr::filter(!is.na(tag_value)) |>
+        dplyr::group_by(tag_value) |>
+        dplyr::summarise(
+          count = dplyr::n(),
+          cohorts = paste0(id, collapse = ", "),
+          .groups = "drop"
+        ) |>
+        dplyr::rename(value = tag_value) |>
+        dplyr::arrange(dplyr::desc(count))
+
+      if (nrow(tcm) == 0) {
+        cli::cli_alert_warning("Tag '{tagName}' not found in any cohorts.")
+        return(NULL)
+      }
+
+      return(tcm)
+    },
+
     #' @description Get number of cohorts in manifest
     #'
     #' @return Integer. The number of cohorts.
@@ -2464,6 +3061,348 @@ CohortManifest <- R6::R6Class(
       invisible(NULL)
     },
 
+    #' @description Remove a specific tag from a cohort
+    #'
+    #' @param cohortId Integer. The cohort ID to update.
+    #' @param tagName Character. The name of the tag to remove.
+    #'
+    #' @return Invisible NULL. Emits success message if tag was removed, warning if tag was not found.
+    removeCohortTag = function(cohortId, tagName) {
+      checkmate::assert_int(cohortId, lower = 1)
+      checkmate::assert_string(tagName, min.chars = 1)
+
+      # Get current tags
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      current_tags_json <- DBI::dbGetQuery(
+        conn,
+        paste0("SELECT tags FROM cohort_manifest WHERE id = ", cohortId, " AND status = 'active'")
+      )
+
+      if (nrow(current_tags_json) == 0) {
+        cli::cli_abort("Cohort {cohortId} not found or is not active")
+      }
+
+      # Parse tags
+      current_tags <- jsonlite::fromJSON(current_tags_json$tags[1])
+
+      # Check if tag exists
+      if (!tagName %in% names(current_tags)) {
+        cli::cli_alert_warning("Tag '{tagName}' not found in cohort {cohortId}")
+        invisible(NULL)
+      }
+
+      # Remove tag
+      current_tags[[tagName]] <- NULL
+
+      # Update using existing method
+      self$updateCohortTags(cohortId = cohortId, newTags = current_tags)
+
+      cli::cli_alert_success("Removed tag '{tagName}' from cohort {cohortId}")
+      invisible(NULL)
+    },
+
+    #' @description Modify the value of an existing tag
+    #'
+    #' @param cohortId Integer. The cohort ID to update.
+    #' @param tagName Character. The name of the tag to modify.
+    #' @param newValue Character. The new value for the tag.
+    #'
+    #' @return Invisible NULL. Emits success message if tag was modified, error if tag does not exist.
+    modifyCohortTagValue = function(cohortId, tagName, newValue) {
+      checkmate::assert_int(cohortId, lower = 1)
+      checkmate::assert_string(tagName, min.chars = 1)
+      checkmate::assert_string(newValue, min.chars = 1)
+
+      # Get current tags
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      current_tags_json <- DBI::dbGetQuery(
+        conn,
+        paste0("SELECT tags FROM cohort_manifest WHERE id = ", cohortId, " AND status = 'active'")
+      )
+
+      if (nrow(current_tags_json) == 0) {
+        cli::cli_abort("Cohort {cohortId} not found or is not active")
+      }
+
+      # Parse tags
+      current_tags <- jsonlite::fromJSON(current_tags_json$tags[1])
+
+      # Check if tag exists
+      if (!tagName %in% names(current_tags)) {
+        cli::cli_abort("Tag '{tagName}' does not exist in cohort {cohortId}")
+      }
+
+      # Get old value for logging
+      old_value <- current_tags[[tagName]]
+
+      # Update tag value
+      current_tags[[tagName]] <- newValue
+
+      # Update using existing method
+      self$updateCohortTags(cohortId = cohortId, newTags = current_tags)
+
+      cli::cli_alert_success("Modified tag '{tagName}' in cohort {cohortId}: {old_value} → {newValue}")
+      invisible(NULL)
+    },
+
+    #' @description Add a single tag to a cohort (non-destructive)
+    #'
+    #' @param cohortId Integer. The cohort ID to update.
+    #' @param tagName Character. The name of the tag to add.
+    #' @param tagValue Character. The value for the new tag.
+    #'
+    #' @return Invisible NULL. Emits success message if tag was added.
+    addCohortTag = function(cohortId, tagName, tagValue) {
+      checkmate::assert_int(cohortId, lower = 1)
+      checkmate::assert_string(tagName, min.chars = 1)
+      checkmate::assert_string(tagValue, min.chars = 1)
+
+      # Get current tags
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      current_tags_json <- DBI::dbGetQuery(
+        conn,
+        paste0("SELECT tags FROM cohort_manifest WHERE id = ", cohortId, " AND status = 'active'")
+      )
+
+      if (nrow(current_tags_json) == 0) {
+        cli::cli_abort("Cohort {cohortId} not found or is not active")
+      }
+
+      # Parse existing tags
+      current_tags <- jsonlite::fromJSON(current_tags_json$tags[1])
+
+      # Add new tag (overwrites if already exists)
+      current_tags[[tagName]] <- tagValue
+
+      # Update using existing method
+      self$updateCohortTags(cohortId = cohortId, newTags = current_tags)
+
+      cli::cli_alert_success("Added tag '{tagName}' to cohort {cohortId}")
+      invisible(NULL)
+    },
+
+    #' @description Get all tags for a specific cohort
+    #'
+    #' @param cohortId Integer. The cohort ID to query.
+    #'
+    #' @return Named list of tags, or NULL if cohort not found.
+    getCohortTags = function(cohortId) {
+      checkmate::assert_int(cohortId, lower = 1)
+
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      current_tags_json <- DBI::dbGetQuery(
+        conn,
+        paste0("SELECT tags FROM cohort_manifest WHERE id = ", cohortId, " AND status = 'active'")
+      )
+
+      if (nrow(current_tags_json) == 0) {
+        cli::cli_alert_warning("Cohort {cohortId} not found or is not active")
+        return(NULL)
+      }
+
+      jsonlite::fromJSON(current_tags_json$tags[1])
+    },
+
+    #' @description Merge multiple tags into a cohort (non-destructive, additive)
+    #'
+    #' @param cohortId Integer. The cohort ID to update.
+    #' @param newTags Named list. The tags to add/merge (overwrites existing keys with same name).
+    #'
+    #' @return Invisible NULL. Emits success message.
+    mergeTagsIntoCohort = function(cohortId, newTags) {
+      checkmate::assert_int(cohortId, lower = 1)
+      checkmate::assert_list(newTags, names = "named")
+
+      # Get current tags
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      current_tags_json <- DBI::dbGetQuery(
+        conn,
+        paste0("SELECT tags FROM cohort_manifest WHERE id = ", cohortId, " AND status = 'active'")
+      )
+
+      if (nrow(current_tags_json) == 0) {
+        cli::cli_abort("Cohort {cohortId} not found or is not active")
+      }
+
+      # Parse and merge
+      current_tags <- jsonlite::fromJSON(current_tags_json$tags[1])
+      merged_tags <- c(current_tags, newTags)  # Vector merge adds/overwrites
+
+      # Update using existing method
+      self$updateCohortTags(cohortId = cohortId, newTags = merged_tags)
+
+      cli::cli_alert_success("Merged {length(newTags)} tag(s) into cohort {cohortId}")
+      invisible(NULL)
+    },
+
+    #' @description Get all unique tag names used across the manifest
+    #'
+    #' @return Character vector of unique tag names, sorted alphabetically.
+    listAllUniqueTags = function() {
+      manifest_tbl <- self$tabulateManifest()
+
+      if (is.null(manifest_tbl) || nrow(manifest_tbl) == 0) {
+        cli::cli_alert_info("No cohorts in manifest")
+        return(character(0))
+      }
+
+      # Extract all unique tag names
+      all_tag_names <- manifest_tbl |>
+        dplyr::mutate(tags_list = purrr::map(tags, ~jsonlite::fromJSON(.x))) |>
+        dplyr::pull(tags_list) |>
+        purrr::map(names) |>
+        unlist() |>
+        unique() |>
+        sort()
+
+      all_tag_names
+    },
+
+    #' @description Get value of a single tag for a cohort
+    #'
+    #' @param cohortId Integer. The cohort ID to query.
+    #' @param tagName Character. The name of the tag to retrieve.
+    #'
+    #' @return Character. The tag value, or NULL if tag or cohort not found.
+    getTagValue = function(cohortId, tagName) {
+      checkmate::assert_int(cohortId, lower = 1)
+      checkmate::assert_string(tagName, min.chars = 1)
+
+      tags <- self$getCohortTags(cohortId)
+
+      if (is.null(tags)) {
+        return(NULL)
+      }
+
+      if (!tagName %in% names(tags)) {
+        cli::cli_alert_warning("Tag '{tagName}' not found in cohort {cohortId}")
+        return(NULL)
+      }
+
+      tags[[tagName]]
+    },
+
+    #' @description Rename a tag key across specified cohorts (or all cohorts)
+    #'
+    #' @param oldTagName Character. The current tag name to rename.
+    #' @param newTagName Character. The new tag name.
+    #' @param cohortIds Integer vector or NULL. If NULL, renames across all cohorts that have this tag.
+    #'
+    #' @return Invisible tibble with id, label, old_value showing what was renamed.
+    renameTagKey = function(oldTagName, newTagName, cohortIds = NULL) {
+      checkmate::assert_string(oldTagName, min.chars = 1)
+      checkmate::assert_string(newTagName, min.chars = 1)
+      checkmate::assert_integerish(cohortIds, null.ok = TRUE)
+
+      # If cohortIds not provided, find all cohorts with this tag
+      if (is.null(cohortIds)) {
+        cohort_entries <- self$queryCohortsByTagName(oldTagName)
+        if (is.null(cohort_entries)) {
+          cli::cli_alert_info("No cohorts found with tag '{oldTagName}'")
+          return(invisible(tibble::tibble()))
+        }
+        cohortIds <- cohort_entries$id
+      }
+
+      cohortIds <- as.integer(cohortIds)
+      result <- list()
+
+      cli::cli_rule("Renaming tag '{oldTagName}' → '{newTagName}'")
+
+      for (cid in cohortIds) {
+        tags <- self$getCohortTags(cid)
+
+        if (!is.null(tags) && oldTagName %in% names(tags)) {
+          old_value <- tags[[oldTagName]]
+
+          # Remove old key and add new key with same value
+          tags[[oldTagName]] <- NULL
+          tags[[newTagName]] <- old_value
+
+          # Update manifest
+          self$updateCohortTags(cohortId = cid, newTags = tags)
+
+          result[[length(result) + 1]] <- list(id = cid, old_value = old_value)
+          cli::cli_alert_success("Cohort {cid}: renamed {oldTagName} → {newTagName}")
+        }
+      }
+
+      # Build result tibble
+      if (length(result) > 0) {
+        result_tbl <- tibble::tibble(
+          id = sapply(result, function(x) x$id),
+          old_value = sapply(result, function(x) x$old_value)
+        )
+      } else {
+        result_tbl <- tibble::tibble()
+      }
+
+      cli::cli_rule("Done — renamed tag in {length(result)} cohort(s)")
+      invisible(result_tbl)
+    },
+
+    #' @description Bulk modify a tag value across cohorts matching an old value
+    #'
+    #' @param tagName Character. The name of the tag to modify.
+    #' @param oldValue Character. The current value to match and replace.
+    #' @param newValue Character. The new value to set.
+    #'
+    #' @return Invisible tibble with id, label showing what was modified.
+    bulkModifyTagValue = function(tagName, oldValue, newValue) {
+      checkmate::assert_string(tagName, min.chars = 1)
+      checkmate::assert_string(oldValue, min.chars = 1)
+      checkmate::assert_string(newValue, min.chars = 1)
+
+      # Find all cohorts with this tag and value
+      cohort_entries <- self$queryCohortsByTagName(tagName)
+      if (is.null(cohort_entries)) {
+        cli::cli_alert_info("No cohorts found with tag '{tagName}'")
+        return(invisible(tibble::tibble()))
+      }
+
+      result <- list()
+
+      cli::cli_rule("Bulk modifying tag '{tagName}': '{oldValue}' → '{newValue}'")
+
+      for (i in seq_len(nrow(cohort_entries))) {
+        cid <- cohort_entries$id[i]
+        clabel <- cohort_entries$label[i]
+        tags <- self$getCohortTags(cid)
+
+        if (!is.null(tags) && tagName %in% names(tags) && tags[[tagName]] == oldValue) {
+          # Update the tag value
+          tags[[tagName]] <- newValue
+          self$updateCohortTags(cohortId = cid, newTags = tags)
+
+          result[[length(result) + 1]] <- list(id = cid, label = clabel)
+          cli::cli_alert_success("Cohort {cid} ({clabel}): updated")
+        }
+      }
+
+      # Build result tibble
+      if (length(result) > 0) {
+        result_tbl <- tibble::tibble(
+          id = sapply(result, function(x) x$id),
+          label = sapply(result, function(x) x$label)
+        )
+      } else {
+        result_tbl <- tibble::tibble()
+      }
+
+      cli::cli_rule("Done — modified tag in {length(result)} cohort(s)")
+      invisible(result_tbl)
+    },
+
     #' @description Auto-detect changes to ATLAS cohorts in remote repository
     #'
     #' Queries the manifest for all active ATLAS cohorts (identified by `atlasId` in tags),
@@ -2514,7 +3453,7 @@ CohortManifest <- R6::R6Class(
       
       if (is.null(cm_atlas_subset) || nrow(cm_atlas_subset) == 0) {
         cli::cli_alert_info("No ATLAS cohorts found in manifest")
-        invisible(NULL)
+        return(invisible(NULL))
       }
 
       res <- vector('list', length = nrow(cm_atlas_subset))
@@ -2527,12 +3466,16 @@ CohortManifest <- R6::R6Class(
         row_file_path <- cm_atlas_subset$file_path[i]
 
         # Fetch JSON from ATLAS and compare hashes
-        tryCatch({
-          cohort_def <- atlasConnection$getCohortDefinition(row_atlas_id)
-        }, error = function(e) {
-          cli::cli_warn("Failed to fetch atlasId {row_atlas_id}: {e$message}")
-          return(NULL)
-        })
+        cohort_def <- tryCatch(
+          atlasConnection$getCohortDefinition(row_atlas_id),
+          error = function(e) {
+            cli::cli_warn("Failed to fetch atlasId {row_atlas_id}: {e$message}")
+            NULL
+          }
+        )
+        if (is.null(cohort_def)) {
+          next
+        }
 
         expression_json <- c(cohort_def$expression[1], "\n") |> paste(collapse = "") # make sure matches file read
         remote_hash <- rlang::hash(expression_json)
@@ -2553,6 +3496,12 @@ CohortManifest <- R6::R6Class(
           localHash = current_hash,
           remoteHash = remote_hash
         )
+      }
+
+      res <- Filter(Negate(is.null), res)
+      if (length(res) == 0) {
+        cli::cli_alert_warning("No ATLAS cohorts could be checked")
+        return(invisible(NULL))
       }
 
       res_final <- do.call('rbind', res) |>
@@ -2599,9 +3548,9 @@ CohortManifest <- R6::R6Class(
       check_atlas_changes <- self$checkAtlasCohorts(atlasConnection) |>
         dplyr::filter(hasChanged)
 
-      if (nrow(check_atlas_changes) == 0) {
-        cli::cli_alert_info("No changed ATLAS cohorts found. All {nrow(check_atlas_changes)} cohort(s) are current.")
-        invisible(NULL)
+      if (is.null(check_atlas_changes) || nrow(check_atlas_changes) == 0) {
+        cli::cli_alert_info("No changed ATLAS cohorts found. All cohort(s) are current.")
+        return(invisible(NULL))
       }
 
       # get sqlite
@@ -2623,12 +3572,16 @@ CohortManifest <- R6::R6Class(
         existing_id <- check_atlas_changes$id[i]
 
         # Fetch JSON from ATLAS and compare hashes
-        tryCatch({
-          cohort_def <- atlasConnection$getCohortDefinition(row_atlas_id)
-        }, error = function(e) {
-          cli::cli_warn("Failed to fetch atlasId {row_atlas_id}: {e$message}")
-          return(NULL)
-        })
+        cohort_def <- tryCatch(
+          atlasConnection$getCohortDefinition(row_atlas_id),
+          error = function(e) {
+            cli::cli_warn("Failed to fetch atlasId {row_atlas_id}: {e$message}")
+            NULL
+          }
+        )
+        if (is.null(cohort_def)) {
+          next
+        }
         expression_json <- cohort_def$expression[1]
         expression_json_file <- c(expression_json, "\n") |> paste(collapse = "") # make sure matches file read line ending
         new_hash <- rlang::hash(expression_json_file)
@@ -2650,14 +3603,14 @@ CohortManifest <- R6::R6Class(
           list(new_hash, existing_id)
         )
 
-        #update in-memory manifest TODO
-        #private$.manifest
-
         cli::cli_alert_success("Updated {row_label} (ID {existing_id})")
-        # cascade dependency  
+        # cascade dependency
         cascadeStaleDownstream(dbPath, existing_id)
 
       }
+
+      # Refresh in-memory manifest
+      private$load_manifest_from_db()
 
       invisible(check_atlas_changes)
 
@@ -3157,7 +4110,8 @@ CohortManifest <- R6::R6Class(
     #' Scans the \code{json/} and \code{sql/} subdirectories of the cohorts folder, reconciles
     #' them against the SQLite manifest, and updates both the database and the in-memory list:
     #' \itemize{
-    #'   \item Active manifest records whose file no longer exists are soft-deleted.
+    #'   \item Active manifest records whose file no longer exists are soft-deleted,
+    #'     along with their derived dependents (which cannot generate without the parent).
     #'   \item Existing files whose SQL hash has changed are updated in the manifest.
     #'   \item Orphaned files on disk not in manifest are automatically deleted.
     #' }
@@ -3168,8 +4122,8 @@ CohortManifest <- R6::R6Class(
     #'   on disk. If FALSE, only warns about them without deletion. Default: TRUE.
     #'
     #' @return Data frame with columns: id, label, action
-    #'   (\code{"hash_updated"}, \code{"missing_flagged"}, \code{"unchanged"}, 
-    #'    \code{"auto_removed_orphan"}).
+    #'   (\code{"hash_updated"}, \code{"missing_flagged"}, \code{"cascade_deleted"},
+    #'    \code{"unchanged"}, \code{"auto_removed_orphan"}).
     syncManifest = function(strict_mode = TRUE) {
       checkmate::assert_flag(strict_mode)
       
@@ -3221,7 +4175,10 @@ CohortManifest <- R6::R6Class(
         file_path  <- rec$file_path
 
         if (rec_status == "active" && !file.exists(file_path)) {
-          # File has gone missing — soft-delete
+          # File has gone missing — soft-delete, along with any derived
+          # dependents (without their parent they can never generate)
+          dependents <- findTransitiveDependents(private$.dbPath, rec_id)
+
           DBI::dbExecute(
             conn,
             "UPDATE cohort_manifest SET status = 'deleted', deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
@@ -3232,6 +4189,24 @@ CohortManifest <- R6::R6Class(
           cli::cli_alert_warning("Missing: {rec_label} (ID {rec_id}) — marked as deleted")
           results <- rbind(results, data.frame(id = rec_id, label = rec_label,
                                                 action = "missing_flagged", stringsAsFactors = FALSE))
+
+          for (dep_id in dependents) {
+            dep_row <- DBI::dbGetQuery(
+              conn,
+              "SELECT label FROM cohort_manifest WHERE id = ?",
+              list(dep_id)
+            )
+            dep_label <- if (nrow(dep_row) > 0) dep_row$label[1] else NA_character_
+            DBI::dbExecute(
+              conn,
+              "UPDATE cohort_manifest SET status = 'deleted', deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+              list(dep_id)
+            )
+            private$.manifest <- Filter(function(c) c$getId() != dep_id, private$.manifest)
+            cli::cli_alert_warning("Cascade: {dep_label} (ID {dep_id}) depends on missing cohort {rec_id} — marked as deleted")
+            results <- rbind(results, data.frame(id = dep_id, label = dep_label,
+                                                  action = "cascade_deleted", stringsAsFactors = FALSE))
+          }
           next
         }
 
@@ -3837,7 +4812,7 @@ CohortManifest <- R6::R6Class(
       db_records <- tryCatch({
         DBI::dbGetQuery(
           conn,
-          "SELECT id, label, filePath, status, deleted_at FROM cohort_manifest ORDER BY id"
+          "SELECT id, label, file_path, status, deleted_at FROM cohort_manifest ORDER BY id"
         )
       }, error = function(e) {
         cli::cli_alert_danger("Failed to query manifest: {e$message}")
@@ -3850,7 +4825,7 @@ CohortManifest <- R6::R6Class(
       }
       
       # Add file_exists column
-      db_records$file_exists <- sapply(db_records$filePath, file.exists)
+      db_records$file_exists <- sapply(db_records$file_path, file.exists)
       
       # Convert to tibble and select columns
       result <- tibble::tibble(
@@ -3908,16 +4883,21 @@ CohortManifest <- R6::R6Class(
     #' @param dropFromDBMS Logical. If TRUE, also deletes the cohort from the DBMS
     #'   cohort table and checksum table. Requires `executionSettings` to be set.
     #'   Default: FALSE (filesystem/manifest cleanup only).
+    #' @param cascade Logical. If FALSE (default), deletion is refused when the
+    #'   cohort has derived dependents (deleting it would orphan them and break
+    #'   cohort generation). If TRUE, all transitive dependents are deleted too,
+    #'   deepest-first. Default: FALSE (fail-safe).
     #'
     #' @return Invisible NULL.
-    deleteCohort = function(id, confirm = FALSE, dropFromDBMS = FALSE) {
+    deleteCohort = function(id, confirm = FALSE, dropFromDBMS = FALSE, cascade = FALSE) {
       checkmate::assert_int(id)
       checkmate::assert_flag(confirm)
       checkmate::assert_flag(dropFromDBMS)
-      
+      checkmate::assert_flag(cascade)
+
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
       on.exit(DBI::dbDisconnect(conn))
-      
+
       # Retrieve cohort record
       cohort_row <- DBI::dbGetQuery(
         conn,
@@ -3927,11 +4907,28 @@ CohortManifest <- R6::R6Class(
 
       if (nrow(cohort_row) == 0) {
         cli::cli_alert_danger("Cohort {id} not found in manifest")
-        invisible(NULL)
+        return(invisible(NULL))
       }
-      
-      label     <- cohort_row$label[1]
-      file_path <- cohort_row$file_path[1]
+
+      label <- cohort_row$label[1]
+
+      # Guard: refuse to orphan derived dependents unless cascading
+      dependents <- findTransitiveDependents(private$.dbPath, id)
+      if (length(dependents) > 0) {
+        placeholders <- paste(rep("?", length(dependents)), collapse = ", ")
+        dep_rows <- DBI::dbGetQuery(
+          conn,
+          paste0("SELECT id, label FROM cohort_manifest WHERE id IN (", placeholders, ")"),
+          as.list(dependents)
+        )
+        if (!cascade) {
+          cli::cli_abort(c(
+            "Cohort {id} ({label}) has {length(dependents)} derived dependent(s): {paste0('[', dep_rows$id, '] ', dep_rows$label, collapse = ', ')}.",
+            i = "Deleting it would orphan them and break cohort generation.",
+            i = "Re-run with {.code cascade = TRUE} to delete the dependents too, or delete the dependents first."
+          ))
+        }
+      }
 
        # Validate DBMS requirements if requested
       if (dropFromDBMS && is.null(private$.executionSettings)) {
@@ -3948,11 +4945,18 @@ CohortManifest <- R6::R6Class(
         extra_msg <- ""
       }
 
+      cascade_msg <- if (length(dependents) > 0) {
+        " and {length(dependents)} dependent cohort(s)"
+      } else {
+        ""
+      }
+
       # Request confirmation if not already confirmed
       if (!confirm) {
-        cli::cli_alert_warning(
-          "This will permanently delete cohort {id} ({label}) from the manifest and file system."
-        )
+        cli::cli_alert_warning(paste0(
+          "This will permanently delete cohort {id} ({label})", cascade_msg,
+          " from the manifest and file system{extra_msg}."
+        ))
         response <- readline("Type 'yes' to confirm: ")
         if (!grepl("^yes$", trimws(tolower(response)))) {
           cli::cli_alert_info("Cancelled.")
@@ -3960,35 +4964,44 @@ CohortManifest <- R6::R6Class(
         }
       }
 
-      # Delete file from disk if it exists and path is not empty
-      file_deleted <- FALSE
-      if (!is.na(file_path) && nchar(trimws(file_path)) > 0 && file.exists(file_path)) {
-        tryCatch({
-          unlink(file_path)
-          cli::cli_alert_success("Deleted file: {file_path}")
-          file_deleted <- TRUE
-        }, error = function(e) {
-          cli::cli_alert_warning("Could not delete file {file_path}: {e$message}")
-        })
-      } else if (is.na(file_path) || nchar(trimws(file_path)) == 0) {
-        # Derived cohorts or special cases with no file_path
-        cli::cli_alert_info("No file to delete (derived or special cohort)")
-      } else if (!file.exists(file_path)) {
-        cli::cli_alert_warning("File not found on disk: {file_path} (manifest will be cleaned)")
-      }
+      # Delete dependents deepest-first, then the target cohort itself
+      ids_to_delete <- c(rev(dependents), id)
 
-      # Mark as deleted in SQLite (soft delete with audit trail)
-      tryCatch({
-        DBI::dbExecute(
+      for (del_id in ids_to_delete) {
+        del_row <- DBI::dbGetQuery(
           conn,
-          "UPDATE cohort_manifest SET status = 'deleted', deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
-          list(id)
+          "SELECT label, file_path FROM cohort_manifest WHERE id = ?",
+          list(del_id)
         )
-      }, error = function(e) {
-        cli::cli_alert_danger("Failed to mark cohort as deleted: {e$message}")
-        return(invisible(NULL))
-      })
+        del_label <- del_row$label[1]
+        file_path <- del_row$file_path[1]
 
+        # Delete file from disk if it exists and path is not empty
+        if (!is.na(file_path) && nchar(trimws(file_path)) > 0 && file.exists(file_path)) {
+          tryCatch({
+            unlink(file_path)
+            cli::cli_alert_success("Deleted file: {file_path}")
+          }, error = function(e) {
+            cli::cli_alert_warning("Could not delete file {file_path}: {e$message}")
+          })
+        } else if (is.na(file_path) || nchar(trimws(file_path)) == 0) {
+          # Derived cohorts or special cases with no file_path
+          cli::cli_alert_info("No file to delete for cohort {del_id} (derived or special cohort)")
+        } else if (!file.exists(file_path)) {
+          cli::cli_alert_warning("File not found on disk: {file_path} (manifest will be cleaned)")
+        }
+
+        # Mark as deleted in SQLite (soft delete with audit trail)
+        tryCatch({
+          DBI::dbExecute(
+            conn,
+            "UPDATE cohort_manifest SET status = 'deleted', deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
+            list(del_id)
+          )
+        }, error = function(e) {
+          cli::cli_alert_danger("Failed to mark cohort {del_id} as deleted: {e$message}")
+        })
+      }
 
     # Remove from DBMS cohort table and checksum table if requested
       if (dropFromDBMS) {
@@ -4005,36 +5018,44 @@ CohortManifest <- R6::R6Class(
         checksum_table <- getCohortTableNames(cohortTable = cohort_table)$cohortChecksumTable
         dbms           <- settings$getDbms()
 
-        tryCatch({
-          del_sql <- SqlRender::translate(
-            SqlRender::render(
-              "DELETE FROM @schema.@table WHERE cohort_definition_id = @id;",
-              schema = cohort_schema, table = cohort_table, id = id
-            ),
-            targetDialect = dbms
-          )
-          DatabaseConnector::executeSql(conn_db, del_sql, progressBar = FALSE, reportOverallTime = FALSE)
-          cli::cli_alert_success("Removed cohort {id} from {cohort_schema}.{cohort_table}")
-        }, error = function(e) {
-          cli::cli_alert_warning("Could not remove from cohort table: {e$message}")
-        })
+        for (del_id in ids_to_delete) {
+          tryCatch({
+            del_sql <- SqlRender::translate(
+              SqlRender::render(
+                "DELETE FROM @schema.@table WHERE cohort_definition_id = @id;",
+                schema = cohort_schema, table = cohort_table, id = del_id
+              ),
+              targetDialect = dbms
+            )
+            DatabaseConnector::executeSql(conn_db, del_sql, progressBar = FALSE, reportOverallTime = FALSE)
+            cli::cli_alert_success("Removed cohort {del_id} from {cohort_schema}.{cohort_table}")
+          }, error = function(e) {
+            cli::cli_alert_warning("Could not remove from cohort table: {e$message}")
+          })
 
-        tryCatch({
-          chk_sql <- SqlRender::translate(
-            SqlRender::render(
-              "DELETE FROM @schema.@table WHERE cohort_definition_id = @id;",
-              schema = cohort_schema, table = checksum_table, id = id
-            ),
-            targetDialect = dbms
-          )
-          DatabaseConnector::executeSql(conn_db, chk_sql, progressBar = FALSE, reportOverallTime = FALSE)
-          cli::cli_alert_success("Removed cohort {id} from {cohort_schema}.{checksum_table}")
-        }, error = function(e) {
-          cli::cli_alert_warning("Could not remove from checksum table: {e$message}")
-        })
+          tryCatch({
+            chk_sql <- SqlRender::translate(
+              SqlRender::render(
+                "DELETE FROM @schema.@table WHERE cohort_definition_id = @id;",
+                schema = cohort_schema, table = checksum_table, id = del_id
+              ),
+              targetDialect = dbms
+            )
+            DatabaseConnector::executeSql(conn_db, chk_sql, progressBar = FALSE, reportOverallTime = FALSE)
+            cli::cli_alert_success("Removed cohort {del_id} from {cohort_schema}.{checksum_table}")
+          }, error = function(e) {
+            cli::cli_alert_warning("Could not remove from checksum table: {e$message}")
+          })
+        }
       }
-      # Remove from in-memory manifest TODO
-      cli::cli_alert_success("Marked cohort {id}: {label} as deleted (file removed from disk{extra_msg})")
+
+      # Refresh in-memory manifest
+      private$load_manifest_from_db()
+
+      cli::cli_alert_success(paste0(
+        "Marked cohort {id}: {label}", cascade_msg,
+        " as deleted (file removed from disk{extra_msg})"
+      ))
       invisible(NULL)
     },
 
@@ -4079,6 +5100,12 @@ CohortManifest <- R6::R6Class(
     #'   - 'All': Keep all prior target events (one output row per pair).
     #'   Default: 'First'.
     #'
+    #' @param stopIfExists Logical. If TRUE (default), raises an error when an
+    #'   active or stale cohort with this label is already registered. If FALSE,
+    #'   updates the registered derived cohort in place (same ID and file path):
+    #'   the SQL is re-rendered, parents and build parameters are replaced, the
+    #'   cohort is marked 'stale' for regeneration, and its own dependents are
+    #'   marked stale too. Default: TRUE (fail-safe).
     #' @return Invisible integer. The assigned cohort ID.
     buildOPriorT = function(
       label,
@@ -4090,7 +5117,8 @@ CohortManifest <- R6::R6Class(
       priorTimeWindowDays = NULL,
       subsetLimit = "First",
       outcomeCohortEntry = NULL,
-      targetCohortEntry = NULL
+      targetCohortEntry = NULL,
+      stopIfExists = TRUE
     ) {
       outcome_use_id <- !is.null(outcomeCohortId)
       outcome_use_entry <- !is.null(outcomeCohortEntry)
@@ -4162,7 +5190,8 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_integerish(priorTimeWindowDays, len = 1, null.ok = TRUE)
       checkmate::assert_choice(subsetLimit, choices = c("First", "Last", "All"))
 
-      private$validate_label_unique(label)
+      checkmate::assert_flag(stopIfExists)
+      existing_id <- private$resolve_derived_upsert(label, stopIfExists, c(outcomeCohortId, targetCohortId), cohort_type = "oprior")
       private$validate_parent_cohorts_exist(c(outcomeCohortId, targetCohortId))
 
       dependency_rule <- list(
@@ -4185,12 +5214,12 @@ CohortManifest <- R6::R6Class(
         subset_limit = subsetLimit
       )
 
-      cohort_id <- private$insert_cohort(
+      cohort_id <- private$upsert_derived_cohort(
+        existingId = existing_id,
         label = label,
         category = category,
         tags = tags,
         file_path = fs::path_rel(sql_path),
-        source_type = "derived",
         cohort_type = "oprior",
         depends_on = as.integer(c(outcomeCohortId, targetCohortId)),
         dependency_rule = dependency_rule
@@ -4239,6 +5268,12 @@ CohortManifest <- R6::R6Class(
     #'   - 'All': Keep all prior outcome events (one output row per pair).
     #'   Default: 'First'.
     #'
+    #' @param stopIfExists Logical. If TRUE (default), raises an error when an
+    #'   active or stale cohort with this label is already registered. If FALSE,
+    #'   updates the registered derived cohort in place (same ID and file path):
+    #'   the SQL is re-rendered, parents and build parameters are replaced, the
+    #'   cohort is marked 'stale' for regeneration, and its own dependents are
+    #'   marked stale too. Default: TRUE (fail-safe).
     #' @return Invisible integer. The assigned cohort ID.
     buildTPriorO = function(
       label,
@@ -4250,7 +5285,8 @@ CohortManifest <- R6::R6Class(
       priorTimeWindowDays = NULL,
       subsetLimit = "First",
       targetCohortEntry = NULL,
-      outcomeCohortEntry = NULL
+      outcomeCohortEntry = NULL,
+      stopIfExists = TRUE
     ) {
       target_use_id <- !is.null(targetCohortId)
       target_use_entry <- !is.null(targetCohortEntry)
@@ -4322,7 +5358,8 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_integerish(priorTimeWindowDays, len = 1, null.ok = TRUE)
       checkmate::assert_choice(subsetLimit, choices = c("First", "Last", "All"))
 
-      private$validate_label_unique(label)
+      checkmate::assert_flag(stopIfExists)
+      existing_id <- private$resolve_derived_upsert(label, stopIfExists, c(targetCohortId, outcomeCohortId), cohort_type = "tprior")
       private$validate_parent_cohorts_exist(c(targetCohortId, outcomeCohortId))
 
       dependency_rule <- list(
@@ -4345,12 +5382,12 @@ CohortManifest <- R6::R6Class(
         subset_limit = subsetLimit
       )
 
-      cohort_id <- private$insert_cohort(
+      cohort_id <- private$upsert_derived_cohort(
+        existingId = existing_id,
         label = label,
         category = category,
         tags = tags,
         file_path = fs::path_rel(sql_path),
-        source_type = "derived",
         cohort_type = "tprior",
         depends_on = as.integer(c(targetCohortId, outcomeCohortId)),
         dependency_rule = dependency_rule
@@ -4386,6 +5423,12 @@ CohortManifest <- R6::R6Class(
     #' @param censorCohortEntry Data frame/tibble with one row and an \code{id} column.
     #'   Preferred route using manifest query results for the censor cohort.
     #'
+    #' @param stopIfExists Logical. If TRUE (default), raises an error when an
+    #'   active or stale cohort with this label is already registered. If FALSE,
+    #'   updates the registered derived cohort in place (same ID and file path):
+    #'   the SQL is re-rendered, parents and build parameters are replaced, the
+    #'   cohort is marked 'stale' for regeneration, and its own dependents are
+    #'   marked stale too. Default: TRUE (fail-safe).
     #' @return Invisible integer. The assigned cohort ID.
     buildCensorCohort = function(
       label,
@@ -4394,7 +5437,8 @@ CohortManifest <- R6::R6Class(
       targetCohortId = NULL,
       censorCohortId = NULL,
       targetCohortEntry = NULL,
-      censorCohortEntry = NULL
+      censorCohortEntry = NULL,
+      stopIfExists = TRUE
     ) {
       target_use_id <- !is.null(targetCohortId)
       target_use_entry <- !is.null(targetCohortEntry)
@@ -4463,7 +5507,8 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_int(targetCohortId)
       checkmate::assert_int(censorCohortId)
 
-      private$validate_label_unique(label)
+      checkmate::assert_flag(stopIfExists)
+      existing_id <- private$resolve_derived_upsert(label, stopIfExists, c(targetCohortId, censorCohortId), cohort_type = "censor")
       private$validate_parent_cohorts_exist(c(targetCohortId, censorCohortId))
 
       dependency_rule <- list(
@@ -4484,12 +5529,12 @@ CohortManifest <- R6::R6Class(
         censor_cohort_name = censorCohortName
       )
 
-      cohort_id <- private$insert_cohort(
+      cohort_id <- private$upsert_derived_cohort(
+        existingId = existing_id,
         label = label,
         category = category,
         tags = tags,
         file_path = fs::path_rel(sql_path),
-        source_type = "derived",
         cohort_type = "censor",
         depends_on = as.integer(c(targetCohortId, censorCohortId)),
         dependency_rule = dependency_rule
@@ -4510,7 +5555,7 @@ CohortManifest <- R6::R6Class(
       
       if (nrow(missing_cohorts) == 0) {
         cli::cli_alert_success("No missing cohorts to clean up")
-        invisible(NULL)
+        return(invisible(NULL))
       }
       
       cli::cli_rule("Cleaning Up Missing Cohorts")
@@ -4521,7 +5566,7 @@ CohortManifest <- R6::R6Class(
         label <- missing_cohorts$label[i]
         
         if (keep_trace) {
-          self$deleteCohort(cohort_id, reason = "missing file")
+          self$deleteCohort(as.integer(cohort_id), confirm = TRUE)
         } else {
           self$removeCohort(cohort_id, deleteFile = FALSE, confirm = TRUE)
         }

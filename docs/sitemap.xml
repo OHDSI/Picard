@@ -25,6 +25,9 @@
     <loc>https://ohdsi.github.io/Picard/articles/loading_inputs.html</loc>
   </url>
   <url>
+    <loc>https://ohdsi.github.io/Picard/articles/manifest_management.html</loc>
+  </url>
+  <url>
     <loc>https://ohdsi.github.io/Picard/articles/manifest_overview.html</loc>
   </url>
   <url>
@@ -37,7 +40,13 @@
     <loc>https://ohdsi.github.io/Picard/articles/running_the_pipeline.html</loc>
   </url>
   <url>
+    <loc>https://ohdsi.github.io/Picard/articles/using_agent_skills.html</loc>
+  </url>
+  <url>
     <loc>https://ohdsi.github.io/Picard/authors.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/CLAUDE.html</loc>
   </url>
   <url>
     <loc>https://ohdsi.github.io/Picard/index.html</loc>
@@ -176,6 +185,9 @@
   </url>
   <url>
     <loc>https://ohdsi.github.io/Picard/reference/expandManifestTags.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/reference/findTransitiveDependents.html</loc>
   </url>
   <url>
     <loc>https://ohdsi.github.io/Picard/reference/formatFloats.html</loc>
@@ -446,5 +458,8 @@
   </url>
   <url>
     <loc>https://ohdsi.github.io/Picard/reference/zipAndArchive.html</loc>
+  </url>
+  <url>
+    <loc>https://ohdsi.github.io/Picard/TODO.html</loc>
   </url>
 </urlset>

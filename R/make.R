@@ -777,29 +777,192 @@ makePrintFriendlyFile <- function(cohorts_dir = "inputs/cohorts",
 }
 
 
+# Shared worker for .initAgent (UlyssesStudy) and initAgentMode():
+# writes AGENTS.md at the repo root and populates .agent/ with reference docs
+# and skills (including the Capr skill bundle when Capr is installed).
+write_agent_files <- function(repoPath,
+                              studyName,
+                              projectName,
+                              databaseLabel,
+                              toolType,
+                              repoName,
+                              verbose = TRUE) {
+  files_created <- character(0)
+
+  # Read and substitute the AGENTS.md template
+  instructions_template <- fs::path_package("picard", "agent/AGENTS.md") |>
+    readr::read_file()
+
+  instructions_content <- glue::glue(instructions_template, .open = "{{", .close = "}}")
+
+  # Write AGENTS.md to the workspace root (tool-agnostic agent instructions)
+  instructions_file <- fs::path(repoPath, "AGENTS.md")
+  readr::write_file(x = instructions_content, file = instructions_file)
+  if (verbose) cli::cli_alert_success("Created {.file {fs::path_rel(instructions_file, start = repoPath)}}")
+  files_created <- c(files_created, "AGENTS.md")
+
+  # Copy reference documentation files
+  agent_folder <- fs::path(repoPath, ".agent")
+  reference_docs_folder <- fs::path(agent_folder, "reference-docs")
+  fs::dir_create(reference_docs_folder)
+
+  agent_package_folder <- fs::path_package("picard", "agent")
+  all_files <- fs::dir_ls(agent_package_folder, type = "file", recurse = FALSE)
+  reference_files <- all_files[grepl("^\\d{2}-.*\\.md$", fs::path_file(all_files))]
+
+  if (length(reference_files) > 0) {
+    purrr::walk(reference_files, function(ref_file) {
+      base_name <- fs::path_file(ref_file)
+      dest_file <- fs::path(reference_docs_folder, base_name)
+      fs::file_copy(ref_file, dest_file, overwrite = TRUE)
+    })
+    if (verbose) {
+      cli::cli_alert_success(
+        "Created {.file .agent/reference-docs} with {length(reference_files)} reference documents"
+      )
+    }
+    files_created <- c(files_created, paste0(".agent/reference-docs/", fs::path_file(reference_files)))
+  } else {
+    cli::cli_alert_warning("No numbered reference documentation files found in agent package folder")
+  }
+
+  # Copy picard skills shipped with the package
+  skills_folder <- fs::path(agent_folder, "skills")
+  fs::dir_create(skills_folder)
+
+  picard_skills_folder <- fs::path(agent_package_folder, "skills")
+  if (fs::dir_exists(picard_skills_folder)) {
+    skill_dirs <- fs::dir_ls(picard_skills_folder, type = "directory")
+    purrr::walk(skill_dirs, function(skill_dir) {
+      dest_dir <- fs::path(skills_folder, fs::path_file(skill_dir))
+      if (fs::dir_exists(dest_dir)) fs::dir_delete(dest_dir)
+      fs::dir_copy(skill_dir, dest_dir)
+    })
+    if (verbose && length(skill_dirs) > 0) {
+      cli::cli_alert_success(
+        "Created {.file .agent/skills} with skill{?s}: {fs::path_file(skill_dirs)}"
+      )
+    }
+    files_created <- c(files_created, paste0(".agent/skills/", fs::path_file(skill_dirs), "/"))
+  }
+
+  # Copy the Capr skill bundle (capr-cohort-generation) when Capr is installed
+  capr_llm_folder <- system.file("llm", package = "Capr")
+  if (nzchar(capr_llm_folder) && fs::file_exists(fs::path(capr_llm_folder, "SKILL.md"))) {
+    capr_skill_dest <- fs::path(skills_folder, "capr-cohort-generation")
+    if (fs::dir_exists(capr_skill_dest)) fs::dir_delete(capr_skill_dest)
+    fs::dir_copy(capr_llm_folder, capr_skill_dest)
+    if (verbose) {
+      cli::cli_alert_success("Copied Capr skill bundle to {.file .agent/skills/capr-cohort-generation}")
+    }
+    files_created <- c(files_created, ".agent/skills/capr-cohort-generation/")
+  } else {
+    cli::cli_alert_warning(c(
+      "Package {.pkg Capr} (with its skill bundle) is not installed; skipped copying the capr-cohort-generation skill."
+    ))
+    cli::cli_alert_info(
+      "Install with {.code remotes::install_github('OHDSI/Capr')} and run {.code initAgentMode(reset = TRUE)} to add it."
+    )
+  }
+
+  invisible(files_created)
+}
+
+# Remove agent files from the pre-v0.0.7 copilot layout (root copilot-instructions.md,
+# .github/copilot-instructions.md, .github/reference-docs/) and drop their .gitignore
+# entries. `.github/` itself is only deleted when left empty, since it may hold
+# user-managed content such as workflows. Returns the removed paths.
+cleanup_legacy_agent_files <- function(repoPath, verbose = TRUE) {
+  files_removed <- character(0)
+
+  legacy_paths <- c(
+    fs::path(repoPath, "copilot-instructions.md"),
+    fs::path(repoPath, ".github", "copilot-instructions.md"),
+    fs::path(repoPath, ".github", "reference-docs")
+  )
+
+  for (legacy_path in legacy_paths) {
+    if (fs::file_exists(legacy_path) || fs::dir_exists(legacy_path)) {
+      if (fs::is_dir(legacy_path)) fs::dir_delete(legacy_path) else fs::file_delete(legacy_path)
+      files_removed <- c(files_removed, as.character(fs::path_rel(legacy_path, start = repoPath)))
+    }
+  }
+
+  github_folder <- fs::path(repoPath, ".github")
+  if (fs::dir_exists(github_folder) && length(fs::dir_ls(github_folder, all = TRUE)) == 0) {
+    fs::dir_delete(github_folder)
+    files_removed <- c(files_removed, ".github/")
+  }
+
+  if (length(files_removed) > 0) {
+    gitignore_path <- fs::path(repoPath, ".gitignore")
+    if (fs::file_exists(gitignore_path)) {
+      ignore_lines <- readr::read_lines(gitignore_path)
+      legacy_entries <- c(".github/", "copilot-instructions.md")
+      kept_lines <- ignore_lines[!trimws(ignore_lines) %in% legacy_entries]
+      if (length(kept_lines) < length(ignore_lines)) {
+        readr::write_lines(kept_lines, gitignore_path)
+      }
+    }
+    if (verbose) {
+      cli::cli_alert_info(
+        "Removed legacy agent files from previous picard version: {.file {files_removed}}"
+      )
+    }
+  }
+
+  invisible(files_removed)
+}
+
+# Append `.agent/` and `AGENTS.md` to .gitignore if missing, so agent files
+# restored into pre-existing repos stay untracked (initAgentMode() runs outside
+# a usethis project, so entries are managed directly rather than via usethis).
+ensure_agent_gitignore <- function(repoPath) {
+  gitignore_path <- fs::path(repoPath, ".gitignore")
+  ignore_lines <- if (fs::file_exists(gitignore_path)) readr::read_lines(gitignore_path) else character(0)
+  agent_entries <- c(".agent/", "AGENTS.md")
+  missing_entries <- setdiff(agent_entries, trimws(ignore_lines))
+  if (length(missing_entries) > 0) {
+    readr::write_lines(c(ignore_lines, missing_entries), gitignore_path)
+  }
+  invisible(missing_entries)
+}
+
 #' @title Initialize or Restore Agent Mode for Cloned Repository
 #' @description When a Picard repository is cloned, agent mode files (.gitignored) won't be present.
 #'   This function checks if agent mode is available and restores it using metadata from existing repo files.
-#'   Agent mode provides VS Code Copilot with study context through copilot-instructions.md and reference docs.
+#'   Agent mode provides any coding agent (Claude Code, GitHub Copilot, Cursor, etc.) with study
+#'   context through a root AGENTS.md file plus reference docs and skills in `.agent/`.
 #'
 #' @param projectPath Character. Path to the Picard repository. Defaults to current working directory.
 #' @param verbose Logical. Display informative messages during initialization. Default: TRUE
+#' @param reset Logical. If TRUE, replace any existing agent files with fresh copies from
+#'   the installed picard (and Capr) version. This deletes `AGENTS.md` and the entire
+#'   `.agent/` folder — including any custom files added there — before rewriting them.
+#'   Use after upgrading picard to pick up new or relocated agent files. Default: FALSE
 #'
 #' @return Invisibly returns a list with:
 #'   - `agent_mode_active`: Logical. TRUE if agent mode files are now available
 #'   - `files_created`: Character vector of files that were created/restored
+#'   - `files_removed`: Character vector of legacy agent files that were deleted
 #'   - `already_existed`: Logical. TRUE if agent mode files already existed
 #'
 #' @details
 #' Agent mode setup consists of:
-#' - `.github/` folder with reference documentation
-#' - `copilot-instructions.md` at workspace root (auto-loaded by VS Code Copilot)
-#' - `.github/copilot-instructions.md` (backup/reference)
+#' - `AGENTS.md` at the workspace root (tool-agnostic agent instructions)
+#' - `.agent/reference-docs/` with detailed study-framework documentation
+#' - `.agent/skills/` with task-specific skills, including `picard-capr-cohorts` and,
+#'   when the Capr package is installed, its `capr-cohort-generation` skill bundle
 #'
 #' Study metadata is extracted from existing repo files:
 #' - Study title and project name from README.md
 #' - Tool type from config.yml
 #' - Repository name from the repo folder name
+#'
+#' Repositories created with picard versions before the `.agent/` layout (which used
+#' `copilot-instructions.md` and `.github/reference-docs/`) are migrated automatically:
+#' the legacy files and their `.gitignore` entries are removed whenever this function
+#' writes the new layout, and `.agent/`/`AGENTS.md` are added to `.gitignore` if missing.
 #'
 #' @export
 #' @examples
@@ -809,33 +972,49 @@ makePrintFriendlyFile <- function(cohorts_dir = "inputs/cohorts",
 #'
 #'   # Restore in specific repository
 #'   initAgentMode(projectPath = "/path/to/study_repo")
+#'
+#'   # After upgrading picard, refresh agent files to the installed version
+#'   initAgentMode(reset = TRUE)
 #' }
-initAgentMode <- function(projectPath = here::here(), verbose = TRUE) {
+initAgentMode <- function(projectPath = here::here(), verbose = TRUE, reset = FALSE) {
+  checkmate::assert_flag(reset)
   projectPath <- fs::path_expand(projectPath)
   repoPath <- projectPath
 
   if (verbose) cli::cli_h2("Initializing Agent Mode Configuration")
 
   # Check if agent mode already exists
-  agent_folder <- fs::path(repoPath, ".github")
-  root_instructions <- fs::path(repoPath, "copilot-instructions.md")
+  agent_folder <- fs::path(repoPath, ".agent")
+  root_instructions <- fs::path(repoPath, "AGENTS.md")
   reference_docs_folder <- fs::path(agent_folder, "reference-docs")
 
   agent_mode_exists <- fs::dir_exists(agent_folder) &&
     fs::file_exists(root_instructions) &&
     fs::dir_exists(reference_docs_folder)
 
-  if (agent_mode_exists) {
-    if (verbose) cli::cli_alert_info("Agent mode already initialized")
+  if (agent_mode_exists && !reset) {
+    if (verbose) {
+      cli::cli_alert_info("Agent mode already initialized")
+      cli::cli_alert_info(
+        "Run {.code initAgentMode(reset = TRUE)} to replace existing agent files with the installed picard version."
+      )
+    }
     ll <- list(
       agent_mode_active = TRUE,
       files_created = character(0),
+      files_removed = character(0),
       already_existed = TRUE
     )
     return(ll)
   }
 
-  if (verbose) cli::cli_inform("Agent mode not found. Restoring from package templates...")
+  if (agent_mode_exists && reset) {
+    if (verbose) cli::cli_inform("Resetting agent files to the installed picard version...")
+    if (fs::file_exists(root_instructions)) fs::file_delete(root_instructions)
+    if (fs::dir_exists(agent_folder)) fs::dir_delete(agent_folder)
+  } else if (verbose) {
+    cli::cli_inform("Agent mode not found. Restoring from package templates...")
+  }
 
   tryCatch({
     # Extract study metadata from repository
@@ -903,62 +1082,27 @@ initAgentMode <- function(projectPath = here::here(), verbose = TRUE) {
       ))
     }
 
-    # Create .github folder
-    fs::dir_create(agent_folder)
+    if (verbose) cli::cli_inform("Writing agent instructions, reference docs, and skills...")
 
-    # Read and substitute copilot-instructions.md template
-    if (verbose) cli::cli_inform("Copying and customizing instructions template...")
-    instructions_template <- fs::path_package("picard", "agent/copilot-instructions.md") |>
-      readr::read_file()
+    files_created <- write_agent_files(
+      repoPath = repoPath,
+      studyName = studyName,
+      projectName = projectName,
+      databaseLabel = databaseLabel,
+      toolType = toolType,
+      repoName = repoName,
+      verbose = verbose
+    )
 
-    instructions_content <- glue::glue(instructions_template, .open = "{{", .close = "}}")
-
-    # Write to .github folder for reference
-    instructions_file <- fs::path(agent_folder, "copilot-instructions.md")
-    readr::write_file(x = instructions_content, file = instructions_file)
-    cli::cli_alert_success("Created {.file {fs::path_rel(instructions_file)}}")
-
-    # Write to workspace root so Copilot automatically picks it up
-    root_instructions_file <- fs::path(repoPath, "copilot-instructions.md")
-    readr::write_file(x = instructions_content, file = root_instructions_file)
-    cli::cli_alert_success("Created {.file {fs::path_rel(root_instructions_file)}} (workspace root)")
-
-    # Copy reference documentation files
-    if (verbose) cli::cli_inform("Copying reference documentation...")
-    fs::dir_create(reference_docs_folder)
-
-    # Get list of reference files from inst/agent
-    agent_package_folder <- fs::path_package("picard", "agent")
-
-    # List all markdown files and filter for numbered ones
-    all_files <- fs::dir_ls(agent_package_folder, type = "file", recurse = FALSE)
-    reference_files <- all_files[grepl("^\\d{2}-.*\\.md$", fs::path_file(all_files))]
-
-    # Copy each reference file
-    if (length(reference_files) > 0) {
-      purrr::walk(reference_files, function(ref_file) {
-        base_name <- fs::path_file(ref_file)
-        dest_file <- fs::path(reference_docs_folder, base_name)
-        fs::file_copy(ref_file, dest_file, overwrite = TRUE)
-      })
-      cli::cli_alert_success(
-        "Copied {length(reference_files)} reference documents to {.file {fs::path_rel(reference_docs_folder)}}"
-      )
-    } else {
-      cli::cli_alert_warning("No numbered reference documentation files found in agent package")
-    }
+    files_removed <- cleanup_legacy_agent_files(repoPath, verbose = verbose)
+    ensure_agent_gitignore(repoPath)
 
     if (verbose) cli::cli_alert_success("Agent mode successfully initialized")
-
-    files_created <- c(
-      "copilot-instructions.md",
-      ".github/copilot-instructions.md",
-      paste0(".github/reference-docs/", fs::path_file(reference_files))
-    )
 
     invisible(list(
       agent_mode_active = TRUE,
       files_created = files_created,
+      files_removed = files_removed,
       already_existed = FALSE
     ))
   }, error = function(e) {

@@ -16,6 +16,12 @@ The ConceptSetManifest class manages multiple concept set definitions and stores
 metadata in a SQLite database located at inputs/conceptSets/conceptSetManifest.sqlite.
 Each ConceptSetDef is assigned a sequential ID based on its position in the manifest.
 
+The load file is a transient, one-time import mechanism: rows whose
+atlasId or label are already registered in the manifest are an error, not
+an update. To sync registered concept sets with ATLAS, run
+\code{updateAtlasConceptSets()}; to update a single concept set, use
+\code{addAtlasConceptSet(stopIfExists = FALSE)}.
+
 \strong{Processing Steps:}
 \enumerate{
 \item Validates that all concept set IDs exist and are active
@@ -167,10 +173,14 @@ by finding the reverse mapping relationship. For each concept set:
 \item \href{#method-ConceptSetManifest-addConceptSetFile}{\code{ConceptSetManifest$addConceptSetFile()}}
 \item \href{#method-ConceptSetManifest-addAtlasConceptSet}{\code{ConceptSetManifest$addAtlasConceptSet()}}
 \item \href{#method-ConceptSetManifest-addCaprConceptSet}{\code{ConceptSetManifest$addCaprConceptSet()}}
+\item \href{#method-ConceptSetManifest-updateCaprConceptSet}{\code{ConceptSetManifest$updateCaprConceptSet()}}
 \item \href{#method-ConceptSetManifest-importAtlasConceptSets}{\code{ConceptSetManifest$importAtlasConceptSets()}}
 \item \href{#method-ConceptSetManifest-queryConceptSetsByIds}{\code{ConceptSetManifest$queryConceptSetsByIds()}}
 \item \href{#method-ConceptSetManifest-queryConceptSetsByTag}{\code{ConceptSetManifest$queryConceptSetsByTag()}}
 \item \href{#method-ConceptSetManifest-queryConceptSetsByTagName}{\code{ConceptSetManifest$queryConceptSetsByTagName()}}
+\item \href{#method-ConceptSetManifest-queryConceptSetsMissingTag}{\code{ConceptSetManifest$queryConceptSetsMissingTag()}}
+\item \href{#method-ConceptSetManifest-queryConceptSetsWithTagValues}{\code{ConceptSetManifest$queryConceptSetsWithTagValues()}}
+\item \href{#method-ConceptSetManifest-getTagValuesSummary}{\code{ConceptSetManifest$getTagValuesSummary()}}
 \item \href{#method-ConceptSetManifest-queryConceptSetsByLabel}{\code{ConceptSetManifest$queryConceptSetsByLabel()}}
 \item \href{#method-ConceptSetManifest-nConceptSets}{\code{ConceptSetManifest$nConceptSets()}}
 \item \href{#method-ConceptSetManifest-getConceptSetById}{\code{ConceptSetManifest$getConceptSetById()}}
@@ -183,6 +193,15 @@ by finding the reverse mapping relationship. For each concept set:
 \item \href{#method-ConceptSetManifest-updateConceptSetLabel}{\code{ConceptSetManifest$updateConceptSetLabel()}}
 \item \href{#method-ConceptSetManifest-updateConceptSetCategory}{\code{ConceptSetManifest$updateConceptSetCategory()}}
 \item \href{#method-ConceptSetManifest-updateConceptSetTags}{\code{ConceptSetManifest$updateConceptSetTags()}}
+\item \href{#method-ConceptSetManifest-removeConceptSetTag}{\code{ConceptSetManifest$removeConceptSetTag()}}
+\item \href{#method-ConceptSetManifest-modifyConceptSetTagValue}{\code{ConceptSetManifest$modifyConceptSetTagValue()}}
+\item \href{#method-ConceptSetManifest-addConceptSetTag}{\code{ConceptSetManifest$addConceptSetTag()}}
+\item \href{#method-ConceptSetManifest-getConceptSetTags}{\code{ConceptSetManifest$getConceptSetTags()}}
+\item \href{#method-ConceptSetManifest-mergeTagsIntoConceptSet}{\code{ConceptSetManifest$mergeTagsIntoConceptSet()}}
+\item \href{#method-ConceptSetManifest-listAllUniqueTags}{\code{ConceptSetManifest$listAllUniqueTags()}}
+\item \href{#method-ConceptSetManifest-getTagValue}{\code{ConceptSetManifest$getTagValue()}}
+\item \href{#method-ConceptSetManifest-renameTagKey}{\code{ConceptSetManifest$renameTagKey()}}
+\item \href{#method-ConceptSetManifest-bulkModifyTagValue}{\code{ConceptSetManifest$bulkModifyTagValue()}}
 \item \href{#method-ConceptSetManifest-checkAtlasConceptSets}{\code{ConceptSetManifest$checkAtlasConceptSets()}}
 \item \href{#method-ConceptSetManifest-updateAtlasConceptSets}{\code{ConceptSetManifest$updateAtlasConceptSets()}}
 \item \href{#method-ConceptSetManifest-cleanupMissing}{\code{ConceptSetManifest$cleanupMissing()}}
@@ -371,7 +390,8 @@ Fetch a single concept set from ATLAS and register it in the manifest
   label,
   category = "init",
   tags = list(),
-  atlasConnection = NULL
+  atlasConnection = NULL,
+  stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -390,6 +410,13 @@ Fetch a single concept set from ATLAS and register it in the manifest
 \code{getConceptSetDefinition(conceptSetId)} method that returns a list with
 \code{expression} (CIRCE JSON string) and \code{saveName} elements.
 If \code{NULL}, falls back to the connection stored via \verb{$setAtlasConnection()}.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+active concept set with this label is already registered. If FALSE,
+fetches the current definition from ATLAS and updates the registered
+concept set in place — same ID and file path, hash refreshed,
+\code{category}/\code{tags}/atlasId replaced. An unchanged definition leaves the
+file untouched. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -407,7 +434,8 @@ Export a Capr ConceptSet to JSON and register it in the manifest
   caprConceptSet,
   label,
   category = "init",
-  tags = list()
+  tags = list(),
+  stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -421,11 +449,46 @@ Export a Capr ConceptSet to JSON and register it in the manifest
 \item{\code{category}}{Character. Category for the concept set. Defaults to \code{"init"}.}
 
 \item{\code{tags}}{Named list. Optional extra metadata tags. Defaults to \code{list()}.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+active concept set with this label is already registered. If FALSE,
+updates the existing concept set in place via \code{updateCaprConceptSet()}
+— it keeps its ID and file path, and \code{category}/\code{tags} replace the
+registered metadata (previous tags are dropped if none are supplied).
+Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
 Invisible integer. The assigned concept set ID.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-updateCaprConceptSet"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-updateCaprConceptSet}{}}}
+\subsection{Method \code{updateCaprConceptSet()}}{
+Update an existing Capr concept set's JSON definition
+
+Takes a revised Capr ConceptSet object and upserts it over a concept set
+already registered via \code{addCaprConceptSet()}: the JSON file recorded in
+the manifest is overwritten in place and the manifest hash is refreshed,
+so the concept set keeps its ID and file path. If the new definition is
+identical to the registered one, nothing is changed.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$updateCaprConceptSet(caprConceptSet, label)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{caprConceptSet}}{A Capr \code{ConceptSet} object.}
+
+\item{\code{label}}{Character. Label of the active concept set to update.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible integer. The concept set ID.
 }
 }
 \if{html}{\out{<hr>}}
@@ -522,6 +585,70 @@ Query cohorts by category
 }
 \subsection{Returns}{
 Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-queryConceptSetsMissingTag"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-queryConceptSetsMissingTag}{}}}
+\subsection{Method \code{queryConceptSetsMissingTag()}}{
+Query concept sets missing a specific tag
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsMissingTag(tagName)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{tagName}}{Character. The name of the tag to check for absence.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Tibble with columns: id, label, category, tags, file_path, hash, created_at.
+Returns NULL if all concept sets have the tag.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-queryConceptSetsWithTagValues"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-queryConceptSetsWithTagValues}{}}}
+\subsection{Method \code{queryConceptSetsWithTagValues()}}{
+Query concept sets by tag value mapping
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsWithTagValues(tagValueMapping)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{tagValueMapping}}{Named list. Keys are tag names, values are tag values to match.
+Example: \code{list(status = "approved", type = "primary")} requires both conditions (AND logic).}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Tibble with columns: id, label, category, tags, file_path, hash, created_at.
+Returns NULL if no concept sets match all tag conditions.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-getTagValuesSummary"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-getTagValuesSummary}{}}}
+\subsection{Method \code{getTagValuesSummary()}}{
+Get a summary of all unique values for a specific tag
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$getTagValuesSummary(tagName)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{tagName}}{Character. The name of the tag to summarize.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Tibble with columns: value, count, concept_sets (comma-separated IDs).
+Returns NULL if no concept sets have the tag.
 Query concept sets by label
 }
 }
@@ -790,6 +917,201 @@ Invisible NULL.
 }
 }
 \if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-removeConceptSetTag"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-removeConceptSetTag}{}}}
+\subsection{Method \code{removeConceptSetTag()}}{
+Remove a specific tag from a concept set
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$removeConceptSetTag(conceptSetId, tagName)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{conceptSetId}}{Integer. The concept set ID to update.}
+
+\item{\code{tagName}}{Character. The name of the tag to remove.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible NULL. Emits success message if tag was removed, warning if tag was not found.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-modifyConceptSetTagValue"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-modifyConceptSetTagValue}{}}}
+\subsection{Method \code{modifyConceptSetTagValue()}}{
+Modify the value of an existing tag
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$modifyConceptSetTagValue(conceptSetId, tagName, newValue)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{conceptSetId}}{Integer. The concept set ID to update.}
+
+\item{\code{tagName}}{Character. The name of the tag to modify.}
+
+\item{\code{newValue}}{Character. The new value for the tag.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible NULL. Emits success message if tag was modified, error if tag does not exist.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-addConceptSetTag"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-addConceptSetTag}{}}}
+\subsection{Method \code{addConceptSetTag()}}{
+Add a single tag to a concept set (non-destructive)
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$addConceptSetTag(conceptSetId, tagName, tagValue)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{conceptSetId}}{Integer. The concept set ID to update.}
+
+\item{\code{tagName}}{Character. The name of the tag to add.}
+
+\item{\code{tagValue}}{Character. The value for the new tag.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible NULL. Emits success message if tag was added.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-getConceptSetTags"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-getConceptSetTags}{}}}
+\subsection{Method \code{getConceptSetTags()}}{
+Get all tags for a specific concept set
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$getConceptSetTags(conceptSetId)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{conceptSetId}}{Integer. The concept set ID to query.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Named list of tags, or NULL if concept set not found.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-mergeTagsIntoConceptSet"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-mergeTagsIntoConceptSet}{}}}
+\subsection{Method \code{mergeTagsIntoConceptSet()}}{
+Merge multiple tags into a concept set (non-destructive, additive)
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$mergeTagsIntoConceptSet(conceptSetId, newTags)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{conceptSetId}}{Integer. The concept set ID to update.}
+
+\item{\code{newTags}}{Named list. The tags to add/merge (overwrites existing keys with same name).}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible NULL. Emits success message.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-listAllUniqueTags"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-listAllUniqueTags}{}}}
+\subsection{Method \code{listAllUniqueTags()}}{
+Get all unique tag names used across the concept set manifest
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$listAllUniqueTags()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Character vector of unique tag names, sorted alphabetically.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-getTagValue"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-getTagValue}{}}}
+\subsection{Method \code{getTagValue()}}{
+Get value of a single tag for a concept set
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$getTagValue(conceptSetId, tagName)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{conceptSetId}}{Integer. The concept set ID to query.}
+
+\item{\code{tagName}}{Character. The name of the tag to retrieve.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Character. The tag value, or NULL if tag or concept set not found.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-renameTagKey"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-renameTagKey}{}}}
+\subsection{Method \code{renameTagKey()}}{
+Rename a tag key across specified concept sets (or all concept sets)
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$renameTagKey(oldTagName, newTagName, conceptSetIds = NULL)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{oldTagName}}{Character. The current tag name to rename.}
+
+\item{\code{newTagName}}{Character. The new tag name.}
+
+\item{\code{conceptSetIds}}{Integer vector or NULL. If NULL, renames across all concept sets that have this tag.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible tibble with id, old_value showing what was renamed.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-bulkModifyTagValue"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-bulkModifyTagValue}{}}}
+\subsection{Method \code{bulkModifyTagValue()}}{
+Bulk modify a tag value across concept sets matching an old value
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$bulkModifyTagValue(tagName, oldValue, newValue)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{tagName}}{Character. The name of the tag to modify.}
+
+\item{\code{oldValue}}{Character. The current value to match and replace.}
+
+\item{\code{newValue}}{Character. The new value to set.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisible tibble with id, label showing what was modified.
+}
+}
+\if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ConceptSetManifest-checkAtlasConceptSets"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-checkAtlasConceptSets}{}}}
 \subsection{Method \code{checkAtlasConceptSets()}}{
@@ -881,9 +1203,9 @@ Sync the manifest against concept set files on disk
 Scans the \code{json/} subdirectory of the concept sets folder, reconciles it against
 the SQLite manifest, and updates both the database and the in-memory list:
 \itemize{
-\item New files found on disk are added (new ConceptSetDef + manifest entry).
 \item Active manifest records whose file no longer exists are soft-deleted.
 \item Existing files whose JSON hash has changed are updated in the manifest.
+\item Orphaned files on disk not in manifest are automatically deleted.
 }
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$syncManifest(strict_mode = TRUE)}\if{html}{\out{</div>}}
@@ -899,7 +1221,8 @@ on disk. If FALSE, only warns about them without deletion. Default: TRUE.}
 }
 \subsection{Returns}{
 Data frame with columns: id, label, action
-(\code{"added"}, \code{"hash_updated"}, \code{"missing_flagged"}, or \code{"unchanged"}).
+(\code{"hash_updated"}, \code{"missing_flagged"}, \code{"unchanged"}, or
+\code{"auto_removed_orphan"}).
 }
 }
 \if{html}{\out{<hr>}}

@@ -59,21 +59,44 @@ conceptSetManifest$setAtlasConnection(atlasConnection)
 
 
 # ================================================================================
-# D. IMPORT CONCEPT SETS FROM ATLAS
+# D. SYNC REGISTERED ATLAS CONCEPT SETS
+# ================================================================================
+
+# Runs first, before any import: re-checks every registered ATLAS concept set
+# against ATLAS and updates changed definitions in place (same ID). This is
+# the step that propagates ATLAS edits, and running it before the import means
+# even a stale load csv cannot prevent the manifest from syncing.
+conceptSetManifest$updateAtlasConceptSets()
+
+# To update a single concept set on demand instead, use:
+# conceptSetManifest$addAtlasConceptSet(atlasId = ..., label = "...",
+#                                       stopIfExists = FALSE)
+
+
+# ================================================================================
+# E. IMPORT NEW CONCEPT SETS FROM ATLAS
 # ================================================================================
 
 # Reads conceptSetsLoad.csv and downloads CIRCE JSON definitions from ATLAS
 # Place your conceptSetsLoad.csv in inputs/conceptSets/ before running this
 
-conceptSetsLoad <- readr::read_csv(
-    here::here("inputs/conceptSets/conceptSetsLoad.csv"), 
-    show_col_types = FALSE
-)
+# The load csv is for one-time imports only: rows already registered in the
+# manifest cause an error (delete the csv after a successful import). The
+# import is skipped when the csv is absent, so re-running main.R stays safe.
+# NOTE: no curly braces in this template (it is populated via glue).
+conceptSetsLoadPath <- here::here("inputs/conceptSets/conceptSetsLoad.csv")
 
-conceptSetManifest$importAtlasConceptSets(conceptSetsLoad = conceptSetsLoad)
+if (fs::file_exists(conceptSetsLoadPath))
+  conceptSetManifest$importAtlasConceptSets(
+    conceptSetsLoad = readr::read_csv(conceptSetsLoadPath, show_col_types = FALSE)
+  )
+
+if (!fs::file_exists(conceptSetsLoadPath))
+  cli::cli_alert_info("No conceptSetsLoad.csv found - skipping one-time import")
+
 
 # ================================================================================
-# E. REVIEW IMPORTED CONCEPT SETS
+# F. REVIEW IMPORTED CONCEPT SETS
 # ================================================================================
 
 # Display a table of all concept sets in the manifest

@@ -10,7 +10,7 @@
     
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.5</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.6</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -54,6 +54,155 @@
     </div>
 
     <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.0.6" id="picard-006">picard 0.0.6<a class="anchor" aria-label="anchor" href="#picard-006"></a></h2>
+<div class="section level3">
+<h3 id="new-features-0-0-6">New Features<a class="anchor" aria-label="anchor" href="#new-features-0-0-6"></a></h3>
+<div class="section level4">
+<h4 id="custom-dependent-sql-cohorts-0-0-6">Custom Dependent SQL Cohorts<a class="anchor" aria-label="anchor" href="#custom-dependent-sql-cohorts-0-0-6"></a></h4>
+<ul><li>Added <code>$addDependentCustomCohort(filePath, label, category, dependentCohortIdList, tags)</code> to register hand-written SQL cohorts that depend on one or more existing manifest cohorts.</li>
+<li>Introduced <code>custom_derived</code> as an explicit cohort type for dependency-aware custom SQL, distinct from base <code>custom</code> SQL cohorts added with <code>$addSqlCohort()</code>.</li>
+<li>Removed the older <code>buildCustomDependentCohort()</code> pathway in favor of a single add-style workflow for dependent custom SQL.</li>
+<li>
+<code>dependentCohortIdList</code> is now stored as named dependency metadata and reused at execution time, so user-defined SqlRender placeholders such as <code>@inc_cohort_id</code>, <code>@exc_cohort_id</code>, or any other non-reserved parameter names can be injected from manifest metadata.</li>
+<li>Dependency-aware custom SQL must preserve the standard Picard cohort write contract by deleting from and inserting into <code>@target_database_schema.@target_cohort_table</code> using <code>@target_cohort_id</code>.</li>
+<li>Execution logic now treats <code>custom_derived</code> like other derived cohorts for dependency-hash comparison, checksum persistence, and stale-cascade behavior rather than using raw SQL hash logic.</li>
+<li>Dependent cohort review and generation summaries now include <code>custom_derived</code> cohorts explicitly.</li>
+<li>bug fix to deal with named list of dependent cohort ids</li>
+</ul></div>
+<div class="section level4">
+<h4 id="derived-cohort-builder-api-entry-first-0-0-6">Derived Cohort Builder API (Entry-First)<a class="anchor" aria-label="anchor" href="#derived-cohort-builder-api-entry-first-0-0-6"></a></h4>
+<ul><li>
+<strong>API CHANGE</strong>: derived cohort builders in <code>build_dependent_cohorts.R</code> now support entry-row inputs (from <code>queryCohortsByLabel()</code> and similar query methods) as the preferred interface instead of raw cohort IDs.</li>
+<li>Updated builders include: <code>$buildSubsetCohortTemporal()</code>, <code>$buildUnionCohort()</code>, <code>$buildComplementCohort()</code>, <code>$buildCompositeCohort()</code>, <code>$buildDemographicCohort()</code>, <code>$buildStratifiedCohorts()</code>, <code>$buildOPriorT()</code>, <code>$buildTPriorO()</code>, and <code>$buildCensorCohort()</code>.</li>
+<li>Legacy ID-based arguments remain supported for backward compatibility, with migration guidance warnings when using ID routes.</li>
+<li>Added input-route validation to enforce mutually exclusive usage of ID arguments vs entry arguments within each build call.</li>
+</ul></div>
+<div class="section level4">
+<h4 id="comprehensive-tag-management-api-for-cohortmanifest-and-conceptsetmanifest-0-0-6">Comprehensive Tag Management API for CohortManifest and ConceptSetManifest<a class="anchor" aria-label="anchor" href="#comprehensive-tag-management-api-for-cohortmanifest-and-conceptsetmanifest-0-0-6"></a></h4>
+<div class="section level5">
+<h5 id="new-tag-manipulation-functions-both-manifests-0-0-6">New Tag Manipulation Functions (Both Manifests)<a class="anchor" aria-label="anchor" href="#new-tag-manipulation-functions-both-manifests-0-0-6"></a></h5>
+<ul><li>
+<code>$addCohortTag(cohortId, tagName, tagValue)</code> / <code>$addConceptSetTag()</code> - Add a single tag non-destructively</li>
+<li>
+<code>$removeConceptSetTag(conceptSetId, tagName)</code> / <code>$removeCohortTag()</code> - Remove a specific tag from a cohort/concept set</li>
+<li>
+<code>$modifyCohortTagValue(cohortId, tagName, newValue)</code> / <code>$modifyConceptSetTagValue()</code> - Update an existing tag value</li>
+<li>
+<code>$getCohortTags(cohortId)</code> / <code>$getConceptSetTags()</code> - Retrieve all tags for a manifest entry as a named list</li>
+<li>
+<code>$mergeTagsIntoCohort(cohortId, newTags)</code> / <code>$mergeTagsIntoConceptSet()</code> - Additive tag merge (preserves existing unspecified tags)</li>
+<li>
+<code>$listAllUniqueTags()</code> - Discover all unique tag names in use across the manifest</li>
+<li>
+<code>$getTagValue(cohortId, tagName)</code> / <code>$getTagValue()</code> - Convenience function for single tag retrieval</li>
+<li>
+<code>$renameTagKey(oldTagName, newTagName, cohortIds = NULL)</code> / <code>$renameTagKey()</code> - Batch rename tag key across specified or all manifest entries</li>
+<li>
+<code>$bulkModifyTagValue(tagName, oldValue, newValue)</code> / <code>$bulkModifyTagValue()</code> - Batch update all tags matching a name/value pair</li>
+</ul></div>
+<div class="section level5">
+<h5 id="new-tag-query-functions-both-manifests-0-0-6">New Tag Query Functions (Both Manifests)<a class="anchor" aria-label="anchor" href="#new-tag-query-functions-both-manifests-0-0-6"></a></h5>
+<ul><li>
+<code>$queryCohortsMissingTag(tagName)</code> / <code>$queryConceptSetsMissingTag()</code> - Quality audit: find manifest entries lacking a specific tag</li>
+<li>
+<code>$queryCohortsWithTagValues(tagValueMapping)</code> / <code>$queryConceptSetsWithTagValues()</code> - Clean multi-tag AND-logic queries using named list syntax (e.g., <code>list(status = "approved", owner = "alice")</code>)</li>
+<li>
+<code>$getTagValuesSummary(tagName)</code> - Audit tag value frequency and distribution across the manifest</li>
+</ul></div>
+<div class="section level5">
+<h5 id="benefits-0-0-6">Benefits<a class="anchor" aria-label="anchor" href="#benefits-0-0-6"></a></h5>
+<ul><li>
+<strong>Non-destructive operations</strong>: Additive functions like <code>addCohortTag()</code> and <code>mergeTagsIntoCohort()</code> preserve existing tags</li>
+<li>
+<strong>Batch operations</strong>: Rename and bulk-modify functions streamline large-scale tag updates</li>
+<li>
+<strong>Quality workflows</strong>: Missing-tag queries and summaries enable data quality and QA audits</li>
+<li>
+<strong>Clean query syntax</strong>: Named list interface replaces manual “name: value” string construction</li>
+<li>
+<strong>Consistent API</strong>: Identical method names and signatures across CohortManifest and ConceptSetManifest</li>
+</ul></div>
+</div>
+<div class="section level4">
+<h4 id="definition-updates-and-upsert-api-0-0-6">Definition Updates and Upsert API<a class="anchor" aria-label="anchor" href="#definition-updates-and-upsert-api-0-0-6"></a></h4>
+<div class="section level5">
+<h5 id="capr-0-0-6">Capr<a class="anchor" aria-label="anchor" href="#capr-0-0-6"></a></h5>
+<ul><li>New <code>$updateCaprCohort()</code> / <code>$updateCaprConceptSet()</code>: overwrite a registered JSON definition in place — same ID and file path, hash refreshed, derived dependents marked <code>stale</code>, no-op when the definition is unchanged.</li>
+<li>
+<code>$addCaprCohort()</code> / <code>$addCaprConceptSet()</code> gain <code>stopIfExists = FALSE</code> to upsert instead of erroring on an existing label (metadata refreshed; tags replaced only when supplied).</li>
+<li>
+<code>$addCaprConceptSet()</code> now records <code>route = "capr"</code> for provenance parity with cohorts.</li>
+</ul></div>
+<div class="section level5">
+<h5 id="atlas-0-0-6">ATLAS<a class="anchor" aria-label="anchor" href="#atlas-0-0-6"></a></h5>
+<ul><li>
+<code>$addAtlasCohort()</code> / <code>$addAtlasConceptSet()</code> gain <code>stopIfExists = FALSE</code>: fetch the current ATLAS definition and update the registered entry in place.</li>
+<li>
+<code>importAtlasCohorts()</code> / <code>importAtlasConceptSets()</code> are now strictly <strong>one-time imports</strong>: they fail fast before importing anything when rows are already registered by <code>atlasId</code> or when labels collide.</li>
+<li>The import ATLAS templates now run <code>updateAtlasCohorts()</code> / <code>updateAtlasConceptSets()</code> unconditionally <strong>before</strong> the import section, so every <code><a href="../reference/sourceInputBuilderScripts.html">sourceInputBuilderScripts()</a></code> run syncs registered definitions with ATLAS first. The one-time import section is skipped once the load CSV has been deleted (the documented post-import step), keeping <code>main.R</code> re-runs safe.</li>
+</ul></div>
+<div class="section level5">
+<h5 id="derived-cohorts-0-0-6">Derived Cohorts<a class="anchor" aria-label="anchor" href="#derived-cohorts-0-0-6"></a></h5>
+<ul><li>All eight builder functions (<code>buildUnionCohort</code>, <code>buildSubsetCohortTemporal</code>, <code>buildComplementCohort</code>, <code>buildCompositeCohort</code>, <code>buildDemographicCohort</code>, <code>buildOPriorT</code>, <code>buildTPriorO</code>, <code>buildCensorCohort</code>) plus <code>addDependentCustomCohort()</code> gain <code>stopIfExists = FALSE</code>: update parents, build parameters, and (for custom SQL) the file registration in place — SQL re-rendered, <code>depends_on</code>/<code>dependency_rule</code>/hash replaced, cohort marked <code>stale</code>, staleness cascaded to dependents.</li>
+<li>
+<code>dependentCohortIdList</code> entries now accept <strong>vectors of cohort IDs</strong> (rendered comma-separated by SqlRender for <code>IN (<a href="https://github.com/param" class="external-link">@param</a>)</code> clauses); all IDs flow into <code>depends_on</code>.</li>
+</ul></div>
+<div class="section level5">
+<h5 id="accidental-collision-guards-on-all-upserts-0-0-6">Accidental-Collision Guards on All Upserts<a class="anchor" aria-label="anchor" href="#accidental-collision-guards-on-all-upserts-0-0-6"></a></h5>
+<p>Every <code>stopIfExists = FALSE</code> upsert verifies identity before any mutation to prevent silently replacing an unrelated entry under a typo’d label: - <strong>ATLAS</strong> route: the registered <code>atlasId</code> tag must match the <code>atlasId</code> passed; entries without an <code>atlasId</code> tag cannot be updated via the ATLAS route. - <strong>Capr</strong> route: <code>updateCaprCohort()</code> requires <code>route = "capr"</code>; <code>updateCaprConceptSet()</code> refuses ATLAS-registered concept sets. - <strong>Derived builders</strong>: the existing cohort’s type must match the type the builder creates (a union can only be updated by <code>buildUnionCohort()</code>, etc.). - Intentional cross-boundary changes remain possible as an explicit two-step (retag then rebuild, or delete + rebuild); error messages state this.</p>
+</div>
+</div>
+<div class="section level4">
+<h4 id="deletion-and-dependency-integrity-0-0-6">Deletion and Dependency Integrity<a class="anchor" aria-label="anchor" href="#deletion-and-dependency-integrity-0-0-6"></a></h4>
+<ul><li>
+<code>$deleteCohort()</code> now refuses to orphan derived dependents; new <code>cascade = TRUE</code> parameter deletes the whole dependent subtree deepest-first (with optional <code>dropFromDBMS = TRUE</code> for DBMS cleanup).</li>
+<li>
+<code>$syncManifest()</code> cascades soft-deletion to dependents when a parent’s file has gone missing (new <code>cascade_deleted</code> action).</li>
+<li>Dependency-cycle guard: a cohort cannot be updated to depend on itself or one of its own dependents.</li>
+<li>
+<code>topological_sort()</code> now reports dangling parent references explicitly instead of a misleading “possible circular dependency” error.</li>
+</ul></div>
+<div class="section level4">
+<h4 id="pipeline-safety-0-0-6">Pipeline Safety<a class="anchor" aria-label="anchor" href="#pipeline-safety-0-0-6"></a></h4>
+<ul><li>
+<code><a href="../reference/sourceInputBuilderScripts.html">sourceInputBuilderScripts()</a></code> no longer swallows builder-script errors: failures are aggregated across all scripts and raised as a single abort, so a failed input build can never be followed by <code><a href="../reference/execStudyPipeline.html">execStudyPipeline()</a></code> running on an incomplete or stale manifest.</li>
+</ul></div>
+<div class="section level4">
+<h4 id="agent-skills-0-0-6">Agent Skills<a class="anchor" aria-label="anchor" href="#agent-skills-0-0-6"></a></h4>
+<ul><li>
+<strong>Capr Cohort Generation</strong>: New agent skill for building OHDSI cohorts programmatically using Capr</li>
+<li>
+<strong>Dependent Cohort Builder</strong>: New agent skill for constructing derived cohorts (temporal subsets, unions, complements, demographic filters, stratification) with automatic parent verification and dependency tracking</li>
+</ul></div>
+</div>
+<div class="section level3">
+<h3 id="bug-fixes-0-0-6">Bug Fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-0-6"></a></h3>
+<ul><li>Stale cohorts were unreachable by <code><a href="../reference/generateCohorts.html">generateCohorts()</a></code> — three <code>status = 'active'</code> filters dropped them from the dependency graph, the in-memory manifest, and dependency hashing, so the stale → regenerate → re-activate flow could never run.</li>
+<li>
+<code>checkAtlasConceptSets()</code> crashed on call due to undefined <code>cm_atlas_subset</code> / <code>atlas_id</code> variables and a nonexistent <code>filePath</code> column; <code>updateAtlasConceptSets()</code> targeted a nonexistent <code>timestamp</code> column.</li>
+<li>
+<code>updateAtlasCohorts()</code> never refreshed the in-memory manifest after updates; fetch-failure handlers in all four Atlas check/update methods didn’t skip failed iterations; early no-op exits fell through instead of returning.</li>
+<li>
+<code>deleteCohort()</code> fell through silently when the ID didn’t exist and never refreshed the in-memory manifest.</li>
+<li>
+<code>addCaprConceptSet()</code> now raises a clean duplicate-label error instead of a raw SQLite unique-index failure.</li>
+<li>
+<code><a href="../reference/sourceInputBuilderScripts.html">sourceInputBuilderScripts()</a></code> error handlers assigned to handler-local copies of the errors list (scoping bug), so <code>error_summary</code> never reported anything.</li>
+<li>In concept set manifest, check atlasId tag for existing entry in manifest. <code>$addAtlasConceptSet()</code> missing addition of atlasId tag.</li>
+<li>Flag which cohort tables are missing for cohort generation. Interactive mode to build cohort tables within <code>$executeCohortGeneration()</code>.</li>
+<li>Change agent mode to correct GitHub Copilot format (i.e. <code>/.github</code>).</li>
+<li>Clean vignettes and documentation to reflect current state of API.</li>
+<li>Add option that <code>createBlank...</code> will open the file.</li>
+</ul><div class="section level4">
+<h4 id="unit-tests-0-0-6">Unit Tests<a class="anchor" aria-label="anchor" href="#unit-tests-0-0-6"></a></h4>
+<ul><li>Expanded <code>test-CohortManifest-management.R</code> (80 passing tests).</li>
+<li>New <code>test-ConceptSetManifest-management.R</code> (33 passing tests).</li>
+<li>New <code>test-sourceInputBuilderScripts.R</code> (6 passing tests).</li>
+<li>New <code>test-CohortManifest-tags.R</code> covering the full tag manipulation and query API.</li>
+</ul></div>
+</div>
+</div>
+    <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.0.5" id="picard-005">picard 0.0.5<a class="anchor" aria-label="anchor" href="#picard-005"></a></h2>
 <div class="section level3">
 <h3 id="manifest-api-enhancements-0-0-5">Manifest API Enhancements<a class="anchor" aria-label="anchor" href="#manifest-api-enhancements-0-0-5"></a></h3>
@@ -63,7 +212,7 @@
 <li>
 <code><a href="../reference/resetCohortManifest.html">resetCohortManifest()</a></code> and <code><a href="../reference/resetConceptSetManifest.html">resetConceptSetManifest()</a></code> now include <code>archive</code> parameter (default <code>TRUE</code>) to create timestamped backups of manifest database and files before reset<br></li>
 <li>
-<code>importAtlasCohorts()</code> and <code><a href="../reference/importAtlasConceptSets.html">importAtlasConceptSets()</a></code> <strong>API CHANGE</strong>: changed from file-based (<code>conceptSetsLoadPath = "path/to/file.csv"</code>) to dataframe-based (<code>conceptSetsLoad = dataframe, atlasConnection = NULL</code>). Users now call <code><a href="https://readr.tidyverse.org/reference/read_delim.html" class="external-link">readr::read_csv()</a></code> first, then pass the resulting dataframe. Dataframe must contain columns: <code>atlasId</code>, <code>label</code>, <code>category</code> (plus optional tag columns)</li>
+<code>importAtlasCohorts()</code> and <code>importAtlasConceptSets()</code> <strong>API CHANGE</strong>: changed from file-based (<code>conceptSetsLoadPath = "path/to/file.csv"</code>) to dataframe-based (<code>conceptSetsLoad = dataframe, atlasConnection = NULL</code>). Users now call <code><a href="https://readr.tidyverse.org/reference/read_delim.html" class="external-link">readr::read_csv()</a></code> first, then pass the resulting dataframe. Dataframe must contain columns: <code>atlasId</code>, <code>label</code>, <code>category</code> (plus optional tag columns)</li>
 </ul></div>
 <div class="section level3">
 <h3 id="input-builder-scripts-0-0-5">Input Builder Scripts<a class="anchor" aria-label="anchor" href="#input-builder-scripts-0-0-5"></a></h3>

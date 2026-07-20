@@ -11,9 +11,14 @@
 # It is designed to be sourced as part of the pre-pipeline setup workflow.
 #
 # Workflow:
-#   1. Write Capr code to define your concept sets
-#   2. Use manifest$addCaprConceptSet() to add each concept set to the manifest
-#   3. Review the added concept sets in the manifest
+#   1. Write Capr code to define your concept sets (Section B)
+#   2. Use conceptSetManifest$addCaprConceptSet() to register each one (Section C)
+#   3. Review the added concept sets in the manifest (Section D)
+#
+# AI agent support: an agent skill for this workflow is available at
+# .agent/skills/picard-capr-cohorts/ (it wraps the Capr package's
+# capr-cohort-generation skill). Ask your coding agent to build the concept set;
+# only edit and source this script yourself.
 #
 # Note: Capr concept sets are powerful because they can be:
 #   - Generated dynamically based on data exploration
@@ -39,32 +44,31 @@ conceptSetManifest <- loadConceptSetManifest()
 # ================================================================================
 
 # Ensure Capr is loaded (you may need to install it first)
-# install.packages("Capr", repos = "http://ohdsi.github.io/drat")
+# remotes::install_github("OHDSI/Capr")
 library(Capr)
 
-# ---- Example 1: Simple condition concept set ----
-# diabetesConcepts <- cs(
-#   descendants(201820)  # Type 2 Diabetes Mellitus
+# Verify all concept ids in ATHENA (https://athena.ohdsi.org) before use.
+
+# ---- Example 1: Single condition with descendants ----
+# t2dConcepts <- cs(
+#   descendants(201826),  # Type 2 diabetes mellitus
+#   name = "Type 2 diabetes mellitus"
 # )
 
 
-# ---- Example 2: Multiple concepts with exclusions ----
+# ---- Example 2: Multiple drug ingredients ----
 # antidiabeticDrugs <- cs(
-#   descendants(21600095),  # Metformin
-#   descendants(21601461),  # Insulin
-#   descendants(21603933)   # Sulfonylureas
+#   descendants(1503297),   # metformin
+#   descendants(45774751),  # empagliflozin
+#   name = "Antidiabetic drugs"
 # )
 
 
-# ---- Example 3: Condition concept set ----
-# hypertensionConcepts <- cs(
-#   descendants(316866)  # Hypertension
-# )
-
-
-# ----  Example 4: Drug ingredient concept set ----
-# stainConcepts <- cs(
-#   descendants(1539411)  # HMG-CoA reductase inhibitors (statins)
+# ---- Example 3: Include descendants but exclude a sub-branch ----
+# nonT2dDiabetes <- cs(
+#   descendants(201820),           # Diabetes mellitus
+#   exclude(descendants(201826)),  # exclude the type 2 diabetes branch
+#   name = "Diabetes mellitus excluding type 2"
 # )
 
 
@@ -72,30 +76,21 @@ library(Capr)
 # C. ADD CAPR CONCEPT SETS TO THE MANIFEST
 # ================================================================================
 
-# Uncomment and modify as you add your Capr concept sets:
+# Registration writes the concept set JSON to inputs/conceptSets/json/ and
+# records it in the manifest. Labels must be unique within the manifest.
 
 # conceptSetManifest$addCaprConceptSet(
-#   caprConceptSet = diabetesConcepts,
+#   caprConceptSet = t2dConcepts,
 #   label = "Type 2 Diabetes",
-#   domain = "condition_occurrence",
-#   sourceCode = FALSE,
+#   category = "Conditions",
 #   tags = list(source = "capr", clinical_domain = "endocrinology")
 # )
 
 # conceptSetManifest$addCaprConceptSet(
 #   caprConceptSet = antidiabeticDrugs,
 #   label = "Antidiabetic Medications",
-#   domain = "drug_exposure",
-#   sourceCode = FALSE,
+#   category = "Drugs",
 #   tags = list(source = "capr", clinical_domain = "pharmacy")
-# )
-
-# conceptSetManifest$addCaprConceptSet(
-#   caprConceptSet = stainConcepts,
-#   label = "Statins",
-#   domain = "drug_exposure",
-#   sourceCode = FALSE,
-#   tags = list(source = "capr", clinical_domain = "cardiology")
 # )
 
 
@@ -118,21 +113,17 @@ cli::cli_alert_success("Capr concept sets added successfully to manifest!")
 # ================================================================================
 #
 # - Capr GitHub: https://github.com/OHDSI/Capr
-# - OHDSI Standardized Vocabularies: https://www.ohdsi.org/web/wiki/doku.php?id=documentation:vocabulary
-# - Concept Search: https://athena.ohdsi.org
+# - Capr documentation: https://ohdsi.github.io/Capr/
+# - OHDSI Standardized Vocabularies: https://ohdsi.github.io/TheBookOfOhdsi/StandardizedVocabularies.html
+# - Concept search (ATHENA): https://athena.ohdsi.org
+# - Agent skill bundle: .agent/skills/capr-cohort-generation/ (includes
+#   CAPR_REFERENCE.md, the full Capr API reference)
 #
 # Common Capr functions for concept sets:
-#   - cs(): Create a concept set
-#   - descendants(conceptId): Include concept and all descendants
-#   - exclude(conceptId): Exclude a specific concept
-#   - hasAttributes(...): Filter by concept attributes
-#   - isSourceCode(TRUE/FALSE): Filter by source vs standard codes
-#
-# Domain values (commonly used):
-#   - condition_occurrence: Diagnosis/medical conditions
-#   - drug_exposure: Medications/treatments
-#   - procedure_occurrence: Medical procedures
-#   - measurement: Laboratory tests and measurements
-#   - observation: Other observations and findings
+#   - cs(...): Create a concept set from ids and the modifiers below
+#   - descendants(conceptId): Include the concept and all its descendants
+#   - exclude(...): Exclude the wrapped concepts (and their descendants if wrapped
+#     around descendants())
+#   - mapped(...): Include source codes mapped to the concepts
 #
 # See Capr documentation and OHDSI community forums for advanced patterns.

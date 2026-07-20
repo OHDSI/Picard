@@ -12,7 +12,7 @@ CohortManifest R6 Class"><!-- mathjax --><script src="https://cdnjs.cloudflare.c
     
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.5</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.6</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -81,8 +81,13 @@ to apply updates.</p>
 <p>Requires that executionSettings has been set and includes:</p><ul><li><p>A database connection (via getConnection()</p></li>
 <li><p>workDatabaseSchema for the target schema</p></li>
 <li><p>cohortTable with the desired table name</p></li>
-<li><p>tempEmulationSchema if needed for the database platform</p></li>
 </ul><p>Requires that executionSettings has been set and includes:</p><ul><li><p>A database connection (via getConnection()</p></li>
+<li><p>workDatabaseSchema for the target schema</p></li>
+<li><p>cohortTable with the desired table name</p></li>
+<li><p>tempEmulationSchema if needed for the database platform</p></li>
+</ul><p>Use <code>createAllCohortTables()</code> instead. This alias is kept for
+backward compatibility.</p>
+<p>Requires that executionSettings has been set and includes:</p><ul><li><p>A database connection (via getConnection()</p></li>
 <li><p>workDatabaseSchema for the target schema</p></li>
 <li><p>cohortTable with the desired table name</p></li>
 </ul><p>Requires that <code>executionSettings</code> has been set with a valid database connection,
@@ -122,12 +127,13 @@ to apply updates.</p>
 <li><p><a href="#method-CohortManifest-addAtlasCohort"><code>CohortManifest$addAtlasCohort()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-importAtlasCohorts"><code>CohortManifest$importAtlasCohorts()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-addCaprCohort"><code>CohortManifest$addCaprCohort()</code></a></p></li>
+<li><p><a href="#method-CohortManifest-updateCaprCohort"><code>CohortManifest$updateCaprCohort()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-addSqlCohort"><code>CohortManifest$addSqlCohort()</code></a></p></li>
+<li><p><a href="#method-CohortManifest-addDependentCustomCohort"><code>CohortManifest$addDependentCustomCohort()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-addCirceCohort"><code>CohortManifest$addCirceCohort()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-buildUnionCohort"><code>CohortManifest$buildUnionCohort()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-buildSubsetCohortTemporal"><code>CohortManifest$buildSubsetCohortTemporal()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-buildComplementCohort"><code>CohortManifest$buildComplementCohort()</code></a></p></li>
-<li><p><a href="#method-CohortManifest-buildCustomDependentCohort"><code>CohortManifest$buildCustomDependentCohort()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-buildCompositeCohort"><code>CohortManifest$buildCompositeCohort()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-buildDemographicCohort"><code>CohortManifest$buildDemographicCohort()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-buildStratifiedCohorts"><code>CohortManifest$buildStratifiedCohorts()</code></a></p></li>
@@ -136,6 +142,9 @@ to apply updates.</p>
 <li><p><a href="#method-CohortManifest-queryCohortsByLabel"><code>CohortManifest$queryCohortsByLabel()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-queryCohortsByCategory"><code>CohortManifest$queryCohortsByCategory()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-queryCohortsByTagName"><code>CohortManifest$queryCohortsByTagName()</code></a></p></li>
+<li><p><a href="#method-CohortManifest-queryCohortsMissingTag"><code>CohortManifest$queryCohortsMissingTag()</code></a></p></li>
+<li><p><a href="#method-CohortManifest-queryCohortsWithTagValues"><code>CohortManifest$queryCohortsWithTagValues()</code></a></p></li>
+<li><p><a href="#method-CohortManifest-getTagValuesSummary"><code>CohortManifest$getTagValuesSummary()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-nCohorts"><code>CohortManifest$nCohorts()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-getCohortById"><code>CohortManifest$getCohortById()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-getCohortsByTag"><code>CohortManifest$getCohortsByTag()</code></a></p></li>
@@ -143,10 +152,22 @@ to apply updates.</p>
 <li><p><a href="#method-CohortManifest-updateCohortLabel"><code>CohortManifest$updateCohortLabel()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-updateCohortCategory"><code>CohortManifest$updateCohortCategory()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-updateCohortTags"><code>CohortManifest$updateCohortTags()</code></a></p></li>
+<li><p><a href="#method-CohortManifest-removeCohortTag"><code>CohortManifest$removeCohortTag()</code></a></p></li>
+<li><p><a href="#method-CohortManifest-modifyCohortTagValue"><code>CohortManifest$modifyCohortTagValue()</code></a></p></li>
+<li><p><a href="#method-CohortManifest-addCohortTag"><code>CohortManifest$addCohortTag()</code></a></p></li>
+<li><p><a href="#method-CohortManifest-getCohortTags"><code>CohortManifest$getCohortTags()</code></a></p></li>
+<li><p><a href="#method-CohortManifest-mergeTagsIntoCohort"><code>CohortManifest$mergeTagsIntoCohort()</code></a></p></li>
+<li><p><a href="#method-CohortManifest-listAllUniqueTags"><code>CohortManifest$listAllUniqueTags()</code></a></p></li>
+<li><p><a href="#method-CohortManifest-getTagValue"><code>CohortManifest$getTagValue()</code></a></p></li>
+<li><p><a href="#method-CohortManifest-renameTagKey"><code>CohortManifest$renameTagKey()</code></a></p></li>
+<li><p><a href="#method-CohortManifest-bulkModifyTagValue"><code>CohortManifest$bulkModifyTagValue()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-checkAtlasCohorts"><code>CohortManifest$checkAtlasCohorts()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-updateAtlasCohorts"><code>CohortManifest$updateAtlasCohorts()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-statusReport"><code>CohortManifest$statusReport()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-print"><code>CohortManifest$print()</code></a></p></li>
+<li><p><a href="#method-CohortManifest-checkCohortTables"><code>CohortManifest$checkCohortTables()</code></a></p></li>
+<li><p><a href="#method-CohortManifest-createCohortTable"><code>CohortManifest$createCohortTable()</code></a></p></li>
+<li><p><a href="#method-CohortManifest-createAllCohortTables"><code>CohortManifest$createAllCohortTables()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-createCohortTables"><code>CohortManifest$createCohortTables()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-dropCohortTables"><code>CohortManifest$dropCohortTables()</code></a></p></li>
 <li><p><a href="#method-CohortManifest-syncManifest"><code>CohortManifest$syncManifest()</code></a></p></li>
@@ -196,9 +217,9 @@ Review dependent cohorts and their dependency metadata</p>
 </div><p></p><hr><a id="method-CohortManifest-reviewDependentCohorts"></a><div class="section">
 <h3 id="method-reviewdependentcohorts-">Method <code>reviewDependentCohorts()</code><a class="anchor" aria-label="anchor" href="#method-reviewdependentcohorts-"></a></h3>
 <p>Returns a summary tibble of all active derived cohorts (union, subset, complement,
-composite, oprior, tprior, censor) with parsed dependency information sourced
-directly from SQLite. Useful for quickly auditing what each derived cohort depends
-on and how it was built.</p><div class="section">
+composite, oprior, tprior, censor, custom_derived) with parsed dependency
+information sourced directly from SQLite. Useful for quickly auditing what
+each derived cohort depends on and how it was built.</p><div class="section">
 <h4 id="usage-2">Usage<a class="anchor" aria-label="anchor" href="#usage-2"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">reviewDependentCohorts</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
@@ -208,8 +229,7 @@ on and how it was built.</p><div class="section">
 <p>A tibble with columns:</p><ul><li><p><code>id</code> - Cohort ID</p></li>
 <li><p><code>label</code> - Cohort label</p></li>
 <li><p><code>cohort_type</code> - One of 'union', 'subset', 'complement', 'composite',
-'oprior', 'tprior', 'censor'</p></li>
-<li><p><code>category</code> - User-defined category</p></li>
+'oprior', 'tprior', 'censor', 'custom_derived'</p></li>
 <li><p><code>parent_cohorts</code> - Human-readable parent list, e.g. "Label A (1), Label B (2)"</p></li>
 <li><p><code>rule_summary</code> - Compact summary of the dependency rule parameters</p></li>
 <li><p><code>created_at</code> - Timestamp of creation</p></li>
@@ -236,7 +256,7 @@ on and how it was built.</p><div class="section">
 <div class="section">
 <h4 id="returns-2">Returns<a class="anchor" aria-label="anchor" href="#returns-2"></a></h4>
 <p>A tibble with columns: id, label, category, tags, file_path, hash,
-source_type, cohort_type, status, created_at, deleted_at
+source_type, cohort_type, status, depends_on, created_at, deleted_at
 Review stale derived cohorts</p>
 </div>
 
@@ -368,7 +388,8 @@ the cohort in the manifest.</p><div class="section">
 <span>  <span class="va">label</span>,</span>
 <span>  <span class="va">category</span>,</span>
 <span>  tags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  atlasConnection <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  atlasConnection <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  stopIfExists <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
@@ -396,6 +417,15 @@ with a method <code>getCohortDefinition(cohortId)</code> that returns a list wit
 If <code>NULL</code>, falls back to the connection stored via <code>$setAtlasConnection()</code>.</p></dd>
 
 
+<dt><code>stopIfExists</code></dt>
+<dd><p>Logical. If TRUE (default), raises an error when an
+active cohort with this label is already registered. If FALSE, fetches
+the current definition from ATLAS and updates the registered cohort in
+place — same ID and file path, hash refreshed, <code>category</code>/<code>tags</code>/atlasId
+replaced, derived dependents marked 'stale'. An unchanged definition
+leaves the file untouched. Default: TRUE (fail-safe).</p></dd>
+
+
 </dl><p></p></div>
 </div>
 <div class="section">
@@ -407,8 +437,12 @@ If <code>NULL</code>, falls back to the connection stored via <code>$setAtlasCon
 <h3 id="method-importatlascohorts-">Method <code>importAtlasCohorts()</code><a class="anchor" aria-label="anchor" href="#method-importatlascohorts-"></a></h3>
 <p>Batch-import cohorts from ATLAS via a cohortsLoad dataframe</p>
 <p>Either create a dataframe or read in a csv file with columns <code>atlasId</code>, <code>label</code>, <code>category</code> (required) plus any
-additional columns treated as tag key-value pairs for tags. Calls <code>addAtlasCohort()</code> for each row inside
-a <code>tryCatch</code> so a single failure does not abort the entire batch.</p><div class="section">
+additional columns treated as tag key-value pairs for tags. Calls <code>addAtlasCohort()</code> for each row.</p>
+<p>The load file is a transient, one-time import mechanism: rows whose
+atlasId or label are already registered in the manifest are an error, not
+an update. To sync registered cohorts with ATLAS, run
+<code>updateAtlasCohorts()</code>; to update a single cohort, use
+<code>addAtlasCohort(stopIfExists = FALSE)</code>.</p><div class="section">
 <h4 id="usage-12">Usage<a class="anchor" aria-label="anchor" href="#usage-12"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">importAtlasCohorts</span><span class="op">(</span><span class="va">cohortsLoad</span>, atlasConnection <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
@@ -437,7 +471,13 @@ If <code>NULL</code>, falls back to the connection stored via <code>$setAtlasCon
 <p>Takes a Capr Cohort object, exports it to JSON in <code>json/</code>, and registers
 the cohort in the manifest.</p><div class="section">
 <h4 id="usage-13">Usage<a class="anchor" aria-label="anchor" href="#usage-13"></a></h4>
-<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">addCaprCohort</span><span class="op">(</span><span class="va">caprCohort</span>, <span class="va">label</span>, <span class="va">category</span>, tags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span></code></pre></div><p></p></div>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">addCaprCohort</span><span class="op">(</span></span>
+<span>  <span class="va">caprCohort</span>,</span>
+<span>  <span class="va">label</span>,</span>
+<span>  <span class="va">category</span>,</span>
+<span>  tags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  stopIfExists <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
@@ -458,6 +498,15 @@ the cohort in the manifest.</p><div class="section">
 <dd><p>Named list. Optional metadata tags.</p></dd>
 
 
+<dt><code>stopIfExists</code></dt>
+<dd><p>Logical. If TRUE (default), raises an error when an
+active cohort with this label is already registered. If FALSE, updates
+the existing cohort in place via <code>updateCaprCohort()</code> — the cohort
+keeps its ID and file path, and <code>category</code>/<code>tags</code> replace the
+registered metadata (previous tags are dropped if none are supplied).
+Default: TRUE (fail-safe).</p></dd>
+
+
 </dl><p></p></div>
 </div>
 <div class="section">
@@ -465,12 +514,42 @@ the cohort in the manifest.</p><div class="section">
 <p>Invisible integer. The assigned cohort ID.</p>
 </div>
 
+</div><p></p><hr><a id="method-CohortManifest-updateCaprCohort"></a><div class="section">
+<h3 id="method-updatecaprcohort-">Method <code>updateCaprCohort()</code><a class="anchor" aria-label="anchor" href="#method-updatecaprcohort-"></a></h3>
+<p>Update an existing Capr cohort's JSON definition</p>
+<p>Takes a revised Capr Cohort object and upserts it over a cohort already
+registered via <code>addCaprCohort()</code>: the JSON file recorded in the manifest
+is overwritten in place and the manifest hash is refreshed, so the cohort
+keeps its ID and file path. Any derived cohorts that depend on it are
+marked 'stale'. If the new definition is identical to the registered one,
+nothing is changed.</p><div class="section">
+<h4 id="usage-14">Usage<a class="anchor" aria-label="anchor" href="#usage-14"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">updateCaprCohort</span><span class="op">(</span><span class="va">caprCohort</span>, <span class="va">label</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="arguments-7">Arguments<a class="anchor" aria-label="anchor" href="#arguments-7"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>caprCohort</code></dt>
+<dd><p>A Capr Cohort object (inherits from "Cohort").</p></dd>
+
+
+<dt><code>label</code></dt>
+<dd><p>Character. Label of the active cohort to update.</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-12">Returns<a class="anchor" aria-label="anchor" href="#returns-12"></a></h4>
+<p>Invisible integer. The cohort ID.</p>
+</div>
+
 </div><p></p><hr><a id="method-CohortManifest-addSqlCohort"></a><div class="section">
 <h3 id="method-addsqlcohort-">Method <code>addSqlCohort()</code><a class="anchor" aria-label="anchor" href="#method-addsqlcohort-"></a></h3>
 <p>Add a custom SQL cohort</p>
 <p>Registers an existing SQL file in the manifest. The file must already exist
 on disk (typically in <code>sql/</code>).</p><div class="section">
-<h4 id="usage-14">Usage<a class="anchor" aria-label="anchor" href="#usage-14"></a></h4>
+<h4 id="usage-15">Usage<a class="anchor" aria-label="anchor" href="#usage-15"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">addSqlCohort</span><span class="op">(</span></span>
 <span>  <span class="va">filePath</span>,</span>
 <span>  <span class="va">label</span>,</span>
@@ -481,7 +560,7 @@ on disk (typically in <code>sql/</code>).</p><div class="section">
 </div>
 
 <div class="section">
-<h4 id="arguments-7">Arguments<a class="anchor" aria-label="anchor" href="#arguments-7"></a></h4>
+<h4 id="arguments-8">Arguments<a class="anchor" aria-label="anchor" href="#arguments-8"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>filePath</code></dt>
 <dd><p>Character. Path to the SQL file.</p></dd>
 
@@ -499,15 +578,79 @@ on disk (typically in <code>sql/</code>).</p><div class="section">
 
 
 <dt><code>stopIfExists</code></dt>
-<dd><p>Logical. If TRUE (default), raises an error if the file
-already exists on disk or is already registered in the manifest. If FALSE,
-overwrites silently with a warning. Default: TRUE (fail-safe).</p></dd>
+<dd><p>Logical. If TRUE (default), raises an error when an
+active cohort with this label is already registered, or the file path
+is registered to another cohort. If FALSE, updates the registered
+cohort in place — same ID, file path registration and content hash
+refreshed, <code>category</code>/<code>tags</code> replace the registered metadata (previous
+tags are dropped if none are supplied), and derived dependents are
+marked 'stale' when the definition changed. Default: TRUE (fail-safe).</p></dd>
 
 
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-12">Returns<a class="anchor" aria-label="anchor" href="#returns-12"></a></h4>
+<h4 id="returns-13">Returns<a class="anchor" aria-label="anchor" href="#returns-13"></a></h4>
+<p>Invisible integer. The assigned cohort ID.</p>
+</div>
+
+</div><p></p><hr><a id="method-CohortManifest-addDependentCustomCohort"></a><div class="section">
+<h3 id="method-adddependentcustomcohort-">Method <code>addDependentCustomCohort()</code><a class="anchor" aria-label="anchor" href="#method-adddependentcustomcohort-"></a></h3>
+<p>Add a dependent custom SQL cohort</p>
+<p>Registers an existing SQL file in the manifest as a dependency-aware derived cohort.
+The SQL file must already exist on disk and must preserve the standard Picard
+cohort write contract using \.code@target_database_schema.@target_cohort_table
+and \.code@target_cohort_id.</p><div class="section">
+<h4 id="usage-16">Usage<a class="anchor" aria-label="anchor" href="#usage-16"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">addDependentCustomCohort</span><span class="op">(</span></span>
+<span>  <span class="va">filePath</span>,</span>
+<span>  <span class="va">label</span>,</span>
+<span>  <span class="va">category</span>,</span>
+<span>  <span class="va">dependentCohortIdList</span>,</span>
+<span>  tags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  stopIfExists <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="arguments-9">Arguments<a class="anchor" aria-label="anchor" href="#arguments-9"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>filePath</code></dt>
+<dd><p>Character. Path to the SQL file.</p></dd>
+
+
+<dt><code>label</code></dt>
+<dd><p>Character. Display name for the cohort.</p></dd>
+
+
+<dt><code>category</code></dt>
+<dd><p>Character. Required classification.</p></dd>
+
+
+<dt><code>dependentCohortIdList</code></dt>
+<dd><p>Named list. Each name is a SqlRender parameter to expose
+in the SQL file and each value is the cohort ID — or an integer vector of
+cohort IDs — to inject at runtime. Vectors render comma-separated, for use
+in \.codeIN (@param) clauses.
+Example: \.codelist(inc_cohort_id = 10L, exc_cohort_ids = c(12L, 14L)).</p></dd>
+
+
+<dt><code>tags</code></dt>
+<dd><p>Named list. Optional metadata tags.</p></dd>
+
+
+<dt><code>stopIfExists</code></dt>
+<dd><p>Logical. If TRUE (default), raises an error when an
+active or stale cohort with this label is already registered. If FALSE,
+updates the registered cohort in place (same ID): the dependent cohort
+IDs and the SQL file registration (path and content hash) are replaced,
+the cohort is marked 'stale' for regeneration, and its own dependents
+are marked stale too. Default: TRUE (fail-safe).</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-14">Returns<a class="anchor" aria-label="anchor" href="#returns-14"></a></h4>
 <p>Invisible integer. The assigned cohort ID.</p>
 </div>
 
@@ -517,12 +660,12 @@ overwrites silently with a warning. Default: TRUE (fail-safe).</p></dd>
 <p>Registers an existing Circe-compatible JSON file in the manifest.
 The file must already exist on disk (typically in <code>json/</code>).
 Validates that the JSON is valid Circe format using CirceR.</p><div class="section">
-<h4 id="usage-15">Usage<a class="anchor" aria-label="anchor" href="#usage-15"></a></h4>
+<h4 id="usage-17">Usage<a class="anchor" aria-label="anchor" href="#usage-17"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">addCirceCohort</span><span class="op">(</span><span class="va">filePath</span>, <span class="va">label</span>, <span class="va">category</span>, tags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-8">Arguments<a class="anchor" aria-label="anchor" href="#arguments-8"></a></h4>
+<h4 id="arguments-10">Arguments<a class="anchor" aria-label="anchor" href="#arguments-10"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>filePath</code></dt>
 <dd><p>Character. Path to the Circe JSON file.</p></dd>
 
@@ -542,7 +685,7 @@ Validates that the JSON is valid Circe format using CirceR.</p><div class="secti
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-13">Returns<a class="anchor" aria-label="anchor" href="#returns-13"></a></h4>
+<h4 id="returns-15">Returns<a class="anchor" aria-label="anchor" href="#returns-15"></a></h4>
 <p>Invisible integer. The assigned cohort ID.</p>
 </div>
 
@@ -550,24 +693,30 @@ Validates that the JSON is valid Circe format using CirceR.</p><div class="secti
 <h3 id="method-buildunioncohort-">Method <code>buildUnionCohort()</code><a class="anchor" aria-label="anchor" href="#method-buildunioncohort-"></a></h3>
 <p>Build a union cohort from existing cohorts</p>
 <p>Creates a derived cohort that is the union of specified parent cohorts.
-Delegates SQL generation to the internal builder function.</p><div class="section">
-<h4 id="usage-16">Usage<a class="anchor" aria-label="anchor" href="#usage-16"></a></h4>
+Delegates SQL generation to the internal builder function.</p>
+<p>Input route policy:</p><ul><li><p>Preferred: provide <code>cohortEntries</code> (manifest query rows with <code>id</code>)</p></li>
+<li><p>Backward compatible: provide <code>cohortIds</code></p></li>
+<li><p>Exactly one route must be provided; passing both or neither is an error.</p></li>
+</ul><div class="section">
+<h4 id="usage-18">Usage<a class="anchor" aria-label="anchor" href="#usage-18"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">buildUnionCohort</span><span class="op">(</span></span>
 <span>  <span class="va">label</span>,</span>
 <span>  <span class="va">category</span>,</span>
 <span>  tags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  <span class="va">cohortIds</span>,</span>
+<span>  cohortIds <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  cohortEntries <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  gapDays <span class="op">=</span> <span class="fl">0L</span>,</span>
 <span>  eraPadDays <span class="op">=</span> <span class="fl">0L</span>,</span>
 <span>  minEraDays <span class="op">=</span> <span class="fl">0L</span>,</span>
 <span>  minCohorts <span class="op">=</span> <span class="fl">1L</span>,</span>
 <span>  washoutDays <span class="op">=</span> <span class="fl">0L</span>,</span>
-<span>  firstEraOnly <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span>  firstEraOnly <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  stopIfExists <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-9">Arguments<a class="anchor" aria-label="anchor" href="#arguments-9"></a></h4>
+<h4 id="arguments-11">Arguments<a class="anchor" aria-label="anchor" href="#arguments-11"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>label</code></dt>
 <dd><p>Character. Display name for the derived cohort.</p></dd>
 
@@ -581,7 +730,14 @@ Delegates SQL generation to the internal builder function.</p><div class="sectio
 
 
 <dt><code>cohortIds</code></dt>
-<dd><p>Numeric vector (minimum 2). Cohort IDs to union.</p></dd>
+<dd><p>Numeric vector (minimum 2). Legacy ID route to union cohorts.
+Supported for backward compatibility and emits a migration warning unless
+<code>options(picard.suppressIdRouteWarning = TRUE)</code> is set.</p></dd>
+
+
+<dt><code>cohortEntries</code></dt>
+<dd><p>Data frame/tibble with an <code>id</code> column (minimum 2 rows).
+Preferred route using manifest query results.</p></dd>
 
 
 <dt><code>gapDays</code></dt>
@@ -614,10 +770,19 @@ Default: 0.</p></dd>
 <dd><p>Logical. Return only the first collapsed era per subject. Default: FALSE.</p></dd>
 
 
+<dt><code>stopIfExists</code></dt>
+<dd><p>Logical. If TRUE (default), raises an error when an
+active or stale cohort with this label is already registered. If FALSE,
+updates the registered derived cohort in place (same ID and file path):
+the SQL is re-rendered, parents and build parameters are replaced, the
+cohort is marked 'stale' for regeneration, and its own dependents are
+marked stale too. Default: TRUE (fail-safe).</p></dd>
+
+
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-14">Returns<a class="anchor" aria-label="anchor" href="#returns-14"></a></h4>
+<h4 id="returns-16">Returns<a class="anchor" aria-label="anchor" href="#returns-16"></a></h4>
 <p>Invisible integer. The assigned cohort ID.</p>
 </div>
 
@@ -625,23 +790,30 @@ Default: 0.</p></dd>
 <h3 id="method-buildsubsetcohorttemporal-">Method <code>buildSubsetCohortTemporal()</code><a class="anchor" aria-label="anchor" href="#method-buildsubsetcohorttemporal-"></a></h3>
 <p>Build a subset cohort with temporal criteria</p>
 <p>Creates a derived cohort that subsets a base cohort using temporal
-relationship to a filter cohort.</p><div class="section">
-<h4 id="usage-17">Usage<a class="anchor" aria-label="anchor" href="#usage-17"></a></h4>
+relationship to a filter cohort.</p>
+<p>Input route policy:</p><ul><li><p>Preferred: provide <code>baseCohortEntry</code>/<code>filterCohortEntry</code></p></li>
+<li><p>Backward compatible: provide <code>baseCohortId</code>/<code>filterCohortId</code></p></li>
+<li><p>Exactly one route per role must be provided; both/neither is an error.</p></li>
+</ul><div class="section">
+<h4 id="usage-19">Usage<a class="anchor" aria-label="anchor" href="#usage-19"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">buildSubsetCohortTemporal</span><span class="op">(</span></span>
 <span>  <span class="va">label</span>,</span>
 <span>  <span class="va">category</span>,</span>
 <span>  tags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  <span class="va">baseCohortId</span>,</span>
-<span>  <span class="va">filterCohortId</span>,</span>
+<span>  baseCohortId <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  filterCohortId <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  baseCohortEntry <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  filterCohortEntry <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  <span class="va">startWindow</span>,</span>
 <span>  endWindow <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  endDateType <span class="op">=</span> <span class="st">"base"</span>,</span>
-<span>  subsetLimit <span class="op">=</span> <span class="st">"First"</span></span>
+<span>  subsetLimit <span class="op">=</span> <span class="st">"First"</span>,</span>
+<span>  stopIfExists <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-10">Arguments<a class="anchor" aria-label="anchor" href="#arguments-10"></a></h4>
+<h4 id="arguments-12">Arguments<a class="anchor" aria-label="anchor" href="#arguments-12"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>label</code></dt>
 <dd><p>Character. Display name.</p></dd>
 
@@ -655,11 +827,21 @@ relationship to a filter cohort.</p><div class="section">
 
 
 <dt><code>baseCohortId</code></dt>
-<dd><p>Integer. The cohort ID to subset.</p></dd>
+<dd><p>Integer. Legacy ID route for the base cohort.</p></dd>
 
 
 <dt><code>filterCohortId</code></dt>
-<dd><p>Integer. The cohort ID to use for temporal filtering.</p></dd>
+<dd><p>Integer. Legacy ID route for the filter cohort.</p></dd>
+
+
+<dt><code>baseCohortEntry</code></dt>
+<dd><p>Data frame/tibble with one row and an <code>id</code> column.
+Preferred route using manifest query results for the base cohort.</p></dd>
+
+
+<dt><code>filterCohortEntry</code></dt>
+<dd><p>Data frame/tibble with one row and an <code>id</code> column.
+Preferred route using manifest query results for the filter cohort.</p></dd>
 
 
 <dt><code>startWindow</code></dt>
@@ -683,107 +865,13 @@ to retain per subject. 'First' keeps the earliest event, 'Last' keeps the most r
 qualifying events. Default: 'First'.</p></dd>
 
 
-</dl><p></p></div>
-</div>
-<div class="section">
-<h4 id="returns-15">Returns<a class="anchor" aria-label="anchor" href="#returns-15"></a></h4>
-<p>Invisible integer. The assigned cohort ID.</p>
-</div>
-
-</div><p></p><hr><a id="method-CohortManifest-buildComplementCohort"></a><div class="section">
-<h3 id="method-buildcomplementcohort-">Method <code>buildComplementCohort()</code><a class="anchor" aria-label="anchor" href="#method-buildcomplementcohort-"></a></h3>
-<p>Build a complement cohort</p>
-<p>Creates a derived cohort containing all subjects from the population cohort who
-do NOT appear in any (or all) of the exclude cohorts.</p><div class="section">
-<h4 id="usage-18">Usage<a class="anchor" aria-label="anchor" href="#usage-18"></a></h4>
-<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">buildComplementCohort</span><span class="op">(</span></span>
-<span>  <span class="va">label</span>,</span>
-<span>  <span class="va">category</span>,</span>
-<span>  tags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  <span class="va">populationCohortId</span>,</span>
-<span>  <span class="va">excludeCohortIds</span>,</span>
-<span>  complementType <span class="op">=</span> <span class="st">"exclude_any"</span></span>
-<span><span class="op">)</span></span></code></pre></div><p></p></div>
-</div>
-
-<div class="section">
-<h4 id="arguments-11">Arguments<a class="anchor" aria-label="anchor" href="#arguments-11"></a></h4>
-<p></p><div class="arguments"><dl><dt><code>label</code></dt>
-<dd><p>Character. Display name.</p></dd>
-
-
-<dt><code>category</code></dt>
-<dd><p>Character. Required classification.</p></dd>
-
-
-<dt><code>tags</code></dt>
-<dd><p>Named list. Optional metadata tags.</p></dd>
-
-
-<dt><code>populationCohortId</code></dt>
-<dd><p>Integer. ID of the population (base) cohort.</p></dd>
-
-
-<dt><code>excludeCohortIds</code></dt>
-<dd><p>Integer vector (min length 1). IDs of cohorts whose
-subjects should be excluded from the population.</p></dd>
-
-
-<dt><code>complementType</code></dt>
-<dd><p>Character. One of <code>"exclude_any"</code> (default) or
-<code>"exclude_all"</code>. <code>"exclude_any"</code> removes subjects present in ANY
-exclude cohort; <code>"exclude_all"</code> removes subjects only if they appear
-in ALL exclude cohorts.</p></dd>
-
-
-</dl><p></p></div>
-</div>
-<div class="section">
-<h4 id="returns-16">Returns<a class="anchor" aria-label="anchor" href="#returns-16"></a></h4>
-<p>Invisible integer. The assigned cohort ID.</p>
-</div>
-
-</div><p></p><hr><a id="method-CohortManifest-buildCustomDependentCohort"></a><div class="section">
-<h3 id="method-buildcustomdependentcohort-">Method <code>buildCustomDependentCohort()</code><a class="anchor" aria-label="anchor" href="#method-buildcustomdependentcohort-"></a></h3>
-<p>Build a custom dependent cohort from a user-supplied SQL file</p>
-<p>Registers an existing <code>.sql</code> file as a derived cohort with explicit
-dependencies on manifest cohorts. Unlike <code>addSqlCohort()</code> (which treats
-the file as a base cohort), this method copies the SQL into the
-<code>derived/</code> directory and sets <code>depends_on</code>, so the skip-logic
-uses dependency-aware hashing (see Phase 1.1).</p><div class="section">
-<h4 id="usage-19">Usage<a class="anchor" aria-label="anchor" href="#usage-19"></a></h4>
-<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">buildCustomDependentCohort</span><span class="op">(</span></span>
-<span>  <span class="va">filePath</span>,</span>
-<span>  <span class="va">label</span>,</span>
-<span>  <span class="va">category</span>,</span>
-<span>  <span class="va">cohortIds</span>,</span>
-<span>  tags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="op">)</span></span></code></pre></div><p></p></div>
-</div>
-
-<div class="section">
-<h4 id="arguments-12">Arguments<a class="anchor" aria-label="anchor" href="#arguments-12"></a></h4>
-<p></p><div class="arguments"><dl><dt><code>filePath</code></dt>
-<dd><p>Character. Path to the user's <code>.sql</code> file.
-The file is <strong>copied</strong> into the <code>derived/</code> directory — the original
-is not referenced after registration.</p></dd>
-
-
-<dt><code>label</code></dt>
-<dd><p>Character. Display name (must be unique in manifest).</p></dd>
-
-
-<dt><code>category</code></dt>
-<dd><p>Character. Required classification.</p></dd>
-
-
-<dt><code>cohortIds</code></dt>
-<dd><p>Integer vector (min. 1). Parent cohort IDs this SQL
-depends on. All must exist in the manifest.</p></dd>
-
-
-<dt><code>tags</code></dt>
-<dd><p>Named list. Optional metadata tags.</p></dd>
+<dt><code>stopIfExists</code></dt>
+<dd><p>Logical. If TRUE (default), raises an error when an
+active or stale cohort with this label is already registered. If FALSE,
+updates the registered derived cohort in place (same ID and file path):
+the SQL is re-rendered, parents and build parameters are replaced, the
+cohort is marked 'stale' for regeneration, and its own dependents are
+marked stale too. Default: TRUE (fail-safe).</p></dd>
 
 
 </dl><p></p></div>
@@ -793,19 +881,26 @@ depends on. All must exist in the manifest.</p></dd>
 <p>Invisible integer. The assigned cohort ID.</p>
 </div>
 
-</div><p></p><hr><a id="method-CohortManifest-buildCompositeCohort"></a><div class="section">
-<h3 id="method-buildcompositecohort-">Method <code>buildCompositeCohort()</code><a class="anchor" aria-label="anchor" href="#method-buildcompositecohort-"></a></h3>
-<p>Build a composite cohort</p>
-<p>Creates a derived cohort that requires membership in multiple cohorts
-(intersection logic).</p><div class="section">
+</div><p></p><hr><a id="method-CohortManifest-buildComplementCohort"></a><div class="section">
+<h3 id="method-buildcomplementcohort-">Method <code>buildComplementCohort()</code><a class="anchor" aria-label="anchor" href="#method-buildcomplementcohort-"></a></h3>
+<p>Build a complement cohort</p>
+<p>Creates a derived cohort containing all subjects from the population cohort who
+do NOT appear in any (or all) of the exclude cohorts.</p>
+<p>Input route policy:</p><ul><li><p>Preferred: provide <code>populationCohortEntry</code>/<code>excludeCohortEntries</code></p></li>
+<li><p>Backward compatible: provide <code>populationCohortId</code>/<code>excludeCohortIds</code></p></li>
+<li><p>Exactly one route per role must be provided; both/neither is an error.</p></li>
+</ul><div class="section">
 <h4 id="usage-20">Usage<a class="anchor" aria-label="anchor" href="#usage-20"></a></h4>
-<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">buildCompositeCohort</span><span class="op">(</span></span>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">buildComplementCohort</span><span class="op">(</span></span>
 <span>  <span class="va">label</span>,</span>
 <span>  <span class="va">category</span>,</span>
 <span>  tags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  <span class="va">criteriaCohortIds</span>,</span>
-<span>  eventSelection <span class="op">=</span> <span class="st">"First"</span>,</span>
-<span>  minEventCount <span class="op">=</span> <span class="fl">1L</span></span>
+<span>  populationCohortId <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  excludeCohortIds <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  populationCohortEntry <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  excludeCohortEntries <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  complementType <span class="op">=</span> <span class="st">"exclude_any"</span>,</span>
+<span>  stopIfExists <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
@@ -823,9 +918,92 @@ depends on. All must exist in the manifest.</p></dd>
 <dd><p>Named list. Optional metadata tags.</p></dd>
 
 
+<dt><code>populationCohortId</code></dt>
+<dd><p>Integer. Legacy ID route for the population (base) cohort.</p></dd>
+
+
+<dt><code>excludeCohortIds</code></dt>
+<dd><p>Integer vector (min length 1). Legacy ID route for cohorts whose
+subjects should be excluded from the population.</p></dd>
+
+
+<dt><code>populationCohortEntry</code></dt>
+<dd><p>Data frame/tibble with one row and an <code>id</code> column.
+Preferred route using manifest query results for the population cohort.</p></dd>
+
+
+<dt><code>excludeCohortEntries</code></dt>
+<dd><p>Data frame/tibble with an <code>id</code> column (minimum 1 row).
+Preferred route using manifest query results for exclusion cohorts.</p></dd>
+
+
+<dt><code>complementType</code></dt>
+<dd><p>Character. One of <code>"exclude_any"</code> (default) or
+<code>"exclude_all"</code>. <code>"exclude_any"</code> removes subjects present in ANY
+exclude cohort; <code>"exclude_all"</code> removes subjects only if they appear
+in ALL exclude cohorts.</p></dd>
+
+
+<dt><code>stopIfExists</code></dt>
+<dd><p>Logical. If TRUE (default), raises an error when an
+active or stale cohort with this label is already registered. If FALSE,
+updates the registered derived cohort in place (same ID and file path):
+the SQL is re-rendered, parents and build parameters are replaced, the
+cohort is marked 'stale' for regeneration, and its own dependents are
+marked stale too. Default: TRUE (fail-safe).</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-18">Returns<a class="anchor" aria-label="anchor" href="#returns-18"></a></h4>
+<p>Invisible integer. The assigned cohort ID.</p>
+</div>
+
+</div><p></p><hr><a id="method-CohortManifest-buildCompositeCohort"></a><div class="section">
+<h3 id="method-buildcompositecohort-">Method <code>buildCompositeCohort()</code><a class="anchor" aria-label="anchor" href="#method-buildcompositecohort-"></a></h3>
+<p>Build a composite cohort</p>
+<p>Creates a derived cohort that requires membership in multiple cohorts
+(intersection logic).</p>
+<p>Input route policy:</p><ul><li><p>Preferred: provide <code>criteriaCohortEntries</code></p></li>
+<li><p>Backward compatible: provide <code>criteriaCohortIds</code></p></li>
+<li><p>Exactly one route must be provided; passing both or neither is an error.</p></li>
+</ul><div class="section">
+<h4 id="usage-21">Usage<a class="anchor" aria-label="anchor" href="#usage-21"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">buildCompositeCohort</span><span class="op">(</span></span>
+<span>  <span class="va">label</span>,</span>
+<span>  <span class="va">category</span>,</span>
+<span>  tags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  criteriaCohortIds <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  criteriaCohortEntries <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  eventSelection <span class="op">=</span> <span class="st">"First"</span>,</span>
+<span>  minEventCount <span class="op">=</span> <span class="fl">1L</span>,</span>
+<span>  stopIfExists <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="arguments-14">Arguments<a class="anchor" aria-label="anchor" href="#arguments-14"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>label</code></dt>
+<dd><p>Character. Display name.</p></dd>
+
+
+<dt><code>category</code></dt>
+<dd><p>Character. Required classification.</p></dd>
+
+
+<dt><code>tags</code></dt>
+<dd><p>Named list. Optional metadata tags.</p></dd>
+
+
 <dt><code>criteriaCohortIds</code></dt>
-<dd><p>Integer vector. The cohort IDs to include in the composite
+<dd><p>Integer vector. Legacy ID route for cohorts to include in the composite
 (e.g., c(1, 2, 3) for Type 1 diabetes, Type 2 diabetes, and secondary diabetes).</p></dd>
+
+
+<dt><code>criteriaCohortEntries</code></dt>
+<dd><p>Data frame/tibble with an <code>id</code> column (minimum 2 rows).
+Preferred route using manifest query results.</p></dd>
 
 
 <dt><code>eventSelection</code></dt>
@@ -842,10 +1020,19 @@ Default: 'First'.</p></li>
 to qualify for the composite. Default: 1 (any subject with at least 1 event qualifies).</p></dd>
 
 
+<dt><code>stopIfExists</code></dt>
+<dd><p>Logical. If TRUE (default), raises an error when an
+active or stale cohort with this label is already registered. If FALSE,
+updates the registered derived cohort in place (same ID and file path):
+the SQL is re-rendered, parents and build parameters are replaced, the
+cohort is marked 'stale' for regeneration, and its own dependents are
+marked stale too. Default: TRUE (fail-safe).</p></dd>
+
+
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-18">Returns<a class="anchor" aria-label="anchor" href="#returns-18"></a></h4>
+<h4 id="returns-19">Returns<a class="anchor" aria-label="anchor" href="#returns-19"></a></h4>
 <p>Invisible integer. The assigned cohort ID.</p>
 </div>
 
@@ -853,29 +1040,40 @@ to qualify for the composite. Default: 1 (any subject with at least 1 event qual
 <h3 id="method-builddemographiccohort-">Method <code>buildDemographicCohort()</code><a class="anchor" aria-label="anchor" href="#method-builddemographiccohort-"></a></h3>
 <p>Build a demographic subset cohort</p>
 <p>Creates a derived cohort that subsets a base cohort by filtering on
-person-level demographic attributes (age, gender, race, ethnicity).</p><div class="section">
-<h4 id="usage-21">Usage<a class="anchor" aria-label="anchor" href="#usage-21"></a></h4>
+person-level demographic attributes (age, gender, race, ethnicity).</p>
+<p>Input route policy:</p><ul><li><p>Preferred: provide <code>baseCohortEntry</code></p></li>
+<li><p>Backward compatible: provide <code>baseCohortId</code></p></li>
+<li><p>Exactly one route must be provided; passing both or neither is an error.</p></li>
+</ul><div class="section">
+<h4 id="usage-22">Usage<a class="anchor" aria-label="anchor" href="#usage-22"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">buildDemographicCohort</span><span class="op">(</span></span>
 <span>  <span class="va">label</span>,</span>
-<span>  <span class="va">baseCohortId</span>,</span>
+<span>  baseCohortId <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  baseCohortEntry <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  <span class="va">category</span>,</span>
 <span>  minAge <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  maxAge <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  genderConceptIds <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  raceConceptIds <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  ethnicityConceptIds <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  tags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span></span>
+<span>  tags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  stopIfExists <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-14">Arguments<a class="anchor" aria-label="anchor" href="#arguments-14"></a></h4>
+<h4 id="arguments-15">Arguments<a class="anchor" aria-label="anchor" href="#arguments-15"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>label</code></dt>
 <dd><p>Character. Display name (e.g., "CKD - Males 40-75").</p></dd>
 
 
 <dt><code>baseCohortId</code></dt>
-<dd><p>Integer. ID of the base cohort to subset.</p></dd>
+<dd><p>Integer. Legacy ID route for the base cohort.</p></dd>
+
+
+<dt><code>baseCohortEntry</code></dt>
+<dd><p>Data frame/tibble with one row and an <code>id</code> column.
+Preferred route using manifest query results.</p></dd>
 
 
 <dt><code>category</code></dt>
@@ -907,10 +1105,19 @@ Common values: 8507 = Male, 8532 = Female. Default: NULL (all genders).</p></dd>
 <dd><p>Named list. Optional metadata tags.</p></dd>
 
 
+<dt><code>stopIfExists</code></dt>
+<dd><p>Logical. If TRUE (default), raises an error when an
+active or stale cohort with this label is already registered. If FALSE,
+updates the registered derived cohort in place (same ID and file path):
+the SQL is re-rendered, parents and build parameters are replaced, the
+cohort is marked 'stale' for regeneration, and its own dependents are
+marked stale too. Default: TRUE (fail-safe).</p></dd>
+
+
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-19">Returns<a class="anchor" aria-label="anchor" href="#returns-19"></a></h4>
+<h4 id="returns-20">Returns<a class="anchor" aria-label="anchor" href="#returns-20"></a></h4>
 <p>Invisible integer. The assigned cohort ID.</p>
 </div>
 
@@ -920,10 +1127,15 @@ Common values: 8507 = Male, 8532 = Female. Default: NULL (all genders).</p></dd>
 <p>Splits a single base cohort into N named stratum cohorts plus an automatic
 <strong>Unclassified</strong> cohort containing subjects that match none of the named
 strata. Each stratum is registered as a separate manifest entry with
-<code>cohort_type = "subset"</code>.</p><div class="section">
-<h4 id="usage-22">Usage<a class="anchor" aria-label="anchor" href="#usage-22"></a></h4>
+<code>cohort_type = "subset"</code>.</p>
+<p>Input route policy:</p><ul><li><p>Preferred: provide <code>baseCohortEntry</code></p></li>
+<li><p>Backward compatible: provide <code>baseCohortId</code></p></li>
+<li><p>Exactly one route must be provided; passing both or neither is an error.</p></li>
+</ul><div class="section">
+<h4 id="usage-23">Usage<a class="anchor" aria-label="anchor" href="#usage-23"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">buildStratifiedCohorts</span><span class="op">(</span></span>
-<span>  <span class="va">baseCohortId</span>,</span>
+<span>  baseCohortId <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  baseCohortEntry <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  <span class="va">strata</span>,</span>
 <span>  labelPrefix <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  category <span class="op">=</span> <span class="st">"derived"</span>,</span>
@@ -932,9 +1144,14 @@ strata. Each stratum is registered as a separate manifest entry with
 </div>
 
 <div class="section">
-<h4 id="arguments-15">Arguments<a class="anchor" aria-label="anchor" href="#arguments-15"></a></h4>
+<h4 id="arguments-16">Arguments<a class="anchor" aria-label="anchor" href="#arguments-16"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>baseCohortId</code></dt>
-<dd><p>Integer. The cohort definition ID to split.</p></dd>
+<dd><p>Integer. Legacy ID route for the cohort definition ID to split.</p></dd>
+
+
+<dt><code>baseCohortEntry</code></dt>
+<dd><p>Data frame/tibble with one row and an <code>id</code> column.
+Preferred route using manifest query results.</p></dd>
 
 
 <dt><code>strata</code></dt>
@@ -961,7 +1178,7 @@ with a <code>" - "</code> separator.</p></dd>
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-20">Returns<a class="anchor" aria-label="anchor" href="#returns-20"></a></h4>
+<h4 id="returns-21">Returns<a class="anchor" aria-label="anchor" href="#returns-21"></a></h4>
 <p>Invisibly returns a named list of assigned cohort IDs, keyed by cohort label.
 Query cohorts by IDs</p>
 </div>
@@ -970,12 +1187,12 @@ Query cohorts by IDs</p>
 <h3 id="method-querycohortsbyids-">Method <code>queryCohortsByIds()</code><a class="anchor" aria-label="anchor" href="#method-querycohortsbyids-"></a></h3>
 
 <div class="section">
-<h4 id="usage-23">Usage<a class="anchor" aria-label="anchor" href="#usage-23"></a></h4>
+<h4 id="usage-24">Usage<a class="anchor" aria-label="anchor" href="#usage-24"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">queryCohortsByIds</span><span class="op">(</span><span class="va">ids</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-16">Arguments<a class="anchor" aria-label="anchor" href="#arguments-16"></a></h4>
+<h4 id="arguments-17">Arguments<a class="anchor" aria-label="anchor" href="#arguments-17"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>ids</code></dt>
 <dd><p>Integer vector. One or more cohort IDs.</p></dd>
 
@@ -983,7 +1200,7 @@ Query cohorts by IDs</p>
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-21">Returns<a class="anchor" aria-label="anchor" href="#returns-21"></a></h4>
+<h4 id="returns-22">Returns<a class="anchor" aria-label="anchor" href="#returns-22"></a></h4>
 <p>Data frame. A subset of the manifest with columns id, label, tags, filePath, hash, timestamp for matching cohorts, or NULL if none found.
 Query cohorts by tag</p>
 </div>
@@ -992,12 +1209,12 @@ Query cohorts by tag</p>
 <h3 id="method-querycohortsbytag-">Method <code>queryCohortsByTag()</code><a class="anchor" aria-label="anchor" href="#method-querycohortsbytag-"></a></h3>
 
 <div class="section">
-<h4 id="usage-24">Usage<a class="anchor" aria-label="anchor" href="#usage-24"></a></h4>
+<h4 id="usage-25">Usage<a class="anchor" aria-label="anchor" href="#usage-25"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">queryCohortsByTag</span><span class="op">(</span><span class="va">tagStrings</span>, match <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"any"</span>, <span class="st">"all"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-17">Arguments<a class="anchor" aria-label="anchor" href="#arguments-17"></a></h4>
+<h4 id="arguments-18">Arguments<a class="anchor" aria-label="anchor" href="#arguments-18"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>tagStrings</code></dt>
 <dd><p>Character vector. One or more tags in the format "name: value"
 (e.g., "category: primary"). When multiple tags are supplied, the <code>match</code>
@@ -1012,7 +1229,7 @@ argument controls whether a cohort must satisfy any or all of them.</p></dd>
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-22">Returns<a class="anchor" aria-label="anchor" href="#returns-22"></a></h4>
+<h4 id="returns-23">Returns<a class="anchor" aria-label="anchor" href="#returns-23"></a></h4>
 <p>Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
 Query cohorts by label</p>
 </div>
@@ -1021,46 +1238,15 @@ Query cohorts by label</p>
 <h3 id="method-querycohortsbylabel-">Method <code>queryCohortsByLabel()</code><a class="anchor" aria-label="anchor" href="#method-querycohortsbylabel-"></a></h3>
 
 <div class="section">
-<h4 id="usage-25">Usage<a class="anchor" aria-label="anchor" href="#usage-25"></a></h4>
+<h4 id="usage-26">Usage<a class="anchor" aria-label="anchor" href="#usage-26"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">queryCohortsByLabel</span><span class="op">(</span><span class="va">labels</span>, matchType <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"exact"</span>, <span class="st">"pattern"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-18">Arguments<a class="anchor" aria-label="anchor" href="#arguments-18"></a></h4>
+<h4 id="arguments-19">Arguments<a class="anchor" aria-label="anchor" href="#arguments-19"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>labels</code></dt>
 <dd><p>Character vector. One or more labels to search for.
 A cohort is included when it matches at least one of the supplied labels (OR logic).</p></dd>
-
-
-<dt><code>matchType</code></dt>
-<dd><p>Character. Either "exact" for exact match or "pattern" for pattern matching.
-Defaults to "exact".</p></dd>
-
-
-</dl><p></p></div>
-</div>
-<div class="section">
-<h4 id="returns-23">Returns<a class="anchor" aria-label="anchor" href="#returns-23"></a></h4>
-<p>Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
-Query cohorts by category</p>
-</div>
-
-</div><p></p><hr><a id="method-CohortManifest-queryCohortsByCategory"></a><div class="section">
-<h3 id="method-querycohortsbycategory-">Method <code>queryCohortsByCategory()</code><a class="anchor" aria-label="anchor" href="#method-querycohortsbycategory-"></a></h3>
-
-<div class="section">
-<h4 id="usage-26">Usage<a class="anchor" aria-label="anchor" href="#usage-26"></a></h4>
-<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">queryCohortsByCategory</span><span class="op">(</span></span>
-<span>  <span class="va">category</span>,</span>
-<span>  matchType <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"exact"</span>, <span class="st">"pattern"</span><span class="op">)</span></span>
-<span><span class="op">)</span></span></code></pre></div><p></p></div>
-</div>
-
-<div class="section">
-<h4 id="arguments-19">Arguments<a class="anchor" aria-label="anchor" href="#arguments-19"></a></h4>
-<p></p><div class="arguments"><dl><dt><code>category</code></dt>
-<dd><p>Character vector. One or more category to search for.
-A cohort is included when it matches at least one of the supplied category (OR logic).</p></dd>
 
 
 <dt><code>matchType</code></dt>
@@ -1076,16 +1262,47 @@ Defaults to "exact".</p></dd>
 Query cohorts by category</p>
 </div>
 
-</div><p></p><hr><a id="method-CohortManifest-queryCohortsByTagName"></a><div class="section">
-<h3 id="method-querycohortsbytagname-">Method <code>queryCohortsByTagName()</code><a class="anchor" aria-label="anchor" href="#method-querycohortsbytagname-"></a></h3>
+</div><p></p><hr><a id="method-CohortManifest-queryCohortsByCategory"></a><div class="section">
+<h3 id="method-querycohortsbycategory-">Method <code>queryCohortsByCategory()</code><a class="anchor" aria-label="anchor" href="#method-querycohortsbycategory-"></a></h3>
 
 <div class="section">
 <h4 id="usage-27">Usage<a class="anchor" aria-label="anchor" href="#usage-27"></a></h4>
-<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">queryCohortsByTagName</span><span class="op">(</span><span class="va">tagName</span><span class="op">)</span></span></code></pre></div><p></p></div>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">queryCohortsByCategory</span><span class="op">(</span></span>
+<span>  <span class="va">category</span>,</span>
+<span>  matchType <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"exact"</span>, <span class="st">"pattern"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
 <h4 id="arguments-20">Arguments<a class="anchor" aria-label="anchor" href="#arguments-20"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>category</code></dt>
+<dd><p>Character vector. One or more category to search for.
+A cohort is included when it matches at least one of the supplied category (OR logic).</p></dd>
+
+
+<dt><code>matchType</code></dt>
+<dd><p>Character. Either "exact" for exact match or "pattern" for pattern matching.
+Defaults to "exact".</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-25">Returns<a class="anchor" aria-label="anchor" href="#returns-25"></a></h4>
+<p>Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
+Query cohorts by category</p>
+</div>
+
+</div><p></p><hr><a id="method-CohortManifest-queryCohortsByTagName"></a><div class="section">
+<h3 id="method-querycohortsbytagname-">Method <code>queryCohortsByTagName()</code><a class="anchor" aria-label="anchor" href="#method-querycohortsbytagname-"></a></h3>
+
+<div class="section">
+<h4 id="usage-28">Usage<a class="anchor" aria-label="anchor" href="#usage-28"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">queryCohortsByTagName</span><span class="op">(</span><span class="va">tagName</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="arguments-21">Arguments<a class="anchor" aria-label="anchor" href="#arguments-21"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>tagName</code></dt>
 <dd><p>Character vector. The name of tags to query</p></dd>
 
@@ -1093,19 +1310,83 @@ Query cohorts by category</p>
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-25">Returns<a class="anchor" aria-label="anchor" href="#returns-25"></a></h4>
+<h4 id="returns-26">Returns<a class="anchor" aria-label="anchor" href="#returns-26"></a></h4>
 <p>Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.</p>
+</div>
+
+</div><p></p><hr><a id="method-CohortManifest-queryCohortsMissingTag"></a><div class="section">
+<h3 id="method-querycohortsmissingtag-">Method <code>queryCohortsMissingTag()</code><a class="anchor" aria-label="anchor" href="#method-querycohortsmissingtag-"></a></h3>
+<p>Query cohorts missing a specific tag</p><div class="section">
+<h4 id="usage-29">Usage<a class="anchor" aria-label="anchor" href="#usage-29"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">queryCohortsMissingTag</span><span class="op">(</span><span class="va">tagName</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="arguments-22">Arguments<a class="anchor" aria-label="anchor" href="#arguments-22"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>tagName</code></dt>
+<dd><p>Character. The name of the tag to check for absence.</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-27">Returns<a class="anchor" aria-label="anchor" href="#returns-27"></a></h4>
+<p>Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
+Returns NULL if all cohorts have the tag.</p>
+</div>
+
+</div><p></p><hr><a id="method-CohortManifest-queryCohortsWithTagValues"></a><div class="section">
+<h3 id="method-querycohortswithtagvalues-">Method <code>queryCohortsWithTagValues()</code><a class="anchor" aria-label="anchor" href="#method-querycohortswithtagvalues-"></a></h3>
+<p>Query cohorts by tag value mapping</p><div class="section">
+<h4 id="usage-30">Usage<a class="anchor" aria-label="anchor" href="#usage-30"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">queryCohortsWithTagValues</span><span class="op">(</span><span class="va">tagValueMapping</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="arguments-23">Arguments<a class="anchor" aria-label="anchor" href="#arguments-23"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>tagValueMapping</code></dt>
+<dd><p>Named list. Keys are tag names, values are tag values to match.
+Example: <code>list(status = "approved", type = "primary")</code> requires both conditions (AND logic).</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-28">Returns<a class="anchor" aria-label="anchor" href="#returns-28"></a></h4>
+<p>Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
+Returns NULL if no cohorts match all tag conditions.</p>
+</div>
+
+</div><p></p><hr><a id="method-CohortManifest-getTagValuesSummary"></a><div class="section">
+<h3 id="method-gettagvaluessummary-">Method <code>getTagValuesSummary()</code><a class="anchor" aria-label="anchor" href="#method-gettagvaluessummary-"></a></h3>
+<p>Get a summary of all unique values for a specific tag</p><div class="section">
+<h4 id="usage-31">Usage<a class="anchor" aria-label="anchor" href="#usage-31"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">getTagValuesSummary</span><span class="op">(</span><span class="va">tagName</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="arguments-24">Arguments<a class="anchor" aria-label="anchor" href="#arguments-24"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>tagName</code></dt>
+<dd><p>Character. The name of the tag to summarize.</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-29">Returns<a class="anchor" aria-label="anchor" href="#returns-29"></a></h4>
+<p>Tibble with columns: value, count, cohorts (comma-separated IDs).
+Returns NULL if no cohorts have the tag.</p>
 </div>
 
 </div><p></p><hr><a id="method-CohortManifest-nCohorts"></a><div class="section">
 <h3 id="method-ncohorts-">Method <code>nCohorts()</code><a class="anchor" aria-label="anchor" href="#method-ncohorts-"></a></h3>
 <p>Get number of cohorts in manifest</p><div class="section">
-<h4 id="usage-28">Usage<a class="anchor" aria-label="anchor" href="#usage-28"></a></h4>
+<h4 id="usage-32">Usage<a class="anchor" aria-label="anchor" href="#usage-32"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">nCohorts</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="returns-26">Returns<a class="anchor" aria-label="anchor" href="#returns-26"></a></h4>
+<h4 id="returns-30">Returns<a class="anchor" aria-label="anchor" href="#returns-30"></a></h4>
 <p>Integer. The number of cohorts.
 Get a specific cohort by ID</p>
 </div>
@@ -1114,12 +1395,12 @@ Get a specific cohort by ID</p>
 <h3 id="method-getcohortbyid-">Method <code>getCohortById()</code><a class="anchor" aria-label="anchor" href="#method-getcohortbyid-"></a></h3>
 
 <div class="section">
-<h4 id="usage-29">Usage<a class="anchor" aria-label="anchor" href="#usage-29"></a></h4>
+<h4 id="usage-33">Usage<a class="anchor" aria-label="anchor" href="#usage-33"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">getCohortById</span><span class="op">(</span><span class="va">id</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-21">Arguments<a class="anchor" aria-label="anchor" href="#arguments-21"></a></h4>
+<h4 id="arguments-25">Arguments<a class="anchor" aria-label="anchor" href="#arguments-25"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>id</code></dt>
 <dd><p>Integer. The cohort ID.</p></dd>
 
@@ -1127,7 +1408,7 @@ Get a specific cohort by ID</p>
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-27">Returns<a class="anchor" aria-label="anchor" href="#returns-27"></a></h4>
+<h4 id="returns-31">Returns<a class="anchor" aria-label="anchor" href="#returns-31"></a></h4>
 <p>CohortDef. The CohortDef object with matching ID, or NULL if not found.
 Get cohorts by tag</p>
 </div>
@@ -1136,12 +1417,12 @@ Get cohorts by tag</p>
 <h3 id="method-getcohortsbytag-">Method <code>getCohortsByTag()</code><a class="anchor" aria-label="anchor" href="#method-getcohortsbytag-"></a></h3>
 
 <div class="section">
-<h4 id="usage-30">Usage<a class="anchor" aria-label="anchor" href="#usage-30"></a></h4>
+<h4 id="usage-34">Usage<a class="anchor" aria-label="anchor" href="#usage-34"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">getCohortsByTag</span><span class="op">(</span><span class="va">tagStrings</span>, match <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"any"</span>, <span class="st">"all"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-22">Arguments<a class="anchor" aria-label="anchor" href="#arguments-22"></a></h4>
+<h4 id="arguments-26">Arguments<a class="anchor" aria-label="anchor" href="#arguments-26"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>tagStrings</code></dt>
 <dd><p>Character vector. One or more tags in the format "name: value"
 (e.g., "category: primary"). When multiple tags are supplied, the <code>match</code>
@@ -1156,7 +1437,7 @@ argument controls whether a cohort must satisfy any or all of them.</p></dd>
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-28">Returns<a class="anchor" aria-label="anchor" href="#returns-28"></a></h4>
+<h4 id="returns-32">Returns<a class="anchor" aria-label="anchor" href="#returns-32"></a></h4>
 <p>List. A list of CohortDef objects with matching tags, or NULL if none found.
 Get cohorts by label</p>
 </div>
@@ -1165,12 +1446,12 @@ Get cohorts by label</p>
 <h3 id="method-getcohortsbylabel-">Method <code>getCohortsByLabel()</code><a class="anchor" aria-label="anchor" href="#method-getcohortsbylabel-"></a></h3>
 
 <div class="section">
-<h4 id="usage-31">Usage<a class="anchor" aria-label="anchor" href="#usage-31"></a></h4>
+<h4 id="usage-35">Usage<a class="anchor" aria-label="anchor" href="#usage-35"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">getCohortsByLabel</span><span class="op">(</span><span class="va">labels</span>, matchType <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"exact"</span>, <span class="st">"pattern"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-23">Arguments<a class="anchor" aria-label="anchor" href="#arguments-23"></a></h4>
+<h4 id="arguments-27">Arguments<a class="anchor" aria-label="anchor" href="#arguments-27"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>labels</code></dt>
 <dd><p>Character vector. One or more labels to search for.
 A cohort is included when it matches at least one of the supplied labels (OR logic).</p></dd>
@@ -1184,19 +1465,19 @@ Defaults to "exact".</p></dd>
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-29">Returns<a class="anchor" aria-label="anchor" href="#returns-29"></a></h4>
+<h4 id="returns-33">Returns<a class="anchor" aria-label="anchor" href="#returns-33"></a></h4>
 <p>List. A list of CohortDef objects with matching labels, or NULL if none found.</p>
 </div>
 
 </div><p></p><hr><a id="method-CohortManifest-updateCohortLabel"></a><div class="section">
 <h3 id="method-updatecohortlabel-">Method <code>updateCohortLabel()</code><a class="anchor" aria-label="anchor" href="#method-updatecohortlabel-"></a></h3>
 <p>Update a cohort label</p><div class="section">
-<h4 id="usage-32">Usage<a class="anchor" aria-label="anchor" href="#usage-32"></a></h4>
+<h4 id="usage-36">Usage<a class="anchor" aria-label="anchor" href="#usage-36"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">updateCohortLabel</span><span class="op">(</span><span class="va">cohortId</span>, <span class="va">newLabel</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-24">Arguments<a class="anchor" aria-label="anchor" href="#arguments-24"></a></h4>
+<h4 id="arguments-28">Arguments<a class="anchor" aria-label="anchor" href="#arguments-28"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>cohortId</code></dt>
 <dd><p>Integer. The cohort ID to update.</p></dd>
 
@@ -1208,19 +1489,19 @@ Defaults to "exact".</p></dd>
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-30">Returns<a class="anchor" aria-label="anchor" href="#returns-30"></a></h4>
+<h4 id="returns-34">Returns<a class="anchor" aria-label="anchor" href="#returns-34"></a></h4>
 <p>Invisible NULL.</p>
 </div>
 
 </div><p></p><hr><a id="method-CohortManifest-updateCohortCategory"></a><div class="section">
 <h3 id="method-updatecohortcategory-">Method <code>updateCohortCategory()</code><a class="anchor" aria-label="anchor" href="#method-updatecohortcategory-"></a></h3>
 <p>Update a cohort category</p><div class="section">
-<h4 id="usage-33">Usage<a class="anchor" aria-label="anchor" href="#usage-33"></a></h4>
+<h4 id="usage-37">Usage<a class="anchor" aria-label="anchor" href="#usage-37"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">updateCohortCategory</span><span class="op">(</span><span class="va">cohortId</span>, <span class="va">newCategory</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-25">Arguments<a class="anchor" aria-label="anchor" href="#arguments-25"></a></h4>
+<h4 id="arguments-29">Arguments<a class="anchor" aria-label="anchor" href="#arguments-29"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>cohortId</code></dt>
 <dd><p>Integer. The cohort ID to update.</p></dd>
 
@@ -1232,19 +1513,19 @@ Defaults to "exact".</p></dd>
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-31">Returns<a class="anchor" aria-label="anchor" href="#returns-31"></a></h4>
+<h4 id="returns-35">Returns<a class="anchor" aria-label="anchor" href="#returns-35"></a></h4>
 <p>Invisible NULL.</p>
 </div>
 
 </div><p></p><hr><a id="method-CohortManifest-updateCohortTags"></a><div class="section">
 <h3 id="method-updatecohorttags-">Method <code>updateCohortTags()</code><a class="anchor" aria-label="anchor" href="#method-updatecohorttags-"></a></h3>
 <p>Update cohort tags</p><div class="section">
-<h4 id="usage-34">Usage<a class="anchor" aria-label="anchor" href="#usage-34"></a></h4>
+<h4 id="usage-38">Usage<a class="anchor" aria-label="anchor" href="#usage-38"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">updateCohortTags</span><span class="op">(</span><span class="va">cohortId</span>, <span class="va">newTags</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-26">Arguments<a class="anchor" aria-label="anchor" href="#arguments-26"></a></h4>
+<h4 id="arguments-30">Arguments<a class="anchor" aria-label="anchor" href="#arguments-30"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>cohortId</code></dt>
 <dd><p>Integer. The cohort ID to update.</p></dd>
 
@@ -1256,8 +1537,224 @@ Defaults to "exact".</p></dd>
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-32">Returns<a class="anchor" aria-label="anchor" href="#returns-32"></a></h4>
+<h4 id="returns-36">Returns<a class="anchor" aria-label="anchor" href="#returns-36"></a></h4>
 <p>Invisible NULL.</p>
+</div>
+
+</div><p></p><hr><a id="method-CohortManifest-removeCohortTag"></a><div class="section">
+<h3 id="method-removecohorttag-">Method <code>removeCohortTag()</code><a class="anchor" aria-label="anchor" href="#method-removecohorttag-"></a></h3>
+<p>Remove a specific tag from a cohort</p><div class="section">
+<h4 id="usage-39">Usage<a class="anchor" aria-label="anchor" href="#usage-39"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">removeCohortTag</span><span class="op">(</span><span class="va">cohortId</span>, <span class="va">tagName</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="arguments-31">Arguments<a class="anchor" aria-label="anchor" href="#arguments-31"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>cohortId</code></dt>
+<dd><p>Integer. The cohort ID to update.</p></dd>
+
+
+<dt><code>tagName</code></dt>
+<dd><p>Character. The name of the tag to remove.</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-37">Returns<a class="anchor" aria-label="anchor" href="#returns-37"></a></h4>
+<p>Invisible NULL. Emits success message if tag was removed, warning if tag was not found.</p>
+</div>
+
+</div><p></p><hr><a id="method-CohortManifest-modifyCohortTagValue"></a><div class="section">
+<h3 id="method-modifycohorttagvalue-">Method <code>modifyCohortTagValue()</code><a class="anchor" aria-label="anchor" href="#method-modifycohorttagvalue-"></a></h3>
+<p>Modify the value of an existing tag</p><div class="section">
+<h4 id="usage-40">Usage<a class="anchor" aria-label="anchor" href="#usage-40"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">modifyCohortTagValue</span><span class="op">(</span><span class="va">cohortId</span>, <span class="va">tagName</span>, <span class="va">newValue</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="arguments-32">Arguments<a class="anchor" aria-label="anchor" href="#arguments-32"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>cohortId</code></dt>
+<dd><p>Integer. The cohort ID to update.</p></dd>
+
+
+<dt><code>tagName</code></dt>
+<dd><p>Character. The name of the tag to modify.</p></dd>
+
+
+<dt><code>newValue</code></dt>
+<dd><p>Character. The new value for the tag.</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-38">Returns<a class="anchor" aria-label="anchor" href="#returns-38"></a></h4>
+<p>Invisible NULL. Emits success message if tag was modified, error if tag does not exist.</p>
+</div>
+
+</div><p></p><hr><a id="method-CohortManifest-addCohortTag"></a><div class="section">
+<h3 id="method-addcohorttag-">Method <code>addCohortTag()</code><a class="anchor" aria-label="anchor" href="#method-addcohorttag-"></a></h3>
+<p>Add a single tag to a cohort (non-destructive)</p><div class="section">
+<h4 id="usage-41">Usage<a class="anchor" aria-label="anchor" href="#usage-41"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">addCohortTag</span><span class="op">(</span><span class="va">cohortId</span>, <span class="va">tagName</span>, <span class="va">tagValue</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="arguments-33">Arguments<a class="anchor" aria-label="anchor" href="#arguments-33"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>cohortId</code></dt>
+<dd><p>Integer. The cohort ID to update.</p></dd>
+
+
+<dt><code>tagName</code></dt>
+<dd><p>Character. The name of the tag to add.</p></dd>
+
+
+<dt><code>tagValue</code></dt>
+<dd><p>Character. The value for the new tag.</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-39">Returns<a class="anchor" aria-label="anchor" href="#returns-39"></a></h4>
+<p>Invisible NULL. Emits success message if tag was added.</p>
+</div>
+
+</div><p></p><hr><a id="method-CohortManifest-getCohortTags"></a><div class="section">
+<h3 id="method-getcohorttags-">Method <code>getCohortTags()</code><a class="anchor" aria-label="anchor" href="#method-getcohorttags-"></a></h3>
+<p>Get all tags for a specific cohort</p><div class="section">
+<h4 id="usage-42">Usage<a class="anchor" aria-label="anchor" href="#usage-42"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">getCohortTags</span><span class="op">(</span><span class="va">cohortId</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="arguments-34">Arguments<a class="anchor" aria-label="anchor" href="#arguments-34"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>cohortId</code></dt>
+<dd><p>Integer. The cohort ID to query.</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-40">Returns<a class="anchor" aria-label="anchor" href="#returns-40"></a></h4>
+<p>Named list of tags, or NULL if cohort not found.</p>
+</div>
+
+</div><p></p><hr><a id="method-CohortManifest-mergeTagsIntoCohort"></a><div class="section">
+<h3 id="method-mergetagsintocohort-">Method <code>mergeTagsIntoCohort()</code><a class="anchor" aria-label="anchor" href="#method-mergetagsintocohort-"></a></h3>
+<p>Merge multiple tags into a cohort (non-destructive, additive)</p><div class="section">
+<h4 id="usage-43">Usage<a class="anchor" aria-label="anchor" href="#usage-43"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">mergeTagsIntoCohort</span><span class="op">(</span><span class="va">cohortId</span>, <span class="va">newTags</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="arguments-35">Arguments<a class="anchor" aria-label="anchor" href="#arguments-35"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>cohortId</code></dt>
+<dd><p>Integer. The cohort ID to update.</p></dd>
+
+
+<dt><code>newTags</code></dt>
+<dd><p>Named list. The tags to add/merge (overwrites existing keys with same name).</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-41">Returns<a class="anchor" aria-label="anchor" href="#returns-41"></a></h4>
+<p>Invisible NULL. Emits success message.</p>
+</div>
+
+</div><p></p><hr><a id="method-CohortManifest-listAllUniqueTags"></a><div class="section">
+<h3 id="method-listalluniquetags-">Method <code>listAllUniqueTags()</code><a class="anchor" aria-label="anchor" href="#method-listalluniquetags-"></a></h3>
+<p>Get all unique tag names used across the manifest</p><div class="section">
+<h4 id="usage-44">Usage<a class="anchor" aria-label="anchor" href="#usage-44"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">listAllUniqueTags</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="returns-42">Returns<a class="anchor" aria-label="anchor" href="#returns-42"></a></h4>
+<p>Character vector of unique tag names, sorted alphabetically.</p>
+</div>
+
+</div><p></p><hr><a id="method-CohortManifest-getTagValue"></a><div class="section">
+<h3 id="method-gettagvalue-">Method <code>getTagValue()</code><a class="anchor" aria-label="anchor" href="#method-gettagvalue-"></a></h3>
+<p>Get value of a single tag for a cohort</p><div class="section">
+<h4 id="usage-45">Usage<a class="anchor" aria-label="anchor" href="#usage-45"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">getTagValue</span><span class="op">(</span><span class="va">cohortId</span>, <span class="va">tagName</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="arguments-36">Arguments<a class="anchor" aria-label="anchor" href="#arguments-36"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>cohortId</code></dt>
+<dd><p>Integer. The cohort ID to query.</p></dd>
+
+
+<dt><code>tagName</code></dt>
+<dd><p>Character. The name of the tag to retrieve.</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-43">Returns<a class="anchor" aria-label="anchor" href="#returns-43"></a></h4>
+<p>Character. The tag value, or NULL if tag or cohort not found.</p>
+</div>
+
+</div><p></p><hr><a id="method-CohortManifest-renameTagKey"></a><div class="section">
+<h3 id="method-renametagkey-">Method <code>renameTagKey()</code><a class="anchor" aria-label="anchor" href="#method-renametagkey-"></a></h3>
+<p>Rename a tag key across specified cohorts (or all cohorts)</p><div class="section">
+<h4 id="usage-46">Usage<a class="anchor" aria-label="anchor" href="#usage-46"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">renameTagKey</span><span class="op">(</span><span class="va">oldTagName</span>, <span class="va">newTagName</span>, cohortIds <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="arguments-37">Arguments<a class="anchor" aria-label="anchor" href="#arguments-37"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>oldTagName</code></dt>
+<dd><p>Character. The current tag name to rename.</p></dd>
+
+
+<dt><code>newTagName</code></dt>
+<dd><p>Character. The new tag name.</p></dd>
+
+
+<dt><code>cohortIds</code></dt>
+<dd><p>Integer vector or NULL. If NULL, renames across all cohorts that have this tag.</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-44">Returns<a class="anchor" aria-label="anchor" href="#returns-44"></a></h4>
+<p>Invisible tibble with id, label, old_value showing what was renamed.</p>
+</div>
+
+</div><p></p><hr><a id="method-CohortManifest-bulkModifyTagValue"></a><div class="section">
+<h3 id="method-bulkmodifytagvalue-">Method <code>bulkModifyTagValue()</code><a class="anchor" aria-label="anchor" href="#method-bulkmodifytagvalue-"></a></h3>
+<p>Bulk modify a tag value across cohorts matching an old value</p><div class="section">
+<h4 id="usage-47">Usage<a class="anchor" aria-label="anchor" href="#usage-47"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">bulkModifyTagValue</span><span class="op">(</span><span class="va">tagName</span>, <span class="va">oldValue</span>, <span class="va">newValue</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="arguments-38">Arguments<a class="anchor" aria-label="anchor" href="#arguments-38"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>tagName</code></dt>
+<dd><p>Character. The name of the tag to modify.</p></dd>
+
+
+<dt><code>oldValue</code></dt>
+<dd><p>Character. The current value to match and replace.</p></dd>
+
+
+<dt><code>newValue</code></dt>
+<dd><p>Character. The new value to set.</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-45">Returns<a class="anchor" aria-label="anchor" href="#returns-45"></a></h4>
+<p>Invisible tibble with id, label showing what was modified.</p>
 </div>
 
 </div><p></p><hr><a id="method-CohortManifest-checkAtlasCohorts"></a><div class="section">
@@ -1267,12 +1764,12 @@ Defaults to "exact".</p></dd>
 fetches their current definitions from ATLAS, computes hashes, and compares against
 the stored local hash. Provides a read-only summary of which cohorts have changed
 in ATLAS since import. No modifications are made.</p><div class="section">
-<h4 id="usage-35">Usage<a class="anchor" aria-label="anchor" href="#usage-35"></a></h4>
+<h4 id="usage-48">Usage<a class="anchor" aria-label="anchor" href="#usage-48"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">checkAtlasCohorts</span><span class="op">(</span>atlasConnection <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-27">Arguments<a class="anchor" aria-label="anchor" href="#arguments-27"></a></h4>
+<h4 id="arguments-39">Arguments<a class="anchor" aria-label="anchor" href="#arguments-39"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>atlasConnection</code></dt>
 <dd><p>An ATLAS connection object  with a method <code>getCohortDefinition(cohortId)</code>
 that returns a list with an <code>expression</code> element.
@@ -1283,7 +1780,7 @@ If no connection is available, raises an error.</p></dd>
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-33">Returns<a class="anchor" aria-label="anchor" href="#returns-33"></a></h4>
+<h4 id="returns-46">Returns<a class="anchor" aria-label="anchor" href="#returns-46"></a></h4>
 <p>Invisible tibble with columns:</p><ul><li><p><code>id</code> - Cohort ID in manifest</p></li>
 <li><p><code>label</code> - Cohort label</p></li>
 <li><p><code>atlasId</code> - ATLAS cohort definition ID</p></li>
@@ -1297,12 +1794,12 @@ If no connection is available, raises an error.</p></dd>
 <p>Update ATLAS cohorts with remote definitions</p>
 <p>Fetches current definitions from ATLAS for specified cohorts and updates the stored JSON files
 and manifest entries. This is the modification phase that applies changes detected by checkAtlasChanges().</p><div class="section">
-<h4 id="usage-36">Usage<a class="anchor" aria-label="anchor" href="#usage-36"></a></h4>
+<h4 id="usage-49">Usage<a class="anchor" aria-label="anchor" href="#usage-49"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">updateAtlasCohorts</span><span class="op">(</span>atlasConnection <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-28">Arguments<a class="anchor" aria-label="anchor" href="#arguments-28"></a></h4>
+<h4 id="arguments-40">Arguments<a class="anchor" aria-label="anchor" href="#arguments-40"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>atlasConnection</code></dt>
 <dd><p>An ATLAS connection object with a method <code>getCohortDefinition(cohortId)</code>.
 If <code>NULL</code> (default), uses the connection stored via <code>$setAtlasConnection()</code>.</p></dd>
@@ -1311,7 +1808,7 @@ If <code>NULL</code> (default), uses the connection stored via <code>$setAtlasCo
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-34">Returns<a class="anchor" aria-label="anchor" href="#returns-34"></a></h4>
+<h4 id="returns-47">Returns<a class="anchor" aria-label="anchor" href="#returns-47"></a></h4>
 <p>invisible of the tibble of atlas changes to update</p>
 </div>
 
@@ -1320,12 +1817,12 @@ If <code>NULL</code> (default), uses the connection stored via <code>$setAtlasCo
 <p>Generate a status report for the manifest</p>
 <p>Prints a summary table showing all active cohorts with their dependencies
 and source types. Useful for auditing the manifest structure.</p><div class="section">
-<h4 id="usage-37">Usage<a class="anchor" aria-label="anchor" href="#usage-37"></a></h4>
+<h4 id="usage-50">Usage<a class="anchor" aria-label="anchor" href="#usage-50"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">statusReport</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="returns-35">Returns<a class="anchor" aria-label="anchor" href="#returns-35"></a></h4>
+<h4 id="returns-48">Returns<a class="anchor" aria-label="anchor" href="#returns-48"></a></h4>
 <p>Invisible tibble with columns: id, label, category, source_type, depends_on, status.</p>
 </div>
 
@@ -1333,23 +1830,77 @@ and source types. Useful for auditing the manifest structure.</p><div class="sec
 <h3 id="method-print-">Method <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code><a class="anchor" aria-label="anchor" href="#method-print-"></a></h3>
 <p>Print a friendly view of the CohortManifest</p>
 <p>Displays key metadata about the manifest and its contents.
-Create cohort tables in the database</p><div class="section">
-<h4 id="usage-38">Usage<a class="anchor" aria-label="anchor" href="#usage-38"></a></h4>
+Check cohort tables in the database</p><div class="section">
+<h4 id="usage-51">Usage<a class="anchor" aria-label="anchor" href="#usage-51"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">print</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 
+</div><p></p><hr><a id="method-CohortManifest-checkCohortTables"></a><div class="section">
+<h3 id="method-checkcohorttables-">Method <code>checkCohortTables()</code><a class="anchor" aria-label="anchor" href="#method-checkcohorttables-"></a></h3>
+<p>Checks if necessary tables have been created for execution</p><div class="section">
+<h4 id="usage-52">Usage<a class="anchor" aria-label="anchor" href="#usage-52"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">checkCohortTables</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="returns-49">Returns<a class="anchor" aria-label="anchor" href="#returns-49"></a></h4>
+<p>tibble with cohort tables and there exist status
+Create a single cohort table in the database</p>
+</div>
+
+</div><p></p><hr><a id="method-CohortManifest-createCohortTable"></a><div class="section">
+<h3 id="method-createcohorttable-">Method <code>createCohortTable()</code><a class="anchor" aria-label="anchor" href="#method-createcohorttable-"></a></h3>
+<p>Creates one required cohort table by type using the current execution settings.</p><div class="section">
+<h4 id="usage-53">Usage<a class="anchor" aria-label="anchor" href="#usage-53"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">createCohortTable</span><span class="op">(</span><span class="va">type</span>, tableName <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="arguments-41">Arguments<a class="anchor" aria-label="anchor" href="#arguments-41"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>type</code></dt>
+<dd><p>Character. One of "main", "inclusion", "inclusion_result",
+"inclusion_stats", "summary_stats", "censor_stats", or "checksum".</p></dd>
+
+
+<dt><code>tableName</code></dt>
+<dd><p>Character. Optional explicit table name. If NULL, defaults to
+the name derived from execution settings for the selected type.</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-50">Returns<a class="anchor" aria-label="anchor" href="#returns-50"></a></h4>
+<p>Invisible NULL.
+Create cohort tables in the database</p>
+</div>
+
+</div><p></p><hr><a id="method-CohortManifest-createAllCohortTables"></a><div class="section">
+<h3 id="method-createallcohorttables-">Method <code>createAllCohortTables()</code><a class="anchor" aria-label="anchor" href="#method-createallcohorttables-"></a></h3>
+<p>Creates the necessary cohort tables in the target database using the execution settings.
+First checks if tables already exist before attempting creation.
+This is an advanced/manual setup function. Most users should run
+<code>executeCohortGeneration()</code> and let it create missing tables automatically.</p><div class="section">
+<h4 id="usage-54">Usage<a class="anchor" aria-label="anchor" href="#usage-54"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">createAllCohortTables</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
+</div>
+
+<div class="section">
+<h4 id="returns-51">Returns<a class="anchor" aria-label="anchor" href="#returns-51"></a></h4>
+<p>Invisible NULL. Creates tables in the database and prints status messages.</p>
+</div>
+
 </div><p></p><hr><a id="method-CohortManifest-createCohortTables"></a><div class="section">
 <h3 id="method-createcohorttables-">Method <code>createCohortTables()</code><a class="anchor" aria-label="anchor" href="#method-createcohorttables-"></a></h3>
-<p>Creates the necessary cohort tables in the target database using the execution settings.
-First checks if tables already exist before attempting creation.</p><div class="section">
-<h4 id="usage-39">Usage<a class="anchor" aria-label="anchor" href="#usage-39"></a></h4>
+<p>Deprecated alias for createAllCohortTables</p><div class="section">
+<h4 id="usage-55">Usage<a class="anchor" aria-label="anchor" href="#usage-55"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">createCohortTables</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="returns-36">Returns<a class="anchor" aria-label="anchor" href="#returns-36"></a></h4>
-<p>Invisible NULL. Creates tables in the database and prints status messages.
+<h4 id="returns-52">Returns<a class="anchor" aria-label="anchor" href="#returns-52"></a></h4>
+<p>Invisible NULL.
 Drop cohort tables from the database</p>
 </div>
 
@@ -1357,12 +1908,12 @@ Drop cohort tables from the database</p>
 <h3 id="method-dropcohorttables-">Method <code>dropCohortTables()</code><a class="anchor" aria-label="anchor" href="#method-dropcohorttables-"></a></h3>
 <p>Drops cohort tables from the target database. Can drop all standard cohort tables or specific tables.
 This is useful for cleaning up or resetting the cohort generation environment.</p><div class="section">
-<h4 id="usage-40">Usage<a class="anchor" aria-label="anchor" href="#usage-40"></a></h4>
+<h4 id="usage-56">Usage<a class="anchor" aria-label="anchor" href="#usage-56"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">dropCohortTables</span><span class="op">(</span>tableTypes <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-29">Arguments<a class="anchor" aria-label="anchor" href="#arguments-29"></a></h4>
+<h4 id="arguments-42">Arguments<a class="anchor" aria-label="anchor" href="#arguments-42"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>tableTypes</code></dt>
 <dd><p>Character vector. Types of tables to drop. Options: "cohort", "inclusion",
 "inclusion_result", "inclusion_stats", "summary_stats", "censor_stats", "checksum".
@@ -1372,7 +1923,7 @@ If NULL (default), drops all table types.</p></dd>
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-37">Returns<a class="anchor" aria-label="anchor" href="#returns-37"></a></h4>
+<h4 id="returns-53">Returns<a class="anchor" aria-label="anchor" href="#returns-53"></a></h4>
 <p>Invisible NULL. Drops tables from the database and prints status messages.
 Sync the manifest against cohort files on disk</p>
 </div>
@@ -1380,17 +1931,18 @@ Sync the manifest against cohort files on disk</p>
 </div><p></p><hr><a id="method-CohortManifest-syncManifest"></a><div class="section">
 <h3 id="method-syncmanifest-">Method <code>syncManifest()</code><a class="anchor" aria-label="anchor" href="#method-syncmanifest-"></a></h3>
 <p>Scans the <code>json/</code> and <code>sql/</code> subdirectories of the cohorts folder, reconciles
-them against the SQLite manifest, and updates both the database and the in-memory list:</p><ul><li><p>Active manifest records whose file no longer exists are soft-deleted.</p></li>
+them against the SQLite manifest, and updates both the database and the in-memory list:</p><ul><li><p>Active manifest records whose file no longer exists are soft-deleted,
+along with their derived dependents (which cannot generate without the parent).</p></li>
 <li><p>Existing files whose SQL hash has changed are updated in the manifest.</p></li>
 <li><p>Orphaned files on disk not in manifest are automatically deleted.</p></li>
 </ul><p>Only the <code>json/</code> and <code>sql/</code> source directories are scanned — derived cohorts
 managed via <code>build*()</code> methods are not touched.</p><div class="section">
-<h4 id="usage-41">Usage<a class="anchor" aria-label="anchor" href="#usage-41"></a></h4>
+<h4 id="usage-57">Usage<a class="anchor" aria-label="anchor" href="#usage-57"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">syncManifest</span><span class="op">(</span>strict_mode <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-30">Arguments<a class="anchor" aria-label="anchor" href="#arguments-30"></a></h4>
+<h4 id="arguments-43">Arguments<a class="anchor" aria-label="anchor" href="#arguments-43"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>strict_mode</code></dt>
 <dd><p>Logical. If TRUE (default), automatically removes orphaned files found
 on disk. If FALSE, only warns about them without deletion. Default: TRUE.</p></dd>
@@ -1399,10 +1951,10 @@ on disk. If FALSE, only warns about them without deletion. Default: TRUE.</p></d
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-38">Returns<a class="anchor" aria-label="anchor" href="#returns-38"></a></h4>
+<h4 id="returns-54">Returns<a class="anchor" aria-label="anchor" href="#returns-54"></a></h4>
 <p>Data frame with columns: id, label, action
-(<code>"hash_updated"</code>, <code>"missing_flagged"</code>, <code>"unchanged"</code>,
-<code>"auto_removed_orphan"</code>).
+(<code>"hash_updated"</code>, <code>"missing_flagged"</code>, <code>"cascade_deleted"</code>,
+<code>"unchanged"</code>, <code>"auto_removed_orphan"</code>).
 Clean cohort data from the DBMS for deleted manifest entries</p>
 </div>
 
@@ -1411,12 +1963,12 @@ Clean cohort data from the DBMS for deleted manifest entries</p>
 <p>For every cohort with <code>status = 'deleted'</code> in the SQLite manifest, deletes
 the corresponding rows from the DBMS cohort table and checksum table, then marks
 the manifest record as <code>status = 'purged'</code> so it is not processed again.</p><div class="section">
-<h4 id="usage-42">Usage<a class="anchor" aria-label="anchor" href="#usage-42"></a></h4>
+<h4 id="usage-58">Usage<a class="anchor" aria-label="anchor" href="#usage-58"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">cleanCohortTable</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="returns-39">Returns<a class="anchor" aria-label="anchor" href="#returns-39"></a></h4>
+<h4 id="returns-55">Returns<a class="anchor" aria-label="anchor" href="#returns-55"></a></h4>
 <p>Data frame with columns: id, label.</p>
 </div>
 
@@ -1427,12 +1979,22 @@ Checks dependency ordering and regenerates dependent cohorts when parents change
 Checks the hash of each cohort definition and skips generation if the hash matches what's
 already stored in the cohort_checksum table. If hashes differ or the cohort is not yet in
 the checksum table, regenerates and updates the hash.</p><div class="section">
-<h4 id="usage-43">Usage<a class="anchor" aria-label="anchor" href="#usage-43"></a></h4>
-<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">executeCohortGeneration</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
+<h4 id="usage-59">Usage<a class="anchor" aria-label="anchor" href="#usage-59"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">executeCohortGeneration</span><span class="op">(</span>confirm <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="returns-40">Returns<a class="anchor" aria-label="anchor" href="#returns-40"></a></h4>
+<h4 id="arguments-44">Arguments<a class="anchor" aria-label="anchor" href="#arguments-44"></a></h4>
+<p></p><div class="arguments"><dl><dt><code>confirm</code></dt>
+<dd><p>Logical. If TRUE and interactive, asks for confirmation before
+creating missing tables. If FALSE, missing tables are created without prompting.
+In non-interactive sessions, missing tables are not created automatically.</p></dd>
+
+
+</dl><p></p></div>
+</div>
+<div class="section">
+<h4 id="returns-56">Returns<a class="anchor" aria-label="anchor" href="#returns-56"></a></h4>
 <p>Data frame with execution results including:</p><ul><li><p>cohort_id: ID of the generated cohort</p></li>
 <li><p>label: Label of the cohort</p></li>
 <li><p>cohort_type: 'circe', 'subset', 'union', or 'complement'</p></li>
@@ -1448,12 +2010,12 @@ the checksum table, regenerates and updates the hash.</p><div class="section">
 <p>Retrieves entry and subject counts for cohorts from the cohort table in the target database.
 Can retrieve counts for all cohorts or a specific subset. Enriches the results with metadata
 (label and tags) from the CohortDef objects in the manifest.</p><div class="section">
-<h4 id="usage-44">Usage<a class="anchor" aria-label="anchor" href="#usage-44"></a></h4>
+<h4 id="usage-60">Usage<a class="anchor" aria-label="anchor" href="#usage-60"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">retrieveCohortCounts</span><span class="op">(</span>cohortIds <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-31">Arguments<a class="anchor" aria-label="anchor" href="#arguments-31"></a></h4>
+<h4 id="arguments-45">Arguments<a class="anchor" aria-label="anchor" href="#arguments-45"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>cohortIds</code></dt>
 <dd><p>Integer vector. Optional. Specific cohort IDs to retrieve counts for.
 If NULL (default), returns counts for all cohorts.</p></dd>
@@ -1462,7 +2024,7 @@ If NULL (default), returns counts for all cohorts.</p></dd>
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-41">Returns<a class="anchor" aria-label="anchor" href="#returns-41"></a></h4>
+<h4 id="returns-57">Returns<a class="anchor" aria-label="anchor" href="#returns-57"></a></h4>
 <p>Data frame with columns:</p><ul><li><p>cohort_id: The cohort definition ID</p></li>
 <li><p>label: The cohort label from the CohortDef object</p></li>
 <li><p>tags: The cohort tags formatted as a string</p></li>
@@ -1473,24 +2035,24 @@ If NULL (default), returns counts for all cohorts.</p></dd>
 </div><p></p><hr><a id="method-CohortManifest-validateManifest"></a><div class="section">
 <h3 id="method-validatemanifest-">Method <code>validateManifest()</code><a class="anchor" aria-label="anchor" href="#method-validatemanifest-"></a></h3>
 <p>Validate manifest and return status of all cohorts</p><div class="section">
-<h4 id="usage-45">Usage<a class="anchor" aria-label="anchor" href="#usage-45"></a></h4>
+<h4 id="usage-61">Usage<a class="anchor" aria-label="anchor" href="#usage-61"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">validateManifest</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="returns-42">Returns<a class="anchor" aria-label="anchor" href="#returns-42"></a></h4>
+<h4 id="returns-58">Returns<a class="anchor" aria-label="anchor" href="#returns-58"></a></h4>
 <p>A tibble with columns: id, label, status (active/missing/deleted), deleted_at, file_exists</p>
 </div>
 
 </div><p></p><hr><a id="method-CohortManifest-getManifestStatus"></a><div class="section">
 <h3 id="method-getmanifeststatus-">Method <code>getManifestStatus()</code><a class="anchor" aria-label="anchor" href="#method-getmanifeststatus-"></a></h3>
 <p>Get summary status of manifest</p><div class="section">
-<h4 id="usage-46">Usage<a class="anchor" aria-label="anchor" href="#usage-46"></a></h4>
+<h4 id="usage-62">Usage<a class="anchor" aria-label="anchor" href="#usage-62"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">getManifestStatus</span><span class="op">(</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="returns-43">Returns<a class="anchor" aria-label="anchor" href="#returns-43"></a></h4>
+<h4 id="returns-59">Returns<a class="anchor" aria-label="anchor" href="#returns-59"></a></h4>
 <p>List with elements: active_count, missing_count, deleted_count, next_available_id</p>
 </div>
 
@@ -1503,12 +2065,17 @@ status='deleted' for audit trail purposes.</p>
 <p>When a manifest is loaded, only active cohorts are loaded into memory.
 This enforces strict 1:1 correspondence between active manifest entries
 and files on disk.</p><div class="section">
-<h4 id="usage-47">Usage<a class="anchor" aria-label="anchor" href="#usage-47"></a></h4>
-<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">deleteCohort</span><span class="op">(</span><span class="va">id</span>, confirm <span class="op">=</span> <span class="cn">FALSE</span>, dropFromDBMS <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div><p></p></div>
+<h4 id="usage-63">Usage<a class="anchor" aria-label="anchor" href="#usage-63"></a></h4>
+<p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">deleteCohort</span><span class="op">(</span></span>
+<span>  <span class="va">id</span>,</span>
+<span>  confirm <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  dropFromDBMS <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  cascade <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-32">Arguments<a class="anchor" aria-label="anchor" href="#arguments-32"></a></h4>
+<h4 id="arguments-46">Arguments<a class="anchor" aria-label="anchor" href="#arguments-46"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>id</code></dt>
 <dd><p>Integer. The cohort ID to delete.</p></dd>
 
@@ -1524,10 +2091,17 @@ cohort table and checksum table. Requires <code>executionSettings</code> to be s
 Default: FALSE (filesystem/manifest cleanup only).</p></dd>
 
 
+<dt><code>cascade</code></dt>
+<dd><p>Logical. If FALSE (default), deletion is refused when the
+cohort has derived dependents (deleting it would orphan them and break
+cohort generation). If TRUE, all transitive dependents are deleted too,
+deepest-first. Default: FALSE (fail-safe).</p></dd>
+
+
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-44">Returns<a class="anchor" aria-label="anchor" href="#returns-44"></a></h4>
+<h4 id="returns-60">Returns<a class="anchor" aria-label="anchor" href="#returns-60"></a></h4>
 <p>Invisible NULL.</p>
 </div>
 
@@ -1538,22 +2112,29 @@ Default: FALSE (filesystem/manifest cleanup only).</p></dd>
 <p>Build a cohort of outcome events with prior target exposure</p>
 <p>Creates a derived cohort based on the temporal relationship between an
 outcome cohort and a target (exposure) cohort. Filters outcome events that
-have (or lack) a prior target event, optionally within a time window.</p><div class="section">
-<h4 id="usage-48">Usage<a class="anchor" aria-label="anchor" href="#usage-48"></a></h4>
+have (or lack) a prior target event, optionally within a time window.</p>
+<p>Input route policy:</p><ul><li><p>Preferred: provide <code>outcomeCohortEntry</code>/<code>targetCohortEntry</code></p></li>
+<li><p>Backward compatible: provide <code>outcomeCohortId</code>/<code>targetCohortId</code></p></li>
+<li><p>Exactly one route per role must be provided; both/neither is an error.</p></li>
+</ul><div class="section">
+<h4 id="usage-64">Usage<a class="anchor" aria-label="anchor" href="#usage-64"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">buildOPriorT</span><span class="op">(</span></span>
 <span>  <span class="va">label</span>,</span>
 <span>  <span class="va">category</span>,</span>
 <span>  tags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  <span class="va">outcomeCohortId</span>,</span>
-<span>  <span class="va">targetCohortId</span>,</span>
+<span>  outcomeCohortId <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  targetCohortId <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  mode <span class="op">=</span> <span class="st">"prior"</span>,</span>
 <span>  priorTimeWindowDays <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  subsetLimit <span class="op">=</span> <span class="st">"First"</span></span>
+<span>  subsetLimit <span class="op">=</span> <span class="st">"First"</span>,</span>
+<span>  outcomeCohortEntry <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  targetCohortEntry <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  stopIfExists <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-33">Arguments<a class="anchor" aria-label="anchor" href="#arguments-33"></a></h4>
+<h4 id="arguments-47">Arguments<a class="anchor" aria-label="anchor" href="#arguments-47"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>label</code></dt>
 <dd><p>Character. Display name (e.g., "GI Bleed - Prior NSAID").</p></dd>
 
@@ -1567,12 +2148,12 @@ have (or lack) a prior target event, optionally within a time window.</p><div cl
 
 
 <dt><code>outcomeCohortId</code></dt>
-<dd><p>Integer. The cohort definition ID for the outcome
+<dd><p>Integer. Legacy ID route for the outcome cohort definition ID
 (e.g., GI bleed).</p></dd>
 
 
 <dt><code>targetCohortId</code></dt>
-<dd><p>Integer. The cohort definition ID for the target
+<dd><p>Integer. Legacy ID route for the target cohort definition ID
 (e.g., NSAID use).</p></dd>
 
 
@@ -1598,6 +2179,25 @@ Default: 'First'.</p></li>
 </ul></dd>
 
 
+<dt><code>outcomeCohortEntry</code></dt>
+<dd><p>Data frame/tibble with one row and an <code>id</code> column.
+Preferred route using manifest query results for the outcome cohort.</p></dd>
+
+
+<dt><code>targetCohortEntry</code></dt>
+<dd><p>Data frame/tibble with one row and an <code>id</code> column.
+Preferred route using manifest query results for the target cohort.</p></dd>
+
+
+<dt><code>stopIfExists</code></dt>
+<dd><p>Logical. If TRUE (default), raises an error when an
+active or stale cohort with this label is already registered. If FALSE,
+updates the registered derived cohort in place (same ID and file path):
+the SQL is re-rendered, parents and build parameters are replaced, the
+cohort is marked 'stale' for regeneration, and its own dependents are
+marked stale too. Default: TRUE (fail-safe).</p></dd>
+
+
 <dt><code>keep_trace</code></dt>
 <dd><p>Logical. If TRUE, marks missing as deleted with timestamp (soft delete).
 If FALSE, permanently removes from database (hard delete). Defaults to TRUE.</p></dd>
@@ -1606,7 +2206,7 @@ If FALSE, permanently removes from database (hard delete). Defaults to TRUE.</p>
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-45">Returns<a class="anchor" aria-label="anchor" href="#returns-45"></a></h4>
+<h4 id="returns-61">Returns<a class="anchor" aria-label="anchor" href="#returns-61"></a></h4>
 <p>Invisible integer. The assigned cohort ID.</p>
 </div>
 
@@ -1617,22 +2217,29 @@ If FALSE, permanently removes from database (hard delete). Defaults to TRUE.</p>
 target (exposure) cohort and an outcome cohort. Filters target events that
 have (or lack) a prior outcome event, optionally within a time window.</p>
 <p>This is the reverse direction of <code>buildOPriorT()</code>: instead of
-filtering outcome by prior target, filter target by prior outcome.</p><div class="section">
-<h4 id="usage-49">Usage<a class="anchor" aria-label="anchor" href="#usage-49"></a></h4>
+filtering outcome by prior target, filter target by prior outcome.</p>
+<p>Input route policy:</p><ul><li><p>Preferred: provide <code>targetCohortEntry</code>/<code>outcomeCohortEntry</code></p></li>
+<li><p>Backward compatible: provide <code>targetCohortId</code>/<code>outcomeCohortId</code></p></li>
+<li><p>Exactly one route per role must be provided; both/neither is an error.</p></li>
+</ul><div class="section">
+<h4 id="usage-65">Usage<a class="anchor" aria-label="anchor" href="#usage-65"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">buildTPriorO</span><span class="op">(</span></span>
 <span>  <span class="va">label</span>,</span>
 <span>  <span class="va">category</span>,</span>
 <span>  tags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  <span class="va">targetCohortId</span>,</span>
-<span>  <span class="va">outcomeCohortId</span>,</span>
+<span>  targetCohortId <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  outcomeCohortId <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  mode <span class="op">=</span> <span class="st">"prior"</span>,</span>
 <span>  priorTimeWindowDays <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  subsetLimit <span class="op">=</span> <span class="st">"First"</span></span>
+<span>  subsetLimit <span class="op">=</span> <span class="st">"First"</span>,</span>
+<span>  targetCohortEntry <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  outcomeCohortEntry <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  stopIfExists <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-34">Arguments<a class="anchor" aria-label="anchor" href="#arguments-34"></a></h4>
+<h4 id="arguments-48">Arguments<a class="anchor" aria-label="anchor" href="#arguments-48"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>label</code></dt>
 <dd><p>Character. Display name (e.g., "NSAID - Prior GI Bleed").</p></dd>
 
@@ -1646,12 +2253,12 @@ filtering outcome by prior target, filter target by prior outcome.</p><div class
 
 
 <dt><code>targetCohortId</code></dt>
-<dd><p>Integer. The cohort definition ID for the target
+<dd><p>Integer. Legacy ID route for the target cohort definition ID
 (e.g., NSAID use).</p></dd>
 
 
 <dt><code>outcomeCohortId</code></dt>
-<dd><p>Integer. The cohort definition ID for the outcome
+<dd><p>Integer. Legacy ID route for the outcome cohort definition ID
 (e.g., GI bleed).</p></dd>
 
 
@@ -1677,10 +2284,29 @@ Default: 'First'.</p></li>
 </ul></dd>
 
 
+<dt><code>targetCohortEntry</code></dt>
+<dd><p>Data frame/tibble with one row and an <code>id</code> column.
+Preferred route using manifest query results for the target cohort.</p></dd>
+
+
+<dt><code>outcomeCohortEntry</code></dt>
+<dd><p>Data frame/tibble with one row and an <code>id</code> column.
+Preferred route using manifest query results for the outcome cohort.</p></dd>
+
+
+<dt><code>stopIfExists</code></dt>
+<dd><p>Logical. If TRUE (default), raises an error when an
+active or stale cohort with this label is already registered. If FALSE,
+updates the registered derived cohort in place (same ID and file path):
+the SQL is re-rendered, parents and build parameters are replaced, the
+cohort is marked 'stale' for regeneration, and its own dependents are
+marked stale too. Default: TRUE (fail-safe).</p></dd>
+
+
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-46">Returns<a class="anchor" aria-label="anchor" href="#returns-46"></a></h4>
+<h4 id="returns-62">Returns<a class="anchor" aria-label="anchor" href="#returns-62"></a></h4>
 <p>Invisible integer. The assigned cohort ID.</p>
 </div>
 
@@ -1693,19 +2319,25 @@ If no censoring event occurs, the original cohort_end_date is preserved.</p>
 <p>Typical use cases:</p><ul><li><p>Censor a drug exposure cohort at the date of death</p></li>
 <li><p>Censor a disease cohort at the date of disease exacerbation</p></li>
 <li><p>Censor a treatment cohort at the date of a procedure (e.g., surgery)</p></li>
+</ul><p>Input route policy:</p><ul><li><p>Preferred: provide <code>targetCohortEntry</code>/<code>censorCohortEntry</code></p></li>
+<li><p>Backward compatible: provide <code>targetCohortId</code>/<code>censorCohortId</code></p></li>
+<li><p>Exactly one route per role must be provided; both/neither is an error.</p></li>
 </ul><div class="section">
-<h4 id="usage-50">Usage<a class="anchor" aria-label="anchor" href="#usage-50"></a></h4>
+<h4 id="usage-66">Usage<a class="anchor" aria-label="anchor" href="#usage-66"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">buildCensorCohort</span><span class="op">(</span></span>
 <span>  <span class="va">label</span>,</span>
 <span>  <span class="va">category</span>,</span>
 <span>  tags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  <span class="va">targetCohortId</span>,</span>
-<span>  <span class="va">censorCohortId</span></span>
+<span>  targetCohortId <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  censorCohortId <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  targetCohortEntry <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  censorCohortEntry <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  stopIfExists <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-35">Arguments<a class="anchor" aria-label="anchor" href="#arguments-35"></a></h4>
+<h4 id="arguments-49">Arguments<a class="anchor" aria-label="anchor" href="#arguments-49"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>label</code></dt>
 <dd><p>Character. Display name (e.g., "NSAID Use - Censored at Death").</p></dd>
 
@@ -1719,29 +2351,48 @@ If no censoring event occurs, the original cohort_end_date is preserved.</p>
 
 
 <dt><code>targetCohortId</code></dt>
-<dd><p>Integer. The cohort definition ID for the cohort to censor.</p></dd>
+<dd><p>Integer. Legacy ID route for the cohort definition ID to censor.</p></dd>
 
 
 <dt><code>censorCohortId</code></dt>
-<dd><p>Integer. The cohort definition ID for the censoring event.</p></dd>
+<dd><p>Integer. Legacy ID route for the cohort definition ID for the censoring event.</p></dd>
+
+
+<dt><code>targetCohortEntry</code></dt>
+<dd><p>Data frame/tibble with one row and an <code>id</code> column.
+Preferred route using manifest query results for the target cohort.</p></dd>
+
+
+<dt><code>censorCohortEntry</code></dt>
+<dd><p>Data frame/tibble with one row and an <code>id</code> column.
+Preferred route using manifest query results for the censor cohort.</p></dd>
+
+
+<dt><code>stopIfExists</code></dt>
+<dd><p>Logical. If TRUE (default), raises an error when an
+active or stale cohort with this label is already registered. If FALSE,
+updates the registered derived cohort in place (same ID and file path):
+the SQL is re-rendered, parents and build parameters are replaced, the
+cohort is marked 'stale' for regeneration, and its own dependents are
+marked stale too. Default: TRUE (fail-safe).</p></dd>
 
 
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-47">Returns<a class="anchor" aria-label="anchor" href="#returns-47"></a></h4>
+<h4 id="returns-63">Returns<a class="anchor" aria-label="anchor" href="#returns-63"></a></h4>
 <p>Invisible integer. The assigned cohort ID.</p>
 </div>
 
 </div><p></p><hr><a id="method-CohortManifest-cleanupMissing"></a><div class="section">
 <h3 id="method-cleanupmissing-">Method <code>cleanupMissing()</code><a class="anchor" aria-label="anchor" href="#method-cleanupmissing-"></a></h3>
 <p>clean up missing files from manifest</p><div class="section">
-<h4 id="usage-51">Usage<a class="anchor" aria-label="anchor" href="#usage-51"></a></h4>
+<h4 id="usage-67">Usage<a class="anchor" aria-label="anchor" href="#usage-67"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">cleanupMissing</span><span class="op">(</span>keep_trace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-36">Arguments<a class="anchor" aria-label="anchor" href="#arguments-36"></a></h4>
+<h4 id="arguments-50">Arguments<a class="anchor" aria-label="anchor" href="#arguments-50"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>keep_trace</code></dt>
 <dd><p>Logical. soft delete with trace</p></dd>
 
@@ -1749,19 +2400,19 @@ If no censoring event occurs, the original cohort_end_date is preserved.</p>
 </dl><p></p></div>
 </div>
 <div class="section">
-<h4 id="returns-48">Returns<a class="anchor" aria-label="anchor" href="#returns-48"></a></h4>
+<h4 id="returns-64">Returns<a class="anchor" aria-label="anchor" href="#returns-64"></a></h4>
 <p>Invisibly returns NULL. Displays summary of cleanup actions.</p>
 </div>
 
 </div><p></p><hr><a id="method-CohortManifest-clone"></a><div class="section">
 <h3 id="method-clone-">Method <code>clone()</code><a class="anchor" aria-label="anchor" href="#method-clone-"></a></h3>
 <p>The objects of this class are cloneable with this method.</p><div class="section">
-<h4 id="usage-52">Usage<a class="anchor" aria-label="anchor" href="#usage-52"></a></h4>
+<h4 id="usage-68">Usage<a class="anchor" aria-label="anchor" href="#usage-68"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">CohortManifest</span><span class="op">$</span><span class="fu">clone</span><span class="op">(</span>deep <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div><p></p></div>
 </div>
 
 <div class="section">
-<h4 id="arguments-37">Arguments<a class="anchor" aria-label="anchor" href="#arguments-37"></a></h4>
+<h4 id="arguments-51">Arguments<a class="anchor" aria-label="anchor" href="#arguments-51"></a></h4>
 <p></p><div class="arguments"><dl><dt><code>deep</code></dt>
 <dd><p>Whether to make a deep clone.</p></dd>
 
