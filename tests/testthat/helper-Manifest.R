@@ -48,11 +48,16 @@ cm_test_sql_fixture_path <- function(fixture_name = "my_custom_cohort.sql") {
 }
 
 # Purpose: Add a custom SQL cohort to the manifest using a fixture SQL file.
+# Registers a copy in the manifest's temp sql dir so tests that hard-delete
+# cohorts (deleteCohort unlinks file_path) remove the copy, not the shared
+# fixture in test_files.
 cm_test_add_sql_cohort <- function(manifest, paths, label, category = "Test", tags = list(), fixture_name = "my_custom_cohort.sql") {
   sql_path <- cm_test_sql_fixture_path(fixture_name = fixture_name)
+  local_sql <- fs::path(paths$sql_dir, fixture_name)
+  fs::file_copy(sql_path, local_sql, overwrite = TRUE)
 
   manifest$addSqlCohort(
-    filePath = sql_path,
+    filePath = local_sql,
     label = label,
     category = category,
     tags = tags

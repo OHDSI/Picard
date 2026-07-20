@@ -453,8 +453,9 @@ Export a Capr ConceptSet to JSON and register it in the manifest
 \item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
 active concept set with this label is already registered. If FALSE,
 updates the existing concept set in place via \code{updateCaprConceptSet()}
-— it keeps its ID and file path, and \code{category} (and \code{tags}, when
-supplied) replace the registered metadata. Default: TRUE (fail-safe).}
+— it keeps its ID and file path, and \code{category}/\code{tags} replace the
+registered metadata (previous tags are dropped if none are supplied).
+Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -1202,9 +1203,9 @@ Sync the manifest against concept set files on disk
 Scans the \code{json/} subdirectory of the concept sets folder, reconciles it against
 the SQLite manifest, and updates both the database and the in-memory list:
 \itemize{
-\item New files found on disk are added (new ConceptSetDef + manifest entry).
 \item Active manifest records whose file no longer exists are soft-deleted.
 \item Existing files whose JSON hash has changed are updated in the manifest.
+\item Orphaned files on disk not in manifest are automatically deleted.
 }
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$syncManifest(strict_mode = TRUE)}\if{html}{\out{</div>}}
@@ -1220,7 +1221,8 @@ on disk. If FALSE, only warns about them without deletion. Default: TRUE.}
 }
 \subsection{Returns}{
 Data frame with columns: id, label, action
-(\code{"added"}, \code{"hash_updated"}, \code{"missing_flagged"}, or \code{"unchanged"}).
+(\code{"hash_updated"}, \code{"missing_flagged"}, \code{"unchanged"}, or
+\code{"auto_removed_orphan"}).
 }
 }
 \if{html}{\out{<hr>}}

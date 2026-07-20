@@ -61,8 +61,6 @@ testthat::test_that("validateManifest returns status dataframe", {
 
 # Testing: getManifestStatus returns summary counters and next available id.
 testthat::test_that("getManifestStatus returns summary list", {
-  testthat::skip("Known bug: active_count miscount pending fix")
-
   setup <- cm_test_seed_manifest_for_queries("mgmt-status")
   manifest <- setup$manifest
 
@@ -307,6 +305,30 @@ testthat::test_that("buildUnionCohort stopIfExists FALSE updates parent list in 
   testthat::expect_equal(after$hash[[1]], disk_hash)
 })
 
+# Testing: derived-cohort upsert replaces tags wholesale (cleared when none supplied).
+testthat::test_that("buildUnionCohort stopIfExists FALSE without tags drops prior tags", {
+  setup <- cm_test_seed_parent_with_union("mgmt-union-upsert-notags")
+  manifest <- setup$manifest
+
+  union_row <- cm_test_get_manifest_row(manifest, "Capr_T2D_or_CKD")
+  manifest$updateCohortTags(as.integer(union_row$id[[1]]), list(revision = "v1"))
+
+  parents <- manifest$queryCohortsByLabel(
+    labels = c("Capr T2D", "Chronic Kidney Disease"),
+    matchType = "exact"
+  )
+  manifest$buildUnionCohort(
+    label = "Capr_T2D_or_CKD",
+    category = "Derived Cohorts",
+    cohortEntries = parents,
+    stopIfExists = FALSE
+  )
+
+  after <- cm_test_get_manifest_row(manifest, "Capr_T2D_or_CKD")
+  testthat::expect_equal(nrow(after), 1)
+  testthat::expect_true(is.na(after$tags[[1]]))
+})
+
 # Testing: build methods still error on duplicate labels by default.
 testthat::test_that("buildUnionCohort errors on duplicate label by default", {
   setup <- cm_test_seed_parent_with_union("mgmt-union-dup")
@@ -534,6 +556,75 @@ testthat::test_that("addCaprCohort stopIfExists FALSE updates existing cohort", 
   testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
   testthat::expect_equal(after$category[[1]], "Comparator")
   testthat::expect_true(grepl("revision", after$tags[[1]]))
+})
+
+# Testing: addCaprCohort stopIfExists = FALSE with no tags clears prior tags (matching ATLAS behavior).
+testthat::test_that("addCaprCohort stopIfExists FALSE without tags drops prior tags", {
+  setup <- cm_test_new_manifest("mgmt-add-capr-upsert-notags")
+  manifest <- setup$manifest
+
+  cm_test_add_capr_cohort(manifest, label = "Capr T2D", category = "Target",
+                          tags = list(source = "capr", revision = "v1"))
+
+  revised <- cm_test_make_minimal_capr_cohort(prior_days = 365L)
+  manifest$addCaprCohort(
+    caprCohort = revised,
+    label = "Capr T2D",
+    category = "Target",
+    stopIfExists = FALSE
+  )
+
+  after <- cm_test_get_manifest_row(manifest, "Capr T2D")
+  testthat::expect_equal(nrow(after), 1)
+  testthat::expect_false(grepl("revision", after$tags[[1]]))
+  testthat::expect_true(grepl("route", after$tags[[1]]))
+})
+
+# Testing: addSqlCohort with stopIfExists = FALSE upserts the existing cohort in place.
+testthat::test_that("addSqlCohort stopIfExists FALSE updates existing cohort in place", {
+  setup <- cm_test_new_manifest("mgmt-add-sql-upsert")
+  manifest <- setup$manifest
+
+  cm_test_add_sql_cohort(manifest, setup$paths, label = "Custom SQL Cohort",
+                         category = "Target", tags = list(revision = "v1"))
+  before <- cm_test_get_manifest_row(manifest, "Custom SQL Cohort")
+
+  # Revised SQL registered from a new file path
+  revised_sql <- fs::path(setup$paths$sql_dir, "my_custom_cohort_v2.sql")
+  writeLines(c(readr::read_file(before$file_path[[1]]), "-- revised"), revised_sql)
+  returned_id <- manifest$addSqlCohort(
+    filePath = revised_sql,
+    label = "Custom SQL Cohort",
+    category = "Comparator",
+    stopIfExists = FALSE
+  )
+
+  after <- cm_test_get_manifest_row(manifest, "Custom SQL Cohort")
+  testthat::expect_equal(nrow(after), 1)
+  testthat::expect_equal(as.integer(returned_id), as.integer(before$id[[1]]))
+  testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
+  testthat::expect_equal(after$file_path[[1]], as.character(fs::path_rel(revised_sql)))
+  testthat::expect_equal(after$category[[1]], "Comparator")
+  testthat::expect_true(is.na(after$tags[[1]]))
+})
+
+# Testing: addSqlCohort upsert refuses to overwrite a non-custom cohort.
+testthat::test_that("addSqlCohort stopIfExists FALSE rejects non-custom targets", {
+  setup <- cm_test_new_manifest("mgmt-add-sql-upsert-guard")
+  manifest <- setup$manifest
+
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "Circe Cohort", fixture_name = "ckd.json")
+  sql_path <- cm_test_sql_fixture_path()
+
+  testthat::expect_error(
+    manifest$addSqlCohort(
+      filePath = sql_path,
+      label = "Circe Cohort",
+      category = "Target",
+      stopIfExists = FALSE
+    ),
+    regexp = "custom"
+  )
 })
 
 # Purpose: Build a fake ATLAS connection returning fixed expression JSON keyed by atlasId.
