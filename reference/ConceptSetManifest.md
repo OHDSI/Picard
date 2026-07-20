@@ -14,6 +14,12 @@ and stores their metadata in a SQLite database located at
 inputs/conceptSets/conceptSetManifest.sqlite. Each ConceptSetDef is
 assigned a sequential ID based on its position in the manifest.
 
+The load file is a transient, one-time import mechanism: rows whose
+atlasId or label are already registered in the manifest are an error,
+not an update. To sync registered concept sets with ATLAS, run
+`updateAtlasConceptSets()`; to update a single concept set, use
+`addAtlasConceptSet(stopIfExists = FALSE)`.
+
 **Processing Steps:**
 
 1.  Validates that all concept set IDs exist and are active
@@ -229,6 +235,8 @@ concept set:
 
 - [`ConceptSetManifest$addCaprConceptSet()`](#method-ConceptSetManifest-addCaprConceptSet)
 
+- [`ConceptSetManifest$updateCaprConceptSet()`](#method-ConceptSetManifest-updateCaprConceptSet)
+
 - [`ConceptSetManifest$importAtlasConceptSets()`](#method-ConceptSetManifest-importAtlasConceptSets)
 
 - [`ConceptSetManifest$queryConceptSetsByIds()`](#method-ConceptSetManifest-queryConceptSetsByIds)
@@ -236,6 +244,12 @@ concept set:
 - [`ConceptSetManifest$queryConceptSetsByTag()`](#method-ConceptSetManifest-queryConceptSetsByTag)
 
 - [`ConceptSetManifest$queryConceptSetsByTagName()`](#method-ConceptSetManifest-queryConceptSetsByTagName)
+
+- [`ConceptSetManifest$queryConceptSetsMissingTag()`](#method-ConceptSetManifest-queryConceptSetsMissingTag)
+
+- [`ConceptSetManifest$queryConceptSetsWithTagValues()`](#method-ConceptSetManifest-queryConceptSetsWithTagValues)
+
+- [`ConceptSetManifest$getTagValuesSummary()`](#method-ConceptSetManifest-getTagValuesSummary)
 
 - [`ConceptSetManifest$queryConceptSetsByLabel()`](#method-ConceptSetManifest-queryConceptSetsByLabel)
 
@@ -260,6 +274,24 @@ concept set:
 - [`ConceptSetManifest$updateConceptSetCategory()`](#method-ConceptSetManifest-updateConceptSetCategory)
 
 - [`ConceptSetManifest$updateConceptSetTags()`](#method-ConceptSetManifest-updateConceptSetTags)
+
+- [`ConceptSetManifest$removeConceptSetTag()`](#method-ConceptSetManifest-removeConceptSetTag)
+
+- [`ConceptSetManifest$modifyConceptSetTagValue()`](#method-ConceptSetManifest-modifyConceptSetTagValue)
+
+- [`ConceptSetManifest$addConceptSetTag()`](#method-ConceptSetManifest-addConceptSetTag)
+
+- [`ConceptSetManifest$getConceptSetTags()`](#method-ConceptSetManifest-getConceptSetTags)
+
+- [`ConceptSetManifest$mergeTagsIntoConceptSet()`](#method-ConceptSetManifest-mergeTagsIntoConceptSet)
+
+- [`ConceptSetManifest$listAllUniqueTags()`](#method-ConceptSetManifest-listAllUniqueTags)
+
+- [`ConceptSetManifest$getTagValue()`](#method-ConceptSetManifest-getTagValue)
+
+- [`ConceptSetManifest$renameTagKey()`](#method-ConceptSetManifest-renameTagKey)
+
+- [`ConceptSetManifest$bulkModifyTagValue()`](#method-ConceptSetManifest-bulkModifyTagValue)
 
 - [`ConceptSetManifest$checkAtlasConceptSets()`](#method-ConceptSetManifest-checkAtlasConceptSets)
 
@@ -461,7 +493,8 @@ Fetch a single concept set from ATLAS and register it in the manifest
       label,
       category = "init",
       tags = list(),
-      atlasConnection = NULL
+      atlasConnection = NULL,
+      stopIfExists = TRUE
     )
 
 #### Arguments
@@ -491,6 +524,15 @@ Fetch a single concept set from ATLAS and register it in the manifest
   `NULL`, falls back to the connection stored via
   `$setAtlasConnection()`.
 
+- `stopIfExists`:
+
+  Logical. If TRUE (default), raises an error when an active concept set
+  with this label is already registered. If FALSE, fetches the current
+  definition from ATLAS and updates the registered concept set in place
+  — same ID and file path, hash refreshed, `category`/`tags`/atlasId
+  replaced. An unchanged definition leaves the file untouched. Default:
+  TRUE (fail-safe).
+
 #### Returns
 
 Invisible integer. The assigned concept set ID.
@@ -507,7 +549,8 @@ Export a Capr ConceptSet to JSON and register it in the manifest
       caprConceptSet,
       label,
       category = "init",
-      tags = list()
+      tags = list(),
+      stopIfExists = TRUE
     )
 
 #### Arguments
@@ -529,9 +572,48 @@ Export a Capr ConceptSet to JSON and register it in the manifest
   Named list. Optional extra metadata tags. Defaults to
   [`list()`](https://rdrr.io/r/base/list.html).
 
+- `stopIfExists`:
+
+  Logical. If TRUE (default), raises an error when an active concept set
+  with this label is already registered. If FALSE, updates the existing
+  concept set in place via `updateCaprConceptSet()` — it keeps its ID
+  and file path, and `category`/`tags` replace the registered metadata
+  (previous tags are dropped if none are supplied). Default: TRUE
+  (fail-safe).
+
 #### Returns
 
 Invisible integer. The assigned concept set ID.
+
+------------------------------------------------------------------------
+
+### Method `updateCaprConceptSet()`
+
+Update an existing Capr concept set's JSON definition
+
+Takes a revised Capr ConceptSet object and upserts it over a concept set
+already registered via `addCaprConceptSet()`: the JSON file recorded in
+the manifest is overwritten in place and the manifest hash is refreshed,
+so the concept set keeps its ID and file path. If the new definition is
+identical to the registered one, nothing is changed.
+
+#### Usage
+
+    ConceptSetManifest$updateCaprConceptSet(caprConceptSet, label)
+
+#### Arguments
+
+- `caprConceptSet`:
+
+  A Capr `ConceptSet` object.
+
+- `label`:
+
+  Character. Label of the active concept set to update.
+
+#### Returns
+
+Invisible integer. The concept set ID.
 
 ------------------------------------------------------------------------
 
@@ -631,7 +713,73 @@ created_at. Query cohorts by category
 #### Returns
 
 Tibble with columns: id, label, category, tags, file_path, hash,
-source_type, created_at. Query concept sets by label
+source_type, created_at.
+
+------------------------------------------------------------------------
+
+### Method `queryConceptSetsMissingTag()`
+
+Query concept sets missing a specific tag
+
+#### Usage
+
+    ConceptSetManifest$queryConceptSetsMissingTag(tagName)
+
+#### Arguments
+
+- `tagName`:
+
+  Character. The name of the tag to check for absence.
+
+#### Returns
+
+Tibble with columns: id, label, category, tags, file_path, hash,
+created_at. Returns NULL if all concept sets have the tag.
+
+------------------------------------------------------------------------
+
+### Method `queryConceptSetsWithTagValues()`
+
+Query concept sets by tag value mapping
+
+#### Usage
+
+    ConceptSetManifest$queryConceptSetsWithTagValues(tagValueMapping)
+
+#### Arguments
+
+- `tagValueMapping`:
+
+  Named list. Keys are tag names, values are tag values to match.
+  Example: `list(status = "approved", type = "primary")` requires both
+  conditions (AND logic).
+
+#### Returns
+
+Tibble with columns: id, label, category, tags, file_path, hash,
+created_at. Returns NULL if no concept sets match all tag conditions.
+
+------------------------------------------------------------------------
+
+### Method `getTagValuesSummary()`
+
+Get a summary of all unique values for a specific tag
+
+#### Usage
+
+    ConceptSetManifest$getTagValuesSummary(tagName)
+
+#### Arguments
+
+- `tagName`:
+
+  Character. The name of the tag to summarize.
+
+#### Returns
+
+Tibble with columns: value, count, concept_sets (comma-separated IDs).
+Returns NULL if no concept sets have the tag. Query concept sets by
+label
 
 ------------------------------------------------------------------------
 
@@ -926,6 +1074,228 @@ Invisible NULL.
 
 ------------------------------------------------------------------------
 
+### Method `removeConceptSetTag()`
+
+Remove a specific tag from a concept set
+
+#### Usage
+
+    ConceptSetManifest$removeConceptSetTag(conceptSetId, tagName)
+
+#### Arguments
+
+- `conceptSetId`:
+
+  Integer. The concept set ID to update.
+
+- `tagName`:
+
+  Character. The name of the tag to remove.
+
+#### Returns
+
+Invisible NULL. Emits success message if tag was removed, warning if tag
+was not found.
+
+------------------------------------------------------------------------
+
+### Method `modifyConceptSetTagValue()`
+
+Modify the value of an existing tag
+
+#### Usage
+
+    ConceptSetManifest$modifyConceptSetTagValue(conceptSetId, tagName, newValue)
+
+#### Arguments
+
+- `conceptSetId`:
+
+  Integer. The concept set ID to update.
+
+- `tagName`:
+
+  Character. The name of the tag to modify.
+
+- `newValue`:
+
+  Character. The new value for the tag.
+
+#### Returns
+
+Invisible NULL. Emits success message if tag was modified, error if tag
+does not exist.
+
+------------------------------------------------------------------------
+
+### Method `addConceptSetTag()`
+
+Add a single tag to a concept set (non-destructive)
+
+#### Usage
+
+    ConceptSetManifest$addConceptSetTag(conceptSetId, tagName, tagValue)
+
+#### Arguments
+
+- `conceptSetId`:
+
+  Integer. The concept set ID to update.
+
+- `tagName`:
+
+  Character. The name of the tag to add.
+
+- `tagValue`:
+
+  Character. The value for the new tag.
+
+#### Returns
+
+Invisible NULL. Emits success message if tag was added.
+
+------------------------------------------------------------------------
+
+### Method `getConceptSetTags()`
+
+Get all tags for a specific concept set
+
+#### Usage
+
+    ConceptSetManifest$getConceptSetTags(conceptSetId)
+
+#### Arguments
+
+- `conceptSetId`:
+
+  Integer. The concept set ID to query.
+
+#### Returns
+
+Named list of tags, or NULL if concept set not found.
+
+------------------------------------------------------------------------
+
+### Method `mergeTagsIntoConceptSet()`
+
+Merge multiple tags into a concept set (non-destructive, additive)
+
+#### Usage
+
+    ConceptSetManifest$mergeTagsIntoConceptSet(conceptSetId, newTags)
+
+#### Arguments
+
+- `conceptSetId`:
+
+  Integer. The concept set ID to update.
+
+- `newTags`:
+
+  Named list. The tags to add/merge (overwrites existing keys with same
+  name).
+
+#### Returns
+
+Invisible NULL. Emits success message.
+
+------------------------------------------------------------------------
+
+### Method `listAllUniqueTags()`
+
+Get all unique tag names used across the concept set manifest
+
+#### Usage
+
+    ConceptSetManifest$listAllUniqueTags()
+
+#### Returns
+
+Character vector of unique tag names, sorted alphabetically.
+
+------------------------------------------------------------------------
+
+### Method `getTagValue()`
+
+Get value of a single tag for a concept set
+
+#### Usage
+
+    ConceptSetManifest$getTagValue(conceptSetId, tagName)
+
+#### Arguments
+
+- `conceptSetId`:
+
+  Integer. The concept set ID to query.
+
+- `tagName`:
+
+  Character. The name of the tag to retrieve.
+
+#### Returns
+
+Character. The tag value, or NULL if tag or concept set not found.
+
+------------------------------------------------------------------------
+
+### Method `renameTagKey()`
+
+Rename a tag key across specified concept sets (or all concept sets)
+
+#### Usage
+
+    ConceptSetManifest$renameTagKey(oldTagName, newTagName, conceptSetIds = NULL)
+
+#### Arguments
+
+- `oldTagName`:
+
+  Character. The current tag name to rename.
+
+- `newTagName`:
+
+  Character. The new tag name.
+
+- `conceptSetIds`:
+
+  Integer vector or NULL. If NULL, renames across all concept sets that
+  have this tag.
+
+#### Returns
+
+Invisible tibble with id, old_value showing what was renamed.
+
+------------------------------------------------------------------------
+
+### Method `bulkModifyTagValue()`
+
+Bulk modify a tag value across concept sets matching an old value
+
+#### Usage
+
+    ConceptSetManifest$bulkModifyTagValue(tagName, oldValue, newValue)
+
+#### Arguments
+
+- `tagName`:
+
+  Character. The name of the tag to modify.
+
+- `oldValue`:
+
+  Character. The current value to match and replace.
+
+- `newValue`:
+
+  Character. The new value to set.
+
+#### Returns
+
+Invisible tibble with id, label showing what was modified.
+
+------------------------------------------------------------------------
+
 ### Method `checkAtlasConceptSets()`
 
 Auto-detect changes to ATLAS concept sets in remote repository
@@ -1028,13 +1398,12 @@ Scans the `json/` subdirectory of the concept sets folder, reconciles it
 against the SQLite manifest, and updates both the database and the
 in-memory list:
 
-- New files found on disk are added (new ConceptSetDef + manifest
-  entry).
-
 - Active manifest records whose file no longer exists are soft-deleted.
 
 - Existing files whose JSON hash has changed are updated in the
   manifest.
+
+- Orphaned files on disk not in manifest are automatically deleted.
 
 #### Usage
 
@@ -1050,8 +1419,8 @@ in-memory list:
 
 #### Returns
 
-Data frame with columns: id, label, action (`"added"`, `"hash_updated"`,
-`"missing_flagged"`, or `"unchanged"`).
+Data frame with columns: id, label, action (`"hash_updated"`,
+`"missing_flagged"`, `"unchanged"`, or `"auto_removed_orphan"`).
 
 ------------------------------------------------------------------------
 

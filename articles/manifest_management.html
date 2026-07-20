@@ -451,8 +451,8 @@ recovery if needed.</p>
 <h3 id="concept-set-manifest-reset">Concept set manifest reset<a class="anchor" aria-label="anchor" href="#concept-set-manifest-reset"></a>
 </h3>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Delete only the SQLite DB; json/ files are preserved and auto-re-registered</span></span>
-<span><span class="co"># on the next loadConceptSetManifest() call</span></span>
+<code class="sourceCode R"><span><span class="co"># Delete only the SQLite DB; json/ files are archived (or deleted, if archive = FALSE) —</span></span>
+<span><span class="co"># re-register them explicitly with $addConceptSetFile() afterward, they are not auto-restored</span></span>
 <span><span class="fu"><a href="../reference/resetConceptSetManifest.html">resetConceptSetManifest</a></span><span class="op">(</span>scope <span class="op">=</span> <span class="st">"manifest"</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Delete everything</span></span>
@@ -514,6 +514,267 @@ queries the vocabulary tables in your CDM):</p>
 <div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">csm</span><span class="op">$</span><span class="fu">setExecutionSettings</span><span class="op">(</span><span class="va">execSettings</span><span class="op">)</span></span>
 <span><span class="va">csm</span><span class="op">$</span><span class="fu">extractSourceCodes</span><span class="op">(</span>conceptSetIds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1L</span>, <span class="fl">2L</span><span class="op">)</span>, sourceVocabs <span class="op">=</span> <span class="st">"ICD10CM"</span><span class="op">)</span></span></code></pre></div>
+<hr>
+</div>
+</div>
+<div class="section level2">
+<h2 id="tag-management">Tag Management<a class="anchor" aria-label="anchor" href="#tag-management"></a>
+</h2>
+<p>Tags are flexible, key-value metadata pairs attached to cohorts. They
+enable classification, auditing, workflow automation, and cohort
+discovery without requiring SQL schema changes.</p>
+<div class="section level3">
+<h3 id="what-are-tags-for">What are tags for?<a class="anchor" aria-label="anchor" href="#what-are-tags-for"></a>
+</h3>
+<p>Common use cases:</p>
+<ul>
+<li>
+<strong>Classification</strong>:
+<code>list(status = "approved", owner = "alice", qa_date = "2025-02-15")</code>
+</li>
+<li>
+<strong>Workflow tracking</strong>:
+<code>list(type = "primary", route = "capr", validation_needed = "true")</code>
+</li>
+<li>
+<strong>Data quality</strong>:
+<code>list(missing_data_pct = "5.2", enumeration_checked = "yes")</code>
+</li>
+<li>
+<strong>Linkage</strong>:
+<code>list(parent_study = "COPD_Registry", version = "2.0")</code>
+</li>
+</ul>
+<p>Tags are stored as JSON in the <code>tags</code> column and persist
+across manifest reloads.</p>
+</div>
+<div class="section level3">
+<h3 id="single-cohort-tag-operations">Single-cohort tag operations<a class="anchor" aria-label="anchor" href="#single-cohort-tag-operations"></a>
+</h3>
+<div class="section level4">
+<h4 id="add-or-overwrite-a-tag">Add or overwrite a tag<a class="anchor" aria-label="anchor" href="#add-or-overwrite-a-tag"></a>
+</h4>
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Add a single tag (non-destructive; existing tags are preserved)</span></span>
+<span><span class="va">manifest</span><span class="op">$</span><span class="fu">addCohortTag</span><span class="op">(</span>cohortId <span class="op">=</span> <span class="fl">5L</span>, tagName <span class="op">=</span> <span class="st">"status"</span>, tagValue <span class="op">=</span> <span class="st">"approved"</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level4">
+<h4 id="get-all-tags-for-a-cohort">Get all tags for a cohort<a class="anchor" aria-label="anchor" href="#get-all-tags-for-a-cohort"></a>
+</h4>
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Retrieve all tags as a named list</span></span>
+<span><span class="va">manifest</span><span class="op">$</span><span class="fu">getCohortTags</span><span class="op">(</span>cohortId <span class="op">=</span> <span class="fl">5L</span><span class="op">)</span></span>
+<span><span class="co"># Returns: list(status = "approved", owner = "alice")</span></span></code></pre></div>
+</div>
+<div class="section level4">
+<h4 id="get-a-single-tag-value">Get a single tag value<a class="anchor" aria-label="anchor" href="#get-a-single-tag-value"></a>
+</h4>
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Quick retrieval of one tag value (returns NULL if not found)</span></span>
+<span><span class="va">manifest</span><span class="op">$</span><span class="fu">getTagValue</span><span class="op">(</span>cohortId <span class="op">=</span> <span class="fl">5L</span>, tagName <span class="op">=</span> <span class="st">"status"</span><span class="op">)</span></span>
+<span><span class="co"># Returns: "approved"</span></span></code></pre></div>
+</div>
+<div class="section level4">
+<h4 id="modify-an-existing-tag-value">Modify an existing tag value<a class="anchor" aria-label="anchor" href="#modify-an-existing-tag-value"></a>
+</h4>
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Change the value of an existing tag</span></span>
+<span><span class="va">manifest</span><span class="op">$</span><span class="fu">modifyCohortTagValue</span><span class="op">(</span></span>
+<span>  cohortId <span class="op">=</span> <span class="fl">5L</span>,</span>
+<span>  tagName <span class="op">=</span> <span class="st">"status"</span>,</span>
+<span>  newValue <span class="op">=</span> <span class="st">"pending_review"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co"># Logs: Modified tag 'status' in cohort 5: approved → pending_review</span></span></code></pre></div>
+</div>
+<div class="section level4">
+<h4 id="remove-a-tag">Remove a tag<a class="anchor" aria-label="anchor" href="#remove-a-tag"></a>
+</h4>
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Delete a specific tag without affecting others</span></span>
+<span><span class="va">manifest</span><span class="op">$</span><span class="fu">removeCohortTag</span><span class="op">(</span>cohortId <span class="op">=</span> <span class="fl">5L</span>, tagName <span class="op">=</span> <span class="st">"owner"</span><span class="op">)</span></span>
+<span><span class="co"># Logs: Removed tag 'owner' from cohort 5</span></span></code></pre></div>
+</div>
+<div class="section level4">
+<h4 id="merge-multiple-tags-non-destructive">Merge multiple tags (non-destructive)<a class="anchor" aria-label="anchor" href="#merge-multiple-tags-non-destructive"></a>
+</h4>
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Add or overwrite only specified tags; existing tags are preserved</span></span>
+<span><span class="va">manifest</span><span class="op">$</span><span class="fu">mergeTagsIntoCohort</span><span class="op">(</span></span>
+<span>  cohortId <span class="op">=</span> <span class="fl">5L</span>,</span>
+<span>  newTags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>    qa_status <span class="op">=</span> <span class="st">"checked"</span>,</span>
+<span>    qa_date <span class="op">=</span> <span class="st">"2025-02-15"</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co"># If cohort 5 already has status = "approved", it remains unchanged</span></span></code></pre></div>
+</div>
+</div>
+<div class="section level3">
+<h3 id="batch-tag-operations">Batch tag operations<a class="anchor" aria-label="anchor" href="#batch-tag-operations"></a>
+</h3>
+<div class="section level4">
+<h4 id="rename-a-tag-key-across-cohorts">Rename a tag key across cohorts<a class="anchor" aria-label="anchor" href="#rename-a-tag-key-across-cohorts"></a>
+</h4>
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Rename a tag name (e.g., "owner" → "responsible_party") across all cohorts</span></span>
+<span><span class="co"># that have it, or a specific subset</span></span>
+<span><span class="va">manifest</span><span class="op">$</span><span class="fu">renameTagKey</span><span class="op">(</span></span>
+<span>  oldTagName <span class="op">=</span> <span class="st">"owner"</span>,</span>
+<span>  newTagName <span class="op">=</span> <span class="st">"responsible_party"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Rename only for specific cohorts</span></span>
+<span><span class="va">manifest</span><span class="op">$</span><span class="fu">renameTagKey</span><span class="op">(</span></span>
+<span>  oldTagName <span class="op">=</span> <span class="st">"owner"</span>,</span>
+<span>  newTagName <span class="op">=</span> <span class="st">"responsible_party"</span>,</span>
+<span>  cohortIds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1L</span>, <span class="fl">2L</span>, <span class="fl">5L</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co"># Returns invisible tibble showing id, label, old_value</span></span></code></pre></div>
+</div>
+<div class="section level4">
+<h4 id="bulk-modify-a-tag-value">Bulk modify a tag value<a class="anchor" aria-label="anchor" href="#bulk-modify-a-tag-value"></a>
+</h4>
+<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Find all cohorts where tagName = oldValue and update to newValue</span></span>
+<span><span class="va">manifest</span><span class="op">$</span><span class="fu">bulkModifyTagValue</span><span class="op">(</span></span>
+<span>  tagName <span class="op">=</span> <span class="st">"status"</span>,</span>
+<span>  oldValue <span class="op">=</span> <span class="st">"pending_review"</span>,</span>
+<span>  newValue <span class="op">=</span> <span class="st">"approved"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co"># Returns invisible tibble showing which cohorts were modified</span></span></code></pre></div>
+</div>
+</div>
+<div class="section level3">
+<h3 id="querying-cohorts-by-tags">Querying cohorts by tags<a class="anchor" aria-label="anchor" href="#querying-cohorts-by-tags"></a>
+</h3>
+<div class="section level4">
+<h4 id="query-by-tag-name-and-value-string-format">Query by tag name and value (string format)<a class="anchor" aria-label="anchor" href="#query-by-tag-name-and-value-string-format"></a>
+</h4>
+<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Find cohorts with a specific tag name and value</span></span>
+<span><span class="va">manifest</span><span class="op">$</span><span class="fu">queryCohortsByTag</span><span class="op">(</span>tagStrings <span class="op">=</span> <span class="st">"status: approved"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Match any of multiple tags (OR logic)</span></span>
+<span><span class="va">manifest</span><span class="op">$</span><span class="fu">queryCohortsByTag</span><span class="op">(</span></span>
+<span>  tagStrings <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"status: approved"</span>, <span class="st">"status: published"</span><span class="op">)</span>,</span>
+<span>  match <span class="op">=</span> <span class="st">"any"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Require all tags to match (AND logic)</span></span>
+<span><span class="va">manifest</span><span class="op">$</span><span class="fu">queryCohortsByTag</span><span class="op">(</span></span>
+<span>  tagStrings <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"status: approved"</span>, <span class="st">"owner: alice"</span><span class="op">)</span>,</span>
+<span>  match <span class="op">=</span> <span class="st">"all"</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>Returns a tibble of matching cohorts or <code>NULL</code> if none
+found.</p>
+</div>
+<div class="section level4">
+<h4 id="query-by-tag-name-only">Query by tag name only<a class="anchor" aria-label="anchor" href="#query-by-tag-name-only"></a>
+</h4>
+<div class="sourceCode" id="cb25"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Find all cohorts that have a specific tag (regardless of value)</span></span>
+<span><span class="va">manifest</span><span class="op">$</span><span class="fu">queryCohortsByTagName</span><span class="op">(</span>tagName <span class="op">=</span> <span class="st">"owner"</span><span class="op">)</span></span></code></pre></div>
+<p>Returns a tibble of cohorts with that tag or <code>NULL</code>.</p>
+</div>
+<div class="section level4">
+<h4 id="query-by-named-list-cleaner-syntax">Query by named list (cleaner syntax)<a class="anchor" aria-label="anchor" href="#query-by-named-list-cleaner-syntax"></a>
+</h4>
+<div class="sourceCode" id="cb26"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Cleaner syntax for AND-logic multi-tag queries</span></span>
+<span><span class="va">manifest</span><span class="op">$</span><span class="fu">queryCohortsWithTagValues</span><span class="op">(</span></span>
+<span>  tagValueMapping <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>    status <span class="op">=</span> <span class="st">"approved"</span>,</span>
+<span>    owner <span class="op">=</span> <span class="st">"alice"</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co"># Equivalent to:</span></span>
+<span><span class="co"># manifest$queryCohortsByTag(</span></span>
+<span><span class="co">#   tagStrings = c("status: approved", "owner: alice"),</span></span>
+<span><span class="co">#   match = "all"</span></span>
+<span><span class="co"># )</span></span></code></pre></div>
+<p>Returns a tibble or <code>NULL</code>.</p>
+</div>
+<div class="section level4">
+<h4 id="find-cohorts-missing-a-tag">Find cohorts missing a tag<a class="anchor" aria-label="anchor" href="#find-cohorts-missing-a-tag"></a>
+</h4>
+<div class="sourceCode" id="cb27"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Quality check: which cohorts don't have an owner tag?</span></span>
+<span><span class="va">unowned</span> <span class="op">&lt;-</span> <span class="va">manifest</span><span class="op">$</span><span class="fu">queryCohortsMissingTag</span><span class="op">(</span>tagName <span class="op">=</span> <span class="st">"owner"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># If all cohorts have it, returns NULL with a warning</span></span>
+<span><span class="co"># Useful for auditing before workflow milestones</span></span></code></pre></div>
+</div>
+</div>
+<div class="section level3">
+<h3 id="tag-discovery-and-auditing">Tag discovery and auditing<a class="anchor" aria-label="anchor" href="#tag-discovery-and-auditing"></a>
+</h3>
+<div class="section level4">
+<h4 id="get-all-unique-tag-names">Get all unique tag names<a class="anchor" aria-label="anchor" href="#get-all-unique-tag-names"></a>
+</h4>
+<div class="sourceCode" id="cb28"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Discover all tag names in use across the manifest (sorted alphabetically)</span></span>
+<span><span class="va">manifest</span><span class="op">$</span><span class="fu">listAllUniqueTags</span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="co"># Returns: c("owner", "qa_date", "qa_status", "status", "type")</span></span></code></pre></div>
+</div>
+<div class="section level4">
+<h4 id="get-summary-of-tag-values">Get summary of tag values<a class="anchor" aria-label="anchor" href="#get-summary-of-tag-values"></a>
+</h4>
+<div class="sourceCode" id="cb29"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># For a specific tag, see all unique values and which cohorts use them</span></span>
+<span><span class="va">manifest</span><span class="op">$</span><span class="fu">getTagValuesSummary</span><span class="op">(</span>tagName <span class="op">=</span> <span class="st">"status"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Returns tibble like:</span></span>
+<span><span class="co"># | value         | count | cohorts       |</span></span>
+<span><span class="co"># |:--------------|------:|:--------------|</span></span>
+<span><span class="co"># | approved      |     8 | "1, 2, 5, 9" |</span></span>
+<span><span class="co"># | pending_review|     3 | "3, 4, 6"     |</span></span>
+<span><span class="co"># | draft         |     2 | "7, 8"        |</span></span></code></pre></div>
+<p>Sorted by count (descending). Useful for auditing tag usage
+patterns.</p>
+</div>
+</div>
+<div class="section level3">
+<h3 id="complete-workflow-example">Complete workflow example<a class="anchor" aria-label="anchor" href="#complete-workflow-example"></a>
+</h3>
+<div class="sourceCode" id="cb30"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># 1. Load and inspect</span></span>
+<span><span class="va">manifest</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadCohortManifest.html">loadCohortManifest</a></span><span class="op">(</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 2. Tag new cohorts during import</span></span>
+<span><span class="va">manifest</span><span class="op">$</span><span class="fu">importAtlasCohorts</span><span class="op">(</span></span>
+<span>  cohortsLoad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/utils/read.table.html" class="external-link">read.csv</a></span><span class="op">(</span><span class="st">"cohorts_to_import.csv"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 3. Add QA tags after review</span></span>
+<span><span class="va">approved_cohorts</span> <span class="op">&lt;-</span> <span class="va">manifest</span><span class="op">$</span><span class="fu">queryCohortsByTag</span><span class="op">(</span><span class="st">"route: atlas"</span><span class="op">)</span></span>
+<span><span class="kw">for</span> <span class="op">(</span><span class="va">row</span> <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">approved_cohorts</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">cid</span> <span class="op">&lt;-</span> <span class="va">approved_cohorts</span><span class="op">$</span><span class="va">id</span><span class="op">[</span><span class="va">row</span><span class="op">]</span></span>
+<span>  <span class="va">manifest</span><span class="op">$</span><span class="fu">mergeTagsIntoCohort</span><span class="op">(</span></span>
+<span>    cohortId <span class="op">=</span> <span class="va">cid</span>,</span>
+<span>    newTags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>      qa_status <span class="op">=</span> <span class="st">"reviewed"</span>,</span>
+<span>      qa_date <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.Date</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>      qa_by <span class="op">=</span> <span class="st">"validation_team"</span></span>
+<span>    <span class="op">)</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span></span>
+<span><span class="co"># 4. Validate that all cohorts have required tags</span></span>
+<span><span class="va">missing_qa</span> <span class="op">&lt;-</span> <span class="va">manifest</span><span class="op">$</span><span class="fu">queryCohortsMissingTag</span><span class="op">(</span><span class="st">"qa_status"</span><span class="op">)</span></span>
+<span><span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">missing_qa</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="fu">cli</span><span class="fu">::</span><span class="fu"><a href="https://cli.r-lib.org/reference/cli_alert.html" class="external-link">cli_alert_warning</a></span><span class="op">(</span><span class="st">"Cohorts missing QA status: {paste(missing_qa$id, collapse = ', ')}"</span><span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span></span>
+<span><span class="co"># 5. Generate report of tag coverage</span></span>
+<span><span class="va">tag_summary</span> <span class="op">&lt;-</span> <span class="va">manifest</span><span class="op">$</span><span class="fu">getTagValuesSummary</span><span class="op">(</span><span class="st">"qa_status"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">tag_summary</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 6. Rename or bulk-update tags if needed</span></span>
+<span><span class="va">manifest</span><span class="op">$</span><span class="fu">bulkModifyTagValue</span><span class="op">(</span></span>
+<span>  tagName <span class="op">=</span> <span class="st">"qa_status"</span>,</span>
+<span>  oldValue <span class="op">=</span> <span class="st">"reviewed"</span>,</span>
+<span>  newValue <span class="op">=</span> <span class="st">"approved"</span></span>
+<span><span class="op">)</span></span></code></pre></div>
 </div>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

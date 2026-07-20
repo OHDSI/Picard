@@ -1,5 +1,6 @@
 <urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
 <url><loc>https://ohdsi.github.io/Picard/404.html</loc></url>
+<url><loc>https://ohdsi.github.io/Picard/CLAUDE.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/LICENSE.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/TODO.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/articles/cohorts.html</loc></url>
@@ -14,6 +15,7 @@
 <url><loc>https://ohdsi.github.io/Picard/articles/picard_repository_structure.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/articles/post_processing.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/articles/running_the_pipeline.html</loc></url>
+<url><loc>https://ohdsi.github.io/Picard/articles/using_agent_skills.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/authors.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/index.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/news/index.html</loc></url>
@@ -62,6 +64,7 @@
 <url><loc>https://ohdsi.github.io/Picard/reference/execute_pipeline.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/reference/execute_task.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/reference/expandManifestTags.html</loc></url>
+<url><loc>https://ohdsi.github.io/Picard/reference/findTransitiveDependents.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/reference/formatFloats.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/reference/formatPercentages.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/reference/generateCohorts.html</loc></url>

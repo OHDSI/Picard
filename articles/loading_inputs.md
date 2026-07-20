@@ -140,13 +140,16 @@ conceptSetManifest <- loadConceptSetManifest()
 conceptSetManifest$tabulateManifest()
 ```
 
-**Auto-discovery:**
+**Auto-sync:**
 [`loadConceptSetManifest()`](https://ohdsi.github.io/Picard/reference/loadConceptSetManifest.md)
-scans `inputs/conceptSets/json/` and auto-registers any `.json` files
-not yet in the database. Drop new concept set JSON files there and
-re-run
-[`loadConceptSetManifest()`](https://ohdsi.github.io/Picard/reference/loadConceptSetManifest.md)
-to pick them up without any additional import step.
+scans `inputs/conceptSets/json/` and reconciles it against the database
+— updated hashes are picked up, records whose file has disappeared are
+flagged as missing, and any `.json` file that isn’t already registered
+in the manifest is treated as an orphan and deleted. Register new
+concept sets explicitly (e.g. `$addConceptSetFile()`,
+`$addCaprConceptSet()`, or `importAtlasConceptSets()`) rather than
+dropping JSON files directly into `json/` — an unregistered file will be
+removed the next time the manifest is loaded.
 
 ### Other import patterns for Concept Sets
 
@@ -248,6 +251,12 @@ cohortManifest$tabulateManifest()
 This pattern uses `inputs/cohorts/R/import_capr_cohort.R` and requires
 the Capr package.
 
+**AI agent support:** study repos ship with a `picard-capr-cohorts`
+skill in `.agent/skills/` that wraps Capr’s own `capr-cohort-generation`
+skill. A coding agent (Claude Code, Copilot, Cursor, …) can generate the
+validated Capr code and append it to the builder script; you review and
+source the script yourself.
+
 Capr provides a fluent interface for building cohort definitions in R:
 
 ``` r
@@ -313,13 +322,12 @@ queries. Place your SQL files in `inputs/cohorts/sql/`:
 ``` r
 cohortManifest <- loadCohortManifest()
 
-# Add a custom SQL cohort
+# Add a custom SQL cohort (the file must already exist in inputs/cohorts/sql/)
 cohortManifest$addSqlCohort(
-  cohortName = "MyCustomCohort",
-  sqlPath = here::here("inputs/cohorts/sql/my_custom_cohort.sql"),
-  # SqlRender parameters (will substitute @param in the SQL file)
-  targetCohortId = 1001,
-  cdmDatabaseSchema = "cdm"
+  filePath = here::here("inputs/cohorts/sql/my_custom_cohort.sql"),
+  label = "My Custom Cohort",
+  category = "Custom",
+  tags = list(source = "sql")
 )
 ```
 

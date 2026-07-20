@@ -18,3 +18,5 @@
   Dissemination](https://ohdsi.github.io/Picard/articles/post_processing.md):
 - [Running the Pipeline: Production
   Execution](https://ohdsi.github.io/Picard/articles/running_the_pipeline.md):
+- [Using Agent Skills for Cohort and Concept Set
+  Development](https://ohdsi.github.io/Picard/articles/using_agent_skills.md):

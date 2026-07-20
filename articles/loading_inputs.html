@@ -260,12 +260,17 @@ workflows.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">conceptSetManifest</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadConceptSetManifest.html">loadConceptSetManifest</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="va">conceptSetManifest</span><span class="op">$</span><span class="fu">tabulateManifest</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-<p><strong>Auto-discovery:</strong>
-<code><a href="../reference/loadConceptSetManifest.html">loadConceptSetManifest()</a></code> scans
-<code>inputs/conceptSets/json/</code> and auto-registers any
-<code>.json</code> files not yet in the database. Drop new concept set
-JSON files there and re-run <code><a href="../reference/loadConceptSetManifest.html">loadConceptSetManifest()</a></code> to
-pick them up without any additional import step.</p>
+<p><strong>Auto-sync:</strong> <code><a href="../reference/loadConceptSetManifest.html">loadConceptSetManifest()</a></code>
+scans <code>inputs/conceptSets/json/</code> and reconciles it against
+the database — updated hashes are picked up, records whose file has
+disappeared are flagged as missing, and any <code>.json</code> file that
+isn’t already registered in the manifest is treated as an orphan and
+deleted. Register new concept sets explicitly
+(e.g. <code>$addConceptSetFile()</code>,
+<code>$addCaprConceptSet()</code>, or
+<code>importAtlasConceptSets()</code>) rather than dropping JSON files
+directly into <code>json/</code> — an unregistered file will be removed
+the next time the manifest is loaded.</p>
 </div>
 </div>
 <div class="section level3">
@@ -368,6 +373,12 @@ workflows.</p>
 </h3>
 <p>This pattern uses <code>inputs/cohorts/R/import_capr_cohort.R</code>
 and requires the Capr package.</p>
+<p><strong>AI agent support:</strong> study repos ship with a
+<code>picard-capr-cohorts</code> skill in <code>.agent/skills/</code>
+that wraps Capr’s own <code>capr-cohort-generation</code> skill. A
+coding agent (Claude Code, Copilot, Cursor, …) can generate the
+validated Capr code and append it to the builder script; you review and
+source the script yourself.</p>
 <p>Capr provides a fluent interface for building cohort definitions in
 R:</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
@@ -430,13 +441,12 @@ queries. Place your SQL files in <code>inputs/cohorts/sql/</code>:</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">cohortManifest</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadCohortManifest.html">loadCohortManifest</a></span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># Add a custom SQL cohort</span></span>
+<span><span class="co"># Add a custom SQL cohort (the file must already exist in inputs/cohorts/sql/)</span></span>
 <span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">addSqlCohort</span><span class="op">(</span></span>
-<span>  cohortName <span class="op">=</span> <span class="st">"MyCustomCohort"</span>,</span>
-<span>  sqlPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts/sql/my_custom_cohort.sql"</span><span class="op">)</span>,</span>
-<span>  <span class="co"># SqlRender parameters (will substitute @param in the SQL file)</span></span>
-<span>  targetCohortId <span class="op">=</span> <span class="fl">1001</span>,</span>
-<span>  cdmDatabaseSchema <span class="op">=</span> <span class="st">"cdm"</span></span>
+<span>  filePath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts/sql/my_custom_cohort.sql"</span><span class="op">)</span>,</span>
+<span>  label <span class="op">=</span> <span class="st">"My Custom Cohort"</span>,</span>
+<span>  category <span class="op">=</span> <span class="st">"Custom"</span>,</span>
+<span>  tags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>source <span class="op">=</span> <span class="st">"sql"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p>SQL files must follow SqlRender conventions with parameters prefixed
 by <code>@</code>:</p>

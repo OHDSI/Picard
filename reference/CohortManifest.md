@@ -132,6 +132,8 @@ Requires that executionSettings has been set and includes:
 
 - [`CohortManifest$addCaprCohort()`](#method-CohortManifest-addCaprCohort)
 
+- [`CohortManifest$updateCaprCohort()`](#method-CohortManifest-updateCaprCohort)
+
 - [`CohortManifest$addSqlCohort()`](#method-CohortManifest-addSqlCohort)
 
 - [`CohortManifest$addDependentCustomCohort()`](#method-CohortManifest-addDependentCustomCohort)
@@ -160,6 +162,12 @@ Requires that executionSettings has been set and includes:
 
 - [`CohortManifest$queryCohortsByTagName()`](#method-CohortManifest-queryCohortsByTagName)
 
+- [`CohortManifest$queryCohortsMissingTag()`](#method-CohortManifest-queryCohortsMissingTag)
+
+- [`CohortManifest$queryCohortsWithTagValues()`](#method-CohortManifest-queryCohortsWithTagValues)
+
+- [`CohortManifest$getTagValuesSummary()`](#method-CohortManifest-getTagValuesSummary)
+
 - [`CohortManifest$nCohorts()`](#method-CohortManifest-nCohorts)
 
 - [`CohortManifest$getCohortById()`](#method-CohortManifest-getCohortById)
@@ -173,6 +181,24 @@ Requires that executionSettings has been set and includes:
 - [`CohortManifest$updateCohortCategory()`](#method-CohortManifest-updateCohortCategory)
 
 - [`CohortManifest$updateCohortTags()`](#method-CohortManifest-updateCohortTags)
+
+- [`CohortManifest$removeCohortTag()`](#method-CohortManifest-removeCohortTag)
+
+- [`CohortManifest$modifyCohortTagValue()`](#method-CohortManifest-modifyCohortTagValue)
+
+- [`CohortManifest$addCohortTag()`](#method-CohortManifest-addCohortTag)
+
+- [`CohortManifest$getCohortTags()`](#method-CohortManifest-getCohortTags)
+
+- [`CohortManifest$mergeTagsIntoCohort()`](#method-CohortManifest-mergeTagsIntoCohort)
+
+- [`CohortManifest$listAllUniqueTags()`](#method-CohortManifest-listAllUniqueTags)
+
+- [`CohortManifest$getTagValue()`](#method-CohortManifest-getTagValue)
+
+- [`CohortManifest$renameTagKey()`](#method-CohortManifest-renameTagKey)
+
+- [`CohortManifest$bulkModifyTagValue()`](#method-CohortManifest-bulkModifyTagValue)
 
 - [`CohortManifest$checkAtlasCohorts()`](#method-CohortManifest-checkAtlasCohorts)
 
@@ -301,8 +327,8 @@ Tabulate the manifest as a tibble
 #### Returns
 
 A tibble with columns: id, label, category, tags, file_path, hash,
-source_type, cohort_type, status, created_at, deleted_at Review stale
-derived cohorts
+source_type, cohort_type, status, depends_on, created_at, deleted_at
+Review stale derived cohorts
 
 ------------------------------------------------------------------------
 
@@ -435,7 +461,8 @@ cohort in the manifest.
       label,
       category,
       tags = list(),
-      atlasConnection = NULL
+      atlasConnection = NULL,
+      stopIfExists = TRUE
     )
 
 #### Arguments
@@ -464,6 +491,15 @@ cohort in the manifest.
   `expression` element. If `NULL`, falls back to the connection stored
   via `$setAtlasConnection()`.
 
+- `stopIfExists`:
+
+  Logical. If TRUE (default), raises an error when an active cohort with
+  this label is already registered. If FALSE, fetches the current
+  definition from ATLAS and updates the registered cohort in place —
+  same ID and file path, hash refreshed, `category`/`tags`/atlasId
+  replaced, derived dependents marked 'stale'. An unchanged definition
+  leaves the file untouched. Default: TRUE (fail-safe).
+
 #### Returns
 
 Invisible integer. The assigned cohort ID.
@@ -476,8 +512,13 @@ Batch-import cohorts from ATLAS via a cohortsLoad dataframe
 
 Either create a dataframe or read in a csv file with columns `atlasId`,
 `label`, `category` (required) plus any additional columns treated as
-tag key-value pairs for tags. Calls `addAtlasCohort()` for each row
-inside a `tryCatch` so a single failure does not abort the entire batch.
+tag key-value pairs for tags. Calls `addAtlasCohort()` for each row.
+
+The load file is a transient, one-time import mechanism: rows whose
+atlasId or label are already registered in the manifest are an error,
+not an update. To sync registered cohorts with ATLAS, run
+`updateAtlasCohorts()`; to update a single cohort, use
+`addAtlasCohort(stopIfExists = FALSE)`.
 
 #### Usage
 
@@ -511,7 +552,13 @@ the cohort in the manifest.
 
 #### Usage
 
-    CohortManifest$addCaprCohort(caprCohort, label, category, tags = list())
+    CohortManifest$addCaprCohort(
+      caprCohort,
+      label,
+      category,
+      tags = list(),
+      stopIfExists = TRUE
+    )
 
 #### Arguments
 
@@ -531,9 +578,49 @@ the cohort in the manifest.
 
   Named list. Optional metadata tags.
 
+- `stopIfExists`:
+
+  Logical. If TRUE (default), raises an error when an active cohort with
+  this label is already registered. If FALSE, updates the existing
+  cohort in place via `updateCaprCohort()` — the cohort keeps its ID and
+  file path, and `category`/`tags` replace the registered metadata
+  (previous tags are dropped if none are supplied). Default: TRUE
+  (fail-safe).
+
 #### Returns
 
 Invisible integer. The assigned cohort ID.
+
+------------------------------------------------------------------------
+
+### Method `updateCaprCohort()`
+
+Update an existing Capr cohort's JSON definition
+
+Takes a revised Capr Cohort object and upserts it over a cohort already
+registered via `addCaprCohort()`: the JSON file recorded in the manifest
+is overwritten in place and the manifest hash is refreshed, so the
+cohort keeps its ID and file path. Any derived cohorts that depend on it
+are marked 'stale'. If the new definition is identical to the registered
+one, nothing is changed.
+
+#### Usage
+
+    CohortManifest$updateCaprCohort(caprCohort, label)
+
+#### Arguments
+
+- `caprCohort`:
+
+  A Capr Cohort object (inherits from "Cohort").
+
+- `label`:
+
+  Character. Label of the active cohort to update.
+
+#### Returns
+
+Invisible integer. The cohort ID.
 
 ------------------------------------------------------------------------
 
@@ -574,9 +661,13 @@ exist on disk (typically in `sql/`).
 
 - `stopIfExists`:
 
-  Logical. If TRUE (default), raises an error if the file already exists
-  on disk or is already registered in the manifest. If FALSE, overwrites
-  silently with a warning. Default: TRUE (fail-safe).
+  Logical. If TRUE (default), raises an error when an active cohort with
+  this label is already registered, or the file path is registered to
+  another cohort. If FALSE, updates the registered cohort in place —
+  same ID, file path registration and content hash refreshed,
+  `category`/`tags` replace the registered metadata (previous tags are
+  dropped if none are supplied), and derived dependents are marked
+  'stale' when the definition changed. Default: TRUE (fail-safe).
 
 #### Returns
 
@@ -601,7 +692,8 @@ preserve the standard Picard cohort write contract using
       label,
       category,
       dependentCohortIdList,
-      tags = list()
+      tags = list(),
+      stopIfExists = TRUE
     )
 
 #### Arguments
@@ -621,12 +713,23 @@ preserve the standard Picard cohort write contract using
 - `dependentCohortIdList`:
 
   Named list. Each name is a SqlRender parameter to expose in the SQL
-  file and each value is the cohort ID to inject at runtime. Example:
-  \\codelist(inc_cohort_id = 10L, exc_cohort_id = 12L).
+  file and each value is the cohort ID — or an integer vector of cohort
+  IDs — to inject at runtime. Vectors render comma-separated, for use in
+  \\codeIN (@param) clauses. Example: \\codelist(inc_cohort_id = 10L,
+  exc_cohort_ids = c(12L, 14L)).
 
 - `tags`:
 
   Named list. Optional metadata tags.
+
+- `stopIfExists`:
+
+  Logical. If TRUE (default), raises an error when an active or stale
+  cohort with this label is already registered. If FALSE, updates the
+  registered cohort in place (same ID): the dependent cohort IDs and the
+  SQL file registration (path and content hash) are replaced, the cohort
+  is marked 'stale' for regeneration, and its own dependents are marked
+  stale too. Default: TRUE (fail-safe).
 
 #### Returns
 
@@ -677,19 +780,30 @@ Build a union cohort from existing cohorts
 Creates a derived cohort that is the union of specified parent cohorts.
 Delegates SQL generation to the internal builder function.
 
+Input route policy:
+
+- Preferred: provide `cohortEntries` (manifest query rows with `id`)
+
+- Backward compatible: provide `cohortIds`
+
+- Exactly one route must be provided; passing both or neither is an
+  error.
+
 #### Usage
 
     CohortManifest$buildUnionCohort(
       label,
       category,
       tags = list(),
-      cohortIds,
+      cohortIds = NULL,
+      cohortEntries = NULL,
       gapDays = 0L,
       eraPadDays = 0L,
       minEraDays = 0L,
       minCohorts = 1L,
       washoutDays = 0L,
-      firstEraOnly = FALSE
+      firstEraOnly = FALSE,
+      stopIfExists = TRUE
     )
 
 #### Arguments
@@ -708,7 +822,14 @@ Delegates SQL generation to the internal builder function.
 
 - `cohortIds`:
 
-  Numeric vector (minimum 2). Cohort IDs to union.
+  Numeric vector (minimum 2). Legacy ID route to union cohorts.
+  Supported for backward compatibility and emits a migration warning
+  unless `options(picard.suppressIdRouteWarning = TRUE)` is set.
+
+- `cohortEntries`:
+
+  Data frame/tibble with an `id` column (minimum 2 rows). Preferred
+  route using manifest query results.
 
 - `gapDays`:
 
@@ -742,6 +863,15 @@ Delegates SQL generation to the internal builder function.
   Logical. Return only the first collapsed era per subject. Default:
   FALSE.
 
+- `stopIfExists`:
+
+  Logical. If TRUE (default), raises an error when an active or stale
+  cohort with this label is already registered. If FALSE, updates the
+  registered derived cohort in place (same ID and file path): the SQL is
+  re-rendered, parents and build parameters are replaced, the cohort is
+  marked 'stale' for regeneration, and its own dependents are marked
+  stale too. Default: TRUE (fail-safe).
+
 #### Returns
 
 Invisible integer. The assigned cohort ID.
@@ -755,18 +885,29 @@ Build a subset cohort with temporal criteria
 Creates a derived cohort that subsets a base cohort using temporal
 relationship to a filter cohort.
 
+Input route policy:
+
+- Preferred: provide `baseCohortEntry`/`filterCohortEntry`
+
+- Backward compatible: provide `baseCohortId`/`filterCohortId`
+
+- Exactly one route per role must be provided; both/neither is an error.
+
 #### Usage
 
     CohortManifest$buildSubsetCohortTemporal(
       label,
       category,
       tags = list(),
-      baseCohortId,
-      filterCohortId,
+      baseCohortId = NULL,
+      filterCohortId = NULL,
+      baseCohortEntry = NULL,
+      filterCohortEntry = NULL,
       startWindow,
       endWindow = NULL,
       endDateType = "base",
-      subsetLimit = "First"
+      subsetLimit = "First",
+      stopIfExists = TRUE
     )
 
 #### Arguments
@@ -785,11 +926,21 @@ relationship to a filter cohort.
 
 - `baseCohortId`:
 
-  Integer. The cohort ID to subset.
+  Integer. Legacy ID route for the base cohort.
 
 - `filterCohortId`:
 
-  Integer. The cohort ID to use for temporal filtering.
+  Integer. Legacy ID route for the filter cohort.
+
+- `baseCohortEntry`:
+
+  Data frame/tibble with one row and an `id` column. Preferred route
+  using manifest query results for the base cohort.
+
+- `filterCohortEntry`:
+
+  Data frame/tibble with one row and an `id` column. Preferred route
+  using manifest query results for the filter cohort.
 
 - `startWindow`:
 
@@ -815,6 +966,15 @@ relationship to a filter cohort.
   the earliest event, 'Last' keeps the most recent event, 'All' keeps
   all qualifying events. Default: 'First'.
 
+- `stopIfExists`:
+
+  Logical. If TRUE (default), raises an error when an active or stale
+  cohort with this label is already registered. If FALSE, updates the
+  registered derived cohort in place (same ID and file path): the SQL is
+  re-rendered, parents and build parameters are replaced, the cohort is
+  marked 'stale' for regeneration, and its own dependents are marked
+  stale too. Default: TRUE (fail-safe).
+
 #### Returns
 
 Invisible integer. The assigned cohort ID.
@@ -828,15 +988,26 @@ Build a complement cohort
 Creates a derived cohort containing all subjects from the population
 cohort who do NOT appear in any (or all) of the exclude cohorts.
 
+Input route policy:
+
+- Preferred: provide `populationCohortEntry`/`excludeCohortEntries`
+
+- Backward compatible: provide `populationCohortId`/`excludeCohortIds`
+
+- Exactly one route per role must be provided; both/neither is an error.
+
 #### Usage
 
     CohortManifest$buildComplementCohort(
       label,
       category,
       tags = list(),
-      populationCohortId,
-      excludeCohortIds,
-      complementType = "exclude_any"
+      populationCohortId = NULL,
+      excludeCohortIds = NULL,
+      populationCohortEntry = NULL,
+      excludeCohortEntries = NULL,
+      complementType = "exclude_any",
+      stopIfExists = TRUE
     )
 
 #### Arguments
@@ -855,12 +1026,22 @@ cohort who do NOT appear in any (or all) of the exclude cohorts.
 
 - `populationCohortId`:
 
-  Integer. ID of the population (base) cohort.
+  Integer. Legacy ID route for the population (base) cohort.
 
 - `excludeCohortIds`:
 
-  Integer vector (min length 1). IDs of cohorts whose subjects should be
-  excluded from the population.
+  Integer vector (min length 1). Legacy ID route for cohorts whose
+  subjects should be excluded from the population.
+
+- `populationCohortEntry`:
+
+  Data frame/tibble with one row and an `id` column. Preferred route
+  using manifest query results for the population cohort.
+
+- `excludeCohortEntries`:
+
+  Data frame/tibble with an `id` column (minimum 1 row). Preferred route
+  using manifest query results for exclusion cohorts.
 
 - `complementType`:
 
@@ -868,6 +1049,15 @@ cohort who do NOT appear in any (or all) of the exclude cohorts.
   `"exclude_any"` removes subjects present in ANY exclude cohort;
   `"exclude_all"` removes subjects only if they appear in ALL exclude
   cohorts.
+
+- `stopIfExists`:
+
+  Logical. If TRUE (default), raises an error when an active or stale
+  cohort with this label is already registered. If FALSE, updates the
+  registered derived cohort in place (same ID and file path): the SQL is
+  re-rendered, parents and build parameters are replaced, the cohort is
+  marked 'stale' for regeneration, and its own dependents are marked
+  stale too. Default: TRUE (fail-safe).
 
 #### Returns
 
@@ -882,15 +1072,26 @@ Build a composite cohort
 Creates a derived cohort that requires membership in multiple cohorts
 (intersection logic).
 
+Input route policy:
+
+- Preferred: provide `criteriaCohortEntries`
+
+- Backward compatible: provide `criteriaCohortIds`
+
+- Exactly one route must be provided; passing both or neither is an
+  error.
+
 #### Usage
 
     CohortManifest$buildCompositeCohort(
       label,
       category,
       tags = list(),
-      criteriaCohortIds,
+      criteriaCohortIds = NULL,
+      criteriaCohortEntries = NULL,
       eventSelection = "First",
-      minEventCount = 1L
+      minEventCount = 1L,
+      stopIfExists = TRUE
     )
 
 #### Arguments
@@ -909,8 +1110,14 @@ Creates a derived cohort that requires membership in multiple cohorts
 
 - `criteriaCohortIds`:
 
-  Integer vector. The cohort IDs to include in the composite (e.g., c(1,
-  2, 3) for Type 1 diabetes, Type 2 diabetes, and secondary diabetes).
+  Integer vector. Legacy ID route for cohorts to include in the
+  composite (e.g., c(1, 2, 3) for Type 1 diabetes, Type 2 diabetes, and
+  secondary diabetes).
+
+- `criteriaCohortEntries`:
+
+  Data frame/tibble with an `id` column (minimum 2 rows). Preferred
+  route using manifest query results.
 
 - `eventSelection`:
 
@@ -930,6 +1137,15 @@ Creates a derived cohort that requires membership in multiple cohorts
   subject to qualify for the composite. Default: 1 (any subject with at
   least 1 event qualifies).
 
+- `stopIfExists`:
+
+  Logical. If TRUE (default), raises an error when an active or stale
+  cohort with this label is already registered. If FALSE, updates the
+  registered derived cohort in place (same ID and file path): the SQL is
+  re-rendered, parents and build parameters are replaced, the cohort is
+  marked 'stale' for regeneration, and its own dependents are marked
+  stale too. Default: TRUE (fail-safe).
+
 #### Returns
 
 Invisible integer. The assigned cohort ID.
@@ -943,18 +1159,29 @@ Build a demographic subset cohort
 Creates a derived cohort that subsets a base cohort by filtering on
 person-level demographic attributes (age, gender, race, ethnicity).
 
+Input route policy:
+
+- Preferred: provide `baseCohortEntry`
+
+- Backward compatible: provide `baseCohortId`
+
+- Exactly one route must be provided; passing both or neither is an
+  error.
+
 #### Usage
 
     CohortManifest$buildDemographicCohort(
       label,
-      baseCohortId,
+      baseCohortId = NULL,
+      baseCohortEntry = NULL,
       category,
       minAge = NULL,
       maxAge = NULL,
       genderConceptIds = NULL,
       raceConceptIds = NULL,
       ethnicityConceptIds = NULL,
-      tags = list()
+      tags = list(),
+      stopIfExists = TRUE
     )
 
 #### Arguments
@@ -965,7 +1192,12 @@ person-level demographic attributes (age, gender, race, ethnicity).
 
 - `baseCohortId`:
 
-  Integer. ID of the base cohort to subset.
+  Integer. Legacy ID route for the base cohort.
+
+- `baseCohortEntry`:
+
+  Data frame/tibble with one row and an `id` column. Preferred route
+  using manifest query results.
 
 - `category`:
 
@@ -999,6 +1231,15 @@ person-level demographic attributes (age, gender, race, ethnicity).
 
   Named list. Optional metadata tags.
 
+- `stopIfExists`:
+
+  Logical. If TRUE (default), raises an error when an active or stale
+  cohort with this label is already registered. If FALSE, updates the
+  registered derived cohort in place (same ID and file path): the SQL is
+  re-rendered, parents and build parameters are replaced, the cohort is
+  marked 'stale' for regeneration, and its own dependents are marked
+  stale too. Default: TRUE (fail-safe).
+
 #### Returns
 
 Invisible integer. The assigned cohort ID.
@@ -1014,10 +1255,20 @@ automatic **Unclassified** cohort containing subjects that match none of
 the named strata. Each stratum is registered as a separate manifest
 entry with `cohort_type = "subset"`.
 
+Input route policy:
+
+- Preferred: provide `baseCohortEntry`
+
+- Backward compatible: provide `baseCohortId`
+
+- Exactly one route must be provided; passing both or neither is an
+  error.
+
 #### Usage
 
     CohortManifest$buildStratifiedCohorts(
-      baseCohortId,
+      baseCohortId = NULL,
+      baseCohortEntry = NULL,
       strata,
       labelPrefix = NULL,
       category = "derived",
@@ -1028,7 +1279,12 @@ entry with `cohort_type = "subset"`.
 
 - `baseCohortId`:
 
-  Integer. The cohort definition ID to split.
+  Integer. Legacy ID route for the cohort definition ID to split.
+
+- `baseCohortEntry`:
+
+  Data frame/tibble with one row and an `id` column. Preferred route
+  using manifest query results.
 
 - `strata`:
 
@@ -1176,6 +1432,72 @@ source_type, created_at. Query cohorts by category
 
 Tibble with columns: id, label, category, tags, file_path, hash,
 source_type, created_at.
+
+------------------------------------------------------------------------
+
+### Method `queryCohortsMissingTag()`
+
+Query cohorts missing a specific tag
+
+#### Usage
+
+    CohortManifest$queryCohortsMissingTag(tagName)
+
+#### Arguments
+
+- `tagName`:
+
+  Character. The name of the tag to check for absence.
+
+#### Returns
+
+Tibble with columns: id, label, category, tags, file_path, hash,
+source_type, created_at. Returns NULL if all cohorts have the tag.
+
+------------------------------------------------------------------------
+
+### Method `queryCohortsWithTagValues()`
+
+Query cohorts by tag value mapping
+
+#### Usage
+
+    CohortManifest$queryCohortsWithTagValues(tagValueMapping)
+
+#### Arguments
+
+- `tagValueMapping`:
+
+  Named list. Keys are tag names, values are tag values to match.
+  Example: `list(status = "approved", type = "primary")` requires both
+  conditions (AND logic).
+
+#### Returns
+
+Tibble with columns: id, label, category, tags, file_path, hash,
+source_type, created_at. Returns NULL if no cohorts match all tag
+conditions.
+
+------------------------------------------------------------------------
+
+### Method `getTagValuesSummary()`
+
+Get a summary of all unique values for a specific tag
+
+#### Usage
+
+    CohortManifest$getTagValuesSummary(tagName)
+
+#### Arguments
+
+- `tagName`:
+
+  Character. The name of the tag to summarize.
+
+#### Returns
+
+Tibble with columns: value, count, cohorts (comma-separated IDs).
+Returns NULL if no cohorts have the tag.
 
 ------------------------------------------------------------------------
 
@@ -1333,6 +1655,228 @@ Update cohort tags
 #### Returns
 
 Invisible NULL.
+
+------------------------------------------------------------------------
+
+### Method `removeCohortTag()`
+
+Remove a specific tag from a cohort
+
+#### Usage
+
+    CohortManifest$removeCohortTag(cohortId, tagName)
+
+#### Arguments
+
+- `cohortId`:
+
+  Integer. The cohort ID to update.
+
+- `tagName`:
+
+  Character. The name of the tag to remove.
+
+#### Returns
+
+Invisible NULL. Emits success message if tag was removed, warning if tag
+was not found.
+
+------------------------------------------------------------------------
+
+### Method `modifyCohortTagValue()`
+
+Modify the value of an existing tag
+
+#### Usage
+
+    CohortManifest$modifyCohortTagValue(cohortId, tagName, newValue)
+
+#### Arguments
+
+- `cohortId`:
+
+  Integer. The cohort ID to update.
+
+- `tagName`:
+
+  Character. The name of the tag to modify.
+
+- `newValue`:
+
+  Character. The new value for the tag.
+
+#### Returns
+
+Invisible NULL. Emits success message if tag was modified, error if tag
+does not exist.
+
+------------------------------------------------------------------------
+
+### Method `addCohortTag()`
+
+Add a single tag to a cohort (non-destructive)
+
+#### Usage
+
+    CohortManifest$addCohortTag(cohortId, tagName, tagValue)
+
+#### Arguments
+
+- `cohortId`:
+
+  Integer. The cohort ID to update.
+
+- `tagName`:
+
+  Character. The name of the tag to add.
+
+- `tagValue`:
+
+  Character. The value for the new tag.
+
+#### Returns
+
+Invisible NULL. Emits success message if tag was added.
+
+------------------------------------------------------------------------
+
+### Method `getCohortTags()`
+
+Get all tags for a specific cohort
+
+#### Usage
+
+    CohortManifest$getCohortTags(cohortId)
+
+#### Arguments
+
+- `cohortId`:
+
+  Integer. The cohort ID to query.
+
+#### Returns
+
+Named list of tags, or NULL if cohort not found.
+
+------------------------------------------------------------------------
+
+### Method `mergeTagsIntoCohort()`
+
+Merge multiple tags into a cohort (non-destructive, additive)
+
+#### Usage
+
+    CohortManifest$mergeTagsIntoCohort(cohortId, newTags)
+
+#### Arguments
+
+- `cohortId`:
+
+  Integer. The cohort ID to update.
+
+- `newTags`:
+
+  Named list. The tags to add/merge (overwrites existing keys with same
+  name).
+
+#### Returns
+
+Invisible NULL. Emits success message.
+
+------------------------------------------------------------------------
+
+### Method `listAllUniqueTags()`
+
+Get all unique tag names used across the manifest
+
+#### Usage
+
+    CohortManifest$listAllUniqueTags()
+
+#### Returns
+
+Character vector of unique tag names, sorted alphabetically.
+
+------------------------------------------------------------------------
+
+### Method `getTagValue()`
+
+Get value of a single tag for a cohort
+
+#### Usage
+
+    CohortManifest$getTagValue(cohortId, tagName)
+
+#### Arguments
+
+- `cohortId`:
+
+  Integer. The cohort ID to query.
+
+- `tagName`:
+
+  Character. The name of the tag to retrieve.
+
+#### Returns
+
+Character. The tag value, or NULL if tag or cohort not found.
+
+------------------------------------------------------------------------
+
+### Method `renameTagKey()`
+
+Rename a tag key across specified cohorts (or all cohorts)
+
+#### Usage
+
+    CohortManifest$renameTagKey(oldTagName, newTagName, cohortIds = NULL)
+
+#### Arguments
+
+- `oldTagName`:
+
+  Character. The current tag name to rename.
+
+- `newTagName`:
+
+  Character. The new tag name.
+
+- `cohortIds`:
+
+  Integer vector or NULL. If NULL, renames across all cohorts that have
+  this tag.
+
+#### Returns
+
+Invisible tibble with id, label, old_value showing what was renamed.
+
+------------------------------------------------------------------------
+
+### Method `bulkModifyTagValue()`
+
+Bulk modify a tag value across cohorts matching an old value
+
+#### Usage
+
+    CohortManifest$bulkModifyTagValue(tagName, oldValue, newValue)
+
+#### Arguments
+
+- `tagName`:
+
+  Character. The name of the tag to modify.
+
+- `oldValue`:
+
+  Character. The current value to match and replace.
+
+- `newValue`:
+
+  Character. The new value to set.
+
+#### Returns
+
+Invisible tibble with id, label showing what was modified.
 
 ------------------------------------------------------------------------
 
@@ -1542,7 +2086,9 @@ Scans the `json/` and `sql/` subdirectories of the cohorts folder,
 reconciles them against the SQLite manifest, and updates both the
 database and the in-memory list:
 
-- Active manifest records whose file no longer exists are soft-deleted.
+- Active manifest records whose file no longer exists are soft-deleted,
+  along with their derived dependents (which cannot generate without the
+  parent).
 
 - Existing files whose SQL hash has changed are updated in the manifest.
 
@@ -1566,8 +2112,9 @@ cohorts managed via `build*()` methods are not touched.
 #### Returns
 
 Data frame with columns: id, label, action (`"hash_updated"`,
-`"missing_flagged"`, `"unchanged"`, `"auto_removed_orphan"`). Clean
-cohort data from the DBMS for deleted manifest entries
+`"missing_flagged"`, `"cascade_deleted"`, `"unchanged"`,
+`"auto_removed_orphan"`). Clean cohort data from the DBMS for deleted
+manifest entries
 
 ------------------------------------------------------------------------
 
@@ -1713,7 +2260,12 @@ and files on disk.
 
 #### Usage
 
-    CohortManifest$deleteCohort(id, confirm = FALSE, dropFromDBMS = FALSE)
+    CohortManifest$deleteCohort(
+      id,
+      confirm = FALSE,
+      dropFromDBMS = FALSE,
+      cascade = FALSE
+    )
 
 #### Arguments
 
@@ -1732,6 +2284,13 @@ and files on disk.
   and checksum table. Requires `executionSettings` to be set. Default:
   FALSE (filesystem/manifest cleanup only).
 
+- `cascade`:
+
+  Logical. If FALSE (default), deletion is refused when the cohort has
+  derived dependents (deleting it would orphan them and break cohort
+  generation). If TRUE, all transitive dependents are deleted too,
+  deepest-first. Default: FALSE (fail-safe).
+
 #### Returns
 
 Invisible NULL.
@@ -1749,17 +2308,28 @@ outcome cohort and a target (exposure) cohort. Filters outcome events
 that have (or lack) a prior target event, optionally within a time
 window.
 
+Input route policy:
+
+- Preferred: provide `outcomeCohortEntry`/`targetCohortEntry`
+
+- Backward compatible: provide `outcomeCohortId`/`targetCohortId`
+
+- Exactly one route per role must be provided; both/neither is an error.
+
 #### Usage
 
     CohortManifest$buildOPriorT(
       label,
       category,
       tags = list(),
-      outcomeCohortId,
-      targetCohortId,
+      outcomeCohortId = NULL,
+      targetCohortId = NULL,
       mode = "prior",
       priorTimeWindowDays = NULL,
-      subsetLimit = "First"
+      subsetLimit = "First",
+      outcomeCohortEntry = NULL,
+      targetCohortEntry = NULL,
+      stopIfExists = TRUE
     )
 
 #### Arguments
@@ -1778,11 +2348,13 @@ window.
 
 - `outcomeCohortId`:
 
-  Integer. The cohort definition ID for the outcome (e.g., GI bleed).
+  Integer. Legacy ID route for the outcome cohort definition ID (e.g.,
+  GI bleed).
 
 - `targetCohortId`:
 
-  Integer. The cohort definition ID for the target (e.g., NSAID use).
+  Integer. Legacy ID route for the target cohort definition ID (e.g.,
+  NSAID use).
 
 - `mode`:
 
@@ -1811,6 +2383,25 @@ window.
   - 'All': Keep all prior target events (one output row per pair).
     Default: 'First'.
 
+- `outcomeCohortEntry`:
+
+  Data frame/tibble with one row and an `id` column. Preferred route
+  using manifest query results for the outcome cohort.
+
+- `targetCohortEntry`:
+
+  Data frame/tibble with one row and an `id` column. Preferred route
+  using manifest query results for the target cohort.
+
+- `stopIfExists`:
+
+  Logical. If TRUE (default), raises an error when an active or stale
+  cohort with this label is already registered. If FALSE, updates the
+  registered derived cohort in place (same ID and file path): the SQL is
+  re-rendered, parents and build parameters are replaced, the cohort is
+  marked 'stale' for regeneration, and its own dependents are marked
+  stale too. Default: TRUE (fail-safe).
+
 - `keep_trace`:
 
   Logical. If TRUE, marks missing as deleted with timestamp (soft
@@ -1835,17 +2426,28 @@ window.
 This is the reverse direction of `buildOPriorT()`: instead of filtering
 outcome by prior target, filter target by prior outcome.
 
+Input route policy:
+
+- Preferred: provide `targetCohortEntry`/`outcomeCohortEntry`
+
+- Backward compatible: provide `targetCohortId`/`outcomeCohortId`
+
+- Exactly one route per role must be provided; both/neither is an error.
+
 #### Usage
 
     CohortManifest$buildTPriorO(
       label,
       category,
       tags = list(),
-      targetCohortId,
-      outcomeCohortId,
+      targetCohortId = NULL,
+      outcomeCohortId = NULL,
       mode = "prior",
       priorTimeWindowDays = NULL,
-      subsetLimit = "First"
+      subsetLimit = "First",
+      targetCohortEntry = NULL,
+      outcomeCohortEntry = NULL,
+      stopIfExists = TRUE
     )
 
 #### Arguments
@@ -1864,11 +2466,13 @@ outcome by prior target, filter target by prior outcome.
 
 - `targetCohortId`:
 
-  Integer. The cohort definition ID for the target (e.g., NSAID use).
+  Integer. Legacy ID route for the target cohort definition ID (e.g.,
+  NSAID use).
 
 - `outcomeCohortId`:
 
-  Integer. The cohort definition ID for the outcome (e.g., GI bleed).
+  Integer. Legacy ID route for the outcome cohort definition ID (e.g.,
+  GI bleed).
 
 - `mode`:
 
@@ -1897,6 +2501,25 @@ outcome by prior target, filter target by prior outcome.
   - 'All': Keep all prior outcome events (one output row per pair).
     Default: 'First'.
 
+- `targetCohortEntry`:
+
+  Data frame/tibble with one row and an `id` column. Preferred route
+  using manifest query results for the target cohort.
+
+- `outcomeCohortEntry`:
+
+  Data frame/tibble with one row and an `id` column. Preferred route
+  using manifest query results for the outcome cohort.
+
+- `stopIfExists`:
+
+  Logical. If TRUE (default), raises an error when an active or stale
+  cohort with this label is already registered. If FALSE, updates the
+  registered derived cohort in place (same ID and file path): the SQL is
+  re-rendered, parents and build parameters are replaced, the cohort is
+  marked 'stale' for regeneration, and its own dependents are marked
+  stale too. Default: TRUE (fail-safe).
+
 #### Returns
 
 Invisible integer. The assigned cohort ID.
@@ -1920,14 +2543,25 @@ Typical use cases:
 
 - Censor a treatment cohort at the date of a procedure (e.g., surgery)
 
+Input route policy:
+
+- Preferred: provide `targetCohortEntry`/`censorCohortEntry`
+
+- Backward compatible: provide `targetCohortId`/`censorCohortId`
+
+- Exactly one route per role must be provided; both/neither is an error.
+
 #### Usage
 
     CohortManifest$buildCensorCohort(
       label,
       category,
       tags = list(),
-      targetCohortId,
-      censorCohortId
+      targetCohortId = NULL,
+      censorCohortId = NULL,
+      targetCohortEntry = NULL,
+      censorCohortEntry = NULL,
+      stopIfExists = TRUE
     )
 
 #### Arguments
@@ -1946,11 +2580,31 @@ Typical use cases:
 
 - `targetCohortId`:
 
-  Integer. The cohort definition ID for the cohort to censor.
+  Integer. Legacy ID route for the cohort definition ID to censor.
 
 - `censorCohortId`:
 
-  Integer. The cohort definition ID for the censoring event.
+  Integer. Legacy ID route for the cohort definition ID for the
+  censoring event.
+
+- `targetCohortEntry`:
+
+  Data frame/tibble with one row and an `id` column. Preferred route
+  using manifest query results for the target cohort.
+
+- `censorCohortEntry`:
+
+  Data frame/tibble with one row and an `id` column. Preferred route
+  using manifest query results for the censor cohort.
+
+- `stopIfExists`:
+
+  Logical. If TRUE (default), raises an error when an active or stale
+  cohort with this label is already registered. If FALSE, updates the
+  registered derived cohort in place (same ID and file path): the SQL is
+  re-rendered, parents and build parameters are replaced, the cohort is
+  marked 'stale' for regeneration, and its own dependents are marked
+  stale too. Default: TRUE (fail-safe).
 
 #### Returns
 

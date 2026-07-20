@@ -4,6 +4,8 @@
 
 - **Martin Lavallee**. Author, maintainer.
 
+- **Katy Sadowski**. Contributor.
+
 ## Citation
 
 Source:

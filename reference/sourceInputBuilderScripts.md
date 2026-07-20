@@ -38,7 +38,8 @@ Invisibly returns a list with:
 
 - `directories_checked`: Character vector of directories checked
 
-- `error_summary`: List of any errors encountered
+- `error_summary`: List of any errors encountered (always empty on
+  successful return; a non-empty list raises an error instead)
 
 ## Details
 
@@ -69,3 +70,10 @@ Use
 [`makeInputBuilderScript`](https://ohdsi.github.io/Picard/reference/makeInputBuilderScript.md)
 to create scripts with the correct naming convention. Missing scripts
 are silently skipped, allowing flexible configurations.
+
+Errors inside builder scripts are collected across all scripts (so they
+can be fixed in one pass) and then raised as a single error: input
+building is a hard precondition of pipeline execution, so a failed
+script stops the run before
+[`execStudyPipeline()`](https://ohdsi.github.io/Picard/reference/execStudyPipeline.md)
+can be reached.

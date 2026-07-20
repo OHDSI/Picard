@@ -58,18 +58,21 @@ library(picard)
 initAgentMode(projectPath = here::here(), verbose = TRUE)
 ```
 
-This function: 1. **Checks if agent mode exists** - Looks for `.agent/`
-folder and `copilot-instructions.md` 2. **If missing**, restores from
+This function: 1. **Checks if agent mode exists** - Looks for the
+`.agent/` folder and root `AGENTS.md` 2. **If missing**, restores from
 package templates by: - Extracting study metadata from README.md and
-config.yml - Creating `.agent/` folder with reference documentation -
-Writing customized `copilot-instructions.md` to workspace root
-(auto-loaded by VS Code Copilot) - Copying numbered reference guides to
-`.agent/reference-docs/`
+config.yml - Writing a customized `AGENTS.md` to the workspace root
+(tool-agnostic agent instructions, picked up by Claude Code, GitHub
+Copilot, Cursor, and other coding agents) - Copying numbered reference
+guides to `.agent/reference-docs/` - Copying agent skills to
+`.agent/skills/`, including `picard-capr-cohorts` and, when the Capr
+package is installed, Capr’s `capr-cohort-generation` skill bundle
 
 After running
 [`initAgentMode()`](https://ohdsi.github.io/Picard/reference/initAgentMode.md),
-you can open the repository in VS Code and Copilot will automatically
-use the study context to provide AI assistance tailored to your project.
+you can open the repository with your coding agent of choice and it will
+use the study context in `AGENTS.md` (and the reference docs and skills
+it points to) to provide AI assistance tailored to your project.
 
 ------------------------------------------------------------------------
 

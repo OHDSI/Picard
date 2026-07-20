@@ -118,17 +118,20 @@ customization). You’ll need to restore them using
 <span><span class="co"># Restore agent mode configuration (if not already present)</span></span>
 <span><span class="fu"><a href="../reference/initAgentMode.html">initAgentMode</a></span><span class="op">(</span>projectPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="op">)</span>, verbose <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
 <p>This function: 1. <strong>Checks if agent mode exists</strong> -
-Looks for <code>.agent/</code> folder and
-<code>copilot-instructions.md</code> 2. <strong>If missing</strong>,
-restores from package templates by: - Extracting study metadata from
-README.md and config.yml - Creating <code>.agent/</code> folder with
-reference documentation - Writing customized
-<code>copilot-instructions.md</code> to workspace root (auto-loaded by
-VS Code Copilot) - Copying numbered reference guides to
-<code>.agent/reference-docs/</code></p>
+Looks for the <code>.agent/</code> folder and root
+<code>AGENTS.md</code> 2. <strong>If missing</strong>, restores from
+package templates by: - Extracting study metadata from README.md and
+config.yml - Writing a customized <code>AGENTS.md</code> to the
+workspace root (tool-agnostic agent instructions, picked up by Claude
+Code, GitHub Copilot, Cursor, and other coding agents) - Copying
+numbered reference guides to <code>.agent/reference-docs/</code> -
+Copying agent skills to <code>.agent/skills/</code>, including
+<code>picard-capr-cohorts</code> and, when the Capr package is
+installed, Capr’s <code>capr-cohort-generation</code> skill bundle</p>
 <p>After running <code><a href="../reference/initAgentMode.html">initAgentMode()</a></code>, you can open the
-repository in VS Code and Copilot will automatically use the study
-context to provide AI assistance tailored to your project.</p>
+repository with your coding agent of choice and it will use the study
+context in <code>AGENTS.md</code> (and the reference docs and skills it
+points to) to provide AI assistance tailored to your project.</p>
 <hr>
 </div>
 </div>
