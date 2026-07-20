@@ -167,6 +167,13 @@
 <ul><li>
 <code><a href="../reference/sourceInputBuilderScripts.html">sourceInputBuilderScripts()</a></code> no longer swallows builder-script errors: failures are aggregated across all scripts and raised as a single abort, so a failed input build can never be followed by <code><a href="../reference/execStudyPipeline.html">execStudyPipeline()</a></code> running on an incomplete or stale manifest.</li>
 </ul></div>
+<div class="section level4">
+<h4 id="agent-skills-0-0-6">Agent Skills<a class="anchor" aria-label="anchor" href="#agent-skills-0-0-6"></a></h4>
+<ul><li>
+<strong>Capr Cohort Generation</strong>: New agent skill for building OHDSI cohorts programmatically using Capr</li>
+<li>
+<strong>Dependent Cohort Builder</strong>: New agent skill for constructing derived cohorts (temporal subsets, unions, complements, demographic filters, stratification) with automatic parent verification and dependency tracking</li>
+</ul></div>
 </div>
 <div class="section level3">
 <h3 id="bug-fixes-0-0-6">Bug Fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-0-6"></a></h3>

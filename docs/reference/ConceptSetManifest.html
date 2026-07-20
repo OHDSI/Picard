@@ -477,8 +477,9 @@ file untouched. Default: TRUE (fail-safe).</p></dd>
 <dd><p>Logical. If TRUE (default), raises an error when an
 active concept set with this label is already registered. If FALSE,
 updates the existing concept set in place via <code>updateCaprConceptSet()</code>
-— it keeps its ID and file path, and <code>category</code> (and <code>tags</code>, when
-supplied) replace the registered metadata. Default: TRUE (fail-safe).</p></dd>
+— it keeps its ID and file path, and <code>category</code>/<code>tags</code> replace the
+registered metadata (previous tags are dropped if none are supplied).
+Default: TRUE (fail-safe).</p></dd>
 
 
 </dl><p></p></div>
@@ -1274,9 +1275,9 @@ Sync the manifest against concept set files on disk</p>
 </div><p></p><hr><a id="method-ConceptSetManifest-syncManifest"></a><div class="section">
 <h3 id="method-syncmanifest-">Method <code>syncManifest()</code><a class="anchor" aria-label="anchor" href="#method-syncmanifest-"></a></h3>
 <p>Scans the <code>json/</code> subdirectory of the concept sets folder, reconciles it against
-the SQLite manifest, and updates both the database and the in-memory list:</p><ul><li><p>New files found on disk are added (new ConceptSetDef + manifest entry).</p></li>
-<li><p>Active manifest records whose file no longer exists are soft-deleted.</p></li>
+the SQLite manifest, and updates both the database and the in-memory list:</p><ul><li><p>Active manifest records whose file no longer exists are soft-deleted.</p></li>
 <li><p>Existing files whose JSON hash has changed are updated in the manifest.</p></li>
+<li><p>Orphaned files on disk not in manifest are automatically deleted.</p></li>
 </ul><div class="section">
 <h4 id="usage-43">Usage<a class="anchor" aria-label="anchor" href="#usage-43"></a></h4>
 <p></p><div class="r"><div class="sourceCode"><pre><code><span><span class="va">ConceptSetManifest</span><span class="op">$</span><span class="fu">syncManifest</span><span class="op">(</span>strict_mode <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div><p></p></div>
@@ -1294,7 +1295,8 @@ on disk. If FALSE, only warns about them without deletion. Default: TRUE.</p></d
 <div class="section">
 <h4 id="returns-42">Returns<a class="anchor" aria-label="anchor" href="#returns-42"></a></h4>
 <p>Data frame with columns: id, label, action
-(<code>"added"</code>, <code>"hash_updated"</code>, <code>"missing_flagged"</code>, or <code>"unchanged"</code>).</p>
+(<code>"hash_updated"</code>, <code>"missing_flagged"</code>, <code>"unchanged"</code>, or
+<code>"auto_removed_orphan"</code>).</p>
 </div>
 
 </div><p></p><hr><a id="method-ConceptSetManifest-grabConceptInfoFromSet"></a><div class="section">

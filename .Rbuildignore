@@ -8,3 +8,5 @@
 PKGDOWN_SETUP.md
 ^\.positai$
 ^\.claude$
+TODO.md
+CLAUDE.md

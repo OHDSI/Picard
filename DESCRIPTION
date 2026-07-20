@@ -3,7 +3,8 @@ Type: Package
 Title: RWE Pipelining Tool
 Version: 0.0.6
 Authors@R: c(
-    person("Martin", "Lavallee", , "martin.lavallee@boehringer-ingelheim.com", role = c("aut", "cre"))
+    person("Martin", "Lavallee", , "martin.lavallee@boehringer-ingelheim.com", role = c("aut", "cre")),
+    person("Katy", "Sadowski", , "sadowski@ohdsi.org", role = c("ctb"))
   )
 Description: A pipeline tool for RWE analysis (typically using the OHDSI stack) that allows users to easily create and run pipelines of R code.
     This package initializes a standard directory structure, builds cohorts, and executes R scripts in a specified order.
