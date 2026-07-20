@@ -476,7 +476,8 @@ get_agent_vignette_map <- function() {
       "manifest_management.Rmd",
       "running_the_pipeline.Rmd",
       "post_processing.Rmd",
-      "evidence_generation_plan.Rmd"
+      "evidence_generation_plan.Rmd",
+      "using_agent_skills.Rmd"
     ),
     agent = c(
       "01-repository-structure.md",
@@ -486,7 +487,8 @@ get_agent_vignette_map <- function() {
       "05-manifest-management.md",
       "06-running-pipeline.md",
       "07-post-processing.md",
-      "08-evidence-generation-plan.md"
+      "08-evidence-generation-plan.md",
+      "09-using-agent-skills.md"
     ),
     stringsAsFactors = FALSE
   )

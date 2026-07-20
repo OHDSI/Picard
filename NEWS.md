@@ -80,6 +80,11 @@ Every `stopIfExists = FALSE` upsert verifies identity before any mutation to pre
 ### Pipeline Safety
 - `sourceInputBuilderScripts()` no longer swallows builder-script errors: failures are aggregated across all scripts and raised as a single abort, so a failed input build can never be followed by `execStudyPipeline()` running on an incomplete or stale manifest.
 
+### Agent Skills
+
+- **Capr Cohort Generation**: New agent skill for building OHDSI cohorts programmatically using Capr
+- **Dependent Cohort Builder**: New agent skill for constructing derived cohorts (temporal subsets, unions, complements, demographic filters, stratification) with automatic parent verification and dependency tracking
+
 ## Bug Fixes
 
 - Stale cohorts were unreachable by `generateCohorts()` — three `status = 'active'` filters dropped them from the dependency graph, the in-memory manifest, and dependency hashing, so the stale → regenerate → re-activate flow could never run.
