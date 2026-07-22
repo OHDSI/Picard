@@ -457,16 +457,21 @@ ConceptSetManifest <- R6::R6Class(
       return(private$.manifest)
     },
 
-    #' @description Tabulate the manifest as a tibble
+    #' @description Tabulate the concept set manifest
     #'
-    #' @param filter Character. Controls which rows are returned. One of
-    #'   \code{"active"} (default), \code{"deleted"}, or \code{"all"}.
+    #' @param filter Character. One of "active", "deleted", or "all".
+    #'   Defaults to "active".
+    #' @param tags_format Character. One of "nested", "json", or "wide".
+    #'   - "nested" (default): Parse JSON tags into a nested tibble with tag_name/tag_value columns
+    #'   - "json": Keep tags as raw JSON string
+    #'   - "wide": Expand tags into individual columns (one per unique tag key)
     #'
-    #' @return A tibble with columns: id, label, category, tags, file_path, hash,
-    #'   source_type, cohort_type, status, created_at, deleted_at
-    tabulateManifest = function(filter = c("active", "deleted", "all")) {
+    #' @return Tibble with concept set manifest data. Tags format depends on tags_format parameter.
+    tabulateManifest = function(filter = c("active", "deleted", "all"),
+                                tags_format = c("nested", "json", "wide")) {
 
       filter <- match.arg(filter)
+      tags_format <- match.arg(tags_format)
 
       where_clause <- switch(
         filter,
@@ -488,7 +493,67 @@ ConceptSetManifest <- R6::R6Class(
       man <- DBI::dbGetQuery(conn, sql) |>
         tibble::as_tibble()
 
-      return(man)
+      # Process tags based on format
+      if (tags_format == "json") {
+        # Keep as-is
+        return(man)
+      } else if (tags_format == "nested") {
+        # Parse JSON string to nested tibble with tag_name/tag_value columns
+        man <- man |>
+          dplyr::mutate(
+            tags = purrr::map(tags, function(tags_json) {
+              if (is.na(tags_json) || is.null(tags_json) || tags_json == "") {
+                return(tibble::tibble(tag_name = character(0), tag_value = character(0)))
+              }
+              parsed_tags <- jsonlite::fromJSON(tags_json)
+              tibble::tibble(
+                tag_name = names(parsed_tags),
+                tag_value = as.character(unlist(parsed_tags))
+              )
+            })
+          )
+        return(man)
+      } else if (tags_format == "wide") {
+        # Expand tags into wide format (one column per tag key)
+        man <- man |>
+          dplyr::mutate(
+            tags_list = purrr::map(tags, function(tags_json) {
+              if (is.na(tags_json) || is.null(tags_json) || tags_json == "") {
+                return(list())
+              }
+              jsonlite::fromJSON(tags_json)
+            })
+          ) |>
+          tidyr::unnest_wider(tags_list, names_sep = "_") |>
+          dplyr::select(-tags)
+        return(man)
+      }
+    },
+
+    #' @description View the concept set manifest in RStudio viewer
+    #'
+    #' Opens an interactive RStudio viewer showing key concept set metadata:
+    #' id, label, category, tags, and file_path. This is a convenience function
+    #' for exploring manifest contents without console clutter.
+    #'
+    #' @param filter Character. One of "active", "deleted", or "all".
+    #'   Defaults to "active".
+    #' @param tags_format Character. One of "nested", "json", or "wide".
+    #'   - "nested" (default): Tags as structured nested tibble
+    #'   - "json": Tags as raw JSON string
+    #'   - "wide": Tags expanded into individual columns
+    #'
+    #' @return Invisibly returns the tibble displayed in the viewer.
+    viewManifest = function(filter = c("active", "deleted", "all"),
+                            tags_format = c("nested", "json", "wide")) {
+      filter <- match.arg(filter)
+      tags_format <- match.arg(tags_format)
+
+      man <- self$tabulateManifest(filter = filter, tags_format = tags_format) |>
+        dplyr::select(id, label, category, tags, file_path)
+
+      utils::View(man)
+      invisible(man)
     },
 
     #' Get the manifest path
@@ -2650,15 +2715,20 @@ ConceptSetManifest <- R6::R6Class(
 
       # Get connection and vocabulary schema from ExecutionSettings
       exec_settings <- private$.executionSettings
+      did_connect <- FALSE
       connection <- exec_settings$getConnection()
-      vocab_schema <- exec_settings$cdmDatabaseSchema
-
       if (is.null(connection)) {
         exec_settings$connect()
         connection <- exec_settings$getConnection()
+        did_connect <- TRUE
       }
-      on.exit(exec_settings$disconnect())
+      on.exit({
+        if (did_connect) {
+          exec_settings$disconnect()
+        }
+      }, add = TRUE)
 
+      vocab_schema <- exec_settings$cdmDatabaseSchema
 
       if (is.null(vocab_schema)) {
         stop("ExecutionSettings must have vocabularySchema defined")
@@ -2797,13 +2867,20 @@ ConceptSetManifest <- R6::R6Class(
 
       # Get connection and vocabulary schema from ExecutionSettings
       exec_settings <- private$.executionSettings
+      did_connect <- FALSE
       connection <- exec_settings$getConnection()
-      vocab_schema <- exec_settings$cdmDatabaseSchema
-
       if (is.null(connection)) {
-        stop("No database connection available in ExecutionSettings")
+        exec_settings$connect()
+        connection <- exec_settings$getConnection()
+        did_connect <- TRUE
       }
-      on.exit(exec_settings$disconnect())
+      on.exit({
+        if (did_connect) {
+          exec_settings$disconnect()
+        }
+      }, add = TRUE)
+
+      vocab_schema <- exec_settings$cdmDatabaseSchema
 
       if (is.null(vocab_schema)) {
         stop("No vocabulary database schema specified in ExecutionSettings")

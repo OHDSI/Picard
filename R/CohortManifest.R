@@ -962,15 +962,20 @@ CohortManifest <- R6::R6Class(
       return(result)
     },
 
-    #' @description Tabulate the manifest as a tibble
+    #' @description Tabulate the cohort manifest
     #'
-    #' @param filter Character. Controls which rows are returned. One of
-    #'   \code{"active"} (default), \code{"deleted"}, or \code{"all"}.
+    #' @param filter Character. One of "active", "deleted", "stale", or "all".
+    #'   Defaults to "active".
+    #' @param tags_format Character. One of "nested", "json", or "wide".
+    #'   - "nested" (default): Parse JSON tags into a nested tibble with tag_name/tag_value columns
+    #'   - "json": Keep tags as raw JSON string
+    #'   - "wide": Expand tags into individual columns (one per unique tag key)
     #'
-    #' @return A tibble with columns: id, label, category, tags, file_path, hash,
-    #'   source_type, cohort_type, status, depends_on, created_at, deleted_at
-    tabulateManifest = function(filter = c("active", "deleted", "stale", "all")) {
+    #' @return Tibble with cohort manifest data. Tags format depends on tags_format parameter.
+    tabulateManifest = function(filter = c("active", "deleted", "stale", "all"), 
+                                tags_format = c("nested", "json", "wide")) {
       filter <- match.arg(filter)
+      tags_format <- match.arg(tags_format)
 
       where_clause <- switch(
         filter,
@@ -992,7 +997,68 @@ CohortManifest <- R6::R6Class(
 
       man <- DBI::dbGetQuery(conn, sql) |>
         tibble::as_tibble()
-      return(man)
+
+      # Process tags based on format
+      if (tags_format == "json") {
+        # Keep as-is
+        return(man)
+      } else if (tags_format == "nested") {
+        # Parse JSON string to nested tibble with tag_name/tag_value columns
+        man <- man |>
+          dplyr::mutate(
+            tags = purrr::map(tags, function(tags_json) {
+              if (is.na(tags_json) || is.null(tags_json) || tags_json == "") {
+                return(tibble::tibble(tag_name = character(0), tag_value = character(0)))
+              }
+              parsed_tags <- jsonlite::fromJSON(tags_json)
+              tibble::tibble(
+                tag_name = names(parsed_tags),
+                tag_value = as.character(unlist(parsed_tags))
+              )
+            })
+          )
+        return(man)
+      } else if (tags_format == "wide") {
+        # Expand tags into wide format (one column per tag key)
+        man <- man |>
+          dplyr::mutate(
+            tags_list = purrr::map(tags, function(tags_json) {
+              if (is.na(tags_json) || is.null(tags_json) || tags_json == "") {
+                return(list())
+              }
+              jsonlite::fromJSON(tags_json)
+            })
+          ) |>
+          tidyr::unnest_wider(tags_list, names_sep = "_") |>
+          dplyr::select(-tags)
+        return(man)
+      }
+    },
+
+    #' @description View the cohort manifest in RStudio viewer
+    #'
+    #' Opens an interactive RStudio viewer showing key cohort metadata:
+    #' id, label, category, tags, and file_path. This is a convenience function
+    #' for exploring manifest contents without console clutter.
+    #'
+    #' @param filter Character. One of "active", "deleted", "stale", or "all".
+    #'   Defaults to "active".
+    #' @param tags_format Character. One of "nested", "json", or "wide".
+    #'   - "nested" (default): Tags as structured nested tibble
+    #'   - "json": Tags as raw JSON string
+    #'   - "wide": Tags expanded into individual columns
+    #'
+    #' @return Invisibly returns the tibble displayed in the viewer.
+    viewManifest = function(filter = c("active", "deleted", "stale", "all"),
+                            tags_format = c("nested", "json", "wide")) {
+      filter <- match.arg(filter)
+      tags_format <- match.arg(tags_format)
+
+      man <- self$tabulateManifest(filter = filter, tags_format = tags_format) |>
+        dplyr::select(id, label, category, tags, file_path)
+
+      utils::View(man)
+      invisible(man)
     },
 
     #' Review stale derived cohorts

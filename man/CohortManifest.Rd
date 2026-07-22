@@ -90,6 +90,7 @@ Requires that executionSettings has been set and includes:
 \item \href{#method-CohortManifest-getManifest}{\code{CohortManifest$getManifest()}}
 \item \href{#method-CohortManifest-reviewDependentCohorts}{\code{CohortManifest$reviewDependentCohorts()}}
 \item \href{#method-CohortManifest-tabulateManifest}{\code{CohortManifest$tabulateManifest()}}
+\item \href{#method-CohortManifest-viewManifest}{\code{CohortManifest$viewManifest()}}
 \item \href{#method-CohortManifest-reviewStaleCohorts}{\code{CohortManifest$reviewStaleCohorts()}}
 \item \href{#method-CohortManifest-reloadFromDb}{\code{CohortManifest$reloadFromDb()}}
 \item \href{#method-CohortManifest-getDbPath}{\code{CohortManifest$getDbPath()}}
@@ -218,24 +219,66 @@ A tibble with columns:
 \if{html}{\out{<a id="method-CohortManifest-tabulateManifest"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-tabulateManifest}{}}}
 \subsection{Method \code{tabulateManifest()}}{
-Tabulate the manifest as a tibble
+Tabulate the cohort manifest
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$tabulateManifest(
-  filter = c("active", "deleted", "stale", "all")
+  filter = c("active", "deleted", "stale", "all"),
+  tags_format = c("nested", "json", "wide")
 )}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{filter}}{Character. Controls which rows are returned. One of
-\code{"active"} (default), \code{"deleted"}, or \code{"all"}.}
+\item{\code{filter}}{Character. One of "active", "deleted", "stale", or "all".
+Defaults to "active".}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested" (default): Parse JSON tags into a nested tibble with tag_name/tag_value columns
+\item "json": Keep tags as raw JSON string
+\item "wide": Expand tags into individual columns (one per unique tag key)
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-A tibble with columns: id, label, category, tags, file_path, hash,
-source_type, cohort_type, status, depends_on, created_at, deleted_at
+Tibble with cohort manifest data. Tags format depends on tags_format parameter.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-viewManifest"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-viewManifest}{}}}
+\subsection{Method \code{viewManifest()}}{
+View the cohort manifest in RStudio viewer
+
+Opens an interactive RStudio viewer showing key cohort metadata:
+id, label, category, tags, and file_path. This is a convenience function
+for exploring manifest contents without console clutter.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$viewManifest(
+  filter = c("active", "deleted", "stale", "all"),
+  tags_format = c("nested", "json", "wide")
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{filter}}{Character. One of "active", "deleted", "stale", or "all".
+Defaults to "active".}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested" (default): Tags as structured nested tibble
+\item "json": Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisibly returns the tibble displayed in the viewer.
 Review stale derived cohorts
 }
 }
