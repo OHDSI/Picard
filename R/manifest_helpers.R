@@ -158,7 +158,7 @@ resetCohortManifest <- function(manifest = NULL,
                                 cohortsFolderPath = here::here("inputs/cohorts"),
                                 scope = c("derived", "manifest", "full"),
                                 executionSettings = NULL,
-                                archive = TRUE,
+                                archive = FALSE,
                                 confirm = TRUE) {
   scope <- match.arg(scope)
   checkmate::assert_logical(confirm, len = 1)
@@ -739,7 +739,7 @@ loadConceptSetManifest <- function(conceptSetsFolderPath = here::here("inputs/co
 resetConceptSetManifest <- function(manifest = NULL,
                                     conceptSetsFolderPath = here::here("inputs/conceptSets"),
                                     scope = c("manifest", "full"),
-                                    archive = TRUE,
+                                    archive = FALSE,
                                     confirm = TRUE) {
   scope <- match.arg(scope)
   checkmate::assert_logical(archive, len = 1)
