@@ -7,6 +7,8 @@
 - Added `viewManifest()` convenience method for both `CohortManifest` and `ConceptSetManifest` to interactively explore manifest metadata in RStudio viewer with streamlined columns (id, label, category, tags, file_path).
 - Enhanced `tabulateManifest()` with `tags_format` parameter supporting three formats: `"nested"` (default, parsed tags as tibble with tag_name/tag_value), `"json"` (raw JSON string for backward compatibility), and `"wide"` (expanded tags as individual columns for spreadsheet-like analysis).
 
+
+
 # picard 0.0.6
 
 ## New Features

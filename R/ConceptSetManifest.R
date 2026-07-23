@@ -1183,7 +1183,63 @@ ConceptSetManifest <- R6::R6Class(
 
       return(tibble::as_tibble(manifest_df))
     },
-    #' Query cohorts by category
+    #' Query concept sets by category
+    #'
+    #' @param category Character vector. One or more category to search for.
+    #'   A concept set is included when it matches at least one of the supplied category (OR logic).
+    #' @param matchType Character. Either "exact" for exact match or "pattern" for pattern matching.
+    #'   Defaults to "exact".
+    #'
+    #' @return Tibble with columns: id, label, category, tags, file_path, hash, created_at.
+    queryConceptSetsByCategory = function(category, matchType = c("exact", "pattern")) {
+      checkmate::assert_character(x = category, min.len = 1, min.chars = 1)
+      matchType <- match.arg(matchType)
+
+      matching_concept_sets <- list()
+
+      # Search through manifest for matching category (any-match across supplied category)
+      for (concept_set in private$.manifest) {
+        cs_category <- concept_set$category
+
+        category_hits <- sapply(category, function(cat) {
+          if (matchType == "exact") {
+            cs_category == cat
+          } else {
+            grepl(cat, cs_category, ignore.case = TRUE)
+          }
+        })
+
+        if (any(category_hits)) {
+          matching_concept_sets[[length(matching_concept_sets) + 1]] <- concept_set
+        }
+      }
+
+      if (length(matching_concept_sets) == 0) {
+        match_desc <- paste(category, collapse = " | ")
+        cli::cli_alert_warning("No concept sets found with {matchType} category match: {match_desc}")
+        return(NULL)
+      }
+
+      # Get matching concept set IDs and query database
+      matching_ids <- sapply(matching_concept_sets, function(cs) cs$getId())
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      ids_str <- paste(matching_ids, collapse = ", ")
+      manifest_df <- DBI::dbGetQuery(
+        conn,
+        paste0("SELECT id, label, category, tags, file_path, hash, created_at\n",
+               "FROM concept_set_manifest WHERE id IN (", ids_str, ") AND status = 'active'")
+      )
+
+      if (nrow(manifest_df) == 0) {
+        return(NULL)
+      }
+
+      return(tibble::as_tibble(manifest_df))
+    },
+
+    #' Query concept sets by tag name
     #'
     #' @param tagName Character vector. The name of tags to query
     #'

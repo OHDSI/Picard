@@ -178,6 +178,7 @@ by finding the reverse mapping relationship. For each concept set:
 \item \href{#method-ConceptSetManifest-importAtlasConceptSets}{\code{ConceptSetManifest$importAtlasConceptSets()}}
 \item \href{#method-ConceptSetManifest-queryConceptSetsByIds}{\code{ConceptSetManifest$queryConceptSetsByIds()}}
 \item \href{#method-ConceptSetManifest-queryConceptSetsByTag}{\code{ConceptSetManifest$queryConceptSetsByTag()}}
+\item \href{#method-ConceptSetManifest-queryConceptSetsByCategory}{\code{ConceptSetManifest$queryConceptSetsByCategory()}}
 \item \href{#method-ConceptSetManifest-queryConceptSetsByTagName}{\code{ConceptSetManifest$queryConceptSetsByTagName()}}
 \item \href{#method-ConceptSetManifest-queryConceptSetsMissingTag}{\code{ConceptSetManifest$queryConceptSetsMissingTag()}}
 \item \href{#method-ConceptSetManifest-queryConceptSetsWithTagValues}{\code{ConceptSetManifest$queryConceptSetsWithTagValues()}}
@@ -610,7 +611,34 @@ argument controls whether a concept set must satisfy any or all of them.}
 }
 \subsection{Returns}{
 Tibble with columns: id, label, category, tags, file_path, hash, created_at.
-Query cohorts by category
+Query concept sets by category
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-queryConceptSetsByCategory"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-queryConceptSetsByCategory}{}}}
+\subsection{Method \code{queryConceptSetsByCategory()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsByCategory(
+  category,
+  matchType = c("exact", "pattern")
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{category}}{Character vector. One or more category to search for.
+A concept set is included when it matches at least one of the supplied category (OR logic).}
+
+\item{\code{matchType}}{Character. Either "exact" for exact match or "pattern" for pattern matching.
+Defaults to "exact".}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Tibble with columns: id, label, category, tags, file_path, hash, created_at.
+Query concept sets by tag name
 }
 }
 \if{html}{\out{<hr>}}

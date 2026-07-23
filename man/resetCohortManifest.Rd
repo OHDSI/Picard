@@ -9,7 +9,7 @@ resetCohortManifest(
   cohortsFolderPath = here::here("inputs/cohorts"),
   scope = c("derived", "manifest", "full"),
   executionSettings = NULL,
-  archive = TRUE,
+  archive = FALSE,
   confirm = TRUE
 )
 }
