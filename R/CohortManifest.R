@@ -483,13 +483,15 @@ CohortManifest <- R6::R6Class(
     },
 
     register_custom_sql_cohort = function(filePath, label, category, tags = list(),
-                                          stopIfExists = TRUE, dependentCohortIdList = NULL) {
+                                          stopIfExists = TRUE, dependentCohortIdList = NULL,
+                                          sqlParameters = list()) {
       checkmate::assert_file_exists(filePath)
       checkmate::assert_string(label, min.chars = 1)
       checkmate::assert_string(category, min.chars = 1)
       checkmate::assert_list(tags, names = "named")
       checkmate::assert_flag(stopIfExists)
       checkmate::assert_list(dependentCohortIdList, null.ok = TRUE)
+      checkmate::assert_list(sqlParameters, names = "named")
 
       is_dependent <- !is.null(dependentCohortIdList)
 
@@ -500,17 +502,66 @@ CohortManifest <- R6::R6Class(
 
         dep_names <- names(dependentCohortIdList)
         if (is.null(dep_names) || any(is.na(dep_names)) || any(trimws(dep_names) == "")) {
-          cli::cli_abort("dependentCohortIdList must be a named list of SqlRender parameter names to cohort IDs")
+          cli::cli_abort(c(
+            "dependentCohortIdList must be a named list of SqlRender parameter names to cohort IDs or manifest entries.",
+            i = "Each value can be an integer cohort ID (or vector of IDs), or a data.frame/tibble with an {.field id} column (e.g. from {.code queryCohortsByLabel()})."
+          ))
         }
 
         if (!all(lengths(dependentCohortIdList) >= 1L)) {
           cli::cli_abort("Each dependentCohortIdList entry must contain at least one cohort ID")
         }
 
+        # Each entry can be given either as the legacy integer ID route, or as
+        # a manifest entry (data.frame/tibble with an id column) like the
+        # other derived cohort builders - a single row resolves to one ID, a
+        # multi-row table resolves to a vector (for IN (@param) clauses).
+        # Labels are captured (when available) purely for the QC header below.
+        resolved_ids <- list()
+        resolved_labels <- list()
+        for (dep_name in dep_names) {
+          dep_value <- dependentCohortIdList[[dep_name]]
+          if (is.data.frame(dep_value)) {
+            if (nrow(dep_value) == 0) {
+              cli::cli_abort("dependentCohortIdList entry {.val {dep_name}} is an empty manifest entry table.")
+            } else if (nrow(dep_value) == 1) {
+              resolved_ids[[dep_name]] <- private$resolve_single_entry_id(dep_value, dep_name)
+            } else {
+              resolved_ids[[dep_name]] <- private$resolve_multi_entry_ids(dep_value, dep_name)
+            }
+            resolved_labels[[dep_name]] <- if ("label" %in% names(dep_value)) as.character(dep_value$label) else NA_character_
+          } else {
+            checkmate::assert_integerish(dep_value, min.len = 1, any.missing = FALSE, .var.name = dep_name)
+            resolved_ids[[dep_name]] <- as.integer(dep_value)
+            resolved_labels[[dep_name]] <- NA_character_
+          }
+        }
+        dependentCohortIdList <- resolved_ids
+
         # Entries may hold a single cohort ID or a vector of IDs (rendered
         # comma-separated by SqlRender, e.g. for IN (@param) clauses)
         dependent_ids <- unlist(dependentCohortIdList, use.names = TRUE)
         checkmate::assert_integerish(x = dependent_ids, min.len = 1, any.missing = FALSE, unique = TRUE)
+
+        sql_param_names <- names(sqlParameters)
+        if (length(sqlParameters) > 0 &&
+              (is.null(sql_param_names) || any(is.na(sql_param_names)) || any(trimws(sql_param_names) == ""))) {
+          cli::cli_abort("sqlParameters must be a named list of SqlRender parameter names to values")
+        }
+
+        overlap <- intersect(dep_names, sql_param_names)
+        if (length(overlap) > 0) {
+          cli::cli_abort("dependentCohortIdList and sqlParameters cannot share parameter name(s): {paste(overlap, collapse = ', ')}")
+        }
+
+        reserved_names <- custom_derived_reserved_param_names()
+        colliding_names <- intersect(c(dep_names, sql_param_names), reserved_names)
+        if (length(colliding_names) > 0) {
+          cli::cli_abort(c(
+            "dependentCohortIdList/sqlParameters use reserved SqlRender parameter name(s).",
+            i = "Reserved names: {paste(colliding_names, collapse = ', ')}"
+          ))
+        }
       }
 
       ext <- tolower(tools::file_ext(filePath))
@@ -552,24 +603,26 @@ CohortManifest <- R6::R6Class(
         cli::cli_alert_info("Cohort {.val {label}} already exists (ID {existing_id}) — updating in place")
       }
 
-      existing_cohort <- DBI::dbGetQuery(
-        conn,
-        "SELECT id FROM cohort_manifest WHERE file_path = ? AND status = 'active'",
-        list(rel_path)
-      )
+      if (!is_dependent) {
+        existing_cohort <- DBI::dbGetQuery(
+          conn,
+          "SELECT id FROM cohort_manifest WHERE file_path = ? AND status = 'active'",
+          list(rel_path)
+        )
 
-      # A file-path conflict with the upsert target itself is not a conflict
-      is_self <- nrow(existing_cohort) > 0 && !is.na(existing_id) &&
-        as.integer(existing_cohort$id[1]) == existing_id
+        # A file-path conflict with the upsert target itself is not a conflict
+        is_self <- nrow(existing_cohort) > 0 && !is.na(existing_id) &&
+          as.integer(existing_cohort$id[1]) == existing_id
 
-      if (nrow(existing_cohort) > 0 && !is_self) {
-        if (isTRUE(stopIfExists)) {
-          cli::cli_abort(c(
-            "File path already registered in manifest (cohort {existing_cohort$id[1]})",
-            i = "Set {.arg stopIfExists = FALSE} to replace registration"
-          ))
-        } else {
-          cli::cli_warn("Replacing existing manifest entry for {.file {rel_path}}")
+        if (nrow(existing_cohort) > 0 && !is_self) {
+          if (isTRUE(stopIfExists)) {
+            cli::cli_abort(c(
+              "File path already registered in manifest (cohort {existing_cohort$id[1]})",
+              i = "Set {.arg stopIfExists = FALSE} to replace registration"
+            ))
+          } else {
+            cli::cli_warn("Replacing existing manifest entry for {.file {rel_path}}")
+          }
         }
       }
 
@@ -600,16 +653,29 @@ CohortManifest <- R6::R6Class(
           ))
         }
 
+        # Bake the dependent cohort IDs and any extra sqlParameters directly
+        # into a generated derived-cohort file (like the other derived cohort
+        # types), leaving the connection/schema placeholders unrendered for
+        # generateCohorts() to fill in at execution time.
+        derived_dir <- make_derived_folder(dirname(private$.dbPath))
+        render_params <- c(dependentCohortIdList, sqlParameters)
+        header <- format_dependent_cohort_header(resolved_ids = dependentCohortIdList, resolved_labels = resolved_labels)
+        sql_path <- do.call(
+          render_and_write_derived_sql,
+          c(list(derived_dir = derived_dir, label = label, sql_content = sql_content, header = header), render_params)
+        )
+
         cohort_id <- private$upsert_derived_cohort(
           existingId = existing_id,
           label = label,
           category = category,
           tags = tags,
-          file_path = rel_path,
+          file_path = fs::path_rel(sql_path),
           cohort_type = "custom_derived",
           depends_on = as.integer(unname(dependent_ids)),
           dependency_rule = list(
-            dependentCohortIdList = as.list(dependentCohortIdList) # use a named list
+            dependentCohortIdList = as.list(dependentCohortIdList),
+            sqlParameters = if (length(sqlParameters) > 0) as.list(sqlParameters) else NULL
           ),
           source_type = "sql"
         )
@@ -969,7 +1035,7 @@ CohortManifest <- R6::R6Class(
           ),
           custom_derived = {
             dep_map <- rule$dependentCohortIdList
-            if (is.null(dep_map) || length(dep_map) == 0) {
+            dep_part <- if (is.null(dep_map) || length(dep_map) == 0) {
               ""
             } else {
               dep_values <- unlist(dep_map, use.names = TRUE)
@@ -983,6 +1049,18 @@ CohortManifest <- R6::R6Class(
               }, names(dep_values), dep_values, USE.NAMES = FALSE)
               paste(parts, collapse = " | ")
             }
+
+            sql_params <- rule$sqlParameters
+            param_part <- if (is.null(sql_params) || length(sql_params) == 0) {
+              ""
+            } else {
+              parts <- mapply(function(param_name, value) {
+                paste0(param_name, "=", paste(unlist(value), collapse = ","))
+              }, names(sql_params), sql_params, USE.NAMES = FALSE)
+              paste(parts, collapse = " | ")
+            }
+
+            paste(c(dep_part, param_part)[c(dep_part, param_part) != ""], collapse = " | ")
           },
           ""
         )
@@ -1711,36 +1789,54 @@ CohortManifest <- R6::R6Class(
 
     #' @description Add a dependent custom SQL cohort
     #'
-    #' Registers an existing SQL file in the manifest as a dependency-aware derived cohort.
-    #' The SQL file must already exist on disk and must preserve the standard Picard
-    #' cohort write contract using \.code{@target_database_schema.@target_cohort_table}
-    #' and \.code{@target_cohort_id}.
+    #' Registers a SQL file in the manifest as a dependency-aware derived cohort.
+    #' The source SQL file must preserve the standard Picard cohort write contract
+    #' using \.code{@target_database_schema.@target_cohort_table} and
+    #' \.code{@target_cohort_id}.
     #'
-    #' @param filePath Character. Path to the SQL file.
+    #' `dependentCohortIdList` and `sqlParameters` values are rendered into the
+    #' source SQL immediately (via \.code{SqlRender::render()}) and the result is
+    #' written to \.code{inputs/cohorts/derived/<label>.sql} — the file registered
+    #' in the manifest — exactly like the built-in derived cohort types (subset,
+    #' union, etc.). Only the connection/schema placeholders (\.code{@target_cohort_id}
+    #' and friends) are left for \.code{generateCohorts()} to fill in at execution time.
+    #'
+    #' @param filePath Character. Path to the source SQL file/template.
     #' @param label Character. Display name for the cohort.
     #' @param category Character. Required classification.
-    #' @param dependentCohortIdList Named list. Each name is a SqlRender parameter to expose
-    #'   in the SQL file and each value is the cohort ID — or an integer vector of
-    #'   cohort IDs — to inject at runtime. Vectors render comma-separated, for use
-    #'   in \.code{IN (@param)} clauses.
-    #'   Example: \.code{list(inc_cohort_id = 10L, exc_cohort_ids = c(12L, 14L))}.
+    #' @param dependentCohortIdList Named list. Each name is a SqlRender parameter to
+    #'   render into the SQL file. Each value is, preferably, a manifest entry —
+    #'   a data.frame/tibble with an \.code{id} column, as returned by query methods
+    #'   like \.code{queryCohortsByLabel()} (a single row bakes in one ID; a multi-row
+    #'   table bakes in a comma-separated vector, for \.code{IN (@param)} clauses) —
+    #'   or, for backward compatibility, a raw integer cohort ID (or integer vector).
+    #'   These IDs also become this cohort's \.code{depends_on} parents for staleness
+    #'   tracking. When entries carry a \.code{label} column, it's included (purely
+    #'   for QC) in a generated comment header at the top of the derived SQL file.
+    #'   Example: \.code{list(inc_cohort_id = ckdEntry, exc_cohort_id = t2dEntry)}.
+    #' @param sqlParameters Named list. Optional additional SqlRender parameters to
+    #'   render into the SQL file (any type — thresholds, dates, strings, etc.),
+    #'   not treated as cohort dependencies.
+    #'   Example: \.code{list(min_days = 30L, index_year = 2020L)}.
     #' @param tags Named list. Optional metadata tags.
     #' @param stopIfExists Logical. If TRUE (default), raises an error when an
     #'   active or stale cohort with this label is already registered. If FALSE,
     #'   updates the registered cohort in place (same ID): the dependent cohort
-    #'   IDs and the SQL file registration (path and content hash) are replaced,
-    #'   the cohort is marked 'stale' for regeneration, and its own dependents
-    #'   are marked stale too. Default: TRUE (fail-safe).
+    #'   IDs/sqlParameters are re-rendered into the generated file, the cohort is
+    #'   marked 'stale' for regeneration, and its own dependents are marked stale
+    #'   too. Default: TRUE (fail-safe).
     #'
     #' @return Invisible integer. The assigned cohort ID.
-    addDependentCustomCohort = function(filePath, label, category, dependentCohortIdList, tags = list(), stopIfExists = TRUE) {
+    addDependentCustomCohort = function(filePath, label, category, dependentCohortIdList,
+                                        sqlParameters = list(), tags = list(), stopIfExists = TRUE) {
       result <- private$register_custom_sql_cohort(
         filePath = filePath,
         label = label,
         category = category,
         tags = tags,
         stopIfExists = stopIfExists,
-        dependentCohortIdList = dependentCohortIdList
+        dependentCohortIdList = dependentCohortIdList,
+        sqlParameters = sqlParameters
       )
 
       # On update, upsert_derived_cohort() already reported whether the
