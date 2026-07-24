@@ -789,8 +789,11 @@ testthat::test_that("importAtlasCohorts errors on already-registered rows", {
   load_df <- data.frame(atlasId = 100L, label = "Atlas Cohort", category = "Target")
   conn_v1 <- cm_test_fake_atlas_connection(list("100" = jsons$v1))
 
-  manifest$importAtlasCohorts(cohortsLoad = load_df, atlasConnection = conn_v1)
-  testthat::expect_equal(nrow(cm_test_get_manifest_row(manifest, "Atlas Cohort")), 1)
+  imported <- manifest$importAtlasCohorts(cohortsLoad = load_df, atlasConnection = conn_v1)
+  imported_row <- cm_test_get_manifest_row(manifest, "Atlas Cohort")
+  testthat::expect_equal(nrow(imported_row), 1)
+  testthat::expect_false(is.na(imported$id[[1]]))
+  testthat::expect_equal(imported$id[[1]], imported_row$id[[1]])
 
   # Re-importing the same load file fails fast, and nothing is changed
   before <- cm_test_get_manifest_row(manifest, "Atlas Cohort")
@@ -837,8 +840,13 @@ testthat::test_that("importAtlasCohorts stopIfExists FALSE updates existing rows
     category = c("Target", "Target")
   )
   conn_both <- cm_test_fake_atlas_connection(list("100" = jsons$v2, "200" = jsons$v2))
-  manifest$importAtlasCohorts(cohortsLoad = mixed_df, atlasConnection = conn_both, stopIfExists = FALSE)
-  testthat::expect_equal(nrow(cm_test_get_manifest_row(manifest, "Second Atlas Cohort")), 1)
+  imported_mixed <- manifest$importAtlasCohorts(cohortsLoad = mixed_df, atlasConnection = conn_both, stopIfExists = FALSE)
+  second_row <- cm_test_get_manifest_row(manifest, "Second Atlas Cohort")
+  testthat::expect_equal(nrow(second_row), 1)
+  testthat::expect_equal(
+    imported_mixed$id[imported_mixed$label == "Second Atlas Cohort"],
+    second_row$id[[1]]
+  )
 })
 
 # Testing: addAtlasCohort stopIfExists = FALSE refreshes a single cohort from ATLAS in place.

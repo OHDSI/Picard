@@ -1057,6 +1057,8 @@ ConceptSetManifest <- R6::R6Class(
       existing_concept_sets <- concept_set_load_2 |>
         dplyr::filter(status == "active")
 
+      assigned_ids <- rep(NA_integer_, nrow(concept_set_load_2))
+
       # By default, the load csv is a transient, one-time import file —
       # registered rows are an error, not an update mechanism. Fail fast
       # before importing anything, unless the caller opted into upserting.
@@ -1089,6 +1091,7 @@ ConceptSetManifest <- R6::R6Class(
         cli::cli_rule("Adding {nrow(new_concept_sets)} new concept set(s)")
         for (i in seq_len(nrow(new_concept_sets))) {
           row <- new_concept_sets[i, ]
+          row_index <- which(concept_set_load_2$atlasId == row$atlasId)[1]
           additional_tags <- list_tags_in_row(row)
           # Delegate to addAtlasConceptSet for actual manifest insertion
           concept_set_id <- self$addAtlasConceptSet(
@@ -1098,6 +1101,7 @@ ConceptSetManifest <- R6::R6Class(
             tags = additional_tags,
             atlasConnection = atlasConnection
           )
+          assigned_ids[[row_index]] <- concept_set_id
         }
       }
 
@@ -1106,6 +1110,7 @@ ConceptSetManifest <- R6::R6Class(
         cli::cli_rule("Updating {nrow(existing_concept_sets)} existing concept set(s)")
         for (i in seq_len(nrow(existing_concept_sets))) {
           row <- existing_concept_sets[i, ]
+          row_index <- which(concept_set_load_2$atlasId == row$atlasId)[1]
           additional_tags <- list_tags_in_row(row)
           # Delegate to addAtlasConceptSet's upsert path for the in-place update
           concept_set_id <- self$addAtlasConceptSet(
@@ -1116,8 +1121,12 @@ ConceptSetManifest <- R6::R6Class(
             atlasConnection = atlasConnection,
             stopIfExists = FALSE
           )
+          assigned_ids[[row_index]] <- concept_set_id
         }
       }
+
+      concept_set_load_2 <- concept_set_load_2 |>
+        dplyr::mutate(id = dplyr::coalesce(id, assigned_ids))
 
       # Build and print final summary table
       summary_tbl <- concept_set_load_2 |>

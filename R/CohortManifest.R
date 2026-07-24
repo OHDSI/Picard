@@ -1538,6 +1538,8 @@ CohortManifest <- R6::R6Class(
       existing_cohorts <- cohort_load_2 |>
         dplyr::filter(status == "active")
 
+      assigned_ids <- rep(NA_integer_, nrow(cohort_load_2))
+
       # By default, the load csv is a transient, one-time import file —
       # registered rows are an error, not an update mechanism. Fail fast
       # before importing anything, unless the caller opted into upserting.
@@ -1570,15 +1572,17 @@ CohortManifest <- R6::R6Class(
         cli::cli_rule("Adding {nrow(new_cohorts)} new cohort(s)")
         for (i in seq_len(nrow(new_cohorts))) {
           row <- new_cohorts[i, ]
+          row_index <- which(cohort_load_2$atlasId == row$atlasId)[1]
           additional_tags <- list_tags_in_row(row)
           # Delegate to addAtlasCohort for actual manifest insertion
-              cohort_id <- self$addAtlasCohort(
-                atlasId = row$atlasId,
-                label = row$label,
-                category = row$category,
-                tags = additional_tags,
-                atlasConnection = atlasConnection
-              )
+          cohort_id <- self$addAtlasCohort(
+            atlasId = row$atlasId,
+            label = row$label,
+            category = row$category,
+            tags = additional_tags,
+            atlasConnection = atlasConnection
+          )
+          assigned_ids[[row_index]] <- cohort_id
         }
       }
 
@@ -1587,6 +1591,7 @@ CohortManifest <- R6::R6Class(
         cli::cli_rule("Updating {nrow(existing_cohorts)} existing cohort(s)")
         for (i in seq_len(nrow(existing_cohorts))) {
           row <- existing_cohorts[i, ]
+          row_index <- which(cohort_load_2$atlasId == row$atlasId)[1]
           additional_tags <- list_tags_in_row(row)
           # Delegate to addAtlasCohort's upsert path for the in-place update
           cohort_id <- self$addAtlasCohort(
@@ -1597,8 +1602,12 @@ CohortManifest <- R6::R6Class(
             atlasConnection = atlasConnection,
             stopIfExists = FALSE
           )
+          assigned_ids[[row_index]] <- cohort_id
         }
       }
+
+      cohort_load_2 <- cohort_load_2 |>
+        dplyr::mutate(id = dplyr::coalesce(id, assigned_ids))
 
       # Build and print final summary table
       summary_tbl <- cohort_load_2 |>
