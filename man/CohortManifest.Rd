@@ -90,6 +90,7 @@ Requires that executionSettings has been set and includes:
 \item \href{#method-CohortManifest-getManifest}{\code{CohortManifest$getManifest()}}
 \item \href{#method-CohortManifest-reviewDependentCohorts}{\code{CohortManifest$reviewDependentCohorts()}}
 \item \href{#method-CohortManifest-tabulateManifest}{\code{CohortManifest$tabulateManifest()}}
+\item \href{#method-CohortManifest-viewManifest}{\code{CohortManifest$viewManifest()}}
 \item \href{#method-CohortManifest-reviewStaleCohorts}{\code{CohortManifest$reviewStaleCohorts()}}
 \item \href{#method-CohortManifest-reloadFromDb}{\code{CohortManifest$reloadFromDb()}}
 \item \href{#method-CohortManifest-getDbPath}{\code{CohortManifest$getDbPath()}}
@@ -218,24 +219,66 @@ A tibble with columns:
 \if{html}{\out{<a id="method-CohortManifest-tabulateManifest"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-tabulateManifest}{}}}
 \subsection{Method \code{tabulateManifest()}}{
-Tabulate the manifest as a tibble
+Tabulate the cohort manifest
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$tabulateManifest(
-  filter = c("active", "deleted", "stale", "all")
+  filter = c("active", "deleted", "stale", "all"),
+  tags_format = c("nested", "json", "wide")
 )}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{filter}}{Character. Controls which rows are returned. One of
-\code{"active"} (default), \code{"deleted"}, or \code{"all"}.}
+\item{\code{filter}}{Character. One of "active", "deleted", "stale", or "all".
+Defaults to "active".}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested" (default): Parse JSON tags into a nested tibble with tag_name/tag_value columns
+\item "json": Keep tags as raw JSON string
+\item "wide": Expand tags into individual columns (one per unique tag key)
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-A tibble with columns: id, label, category, tags, file_path, hash,
-source_type, cohort_type, status, depends_on, created_at, deleted_at
+Tibble with cohort manifest data. Tags format depends on tags_format parameter.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-viewManifest"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-viewManifest}{}}}
+\subsection{Method \code{viewManifest()}}{
+View the cohort manifest in RStudio viewer
+
+Opens an interactive RStudio viewer showing key cohort metadata:
+id, label, category, tags, and file_path. This is a convenience function
+for exploring manifest contents without console clutter.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$viewManifest(
+  filter = c("active", "deleted", "stale", "all"),
+  tags_format = c("nested", "json", "wide")
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{filter}}{Character. One of "active", "deleted", "stale", or "all".
+Defaults to "active".}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested" (default): Tags as structured nested tibble
+\item "json": Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisibly returns the tibble displayed in the viewer.
 Review stale derived cohorts
 }
 }
@@ -1079,18 +1122,29 @@ Query cohorts by IDs
 \if{latex}{\out{\hypertarget{method-CohortManifest-queryCohortsByIds}{}}}
 \subsection{Method \code{queryCohortsByIds()}}{
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsByIds(ids)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsByIds(
+  ids,
+  tags_format = c("nested", "json", "wide")
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
 \item{\code{ids}}{Integer vector. One or more cohort IDs.}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested": Tags as nested tibble with tag_name/tag_value columns
+\item "json" (default): Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Data frame. A subset of the manifest with columns id, label, tags, filePath, hash, timestamp for matching cohorts, or NULL if none found.
+Tibble with matching cohorts. Tag columns depend on
+\code{tags_format}. Returns NULL if no matches are found.
 Query cohorts by tag
 }
 }
@@ -1099,7 +1153,11 @@ Query cohorts by tag
 \if{latex}{\out{\hypertarget{method-CohortManifest-queryCohortsByTag}{}}}
 \subsection{Method \code{queryCohortsByTag()}}{
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsByTag(tagStrings, match = c("any", "all"))}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsByTag(
+  tagStrings,
+  match = c("any", "all"),
+  tags_format = c("nested", "json", "wide")
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -1111,11 +1169,19 @@ argument controls whether a cohort must satisfy any or all of them.}
 
 \item{\code{match}}{Character. "any" (default) returns cohorts matching at least one tag;
 "all" returns only cohorts matching every tag.}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested": Tags as nested tibble with tag_name/tag_value columns
+\item "json" (default): Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
+Tibble with matching cohorts. Tag columns depend on
+\code{tags_format}. Returns NULL if no matches are found.
 Query cohorts by label
 }
 }
@@ -1124,7 +1190,11 @@ Query cohorts by label
 \if{latex}{\out{\hypertarget{method-CohortManifest-queryCohortsByLabel}{}}}
 \subsection{Method \code{queryCohortsByLabel()}}{
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsByLabel(labels, matchType = c("exact", "pattern"))}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsByLabel(
+  labels,
+  matchType = c("exact", "pattern"),
+  tags_format = c("nested", "json", "wide")
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -1135,12 +1205,20 @@ A cohort is included when it matches at least one of the supplied labels (OR log
 
 \item{\code{matchType}}{Character. Either "exact" for exact match or "pattern" for pattern matching.
 Defaults to "exact".}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested": Tags as nested tibble with tag_name/tag_value columns
+\item "json" (default): Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
-Query cohorts by category
+Tibble with matching cohorts. Tag columns depend on
+\code{tags_format}. Returns NULL if no matches are found.
+Query cohorts by tag name
 }
 }
 \if{html}{\out{<hr>}}
@@ -1150,7 +1228,8 @@ Query cohorts by category
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsByCategory(
   category,
-  matchType = c("exact", "pattern")
+  matchType = c("exact", "pattern"),
+  tags_format = c("nested", "json", "wide")
 )}\if{html}{\out{</div>}}
 }
 
@@ -1162,11 +1241,19 @@ A cohort is included when it matches at least one of the supplied category (OR l
 
 \item{\code{matchType}}{Character. Either "exact" for exact match or "pattern" for pattern matching.
 Defaults to "exact".}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested": Tags as nested tibble with tag_name/tag_value columns
+\item "json" (default): Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
+Tibble with matching cohorts. Tag columns depend on
+\code{tags_format}. Returns NULL if no matches are found.
 Query cohorts by category
 }
 }
@@ -1175,18 +1262,29 @@ Query cohorts by category
 \if{latex}{\out{\hypertarget{method-CohortManifest-queryCohortsByTagName}{}}}
 \subsection{Method \code{queryCohortsByTagName()}}{
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsByTagName(tagName)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsByTagName(
+  tagName,
+  tags_format = c("nested", "json", "wide")
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{tagName}}{Character vector. The name of tags to query}
+\item{\code{tagName}}{Character vector. The name of tags to query.}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested": Tags as nested tibble with tag_name/tag_value columns
+\item "json" (default): Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
+Tibble with matching cohorts. Tag columns depend on
+\code{tags_format}. Returns NULL if no matches are found.
 }
 }
 \if{html}{\out{<hr>}}
@@ -1195,19 +1293,29 @@ Tibble with columns: id, label, category, tags, file_path, hash, source_type, cr
 \subsection{Method \code{queryCohortsMissingTag()}}{
 Query cohorts missing a specific tag
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsMissingTag(tagName)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsMissingTag(
+  tagName,
+  tags_format = c("nested", "json", "wide")
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
 \item{\code{tagName}}{Character. The name of the tag to check for absence.}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested": Tags as nested tibble with tag_name/tag_value columns
+\item "json" (default): Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
-Returns NULL if all cohorts have the tag.
+Tibble with matching cohorts. Tag columns depend on
+\code{tags_format}. Returns NULL if all cohorts have the tag.
 }
 }
 \if{html}{\out{<hr>}}
@@ -1216,7 +1324,10 @@ Returns NULL if all cohorts have the tag.
 \subsection{Method \code{queryCohortsWithTagValues()}}{
 Query cohorts by tag value mapping
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsWithTagValues(tagValueMapping)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsWithTagValues(
+  tagValueMapping,
+  tags_format = c("nested", "json", "wide")
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -1224,12 +1335,19 @@ Query cohorts by tag value mapping
 \describe{
 \item{\code{tagValueMapping}}{Named list. Keys are tag names, values are tag values to match.
 Example: \code{list(status = "approved", type = "primary")} requires both conditions (AND logic).}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested": Tags as nested tibble with tag_name/tag_value columns
+\item "json" (default): Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
-Returns NULL if no cohorts match all tag conditions.
+Tibble with matching cohorts. Tag columns depend on
+\code{tags_format}. Returns NULL if no cohorts match all tag conditions.
 }
 }
 \if{html}{\out{<hr>}}

@@ -686,10 +686,11 @@ testthat::test_that("addCaprCohort stopIfExists FALSE updates existing cohort", 
   testthat::expect_equal(after$file_path[[1]], before$file_path[[1]])
   testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
   testthat::expect_equal(after$category[[1]], "Comparator")
+  testthat::expect_equal(after$source_type[[1]], "capr")
   testthat::expect_true(grepl("revision", after$tags[[1]]))
 })
 
-# Testing: addCaprCohort stopIfExists = FALSE with no tags clears prior tags (matching ATLAS behavior).
+# Testing: addCaprCohort stopIfExists = FALSE with no tags clears prior tags.
 testthat::test_that("addCaprCohort stopIfExists FALSE without tags drops prior tags", {
   setup <- cm_test_new_manifest("mgmt-add-capr-upsert-notags")
   manifest <- setup$manifest
@@ -707,8 +708,7 @@ testthat::test_that("addCaprCohort stopIfExists FALSE without tags drops prior t
 
   after <- cm_test_get_manifest_row(manifest, "Capr T2D")
   testthat::expect_equal(nrow(after), 1)
-  testthat::expect_false(grepl("revision", after$tags[[1]]))
-  testthat::expect_true(grepl("route", after$tags[[1]]))
+  testthat::expect_true(is.na(after$tags[[1]]))
 })
 
 # Testing: addSqlCohort with stopIfExists = FALSE upserts the existing cohort in place.
@@ -789,8 +789,11 @@ testthat::test_that("importAtlasCohorts errors on already-registered rows", {
   load_df <- data.frame(atlasId = 100L, label = "Atlas Cohort", category = "Target")
   conn_v1 <- cm_test_fake_atlas_connection(list("100" = jsons$v1))
 
-  manifest$importAtlasCohorts(cohortsLoad = load_df, atlasConnection = conn_v1)
-  testthat::expect_equal(nrow(cm_test_get_manifest_row(manifest, "Atlas Cohort")), 1)
+  imported <- manifest$importAtlasCohorts(cohortsLoad = load_df, atlasConnection = conn_v1)
+  imported_row <- cm_test_get_manifest_row(manifest, "Atlas Cohort")
+  testthat::expect_equal(nrow(imported_row), 1)
+  testthat::expect_false(is.na(imported$id[[1]]))
+  testthat::expect_equal(imported$id[[1]], imported_row$id[[1]])
 
   # Re-importing the same load file fails fast, and nothing is changed
   before <- cm_test_get_manifest_row(manifest, "Atlas Cohort")
@@ -837,8 +840,13 @@ testthat::test_that("importAtlasCohorts stopIfExists FALSE updates existing rows
     category = c("Target", "Target")
   )
   conn_both <- cm_test_fake_atlas_connection(list("100" = jsons$v2, "200" = jsons$v2))
-  manifest$importAtlasCohorts(cohortsLoad = mixed_df, atlasConnection = conn_both, stopIfExists = FALSE)
-  testthat::expect_equal(nrow(cm_test_get_manifest_row(manifest, "Second Atlas Cohort")), 1)
+  imported_mixed <- manifest$importAtlasCohorts(cohortsLoad = mixed_df, atlasConnection = conn_both, stopIfExists = FALSE)
+  second_row <- cm_test_get_manifest_row(manifest, "Second Atlas Cohort")
+  testthat::expect_equal(nrow(second_row), 1)
+  testthat::expect_equal(
+    imported_mixed$id[imported_mixed$label == "Second Atlas Cohort"],
+    second_row$id[[1]]
+  )
 })
 
 # Testing: addAtlasCohort stopIfExists = FALSE refreshes a single cohort from ATLAS in place.
@@ -867,6 +875,8 @@ testthat::test_that("addAtlasCohort stopIfExists FALSE updates from ATLAS in pla
   testthat::expect_equal(after$file_path[[1]], before$file_path[[1]])
   testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
   testthat::expect_equal(after$category[[1]], "Comparator")
+  testthat::expect_equal(after$source_type[[1]], "atlas")
+  testthat::expect_false(grepl("route", after$tags[[1]]))
 
   # Default still errors on duplicate label
   testthat::expect_error(

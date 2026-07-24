@@ -183,9 +183,11 @@ testthat::test_that("importAtlasConceptSets errors on already-registered rows", 
   load_df <- data.frame(atlasId = 200L, label = "Atlas Concepts", category = "condition_occurrence")
   conn_v1 <- csm_test_fake_atlas_connection(list("200" = jsons$v1))
 
-  manifest$importAtlasConceptSets(conceptSetsLoad = load_df, atlasConnection = conn_v1)
+  imported <- manifest$importAtlasConceptSets(conceptSetsLoad = load_df, atlasConnection = conn_v1)
   before <- csm_test_get_manifest_row(manifest, "Atlas Concepts")
   testthat::expect_equal(nrow(before), 1)
+  testthat::expect_false(is.na(imported$id[[1]]))
+  testthat::expect_equal(imported$id[[1]], before$id[[1]])
 
   testthat::expect_error(
     manifest$importAtlasConceptSets(conceptSetsLoad = load_df, atlasConnection = conn_v1),
@@ -230,8 +232,13 @@ testthat::test_that("importAtlasConceptSets stopIfExists FALSE updates existing 
     category = c("condition_occurrence", "condition_occurrence")
   )
   conn_both <- csm_test_fake_atlas_connection(list("200" = jsons$v2, "300" = jsons$v2))
-  manifest$importAtlasConceptSets(conceptSetsLoad = mixed_df, atlasConnection = conn_both, stopIfExists = FALSE)
-  testthat::expect_equal(nrow(csm_test_get_manifest_row(manifest, "Second Atlas Concepts")), 1)
+  imported_mixed <- manifest$importAtlasConceptSets(conceptSetsLoad = mixed_df, atlasConnection = conn_both, stopIfExists = FALSE)
+  second_row <- csm_test_get_manifest_row(manifest, "Second Atlas Concepts")
+  testthat::expect_equal(nrow(second_row), 1)
+  testthat::expect_equal(
+    imported_mixed$id[imported_mixed$label == "Second Atlas Concepts"],
+    second_row$id[[1]]
+  )
 })
 
 # Testing: addAtlasConceptSet stopIfExists = FALSE refreshes a single concept set from ATLAS in place.

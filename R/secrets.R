@@ -34,6 +34,34 @@ readSecrets <- function(secretsFilePath, eval = FALSE) {
 }
 
 
+extract_yaml_top_block <- function(lines, key) {
+  if (!is.character(lines)) {
+    stop("`lines` must be a character vector from readr::read_lines().")
+  }
+  if (!is.character(key) || length(key) != 1 || !nzchar(key)) {
+    stop("`key` must be a single non-empty character string.")
+  }
+
+  # Normalize CRLF in case of Windows line endings
+  lines <- sub("\\r$", "", lines)
+
+  # Top-level key lines like: rweSnow:
+  is_top_level <- grepl("^[A-Za-z0-9_.-]+:\\s*$", lines)
+  top_keys <- sub(":\\s*$", "", lines)
+
+  start_idx <- which(is_top_level & top_keys == key)
+  if (length(start_idx) == 0) {
+    stop(sprintf("Top-level key not found: %s", key))
+  }
+  start_idx <- start_idx[1]
+
+  # First subsequent top-level key is the end boundary
+  next_top <- which(is_top_level & seq_along(lines) > start_idx)
+  end_idx <- if (length(next_top) > 0) next_top[1] - 1 else length(lines)
+
+  paste(lines[start_idx:end_idx], collapse = "\n")
+}
+
 #' Get Atlas/WebAPI credentials from secrets.yml
 #'
 #' Looks up the `atlas` top-level key in secrets.yml and retrieves credentials.
@@ -44,12 +72,15 @@ readSecrets <- function(secretsFilePath, eval = FALSE) {
 #' @keywords internal
 getAtlasCredentials <- function(secretsFilePath = "~/.picard/secrets.yml") {
   secretsFilePath <- fs::path_expand(secretsFilePath)
-  secrets <- readSecrets(secretsFilePath, eval = TRUE)
+  secrets <- readr::read_lines(secretsFilePath)
+  block_txt <- extract_yaml_top_block(secrets, "atlas")
+  parsed <- yaml::yaml.load(block_txt, eval.expr = TRUE)
+  atlasEntry <- parsed[["atlas"]]
 
-  if (is.null(secrets[["atlas"]])) {
+  if (is.null(atlasEntry)) {
     cli::cli_abort("Atlas credenitals not found in secrets file {.path {secretsFilePath}}")
   }
-  atlasEntry <- secrets[["atlas"]]
+
   return(atlasEntry)
 }
 
@@ -65,12 +96,16 @@ getAtlasCredentials <- function(secretsFilePath = "~/.picard/secrets.yml") {
 #' @keywords internal
 getServerCredentials <- function(dbServer, secretsFilePath = "~/.picard/secrets.yml") {
   secretsFilePath <- fs::path_expand(secretsFilePath)
-  secrets <- readSecrets(secretsFilePath, eval = TRUE)
+  secrets <- readr::read_lines(secretsFilePath)
+  block_txt <- extract_yaml_top_block(secrets, dbServer)
+  
+  parsed <- yaml::yaml.load(block_txt, eval.expr = TRUE)
+  dbServerEntry <- parsed[[dbServer]]
 
-  if (is.null(secrets[[dbServer]])) {
+  if (is.null(dbServerEntry)) {
     cli::cli_abort("Server {.val {dbServer}} not found in secrets file {.path {secretsFilePath}}")
   }
-  dbServerEntry <- secrets[[dbServer]]
+  
   return(dbServerEntry)
 }
 
