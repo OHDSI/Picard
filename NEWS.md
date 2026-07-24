@@ -21,7 +21,7 @@
 - in `$grabConceptInfoFromSet()` change input to conceptSetRef which accepts either a manifest id or a label (See issue #56)
 - Add task prefix to the `importAndBind()` save to avoid similar output names between tasks.
 - Add method to ExecutionSettings to `reviewConnectionDetails()` pulls the connectionDetails used. 
-- Modify `getServerCredentials()` to not evaluate full yml file, only pull the specific block and evaluate. 
+- Modify `getServerCredentials()` to not evaluate full yml file, only pull the specific block and evaluate (See issue #30, #33). 
 
 # picard 0.0.6
 
