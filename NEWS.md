@@ -7,7 +7,15 @@
 - Added `viewManifest()` convenience method for both `CohortManifest` and `ConceptSetManifest` to interactively explore manifest metadata in RStudio viewer with streamlined columns (id, label, category, tags, file_path).
 - Enhanced `tabulateManifest()` with `tags_format` parameter supporting three formats: `"nested"` (default, parsed tags as tibble with tag_name/tag_value), `"json"` (raw JSON string for backward compatibility), and `"wide"` (expanded tags as individual columns for spreadsheet-like analysis).
 
+## Bug Fixes
 
+- add `$queryConceptSetsByCategory()` it was missing
+- add `stopIfExists` option to ATLAS csv load builders
+- Custom dependent cohort builder is now consistent with the other dependent cohort builders - the rendered SQL query is written to the file system, and it accepts cohort objects as inputs instead of IDs. 
+- Custom dependent cohort builder now also allows user to specify non-cohort-ID params, so the rendered SQL query can be generated in a single function call
+- Builder console messages clarified
+- on `resetManifest` turn archive default to FALSE
+- Refactor `query...Manifest` methods to use `$tabulateManifest()` internally to be more consistent. 
 
 # picard 0.0.6
 

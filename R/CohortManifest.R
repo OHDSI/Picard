@@ -2858,41 +2858,32 @@ CohortManifest <- R6::R6Class(
     #' Query cohorts by IDs
     #'
     #' @param ids Integer vector. One or more cohort IDs.
+    #' @param tags_format Character. One of "nested", "json", or "wide".
+    #'   - "nested": Tags as nested tibble with tag_name/tag_value columns
+    #'   - "json" (default): Tags as raw JSON string
+    #'   - "wide": Tags expanded into individual columns
     #'
-    #' @return Data frame. A subset of the manifest with columns id, label, tags, filePath, hash, timestamp for matching cohorts, or NULL if none found.
-    queryCohortsByIds = function(ids) {
+    #' @return Tibble with matching cohorts. Tag columns depend on
+    #'   \code{tags_format}. Returns NULL if no matches are found.
+    queryCohortsByIds = function(ids, tags_format = c("nested", "json", "wide")) {
       checkmate::assert_integerish(x = ids, min.len = 1)
       ids <- as.integer(ids)
+      tags_format <- match.arg(tags_format)
 
-      matching_cohorts <- list()
+      manifest_df <- self$tabulateManifest(filter = "active", tags_format = "json") |>
+        dplyr::filter(.data$id %in% ids)
 
-      for (cohort in private$.manifest) {
-        if (cohort$getId() %in% ids) {
-          matching_cohorts[[length(matching_cohorts) + 1]] <- cohort
-        }
-      }
-
-      if (length(matching_cohorts) == 0) {
+      if (nrow(manifest_df) == 0) {
         cli::cli_alert_warning("No cohorts found with IDs: {paste(ids, collapse = ', ')}")
         return(NULL)
       }
 
-      # Get data from database
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
-      on.exit(DBI::dbDisconnect(conn))
-
-      ids_str <- paste(ids, collapse = ", ")
-      manifest_df <- DBI::dbGetQuery(
-        conn,
-        paste0("SELECT id, label, category, tags, file_path, hash, source_type, created_at 
-                FROM cohort_manifest WHERE id IN (", ids_str, ") AND status = 'active'")
-      )
-
-      if (nrow(manifest_df) == 0) {
-        return(NULL)
+      if (tags_format == "json") {
+        return(manifest_df)
       }
 
-      return(tibble::as_tibble(manifest_df))
+      self$tabulateManifest(filter = "active", tags_format = tags_format) |>
+        dplyr::filter(.data$id %in% manifest_df$id)
     },
 
     #' Query cohorts by tag
@@ -2902,11 +2893,27 @@ CohortManifest <- R6::R6Class(
     #'   argument controls whether a cohort must satisfy any or all of them.
     #' @param match Character. "any" (default) returns cohorts matching at least one tag;
     #'   "all" returns only cohorts matching every tag.
+    #' @param tags_format Character. One of "nested", "json", or "wide".
+    #'   - "nested": Tags as nested tibble with tag_name/tag_value columns
+    #'   - "json" (default): Tags as raw JSON string
+    #'   - "wide": Tags expanded into individual columns
     #'
-    #' @return Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
-    queryCohortsByTag = function(tagStrings, match = c("any", "all")) {
+    #' @return Tibble with matching cohorts. Tag columns depend on
+    #'   \code{tags_format}. Returns NULL if no matches are found.
+    queryCohortsByTag = function(tagStrings,
+                                 match = c("any", "all"),
+                                 tags_format = c("nested", "json", "wide")) {
       checkmate::assert_character(x = tagStrings, min.len = 1, min.chars = 1)
       match <- match.arg(match)
+      tags_format <- match.arg(tags_format)
+
+      manifest_df <- self$tabulateManifest(filter = "active", tags_format = "json")
+
+      if (nrow(manifest_df) == 0) {
+        match_desc <- paste(tagStrings, collapse = " | ")
+        cli::cli_alert_warning("No cohorts found matching ({match}): {match_desc}")
+        return(NULL)
+      }
 
       # Parse each tag string into name/value pairs
       parsed_tags <- lapply(tagStrings, function(ts) {
@@ -2917,49 +2924,41 @@ CohortManifest <- R6::R6Class(
         list(name = trimws(tag_parts[1]), value = trimws(tag_parts[2]))
       })
 
-      matching_cohorts <- list()
+      manifest_df <- manifest_df |>
+        dplyr::mutate(
+          tags_list = purrr::map(.data$tags, function(tags_json) {
+            if (is.na(tags_json) || is.null(tags_json) || tags_json == "") {
+              return(list())
+            }
+            jsonlite::fromJSON(tags_json)
+          })
+        )
 
-      # Search through manifest for matching tags
-      for (cohort in private$.manifest) {
-        cohort_tags <- cohort$tags
+      tag_match <- purrr::map_lgl(manifest_df$tags_list, function(cohort_tags) {
         tag_hits <- sapply(parsed_tags, function(pt) {
           !is.null(cohort_tags) &&
             pt$name %in% names(cohort_tags) &&
-            cohort_tags[[pt$name]] == pt$value
+            as.character(cohort_tags[[pt$name]]) == pt$value
         })
+        if (match == "any") any(tag_hits) else all(tag_hits)
+      })
 
-        include <- if (match == "any") any(tag_hits) else all(tag_hits)
+      manifest_df <- manifest_df |>
+        dplyr::filter(tag_match) |>
+        dplyr::select(-.data$tags_list)
 
-        if (include) {
-          matching_cohorts[[length(matching_cohorts) + 1]] <- cohort
-        }
-      }
-
-      if (length(matching_cohorts) == 0) {
+      if (nrow(manifest_df) == 0) {
         match_desc <- paste(tagStrings, collapse = " | ")
         cli::cli_alert_warning("No cohorts found matching ({match}): {match_desc}")
         return(NULL)
       }
 
-      # Get matching cohort IDs and query database
-      matching_ids <- sapply(matching_cohorts, function(c) c$getId())
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
-      on.exit(DBI::dbDisconnect(conn))
-
-      ids_str <- paste(matching_ids, collapse = ", ")
-      manifest_df <- DBI::dbGetQuery(
-        conn,
-        paste0("SELECT id, label, category, tags, file_path, hash, source_type, created_at 
-                FROM cohort_manifest WHERE id IN (", ids_str, ") AND status = 'active'")
-      )
-
-      if (nrow(manifest_df) == 0) {
-        return(NULL)
+      if (tags_format == "json") {
+        return(manifest_df)
       }
 
-      manifest_df <- tibble::as_tibble(manifest_df)
-
-      return(manifest_df)
+      self$tabulateManifest(filter = "active", tags_format = tags_format) |>
+        dplyr::filter(.data$id %in% manifest_df$id)
     },
 
     #' Query cohorts by label
@@ -2968,18 +2967,23 @@ CohortManifest <- R6::R6Class(
     #'   A cohort is included when it matches at least one of the supplied labels (OR logic).
     #' @param matchType Character. Either "exact" for exact match or "pattern" for pattern matching.
     #'   Defaults to "exact".
+    #' @param tags_format Character. One of "nested", "json", or "wide".
+    #'   - "nested": Tags as nested tibble with tag_name/tag_value columns
+    #'   - "json" (default): Tags as raw JSON string
+    #'   - "wide": Tags expanded into individual columns
     #'
-    #' @return Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
-    queryCohortsByLabel = function(labels, matchType = c("exact", "pattern")) {
+    #' @return Tibble with matching cohorts. Tag columns depend on
+    #'   \code{tags_format}. Returns NULL if no matches are found.
+    queryCohortsByLabel = function(labels,
+                                   matchType = c("exact", "pattern"),
+                                   tags_format = c("nested", "json", "wide")) {
       checkmate::assert_character(x = labels, min.len = 1, min.chars = 1)
       matchType <- match.arg(matchType)
+      tags_format <- match.arg(tags_format)
 
-      matching_cohorts <- list()
+      manifest_df <- self$tabulateManifest(filter = "active", tags_format = "json")
 
-      # Search through manifest for matching labels (any-match across supplied labels)
-      for (cohort in private$.manifest) {
-        cohort_label <- cohort$label
-
+      label_match <- sapply(manifest_df$label, function(cohort_label) {
         label_hits <- sapply(labels, function(lbl) {
           if (matchType == "exact") {
             cohort_label == lbl
@@ -2987,154 +2991,179 @@ CohortManifest <- R6::R6Class(
             grepl(lbl, cohort_label, ignore.case = TRUE)
           }
         })
+        any(label_hits)
+      })
 
-        if (any(label_hits)) {
-          matching_cohorts[[length(matching_cohorts) + 1]] <- cohort
-        }
-      }
+      manifest_df <- manifest_df |>
+        dplyr::filter(label_match)
 
-      if (length(matching_cohorts) == 0) {
+      if (nrow(manifest_df) == 0) {
         match_desc <- paste(labels, collapse = " | ")
         cli::cli_alert_warning("No cohorts found with {matchType} label match: {match_desc}")
         return(NULL)
       }
 
-      # Get matching cohort IDs and query database
-      matching_ids <- sapply(matching_cohorts, function(c) c$getId())
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
-      on.exit(DBI::dbDisconnect(conn))
-
-      ids_str <- paste(matching_ids, collapse = ", ")
-      manifest_df <- DBI::dbGetQuery(
-        conn,
-        paste0("SELECT id, label, category, tags, file_path, hash, source_type, created_at 
-                FROM cohort_manifest WHERE id IN (", ids_str, ") AND status = 'active'")
-      )
-
-      if (nrow(manifest_df) == 0) {
-        return(NULL)
+      if (tags_format == "json") {
+        return(manifest_df)
       }
 
-      return(tibble::as_tibble(manifest_df))
+      self$tabulateManifest(filter = "active", tags_format = tags_format) |>
+        dplyr::filter(.data$id %in% manifest_df$id)
     },
 
-    #' Query cohorts by category
+    #' Query cohorts by tag name
     #'
     #' @param category Character vector. One or more category to search for.
     #'   A cohort is included when it matches at least one of the supplied category (OR logic).
     #' @param matchType Character. Either "exact" for exact match or "pattern" for pattern matching.
     #'   Defaults to "exact".
+    #' @param tags_format Character. One of "nested", "json", or "wide".
+    #'   - "nested": Tags as nested tibble with tag_name/tag_value columns
+    #'   - "json" (default): Tags as raw JSON string
+    #'   - "wide": Tags expanded into individual columns
     #'
-    #' @return Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
-    queryCohortsByCategory = function(category, matchType = c("exact", "pattern")) {
+    #' @return Tibble with matching cohorts. Tag columns depend on
+    #'   \code{tags_format}. Returns NULL if no matches are found.
+    queryCohortsByCategory = function(category,
+                                      matchType = c("exact", "pattern"),
+                                      tags_format = c("nested", "json", "wide")) {
       checkmate::assert_character(x = category, min.len = 1, min.chars = 1)
       matchType <- match.arg(matchType)
+      tags_format <- match.arg(tags_format)
 
-      matching_cohorts <- list()
+      manifest_df <- self$tabulateManifest(filter = "active", tags_format = "json")
 
-      # Search through manifest for matching category (any-match across supplied category)
-      for (cohort in private$.manifest) {
-        cohort_label <- cohort$category
-
-        label_hits <- sapply(category, function(lbl) {
+      category_match <- sapply(manifest_df$category, function(category_value) {
+        category_hits <- sapply(category, function(cat) {
           if (matchType == "exact") {
-            cohort_label == lbl
+            category_value == cat
           } else {
-            grepl(lbl, cohort_label, ignore.case = TRUE)
+            grepl(cat, category_value, ignore.case = TRUE)
           }
         })
+        any(category_hits)
+      })
 
-        if (any(label_hits)) {
-          matching_cohorts[[length(matching_cohorts) + 1]] <- cohort
-        }
-      }
-
-      if (length(matching_cohorts) == 0) {
-        match_desc <- paste(category, collapse = " | ")
-        cli::cli_alert_warning("No cohorts found with {matchType} label match: {match_desc}")
-        return(NULL)
-      }
-
-      # Get matching cohort IDs and query database
-      matching_ids <- sapply(matching_cohorts, function(c) c$getId())
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
-      on.exit(DBI::dbDisconnect(conn))
-
-      ids_str <- paste(matching_ids, collapse = ", ")
-      manifest_df <- DBI::dbGetQuery(
-        conn,
-        paste0("SELECT id, label, category, tags, file_path, hash, source_type, created_at 
-                FROM cohort_manifest WHERE id IN (", ids_str, ") AND status = 'active'")
-      )
+      manifest_df <- manifest_df |>
+        dplyr::filter(category_match)
 
       if (nrow(manifest_df) == 0) {
+        match_desc <- paste(category, collapse = " | ")
+        cli::cli_alert_warning("No cohorts found with {matchType} category match: {match_desc}")
         return(NULL)
       }
 
-      return(tibble::as_tibble(manifest_df))
+      if (tags_format == "json") {
+        return(manifest_df)
+      }
+
+      self$tabulateManifest(filter = "active", tags_format = tags_format) |>
+        dplyr::filter(.data$id %in% manifest_df$id)
     },
 
     #' Query cohorts by category
     #'
-    #' @param tagName Character vector. The name of tags to query
+    #' @param tagName Character vector. The name of tags to query.
+    #' @param tags_format Character. One of "nested", "json", or "wide".
+    #'   - "nested": Tags as nested tibble with tag_name/tag_value columns
+    #'   - "json" (default): Tags as raw JSON string
+    #'   - "wide": Tags expanded into individual columns
     #'
-    #' @return Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
-    queryCohortsByTagName = function(tagName) {
+    #' @return Tibble with matching cohorts. Tag columns depend on
+    #'   \code{tags_format}. Returns NULL if no matches are found.
+    queryCohortsByTagName = function(tagName, tags_format = c("nested", "json", "wide")) {
       checkmate::assert_character(x = tagName, min.len = 1, min.chars = 1)
+      tags_format <- match.arg(tags_format)
 
-      tcm <- self$tabulateManifest() |> 
+      tcm <- self$tabulateManifest(filter = "active", tags_format = "json") |> 
         dplyr::mutate(
-          tags_list = purrr::map(tags, ~jsonlite::fromJSON(.x))
+          tags_list = purrr::map(.data$tags, function(tags_json) {
+            if (is.na(tags_json) || is.null(tags_json) || tags_json == "") {
+              return(list())
+            }
+            jsonlite::fromJSON(tags_json)
+          })
         ) |>
         dplyr::filter(
-          purrr::map_lgl(tags_list, ~tagName %in% names(.))
+          purrr::map_lgl(.data$tags_list, ~any(tagName %in% names(.)))
         ) |>
-        dplyr::select(-c(tags_list))
+        dplyr::select(-dplyr::all_of("tags_list"))
 
-      return(tcm)
+      if (tags_format == "json") {
+        return(tcm)
+      }
+
+      self$tabulateManifest(filter = "active", tags_format = tags_format) |>
+        dplyr::filter(.data$id %in% tcm$id)
     },
 
     #' @description Query cohorts missing a specific tag
     #'
     #' @param tagName Character. The name of the tag to check for absence.
+    #' @param tags_format Character. One of "nested", "json", or "wide".
+    #'   - "nested": Tags as nested tibble with tag_name/tag_value columns
+    #'   - "json" (default): Tags as raw JSON string
+    #'   - "wide": Tags expanded into individual columns
     #'
-    #' @return Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
-    #'   Returns NULL if all cohorts have the tag.
-    queryCohortsMissingTag = function(tagName) {
+    #' @return Tibble with matching cohorts. Tag columns depend on
+    #'   \code{tags_format}. Returns NULL if all cohorts have the tag.
+    queryCohortsMissingTag = function(tagName,
+                                      tags_format = c("nested", "json", "wide")) {
       checkmate::assert_character(x = tagName, len = 1, min.chars = 1)
+      tags_format <- match.arg(tags_format)
 
-      tcm <- self$tabulateManifest() |>
+      tcm <- self$tabulateManifest(filter = "active", tags_format = "json") |>
         dplyr::mutate(
-          tags_list = purrr::map(tags, ~jsonlite::fromJSON(.x))
+          tags_list = purrr::map(.data$tags, function(tags_json) {
+            if (is.na(tags_json) || is.null(tags_json) || tags_json == "") {
+              return(list())
+            }
+            jsonlite::fromJSON(tags_json)
+          })
         ) |>
         dplyr::filter(
-          !purrr::map_lgl(tags_list, ~tagName %in% names(.))
+          !purrr::map_lgl(.data$tags_list, ~tagName %in% names(.))
         ) |>
-        dplyr::select(-c(tags_list))
+        dplyr::select(-dplyr::all_of("tags_list"))
 
       if (nrow(tcm) == 0) {
         cli::cli_alert_warning("No cohorts missing tag '{tagName}' — all have it.")
         return(NULL)
       }
 
-      return(tcm)
+      if (tags_format == "json") {
+        return(tcm)
+      }
+
+      self$tabulateManifest(filter = "active", tags_format = tags_format) |>
+        dplyr::filter(.data$id %in% tcm$id)
     },
 
     #' @description Query cohorts by tag value mapping
     #'
     #' @param tagValueMapping Named list. Keys are tag names, values are tag values to match.
     #'   Example: \code{list(status = "approved", type = "primary")} requires both conditions (AND logic).
+    #' @param tags_format Character. One of "nested", "json", or "wide".
+    #'   - "nested": Tags as nested tibble with tag_name/tag_value columns
+    #'   - "json" (default): Tags as raw JSON string
+    #'   - "wide": Tags expanded into individual columns
     #'
-    #' @return Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
-    #'   Returns NULL if no cohorts match all tag conditions.
-    queryCohortsWithTagValues = function(tagValueMapping) {
+    #' @return Tibble with matching cohorts. Tag columns depend on
+    #'   \code{tags_format}. Returns NULL if no cohorts match all tag conditions.
+    queryCohortsWithTagValues = function(tagValueMapping,
+                                         tags_format = c("nested", "json", "wide")) {
       checkmate::assert_list(tagValueMapping, names = "named", min.len = 1)
+      tags_format <- match.arg(tags_format)
 
       # Convert to tagStrings format for existing query method
       tagStrings <- paste0(names(tagValueMapping), ": ", unlist(tagValueMapping))
 
       # Use existing queryCohortsByTag with match = "all"
-      result <- self$queryCohortsByTag(tagStrings = tagStrings, match = "all")
+      result <- self$queryCohortsByTag(
+        tagStrings = tagStrings,
+        match = "all",
+        tags_format = tags_format
+      )
 
       return(result)
     },

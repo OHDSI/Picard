@@ -582,18 +582,29 @@ Query concept sets by IDs
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-queryConceptSetsByIds}{}}}
 \subsection{Method \code{queryConceptSetsByIds()}}{
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsByIds(ids)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsByIds(
+  ids,
+  tags_format = c("nested", "json", "wide")
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
 \item{\code{ids}}{Integer vector. One or more concept set IDs.}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested": Tags as nested tibble with tag_name/tag_value columns
+\item "json" (default): Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Tibble with columns: id, label, category, tags, file_path, hash, created_at.
+Tibble with matching concept sets. Tag columns depend on
+\code{tags_format}. Returns NULL if no matches are found.
 Query concept sets by tag
 }
 }
@@ -602,7 +613,11 @@ Query concept sets by tag
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-queryConceptSetsByTag}{}}}
 \subsection{Method \code{queryConceptSetsByTag()}}{
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsByTag(tagStrings, match = c("any", "all"))}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsByTag(
+  tagStrings,
+  match = c("any", "all"),
+  tags_format = c("nested", "json", "wide")
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -614,11 +629,19 @@ argument controls whether a concept set must satisfy any or all of them.}
 
 \item{\code{match}}{Character. "any" (default) returns concept sets matching at least one tag;
 "all" returns only concept sets matching every tag.}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested": Tags as nested tibble with tag_name/tag_value columns
+\item "json" (default): Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Tibble with columns: id, label, category, tags, file_path, hash, created_at.
+Tibble with matching concept sets. Tag columns depend on
+\code{tags_format}. Returns NULL if no matches are found.
 Query concept sets by category
 }
 }
@@ -629,7 +652,8 @@ Query concept sets by category
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsByCategory(
   category,
-  matchType = c("exact", "pattern")
+  matchType = c("exact", "pattern"),
+  tags_format = c("nested", "json", "wide")
 )}\if{html}{\out{</div>}}
 }
 
@@ -641,11 +665,19 @@ A concept set is included when it matches at least one of the supplied category 
 
 \item{\code{matchType}}{Character. Either "exact" for exact match or "pattern" for pattern matching.
 Defaults to "exact".}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested": Tags as nested tibble with tag_name/tag_value columns
+\item "json" (default): Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Tibble with columns: id, label, category, tags, file_path, hash, created_at.
+Tibble with matching concept sets. Tag columns depend on
+\code{tags_format}. Returns NULL if no matches are found.
 Query concept sets by tag name
 }
 }
@@ -654,18 +686,29 @@ Query concept sets by tag name
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-queryConceptSetsByTagName}{}}}
 \subsection{Method \code{queryConceptSetsByTagName()}}{
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsByTagName(tagName)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsByTagName(
+  tagName,
+  tags_format = c("nested", "json", "wide")
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{tagName}}{Character vector. The name of tags to query}
+\item{\code{tagName}}{Character vector. The name of tags to query.}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested": Tags as nested tibble with tag_name/tag_value columns
+\item "json" (default): Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
+Tibble with matching concept sets. Tag columns depend on
+\code{tags_format}. Returns NULL if no matches are found.
 }
 }
 \if{html}{\out{<hr>}}
@@ -674,19 +717,29 @@ Tibble with columns: id, label, category, tags, file_path, hash, source_type, cr
 \subsection{Method \code{queryConceptSetsMissingTag()}}{
 Query concept sets missing a specific tag
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsMissingTag(tagName)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsMissingTag(
+  tagName,
+  tags_format = c("nested", "json", "wide")
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
 \item{\code{tagName}}{Character. The name of the tag to check for absence.}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested": Tags as nested tibble with tag_name/tag_value columns
+\item "json" (default): Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Tibble with columns: id, label, category, tags, file_path, hash, created_at.
-Returns NULL if all concept sets have the tag.
+Tibble with matching concept sets. Tag columns depend on
+\code{tags_format}. Returns NULL if all concept sets have the tag.
 }
 }
 \if{html}{\out{<hr>}}
@@ -695,7 +748,10 @@ Returns NULL if all concept sets have the tag.
 \subsection{Method \code{queryConceptSetsWithTagValues()}}{
 Query concept sets by tag value mapping
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsWithTagValues(tagValueMapping)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsWithTagValues(
+  tagValueMapping,
+  tags_format = c("nested", "json", "wide")
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -703,12 +759,19 @@ Query concept sets by tag value mapping
 \describe{
 \item{\code{tagValueMapping}}{Named list. Keys are tag names, values are tag values to match.
 Example: \code{list(status = "approved", type = "primary")} requires both conditions (AND logic).}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested": Tags as nested tibble with tag_name/tag_value columns
+\item "json" (default): Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Tibble with columns: id, label, category, tags, file_path, hash, created_at.
-Returns NULL if no concept sets match all tag conditions.
+Tibble with matching concept sets. Tag columns depend on
+\code{tags_format}. Returns NULL if no concept sets match all tag conditions.
 }
 }
 \if{html}{\out{<hr>}}
@@ -740,7 +803,8 @@ Query concept sets by label
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsByLabel(
   labels,
-  matchType = c("exact", "pattern")
+  matchType = c("exact", "pattern"),
+  tags_format = c("nested", "json", "wide")
 )}\if{html}{\out{</div>}}
 }
 
@@ -752,11 +816,19 @@ A concept set is included when it matches at least one of the supplied labels (O
 
 \item{\code{matchType}}{Character. Either "exact" for exact match or "pattern" for pattern matching.
 Defaults to "exact".}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested": Tags as nested tibble with tag_name/tag_value columns
+\item "json" (default): Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Tibble with columns: id, label, category, tags, file_path, hash, created_at.
+Tibble with matching concept sets. Tag columns depend on
+\code{tags_format}. Returns NULL if no matches are found.
 }
 }
 \if{html}{\out{<hr>}}

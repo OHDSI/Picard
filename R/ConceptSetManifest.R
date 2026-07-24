@@ -1139,41 +1139,32 @@ ConceptSetManifest <- R6::R6Class(
     #' Query concept sets by IDs
     #'
     #' @param ids Integer vector. One or more concept set IDs.
+    #' @param tags_format Character. One of "nested", "json", or "wide".
+    #'   - "nested": Tags as nested tibble with tag_name/tag_value columns
+    #'   - "json" (default): Tags as raw JSON string
+    #'   - "wide": Tags expanded into individual columns
     #'
-    #' @return Tibble with columns: id, label, category, tags, file_path, hash, created_at.
-    queryConceptSetsByIds = function(ids) {
+    #' @return Tibble with matching concept sets. Tag columns depend on
+    #'   \code{tags_format}. Returns NULL if no matches are found.
+    queryConceptSetsByIds = function(ids, tags_format = c("nested", "json", "wide")) {
       checkmate::assert_integerish(x = ids, min.len = 1)
       ids <- as.integer(ids)
+      tags_format <- match.arg(tags_format)
 
-      matching_concept_sets <- list()
+      manifest_df <- self$tabulateManifest(filter = "active", tags_format = "json") |>
+        dplyr::filter(.data$id %in% ids)
 
-      for (concept_set in private$.manifest) {
-        if (concept_set$getId() %in% ids) {
-          matching_concept_sets[[length(matching_concept_sets) + 1]] <- concept_set
-        }
-      }
-
-      if (length(matching_concept_sets) == 0) {
+      if (nrow(manifest_df) == 0) {
         cli::cli_alert_warning("No concept sets found with IDs: {paste(ids, collapse = ', ')}")
         return(NULL)
       }
 
-      # Get data from database
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
-      on.exit(DBI::dbDisconnect(conn))
-
-      ids_str <- paste(ids, collapse = ", ")
-      manifest_df <- DBI::dbGetQuery(
-        conn,
-        paste0("SELECT id, label, category, tags, file_path, hash, created_at
-                FROM concept_set_manifest WHERE id IN (", ids_str, ") AND status = 'active'")
-      )
-
-      if (nrow(manifest_df) == 0) {
-        return(NULL)
+      if (tags_format == "json") {
+        return(manifest_df)
       }
 
-      return(tibble::as_tibble(manifest_df))
+      self$tabulateManifest(filter = "active", tags_format = tags_format) |>
+        dplyr::filter(.data$id %in% manifest_df$id)
     },
 
     #' Query concept sets by tag
@@ -1183,11 +1174,27 @@ ConceptSetManifest <- R6::R6Class(
     #'   argument controls whether a concept set must satisfy any or all of them.
     #' @param match Character. "any" (default) returns concept sets matching at least one tag;
     #'   "all" returns only concept sets matching every tag.
+    #' @param tags_format Character. One of "nested", "json", or "wide".
+    #'   - "nested": Tags as nested tibble with tag_name/tag_value columns
+    #'   - "json" (default): Tags as raw JSON string
+    #'   - "wide": Tags expanded into individual columns
     #'
-    #' @return Tibble with columns: id, label, category, tags, file_path, hash, created_at.
-    queryConceptSetsByTag = function(tagStrings, match = c("any", "all")) {
+    #' @return Tibble with matching concept sets. Tag columns depend on
+    #'   \code{tags_format}. Returns NULL if no matches are found.
+    queryConceptSetsByTag = function(tagStrings,
+                                     match = c("any", "all"),
+                                     tags_format = c("nested", "json", "wide")) {
       checkmate::assert_character(x = tagStrings, min.len = 1, min.chars = 1)
       match <- match.arg(match)
+      tags_format <- match.arg(tags_format)
+
+      manifest_df <- self$tabulateManifest(filter = "active", tags_format = "json")
+
+      if (nrow(manifest_df) == 0) {
+        match_desc <- paste(tagStrings, collapse = " | ")
+        cli::cli_alert_warning("No concept sets found matching ({match}): {match_desc}")
+        return(NULL)
+      }
 
       # Parse each tag string into name/value pairs
       parsed_tags <- lapply(tagStrings, function(ts) {
@@ -1198,49 +1205,41 @@ ConceptSetManifest <- R6::R6Class(
         list(name = trimws(tag_parts[1]), value = trimws(tag_parts[2]))
       })
 
-      matching_concept_sets <- list()
+      manifest_df <- manifest_df |>
+        dplyr::mutate(
+          tags_list = purrr::map(.data$tags, function(tags_json) {
+            if (is.na(tags_json) || is.null(tags_json) || tags_json == "") {
+              return(list())
+            }
+            jsonlite::fromJSON(tags_json)
+          })
+        )
 
-      # Search through manifest for matching tags
-      for (concept_set in private$.manifest) {
-        cs_tags <- concept_set$tags
+      tag_match <- purrr::map_lgl(manifest_df$tags_list, function(cs_tags) {
         tag_hits <- sapply(parsed_tags, function(pt) {
           !is.null(cs_tags) &&
             pt$name %in% names(cs_tags) &&
-            cs_tags[[pt$name]] == pt$value
+            as.character(cs_tags[[pt$name]]) == pt$value
         })
+        if (match == "any") any(tag_hits) else all(tag_hits)
+      })
 
-        include <- if (match == "any") any(tag_hits) else all(tag_hits)
+      manifest_df <- manifest_df |>
+        dplyr::filter(tag_match) |>
+        dplyr::select(-.data$tags_list)
 
-        if (include) {
-          matching_concept_sets[[length(matching_concept_sets) + 1]] <- concept_set
-        }
-      }
-
-      if (length(matching_concept_sets) == 0) {
+      if (nrow(manifest_df) == 0) {
         match_desc <- paste(tagStrings, collapse = " | ")
         cli::cli_alert_warning("No concept sets found matching ({match}): {match_desc}")
         return(NULL)
       }
 
-      # Get IDs of matching concept sets
-      matching_ids <- vapply(matching_concept_sets, function(cs) cs$getId(), integer(1))
-
-      # Get data from database
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
-      on.exit(DBI::dbDisconnect(conn))
-
-      ids_str <- paste(matching_ids, collapse = ", ")
-      manifest_df <- DBI::dbGetQuery(
-        conn,
-        paste0("SELECT id, label, category, tags, file_path, hash, created_at
-                FROM concept_set_manifest WHERE id IN (", ids_str, ") AND status = 'active'")
-      )
-
-      if (nrow(manifest_df) == 0) {
-        return(NULL)
+      if (tags_format == "json") {
+        return(manifest_df)
       }
 
-      return(tibble::as_tibble(manifest_df))
+      self$tabulateManifest(filter = "active", tags_format = tags_format) |>
+        dplyr::filter(.data$id %in% manifest_df$id)
     },
     #' Query concept sets by category
     #'
@@ -1248,18 +1247,23 @@ ConceptSetManifest <- R6::R6Class(
     #'   A concept set is included when it matches at least one of the supplied category (OR logic).
     #' @param matchType Character. Either "exact" for exact match or "pattern" for pattern matching.
     #'   Defaults to "exact".
+    #' @param tags_format Character. One of "nested", "json", or "wide".
+    #'   - "nested": Tags as nested tibble with tag_name/tag_value columns
+    #'   - "json" (default): Tags as raw JSON string
+    #'   - "wide": Tags expanded into individual columns
     #'
-    #' @return Tibble with columns: id, label, category, tags, file_path, hash, created_at.
-    queryConceptSetsByCategory = function(category, matchType = c("exact", "pattern")) {
+    #' @return Tibble with matching concept sets. Tag columns depend on
+    #'   \code{tags_format}. Returns NULL if no matches are found.
+    queryConceptSetsByCategory = function(category,
+                                          matchType = c("exact", "pattern"),
+                                          tags_format = c("nested", "json", "wide")) {
       checkmate::assert_character(x = category, min.len = 1, min.chars = 1)
       matchType <- match.arg(matchType)
+      tags_format <- match.arg(tags_format)
 
-      matching_concept_sets <- list()
+      manifest_df <- self$tabulateManifest(filter = "active", tags_format = "json")
 
-      # Search through manifest for matching category (any-match across supplied category)
-      for (concept_set in private$.manifest) {
-        cs_category <- concept_set$category
-
+      category_match <- sapply(manifest_df$category, function(cs_category) {
         category_hits <- sapply(category, function(cat) {
           if (matchType == "exact") {
             cs_category == cat
@@ -1267,98 +1271,129 @@ ConceptSetManifest <- R6::R6Class(
             grepl(cat, cs_category, ignore.case = TRUE)
           }
         })
+        any(category_hits)
+      })
 
-        if (any(category_hits)) {
-          matching_concept_sets[[length(matching_concept_sets) + 1]] <- concept_set
-        }
-      }
+      manifest_df <- manifest_df |>
+        dplyr::filter(category_match)
 
-      if (length(matching_concept_sets) == 0) {
+      if (nrow(manifest_df) == 0) {
         match_desc <- paste(category, collapse = " | ")
         cli::cli_alert_warning("No concept sets found with {matchType} category match: {match_desc}")
         return(NULL)
       }
 
-      # Get matching concept set IDs and query database
-      matching_ids <- sapply(matching_concept_sets, function(cs) cs$getId())
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
-      on.exit(DBI::dbDisconnect(conn))
-
-      ids_str <- paste(matching_ids, collapse = ", ")
-      manifest_df <- DBI::dbGetQuery(
-        conn,
-        paste0("SELECT id, label, category, tags, file_path, hash, created_at\n",
-               "FROM concept_set_manifest WHERE id IN (", ids_str, ") AND status = 'active'")
-      )
-
-      if (nrow(manifest_df) == 0) {
-        return(NULL)
+      if (tags_format == "json") {
+        return(manifest_df)
       }
 
-      return(tibble::as_tibble(manifest_df))
+      self$tabulateManifest(filter = "active", tags_format = tags_format) |>
+        dplyr::filter(.data$id %in% manifest_df$id)
     },
 
     #' Query concept sets by tag name
     #'
-    #' @param tagName Character vector. The name of tags to query
+    #' @param tagName Character vector. The name of tags to query.
+    #' @param tags_format Character. One of "nested", "json", or "wide".
+    #'   - "nested": Tags as nested tibble with tag_name/tag_value columns
+    #'   - "json" (default): Tags as raw JSON string
+    #'   - "wide": Tags expanded into individual columns
     #'
-    #' @return Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
-    queryConceptSetsByTagName = function(tagName) {
+    #' @return Tibble with matching concept sets. Tag columns depend on
+    #'   \code{tags_format}. Returns NULL if no matches are found.
+    queryConceptSetsByTagName = function(tagName, tags_format = c("nested", "json", "wide")) {
       checkmate::assert_character(x = tagName, min.len = 1, min.chars = 1)
+      tags_format <- match.arg(tags_format)
 
-      tcm <- self$tabulateManifest() |> 
+      tcm <- self$tabulateManifest(filter = "active", tags_format = "json") |> 
         dplyr::mutate(
-          tags_list = purrr::map(tags, ~jsonlite::fromJSON(.x))
+          tags_list = purrr::map(.data$tags, function(tags_json) {
+            if (is.na(tags_json) || is.null(tags_json) || tags_json == "") {
+              return(list())
+            }
+            jsonlite::fromJSON(tags_json)
+          })
         ) |>
         dplyr::filter(
-          purrr::map_lgl(tags_list, ~tagName %in% names(.))
+          purrr::map_lgl(.data$tags_list, ~any(tagName %in% names(.)))
         ) |>
-        dplyr::select(-c(tags_list))
+        dplyr::select(-dplyr::all_of("tags_list"))
 
-      return(tcm)
+      if (tags_format == "json") {
+        return(tcm)
+      }
+
+      self$tabulateManifest(filter = "active", tags_format = tags_format) |>
+        dplyr::filter(.data$id %in% tcm$id)
     },
 
     #' @description Query concept sets missing a specific tag
     #'
     #' @param tagName Character. The name of the tag to check for absence.
+    #' @param tags_format Character. One of "nested", "json", or "wide".
+    #'   - "nested": Tags as nested tibble with tag_name/tag_value columns
+    #'   - "json" (default): Tags as raw JSON string
+    #'   - "wide": Tags expanded into individual columns
     #'
-    #' @return Tibble with columns: id, label, category, tags, file_path, hash, created_at.
-    #'   Returns NULL if all concept sets have the tag.
-    queryConceptSetsMissingTag = function(tagName) {
+    #' @return Tibble with matching concept sets. Tag columns depend on
+    #'   \code{tags_format}. Returns NULL if all concept sets have the tag.
+    queryConceptSetsMissingTag = function(tagName,
+                                          tags_format = c("nested", "json", "wide")) {
       checkmate::assert_character(x = tagName, len = 1, min.chars = 1)
+      tags_format <- match.arg(tags_format)
 
-      tcm <- self$tabulateManifest() |>
+      tcm <- self$tabulateManifest(filter = "active", tags_format = "json") |>
         dplyr::mutate(
-          tags_list = purrr::map(tags, ~jsonlite::fromJSON(.x))
+          tags_list = purrr::map(.data$tags, function(tags_json) {
+            if (is.na(tags_json) || is.null(tags_json) || tags_json == "") {
+              return(list())
+            }
+            jsonlite::fromJSON(tags_json)
+          })
         ) |>
         dplyr::filter(
-          !purrr::map_lgl(tags_list, ~tagName %in% names(.))
+          !purrr::map_lgl(.data$tags_list, ~tagName %in% names(.))
         ) |>
-        dplyr::select(-c(tags_list))
+        dplyr::select(-dplyr::all_of("tags_list"))
 
       if (nrow(tcm) == 0) {
         cli::cli_alert_warning("No concept sets missing tag '{tagName}' — all have it.")
         return(NULL)
       }
 
-      return(tcm)
+      if (tags_format == "json") {
+        return(tcm)
+      }
+
+      self$tabulateManifest(filter = "active", tags_format = tags_format) |>
+        dplyr::filter(.data$id %in% tcm$id)
     },
 
     #' @description Query concept sets by tag value mapping
     #'
     #' @param tagValueMapping Named list. Keys are tag names, values are tag values to match.
     #'   Example: \code{list(status = "approved", type = "primary")} requires both conditions (AND logic).
+    #' @param tags_format Character. One of "nested", "json", or "wide".
+    #'   - "nested": Tags as nested tibble with tag_name/tag_value columns
+    #'   - "json" (default): Tags as raw JSON string
+    #'   - "wide": Tags expanded into individual columns
     #'
-    #' @return Tibble with columns: id, label, category, tags, file_path, hash, created_at.
-    #'   Returns NULL if no concept sets match all tag conditions.
-    queryConceptSetsWithTagValues = function(tagValueMapping) {
+    #' @return Tibble with matching concept sets. Tag columns depend on
+    #'   \code{tags_format}. Returns NULL if no concept sets match all tag conditions.
+    queryConceptSetsWithTagValues = function(tagValueMapping,
+                                             tags_format = c("nested", "json", "wide")) {
       checkmate::assert_list(tagValueMapping, names = "named", min.len = 1)
+      tags_format <- match.arg(tags_format)
 
       # Convert to tagStrings format for existing query method
       tagStrings <- paste0(names(tagValueMapping), ": ", unlist(tagValueMapping))
 
       # Use existing queryConceptSetsByTag with match = "all"
-      result <- self$queryConceptSetsByTag(tagStrings = tagStrings, match = "all")
+      result <- self$queryConceptSetsByTag(
+        tagStrings = tagStrings,
+        match = "all",
+        tags_format = tags_format
+      )
 
       return(result)
     },
@@ -1401,18 +1436,23 @@ ConceptSetManifest <- R6::R6Class(
     #'   A concept set is included when it matches at least one of the supplied labels (OR logic).
     #' @param matchType Character. Either "exact" for exact match or "pattern" for pattern matching.
     #'   Defaults to "exact".
+    #' @param tags_format Character. One of "nested", "json", or "wide".
+    #'   - "nested": Tags as nested tibble with tag_name/tag_value columns
+    #'   - "json" (default): Tags as raw JSON string
+    #'   - "wide": Tags expanded into individual columns
     #'
-    #' @return Tibble with columns: id, label, category, tags, file_path, hash, created_at.
-    queryConceptSetsByLabel = function(labels, matchType = c("exact", "pattern")) {
+    #' @return Tibble with matching concept sets. Tag columns depend on
+    #'   \code{tags_format}. Returns NULL if no matches are found.
+    queryConceptSetsByLabel = function(labels,
+                                       matchType = c("exact", "pattern"),
+                                       tags_format = c("nested", "json", "wide")) {
       checkmate::assert_character(x = labels, min.len = 1, min.chars = 1)
       matchType <- match.arg(matchType)
+      tags_format <- match.arg(tags_format)
 
-      matching_concept_sets <- list()
+      manifest_df <- self$tabulateManifest(filter = "active", tags_format = "json")
 
-      # Search through manifest for matching labels (any-match across supplied labels)
-      for (concept_set in private$.manifest) {
-        cs_label <- concept_set$label
-
+      label_match <- sapply(manifest_df$label, function(cs_label) {
         label_hits <- sapply(labels, function(lbl) {
           if (matchType == "exact") {
             cs_label == lbl
@@ -1420,37 +1460,24 @@ ConceptSetManifest <- R6::R6Class(
             grepl(lbl, cs_label, ignore.case = TRUE)
           }
         })
+        any(label_hits)
+      })
 
-        if (any(label_hits)) {
-          matching_concept_sets[[length(matching_concept_sets) + 1]] <- concept_set
-        }
-      }
+      manifest_df <- manifest_df |>
+        dplyr::filter(label_match)
 
-      if (length(matching_concept_sets) == 0) {
+      if (nrow(manifest_df) == 0) {
         match_desc <- paste(labels, collapse = " | ")
         cli::cli_alert_warning("No concept sets found with {matchType} label match: {match_desc}")
         return(NULL)
       }
 
-      # Get IDs of matching concept sets
-      matching_ids <- vapply(matching_concept_sets, function(cs) cs$getId(), integer(1))
-
-      # Get data from database
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
-      on.exit(DBI::dbDisconnect(conn))
-
-      ids_str <- paste(matching_ids, collapse = ", ")
-      manifest_df <- DBI::dbGetQuery(
-        conn,
-        paste0("SELECT id, label, category, tags, file_path, hash, created_at
-                FROM concept_set_manifest WHERE id IN (", ids_str, ") AND status = 'active'")
-      )
-
-      if (nrow(manifest_df) == 0) {
-        return(NULL)
+      if (tags_format == "json") {
+        return(manifest_df)
       }
 
-      return(tibble::as_tibble(manifest_df))
+      self$tabulateManifest(filter = "active", tags_format = tags_format) |>
+        dplyr::filter(.data$id %in% manifest_df$id)
     },
 
     #' @description Get number of concept sets in manifest
