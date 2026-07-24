@@ -16,11 +16,12 @@ The ConceptSetManifest class manages multiple concept set definitions and stores
 metadata in a SQLite database located at inputs/conceptSets/conceptSetManifest.sqlite.
 Each ConceptSetDef is assigned a sequential ID based on its position in the manifest.
 
-The load file is a transient, one-time import mechanism: rows whose
-atlasId or label are already registered in the manifest are an error, not
-an update. To sync registered concept sets with ATLAS, run
-\code{updateAtlasConceptSets()}; to update a single concept set, use
-\code{addAtlasConceptSet(stopIfExists = FALSE)}.
+By default, the load file is treated as a transient, one-time import
+mechanism: rows whose atlasId is already registered in the manifest are
+an error, not an update. Set \code{stopIfExists = FALSE} to instead update
+those rows in place, which supports iterating on the load file across
+repeated runs. To sync registered concept sets with ATLAS without a
+load file, use \code{updateAtlasConceptSets()}.
 
 \strong{Processing Steps:}
 \enumerate{
@@ -503,7 +504,8 @@ a \code{tryCatch} so a single failure does not abort the entire batch.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$importAtlasConceptSets(
   conceptSetsLoad,
-  atlasConnection = NULL
+  atlasConnection = NULL,
+  stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -515,6 +517,12 @@ a \code{tryCatch} so a single failure does not abort the entire batch.
 \item{\code{atlasConnection}}{An ATLAS connection object with a
 \code{getConceptSetDefinition(conceptSetId)} method.
 If \code{NULL}, falls back to the connection stored via \verb{$setAtlasConnection()}.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when any
+load row's atlasId is already registered in the manifest. If FALSE,
+those rows are updated in place instead (same ID/file path, hash
+refreshed, category/tags replaced) via \code{addAtlasConceptSet(stopIfExists = FALSE)}.
+Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }

@@ -203,6 +203,37 @@ testthat::test_that("importAtlasConceptSets errors on already-registered rows", 
   )
 })
 
+# Testing: importAtlasConceptSets stopIfExists = FALSE updates already-registered rows in place
+# instead of erroring, supporting re-running the same load file while iterating.
+testthat::test_that("importAtlasConceptSets stopIfExists FALSE updates existing rows in place", {
+  setup <- csm_test_new_manifest("csm-atlas-import-upsert")
+  manifest <- setup$manifest
+  jsons <- csm_test_atlas_fixture_jsons()
+
+  load_df <- data.frame(atlasId = 200L, label = "Atlas Concepts", category = "condition_occurrence")
+  conn_v1 <- csm_test_fake_atlas_connection(list("200" = jsons$v1))
+  manifest$importAtlasConceptSets(conceptSetsLoad = load_df, atlasConnection = conn_v1)
+  before <- csm_test_get_manifest_row(manifest, "Atlas Concepts")
+
+  # Re-running with stopIfExists = FALSE and a changed definition updates in place
+  conn_v2 <- csm_test_fake_atlas_connection(list("200" = jsons$v2))
+  manifest$importAtlasConceptSets(conceptSetsLoad = load_df, atlasConnection = conn_v2, stopIfExists = FALSE)
+  after <- csm_test_get_manifest_row(manifest, "Atlas Concepts")
+  testthat::expect_equal(nrow(after), 1)
+  testthat::expect_equal(after$id[[1]], before$id[[1]])
+  testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
+
+  # A mix of a new row and an already-registered row processes both
+  mixed_df <- data.frame(
+    atlasId = c(200L, 300L),
+    label = c("Atlas Concepts", "Second Atlas Concepts"),
+    category = c("condition_occurrence", "condition_occurrence")
+  )
+  conn_both <- csm_test_fake_atlas_connection(list("200" = jsons$v2, "300" = jsons$v2))
+  manifest$importAtlasConceptSets(conceptSetsLoad = mixed_df, atlasConnection = conn_both, stopIfExists = FALSE)
+  testthat::expect_equal(nrow(csm_test_get_manifest_row(manifest, "Second Atlas Concepts")), 1)
+})
+
 # Testing: addAtlasConceptSet stopIfExists = FALSE refreshes a single concept set from ATLAS in place.
 testthat::test_that("addAtlasConceptSet stopIfExists FALSE updates from ATLAS in place", {
   setup <- csm_test_new_manifest("csm-atlas-add-upsert")
