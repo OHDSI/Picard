@@ -679,6 +679,37 @@ testthat::test_that("importAtlasCohorts errors on already-registered rows", {
   )
 })
 
+# Testing: importAtlasCohorts stopIfExists = FALSE updates already-registered rows in place
+# instead of erroring, supporting re-running the same load file while iterating.
+testthat::test_that("importAtlasCohorts stopIfExists FALSE updates existing rows in place", {
+  setup <- cm_test_new_manifest("mgmt-atlas-import-upsert")
+  manifest <- setup$manifest
+  jsons <- cm_test_atlas_fixture_jsons()
+
+  load_df <- data.frame(atlasId = 100L, label = "Atlas Cohort", category = "Target")
+  conn_v1 <- cm_test_fake_atlas_connection(list("100" = jsons$v1))
+  manifest$importAtlasCohorts(cohortsLoad = load_df, atlasConnection = conn_v1)
+  before <- cm_test_get_manifest_row(manifest, "Atlas Cohort")
+
+  # Re-running with stopIfExists = FALSE and a changed definition updates in place
+  conn_v2 <- cm_test_fake_atlas_connection(list("100" = jsons$v2))
+  manifest$importAtlasCohorts(cohortsLoad = load_df, atlasConnection = conn_v2, stopIfExists = FALSE)
+  after <- cm_test_get_manifest_row(manifest, "Atlas Cohort")
+  testthat::expect_equal(nrow(after), 1)
+  testthat::expect_equal(after$id[[1]], before$id[[1]])
+  testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
+
+  # A mix of a new row and an already-registered row processes both
+  mixed_df <- data.frame(
+    atlasId = c(100L, 200L),
+    label = c("Atlas Cohort", "Second Atlas Cohort"),
+    category = c("Target", "Target")
+  )
+  conn_both <- cm_test_fake_atlas_connection(list("100" = jsons$v2, "200" = jsons$v2))
+  manifest$importAtlasCohorts(cohortsLoad = mixed_df, atlasConnection = conn_both, stopIfExists = FALSE)
+  testthat::expect_equal(nrow(cm_test_get_manifest_row(manifest, "Second Atlas Cohort")), 1)
+})
+
 # Testing: addAtlasCohort stopIfExists = FALSE refreshes a single cohort from ATLAS in place.
 testthat::test_that("addAtlasCohort stopIfExists FALSE updates from ATLAS in place", {
   setup <- cm_test_new_manifest("mgmt-atlas-add-upsert")

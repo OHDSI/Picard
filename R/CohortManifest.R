@@ -1288,18 +1288,25 @@ CohortManifest <- R6::R6Class(
     #' Either create a dataframe or read in a csv file with columns `atlasId`, `label`, `category` (required) plus any
     #' additional columns treated as tag key-value pairs for tags. Calls `addAtlasCohort()` for each row.
     #'
-    #' The load file is a transient, one-time import mechanism: rows whose
-    #' atlasId or label are already registered in the manifest are an error, not
-    #' an update. To sync registered cohorts with ATLAS, run
-    #' `updateAtlasCohorts()`; to update a single cohort, use
-    #' `addAtlasCohort(stopIfExists = FALSE)`.
+    #' By default, the load file is treated as a transient, one-time import
+    #' mechanism: rows whose atlasId is already registered in the manifest are
+    #' an error, not an update. Set `stopIfExists = FALSE` to instead update
+    #' those rows in place (delegates to `addAtlasCohort(stopIfExists = FALSE)`
+    #' for each), which supports iterating on the load file across repeated
+    #' runs. To sync registered cohorts with ATLAS without a load file, use
+    #' `updateAtlasCohorts()`.
     #'
     #' @param cohortsLoad a data frame requiring the columns atlasId, label and category used to bulk add cohorts to the manifest
     #' @param atlasConnection An ATLAS connection object with a `getCohortDefinition(cohortId)` method.
     #'   If `NULL`, falls back to the connection stored via `$setAtlasConnection()`.
+    #' @param stopIfExists Logical. If TRUE (default), raises an error when any
+    #'   load row's atlasId is already registered in the manifest. If FALSE,
+    #'   those rows are updated in place instead (same ID/file path, hash
+    #'   refreshed, category/tags replaced) via `addAtlasCohort(stopIfExists = FALSE)`.
+    #'   Default: TRUE (fail-safe).
     #'
     #' @return Invisible tibble of imported cohorts.
-    importAtlasCohorts = function(cohortsLoad, atlasConnection = NULL) {
+    importAtlasCohorts = function(cohortsLoad, atlasConnection = NULL, stopIfExists = TRUE) {
       if (is.null(atlasConnection)) {
         atlasConnection <- private$.atlasConnection
       }
@@ -1311,6 +1318,7 @@ CohortManifest <- R6::R6Class(
         ))
       }
 
+      checkmate::assert_flag(stopIfExists)
 
       # Validate required columns
       required_cols <- c("atlasId", "label", "category")
@@ -1335,9 +1343,10 @@ CohortManifest <- R6::R6Class(
       existing_cohorts <- cohort_load_2 |>
         dplyr::filter(status == "active")
 
-      # The load csv is a transient, one-time import file — registered rows are
-      # an error, not an update mechanism. Fail fast before importing anything.
-      if (nrow(existing_cohorts) > 0) {
+      # By default, the load csv is a transient, one-time import file —
+      # registered rows are an error, not an update mechanism. Fail fast
+      # before importing anything, unless the caller opted into upserting.
+      if (stopIfExists && nrow(existing_cohorts) > 0) {
         offending <- paste0(
           "[", existing_cohorts$id, "] ", existing_cohorts$label,
           " (atlasId ", existing_cohorts$atlasId, ")"
@@ -1345,9 +1354,8 @@ CohortManifest <- R6::R6Class(
         cli::cli_abort(c(
           "{nrow(existing_cohorts)} cohort(s) in the load file are already registered in the manifest:",
           stats::setNames(offending, rep("x", length(offending))),
-          i = "Remove them from the load csv — it is for one-time imports only.",
-          i = "To sync registered cohorts with ATLAS, run {.code updateAtlasCohorts()}.",
-          i = "To update a single cohort, use {.code addAtlasCohort(stopIfExists = FALSE)}."
+          i = "Remove them from the load csv, or re-run with {.code stopIfExists = FALSE} to update them in place.",
+          i = "To sync registered cohorts with ATLAS, run {.code updateAtlasCohorts()}."
         ))
       }
 
@@ -1379,11 +1387,30 @@ CohortManifest <- R6::R6Class(
         }
       }
 
+      # Update existing cohorts in place (stopIfExists = FALSE only)
+      if (!stopIfExists && nrow(existing_cohorts) > 0) {
+        cli::cli_rule("Updating {nrow(existing_cohorts)} existing cohort(s)")
+        for (i in seq_len(nrow(existing_cohorts))) {
+          row <- existing_cohorts[i, ]
+          additional_tags <- list_tags_in_row(row)
+          # Delegate to addAtlasCohort's upsert path for the in-place update
+          cohort_id <- self$addAtlasCohort(
+            atlasId = row$atlasId,
+            label = row$label,
+            category = row$category,
+            tags = additional_tags,
+            atlasConnection = atlasConnection,
+            stopIfExists = FALSE
+          )
+        }
+      }
+
       # Build and print final summary table
       summary_tbl <- cohort_load_2 |>
         dplyr::mutate(
           message = dplyr::case_when(
             status == "new" ~ "Successfully added to manifest",
+            status == "active" & !stopIfExists ~ "Updated in manifest",
             TRUE ~ "Unknown"
           )
         ) |>

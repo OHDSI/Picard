@@ -410,13 +410,19 @@ Batch-import cohorts from ATLAS via a cohortsLoad dataframe
 Either create a dataframe or read in a csv file with columns \code{atlasId}, \code{label}, \code{category} (required) plus any
 additional columns treated as tag key-value pairs for tags. Calls \code{addAtlasCohort()} for each row.
 
-The load file is a transient, one-time import mechanism: rows whose
-atlasId or label are already registered in the manifest are an error, not
-an update. To sync registered cohorts with ATLAS, run
-\code{updateAtlasCohorts()}; to update a single cohort, use
-\code{addAtlasCohort(stopIfExists = FALSE)}.
+By default, the load file is treated as a transient, one-time import
+mechanism: rows whose atlasId is already registered in the manifest are
+an error, not an update. Set \code{stopIfExists = FALSE} to instead update
+those rows in place (delegates to \code{addAtlasCohort(stopIfExists = FALSE)}
+for each), which supports iterating on the load file across repeated
+runs. To sync registered cohorts with ATLAS without a load file, use
+\code{updateAtlasCohorts()}.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$importAtlasCohorts(cohortsLoad, atlasConnection = NULL)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$importAtlasCohorts(
+  cohortsLoad,
+  atlasConnection = NULL,
+  stopIfExists = TRUE
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -426,6 +432,12 @@ an update. To sync registered cohorts with ATLAS, run
 
 \item{\code{atlasConnection}}{An ATLAS connection object with a \code{getCohortDefinition(cohortId)} method.
 If \code{NULL}, falls back to the connection stored via \verb{$setAtlasConnection()}.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when any
+load row's atlasId is already registered in the manifest. If FALSE,
+those rows are updated in place instead (same ID/file path, hash
+refreshed, category/tags replaced) via \code{addAtlasCohort(stopIfExists = FALSE)}.
+Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
