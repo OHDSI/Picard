@@ -306,6 +306,12 @@ CohortManifest <- R6::R6Class(
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
       on.exit(DBI::dbDisconnect(conn))
 
+      previous <- DBI::dbGetQuery(
+        conn,
+        "SELECT hash, category, tags FROM cohort_manifest WHERE id = ?",
+        list(existingId)
+      )
+
       hash <- if (file.exists(file_path)) {
         rlang::hash(readr::read_file(file_path))
       } else {
@@ -324,6 +330,13 @@ CohortManifest <- R6::R6Class(
       } else {
         NA_character_
       }
+
+      # The rendered SQL captures depends_on/dependency_rule already (they're
+      # inlined into the template), so a hash diff is a proxy for any
+      # definition-affecting change
+      definition_changed <- !identical(hash, previous$hash[1])
+      metadata_changed <- !identical(as.character(category), as.character(previous$category[1])) ||
+        !identical(as.character(tags_json), as.character(previous$tags[1]))
 
       set_clauses <- paste(
         "category = ?, file_path = ?, hash = ?, source_type = ?, cohort_type = ?,",
@@ -344,7 +357,16 @@ CohortManifest <- R6::R6Class(
       # Refresh in-memory manifest
       private$load_manifest_from_db()
 
-      cli::cli_alert_info("Updated derived cohort {existingId}: {label} in place (marked stale for regeneration)")
+      change_desc <- if (definition_changed && metadata_changed) {
+        "definition and metadata updated"
+      } else if (definition_changed) {
+        "definition updated, metadata unchanged"
+      } else if (metadata_changed) {
+        "definition unchanged, metadata updated"
+      } else {
+        "no changes detected"
+      }
+      cli::cli_alert_info("Updated derived cohort {existingId}: {label} — {change_desc} (marked stale for regeneration)")
       return(existingId)
     },
 
@@ -518,7 +540,7 @@ CohortManifest <- R6::R6Class(
       if (!is_dependent && !is.na(existing_id)) {
         upsert_target <- DBI::dbGetQuery(
           conn,
-          "SELECT cohort_type, file_path, hash FROM cohort_manifest WHERE id = ?",
+          "SELECT cohort_type, file_path, hash, category, tags FROM cohort_manifest WHERE id = ?",
           list(existing_id)
         )
         if (upsert_target$cohort_type[1] != "custom") {
@@ -594,12 +616,21 @@ CohortManifest <- R6::R6Class(
       } else if (!is.na(existing_id)) {
         # Replace metadata wholesale (matching the other upsert routes): tags
         # not re-supplied here are dropped
-        private$update_cohort_def(cohortId = existing_id, category = category, tags = tags)
+        new_tags_json <- if (length(tags) > 0) jsonlite::toJSON(tags, auto_unbox = TRUE) else NA_character_
+        metadata_changed <- !identical(as.character(category), as.character(upsert_target$category[1])) ||
+          !identical(as.character(new_tags_json), as.character(upsert_target$tags[1]))
+        private$update_cohort_def(cohortId = existing_id, category = category, tags = tags, silent = TRUE)
 
         new_hash <- rlang::hash(sql_content)
-        if (identical(new_hash, upsert_target$hash[1]) &&
-            identical(as.character(rel_path), upsert_target$file_path[1])) {
-          cli::cli_alert_info("Cohort {existing_id}: {label} definition is unchanged")
+        definition_changed <- !identical(new_hash, upsert_target$hash[1]) ||
+          !identical(as.character(rel_path), upsert_target$file_path[1])
+
+        if (!definition_changed) {
+          if (metadata_changed) {
+            cli::cli_alert_info("Cohort {existing_id}: {label} — definition unchanged, metadata updated")
+          } else {
+            cli::cli_alert_info("Cohort {existing_id}: {label} — definition and metadata unchanged")
+          }
         } else {
           DBI::dbExecute(
             conn,
@@ -608,6 +639,12 @@ CohortManifest <- R6::R6Class(
           )
           # Derived cohorts built on this definition are now out of date
           private$cascade_stale_downstream(existing_id)
+
+          if (metadata_changed) {
+            cli::cli_alert_success("Updated cohort {existing_id}: {label} — definition and metadata updated")
+          } else {
+            cli::cli_alert_success("Updated cohort {existing_id}: {label} — definition updated, metadata unchanged")
+          }
         }
 
         private$load_manifest_from_db()
@@ -625,7 +662,7 @@ CohortManifest <- R6::R6Class(
         )
       }
 
-      return(cohort_id)
+      return(invisible(list(id = cohort_id, isNew = is.na(existing_id))))
     },
 
     # Insert a new cohort into SQLite and refresh in-memory manifest
@@ -709,7 +746,7 @@ CohortManifest <- R6::R6Class(
     # Update metadata for an existing cohort
     # Modifies label, category, or tags for a cohort entry in the manifest.
     # The file path remains immutable.
-    update_cohort_def = function(cohortId, label = NULL, category = NULL, tags = NULL) {
+    update_cohort_def = function(cohortId, label = NULL, category = NULL, tags = NULL, silent = FALSE) {
       checkmate::assert_int(cohortId)
 
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
@@ -780,7 +817,9 @@ CohortManifest <- R6::R6Class(
       # Refresh in-memory manifest
       private$load_manifest_from_db()
 
-      cli::cli_alert_success("Updated cohort {cohortId}")
+      if (!silent) {
+        cli::cli_alert_success("Updated cohort {cohortId}")
+      }
       invisible(NULL)
     }
   ),
@@ -1151,7 +1190,7 @@ CohortManifest <- R6::R6Class(
 
           existing <- DBI::dbGetQuery(
             conn,
-            "SELECT file_path, hash, cohort_type, tags FROM cohort_manifest WHERE id = ?",
+            "SELECT file_path, hash, cohort_type, category, tags FROM cohort_manifest WHERE id = ?",
             list(existing_id)
           )
 
@@ -1193,7 +1232,10 @@ CohortManifest <- R6::R6Class(
           # Refresh metadata (category, tags, atlasId) regardless of content change
           tags$route <- "atlas"
           tags$atlasId <- as.integer(atlasId)
-          private$update_cohort_def(cohortId = existing_id, category = category, tags = tags)
+          new_tags_json <- if (length(tags) > 0) jsonlite::toJSON(tags, auto_unbox = TRUE) else NA_character_
+          metadata_changed <- !identical(as.character(category), as.character(existing$category[1])) ||
+            !identical(as.character(new_tags_json), as.character(existing$tags[1]))
+          private$update_cohort_def(cohortId = existing_id, category = category, tags = tags, silent = TRUE)
 
           # Write to a temp file first so a failed write cannot clobber the
           # registered JSON, and unchanged definitions leave the file untouched
@@ -1201,10 +1243,15 @@ CohortManifest <- R6::R6Class(
           tmp_json <- tempfile(fileext = ".json")
           readr::write_lines(cohort_def$expression[1], tmp_json)
           new_hash <- rlang::hash(readr::read_file(tmp_json))
+          definition_changed <- !identical(new_hash, existing$hash[1])
 
-          if (identical(new_hash, existing$hash[1])) {
+          if (!definition_changed) {
             unlink(tmp_json)
-            cli::cli_alert_info("Cohort {existing_id}: {label} definition is unchanged")
+            if (metadata_changed) {
+              cli::cli_alert_info("Cohort {existing_id}: {label} — definition unchanged, metadata updated")
+            } else {
+              cli::cli_alert_info("Cohort {existing_id}: {label} — definition and metadata unchanged")
+            }
             return(invisible(existing_id))
           }
 
@@ -1226,7 +1273,11 @@ CohortManifest <- R6::R6Class(
           # Refresh in-memory manifest
           private$load_manifest_from_db()
 
-          cli::cli_alert_success("Updated ATLAS cohort {existing_id}: {label}")
+          if (metadata_changed) {
+            cli::cli_alert_success("Updated ATLAS cohort {existing_id}: {label} — definition and metadata updated")
+          } else {
+            cli::cli_alert_success("Updated ATLAS cohort {existing_id}: {label} — definition updated, metadata unchanged")
+          }
           return(invisible(existing_id))
         }
       }
@@ -1461,12 +1512,29 @@ CohortManifest <- R6::R6Class(
       if (!stopIfExists) {
         existing_id <- private$find_active_id_by_label(label)
         if (!is.na(existing_id)) {
+          conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+          before <- DBI::dbGetQuery(
+            conn,
+            "SELECT category, tags FROM cohort_manifest WHERE id = ?",
+            list(existing_id)
+          )
+          DBI::dbDisconnect(conn)
+
           cli::cli_alert_info("Cohort {.val {label}} already exists (ID {existing_id}) — updating in place")
+          # updateCaprCohort() reports whether the JSON definition itself changed
           self$updateCaprCohort(caprCohort, label = label)
+
           # Replace metadata wholesale (matching addAtlasCohort): tags not
           # re-supplied here are dropped, keeping only the route provenance
           tags$route <- "capr"
-          private$update_cohort_def(cohortId = existing_id, category = category, tags = tags)
+          new_tags_json <- if (length(tags) > 0) jsonlite::toJSON(tags, auto_unbox = TRUE) else NA_character_
+          metadata_changed <- !identical(as.character(category), as.character(before$category[1])) ||
+            !identical(as.character(new_tags_json), as.character(before$tags[1]))
+          private$update_cohort_def(cohortId = existing_id, category = category, tags = tags, silent = TRUE)
+
+          if (metadata_changed) {
+            cli::cli_alert_info("Cohort {existing_id}: {label} — metadata updated (category/tags)")
+          }
           return(invisible(existing_id))
         }
       }
@@ -1624,7 +1692,7 @@ CohortManifest <- R6::R6Class(
     #'
     #' @return Invisible integer. The assigned cohort ID.
     addSqlCohort = function(filePath, label, category, tags = list(), stopIfExists = TRUE) {
-      cohort_id <- private$register_custom_sql_cohort(
+      result <- private$register_custom_sql_cohort(
         filePath = filePath,
         label = label,
         category = category,
@@ -1633,8 +1701,12 @@ CohortManifest <- R6::R6Class(
         dependentCohortIdList = NULL
       )
 
-      cli::cli_alert_success("Added SQL cohort {cohort_id}: {label}")
-      invisible(cohort_id)
+      # On update, register_custom_sql_cohort() already reported whether the
+      # definition and/or metadata changed
+      if (result$isNew) {
+        cli::cli_alert_success("Added SQL cohort {result$id}: {label}")
+      }
+      invisible(result$id)
     },
 
     #' @description Add a dependent custom SQL cohort
@@ -1662,7 +1734,7 @@ CohortManifest <- R6::R6Class(
     #'
     #' @return Invisible integer. The assigned cohort ID.
     addDependentCustomCohort = function(filePath, label, category, dependentCohortIdList, tags = list(), stopIfExists = TRUE) {
-      cohort_id <- private$register_custom_sql_cohort(
+      result <- private$register_custom_sql_cohort(
         filePath = filePath,
         label = label,
         category = category,
@@ -1671,8 +1743,12 @@ CohortManifest <- R6::R6Class(
         dependentCohortIdList = dependentCohortIdList
       )
 
-      cli::cli_alert_success("Added dependent custom cohort {cohort_id}: {label}")
-      invisible(cohort_id)
+      # On update, upsert_derived_cohort() already reported whether the
+      # definition and/or metadata changed
+      if (result$isNew) {
+        cli::cli_alert_success("Added dependent custom cohort {result$id}: {label}")
+      }
+      invisible(result$id)
     },
 
     #' @description Add a Circe JSON cohort from disk

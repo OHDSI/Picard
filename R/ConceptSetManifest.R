@@ -357,7 +357,7 @@ ConceptSetManifest <- R6::R6Class(
     },
 
     # Update concept set metadata (label, category, tags)
-    update_concept_set_def = function(conceptSetId, label = NULL, category = NULL, tags = NULL) {
+    update_concept_set_def = function(conceptSetId, label = NULL, category = NULL, tags = NULL, silent = FALSE) {
       checkmate::assert_int(conceptSetId)
 
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
@@ -428,7 +428,9 @@ ConceptSetManifest <- R6::R6Class(
       # Refresh in-memory manifest
       private$load_manifest_from_db()
 
-      cli::cli_alert_success("Updated concept set {conceptSetId}")
+      if (!silent) {
+        cli::cli_alert_success("Updated concept set {conceptSetId}")
+      }
       invisible(NULL)
     }
   ),
@@ -627,7 +629,7 @@ ConceptSetManifest <- R6::R6Class(
 
         existing <- DBI::dbGetQuery(
           conn,
-          "SELECT file_path, hash, tags FROM concept_set_manifest WHERE id = ?",
+          "SELECT file_path, hash, category, tags FROM concept_set_manifest WHERE id = ?",
           list(existing_id)
         )
 
@@ -659,7 +661,10 @@ ConceptSetManifest <- R6::R6Class(
         )
 
         # Refresh metadata regardless of content change
-        private$update_concept_set_def(conceptSetId = existing_id, category = category, tags = tags)
+        new_tags_json <- if (length(tags) > 0) jsonlite::toJSON(tags, auto_unbox = TRUE) else NA_character_
+        metadata_changed <- !identical(as.character(category), as.character(existing$category[1])) ||
+          !identical(as.character(new_tags_json), as.character(existing$tags[1]))
+        private$update_concept_set_def(conceptSetId = existing_id, category = category, tags = tags, silent = TRUE)
 
         # Write to a temp file first so a failed write cannot clobber the
         # registered JSON, and unchanged definitions leave the file untouched
@@ -667,10 +672,15 @@ ConceptSetManifest <- R6::R6Class(
         tmp_json <- tempfile(fileext = ".json")
         readr::write_lines(cs_def$expression[1], tmp_json)
         new_hash <- rlang::hash(readr::read_file(tmp_json))
+        definition_changed <- !identical(new_hash, existing$hash[1])
 
-        if (identical(new_hash, existing$hash[1])) {
+        if (!definition_changed) {
           unlink(tmp_json)
-          cli::cli_alert_info("Concept set {existing_id}: {label} definition is unchanged")
+          if (metadata_changed) {
+            cli::cli_alert_info("Concept set {existing_id}: {label} — definition unchanged, metadata updated")
+          } else {
+            cli::cli_alert_info("Concept set {existing_id}: {label} — definition and metadata unchanged")
+          }
           return(invisible(existing_id))
         }
 
@@ -688,7 +698,11 @@ ConceptSetManifest <- R6::R6Class(
 
         private$load_manifest_from_db()
 
-        cli::cli_alert_success("Updated ATLAS concept set {existing_id}: {label}")
+        if (metadata_changed) {
+          cli::cli_alert_success("Updated ATLAS concept set {existing_id}: {label} — definition and metadata updated")
+        } else {
+          cli::cli_alert_success("Updated ATLAS concept set {existing_id}: {label} — definition updated, metadata unchanged")
+        }
         return(invisible(existing_id))
       }
 
@@ -771,13 +785,30 @@ ConceptSetManifest <- R6::R6Class(
         if (stopIfExists) {
           cli::cli_abort("Label '{label}' is already in use by concept set {existing_id}")
         }
+
+        conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+        before <- DBI::dbGetQuery(
+          conn,
+          "SELECT category, tags FROM concept_set_manifest WHERE id = ?",
+          list(existing_id)
+        )
+        DBI::dbDisconnect(conn)
+
         # Upsert path: update the existing concept set in place
         cli::cli_alert_info("Concept set {.val {label}} already exists (ID {existing_id}) — updating in place")
+        # updateCaprConceptSet() reports whether the JSON definition itself changed
         self$updateCaprConceptSet(caprConceptSet, label = label)
 
         # Replace metadata wholesale (matching addAtlasConceptSet): tags not
         # re-supplied here are dropped
-        private$update_concept_set_def(conceptSetId = existing_id, category = category, tags = tags)
+        new_tags_json <- if (length(tags) > 0) jsonlite::toJSON(tags, auto_unbox = TRUE) else NA_character_
+        metadata_changed <- !identical(as.character(category), as.character(before$category[1])) ||
+          !identical(as.character(new_tags_json), as.character(before$tags[1]))
+        private$update_concept_set_def(conceptSetId = existing_id, category = category, tags = tags, silent = TRUE)
+
+        if (metadata_changed) {
+          cli::cli_alert_info("Concept set {existing_id}: {label} — metadata updated (category/tags)")
+        }
         return(invisible(existing_id))
       }
 
