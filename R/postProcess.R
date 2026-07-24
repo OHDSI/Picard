@@ -26,9 +26,17 @@
 #' ```
 #'
 #' All files with the same name from each database are combined with databaseId added and saved to exportPath.
+#' Exported filenames are prefixed with the task sequence from `taskName` (e.g., `01_results.csv`) to avoid collisions across tasks.
 #' @export
 importAndBind <- function(version, taskName, dbIds, resultsPath = here::here("exec/results"),
                           exportPath = here::here("dissemination/export/merge")) {
+
+  # Prefix merged files with the task sequence to avoid filename collisions
+  taskPrefix <- sub("_.*$", "", taskName)
+  if (!grepl("^[0-9]+$", taskPrefix)) {
+    taskPrefix <- gsub("[^A-Za-z0-9]+", "-", taskName)
+    taskPrefix <- gsub("(^-+|-+$)", "", taskPrefix)
+  }
   
   # Get database names from config
   databaseNames <- purrr::map_chr(dbIds, ~config::get("databaseName", config = .x))
@@ -144,10 +152,11 @@ importAndBind <- function(version, taskName, dbIds, resultsPath = here::here("ex
         
         # Save to export path
         fs::dir_create(exportPath, recurse = TRUE)
-        exportFile <- fs::path(exportPath, fileName)
+        exportFileName <- paste0(taskPrefix, "_", fileName)
+        exportFile <- fs::path(exportPath, exportFileName)
         readr::write_csv(combined, exportFile)
         
-        labelName <- tools::file_path_sans_ext(fileName)
+        labelName <- tools::file_path_sans_ext(exportFileName)
         combinedResults[[labelName]] <- combined
         
         cli::cli_alert_success("Combined {fileName}: {nrow(combined)} rows from {successCount} database(s)")
@@ -157,7 +166,7 @@ importAndBind <- function(version, taskName, dbIds, resultsPath = here::here("ex
         exportSummary <- rbind(
           exportSummary,
           data.frame(
-            fileName = fileName,
+              fileName = exportFileName,
             rowCount = nrow(combined),
             databaseCount = successCount,
             stringsAsFactors = FALSE

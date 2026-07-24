@@ -2671,7 +2671,9 @@ ConceptSetManifest <- R6::R6Class(
     #' all concept IDs and names matching the set definition. Results are returned as a tibble
     #' with concept identifiers and display names.
     #'
-    #' @param conceptSetId Integer. The concept set ID in the manifest.
+    #' @param conceptSetRef Integer or Character. Concept set reference in the
+    #'   manifest. Pass either the manifest ID or the exact concept set label.
+    #'   Use \code{tabulateManifest()} to inspect available IDs and labels.
     #'
     #' @return Tibble with columns:
     #'   - \code{conceptId}: Integer, the OMOP concept identifier
@@ -2684,22 +2686,45 @@ ConceptSetManifest <- R6::R6Class(
     #' - User must have READ access to OMOP concept and concept_ancestor tables
     #'
     #' **Processing:**
-    #' 1. Retrieves the concept set definition (CIRCE JSON) by ID
-    #' 2. Builds SQL query using \code{CirceR::buildConceptSetQuery()}
-    #' 3. Executes query against the OMOP vocabulary schema
-    #' 4. Returns results with concept_id and concept_name columns
+    #' 1. Resolves the concept set by manifest ID or exact label
+    #' 2. Retrieves the concept set definition (CIRCE JSON)
+    #' 3. Builds SQL query using \code{CirceR::buildConceptSetQuery()}
+    #' 4. Executes query against the OMOP vocabulary schema
+    #' 5. Returns results with concept_id and concept_name columns
     #'
-    grabConceptInfoFromSet = function(conceptSetId) {
-      checkmate::assert_int(conceptSetId, lower = 1)
+    grabConceptInfoFromSet = function(conceptSetRef) {
+      resolved_id <- NULL
+      resolved_label <- NULL
+
+      if (checkmate::test_integerish(conceptSetRef, len = 1, lower = 1, any.missing = FALSE)) {
+        resolved_id <- as.integer(conceptSetRef)
+        cs_def <- self$getConceptSetById(resolved_id)
+
+        if (is.null(cs_def)) {
+          cli::cli_abort("Concept set {resolved_id} not found in manifest")
+        }
+      } else if (checkmate::test_string(conceptSetRef, min.chars = 1)) {
+        resolved_label <- conceptSetRef
+        cs_defs <- self$getConceptSetsByLabel(labels = resolved_label, matchType = "exact")
+
+        if (is.null(cs_defs) || length(cs_defs) == 0) {
+          cli::cli_abort("Concept set label '{resolved_label}' not found in manifest")
+        }
+
+        if (length(cs_defs) > 1) {
+          cli::cli_abort("Concept set label '{resolved_label}' matched multiple manifest entries")
+        }
+
+        cs_def <- cs_defs[[1]]
+        resolved_id <- as.integer(cs_def$getId())
+      } else {
+        cli::cli_abort("conceptSetRef must be a single manifest ID (integer) or exact label (character)")
+      }
+
+      resolved_label <- cs_def$label
       
       # Validate ExecutionSettings
       private$validateExecutionSettings()
-
-      # Get concept set definition
-      cs_def <- self$getConceptSetById(conceptSetId)
-      if (is.null(cs_def)) {
-        cli::cli_abort("Concept set {conceptSetId} not found in manifest")
-      }
 
       csJson <- cs_def$getJson()
       cs_sql <- CirceR::buildConceptSetQuery(csJson)
@@ -2734,10 +2759,9 @@ ConceptSetManifest <- R6::R6Class(
       ) 
 
       # Inform user of retrieval
-      cs_label <- cs_def$label
       n_concepts <- nrow(conceptInfo)
       cli::cli_alert_success(
-        "Retrieved {n_concepts} concept(s) for concept set {conceptSetId}: {cs_label}"
+        "Retrieved {n_concepts} concept(s) for concept set {resolved_id}: {resolved_label}"
       )
 
       return(conceptInfo)

@@ -10,12 +10,18 @@
 ## Bug Fixes
 
 - add `$queryConceptSetsByCategory()` it was missing
-- add `stopIfExists` option to ATLAS csv load builders
+- add `stopIfExists` option to ATLAS csv load builders (see Issue #65)
 - Custom dependent cohort builder is now consistent with the other dependent cohort builders - the rendered SQL query is written to the file system, and it accepts cohort objects as inputs instead of IDs. 
-- Custom dependent cohort builder now also allows user to specify non-cohort-ID params, so the rendered SQL query can be generated in a single function call
-- Builder console messages clarified
+- Custom dependent cohort builder now also allows user to specify non-cohort-ID params, so the rendered SQL query can be generated in a single function call (see Issue #66)
+- Builder console messages clarified (see Issue #70)
 - on `resetManifest` turn archive default to FALSE
 - Refactor `query...Manifest` methods to use `$tabulateManifest()` internally to be more consistent. 
+- Show current manifest id after import (see Issue #68)
+- remove function forced tags `route = atlas` or `route = capr` (See Issue #67)
+- in `$grabConceptInfoFromSet()` change input to conceptSetRef which accepts either a manifest id or a label (See issue #56)
+- Add task prefix to the `importAndBind()` save to avoid similar output names between tasks.
+- Add method to ExecutionSettings to `reviewConnectionDetails()` pulls the connectionDetails used. 
+- Modify `getServerCredentials()` to not evaluate full yml file, only pull the specific block and evaluate. 
 
 # picard 0.0.6
 

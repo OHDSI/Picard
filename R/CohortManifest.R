@@ -1374,7 +1374,6 @@ CohortManifest <- R6::R6Class(
           )
 
           # Refresh metadata (category, tags, atlasId) regardless of content change
-          tags$route <- "atlas"
           tags$atlasId <- as.integer(atlasId)
           new_tags_json <- if (length(tags) > 0) jsonlite::toJSON(tags, auto_unbox = TRUE) else NA_character_
           metadata_changed <- !identical(as.character(category), as.character(existing$category[1])) ||
@@ -1460,8 +1459,6 @@ CohortManifest <- R6::R6Class(
       json_path <- fs::path(json_dir, paste0(cohort_name, ".json"))
       readr::write_lines(expression_json, json_path) # make line ending always \\n
 
-      # Tag the route for provenance
-      tags$route <- "atlas"
       tags$atlasId <- as.integer(atlasId) # add the atlas id as a tag
 
       # Register in manifest
@@ -1470,7 +1467,7 @@ CohortManifest <- R6::R6Class(
         category = category,
         tags = tags,
         file_path = fs::path_rel(json_path),
-        source_type = "circe",
+        source_type = "atlas",
         cohort_type = "circe"
       )
 
@@ -1678,8 +1675,7 @@ CohortManifest <- R6::R6Class(
           self$updateCaprCohort(caprCohort, label = label)
 
           # Replace metadata wholesale (matching addAtlasCohort): tags not
-          # re-supplied here are dropped, keeping only the route provenance
-          tags$route <- "capr"
+          # re-supplied here are dropped.
           new_tags_json <- if (length(tags) > 0) jsonlite::toJSON(tags, auto_unbox = TRUE) else NA_character_
           metadata_changed <- !identical(as.character(category), as.character(before$category[1])) ||
             !identical(as.character(new_tags_json), as.character(before$tags[1]))
@@ -1705,16 +1701,13 @@ CohortManifest <- R6::R6Class(
 
       Capr::writeCohort(caprCohort, json_path)
 
-      # Tag the route for provenance
-      tags$route <- "capr"
-
       # Register in manifest
       cohort_id <- private$insert_cohort(
         label = label,
         category = category,
         tags = tags,
         file_path = fs::path_rel(json_path),
-        source_type = "circe",
+        source_type = "capr",
         cohort_type = "circe"
       )
 
@@ -1755,7 +1748,7 @@ CohortManifest <- R6::R6Class(
 
       existing <- DBI::dbGetQuery(
         conn,
-        "SELECT id, file_path, hash, cohort_type, tags FROM cohort_manifest
+        "SELECT id, file_path, hash, cohort_type, source_type FROM cohort_manifest
          WHERE label = ? AND status = 'active'",
         list(label)
       )
@@ -1776,14 +1769,10 @@ CohortManifest <- R6::R6Class(
 
       # Ownership guard: only cohorts registered via Capr may be updated here,
       # otherwise a reused label would silently clobber e.g. an ATLAS cohort
-      registered_tags <- tryCatch(
-        jsonlite::fromJSON(existing$tags[1]),
-        error = function(e) NULL
-      )
-      registered_route <- if (is.null(registered_tags$route)) "none" else as.character(registered_tags$route)
-      if (!identical(registered_route, "capr")) {
+      registered_source_type <- as.character(existing$source_type[1])
+      if (!identical(registered_source_type, "capr")) {
         cli::cli_abort(c(
-          "Cohort {.val {label}} (ID {existing$id[1]}) was not registered via Capr (route: {.val {registered_route}}).",
+          "Cohort {.val {label}} (ID {existing$id[1]}) was not registered via Capr (source_type: {.val {registered_source_type}}).",
           "i" = "This looks like an accidental label collision — nothing was changed.",
           "i" = "updateCaprCohort() only updates cohorts added by addCaprCohort() — check the label, or update the cohort via its original route."
         ))

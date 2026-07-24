@@ -181,6 +181,12 @@ ExecutionSettings <- R6::R6Class(
       }
       
       return(conObj)
+    },
+
+    #' @description Return the configured connectionDetails object
+    #' @return A DatabaseConnector connectionDetails object or NULL.
+    reviewConnectionDetails = function() {
+      return(private$connectionDetails)
     }
 
   ),

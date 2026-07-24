@@ -686,10 +686,11 @@ testthat::test_that("addCaprCohort stopIfExists FALSE updates existing cohort", 
   testthat::expect_equal(after$file_path[[1]], before$file_path[[1]])
   testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
   testthat::expect_equal(after$category[[1]], "Comparator")
+  testthat::expect_equal(after$source_type[[1]], "capr")
   testthat::expect_true(grepl("revision", after$tags[[1]]))
 })
 
-# Testing: addCaprCohort stopIfExists = FALSE with no tags clears prior tags (matching ATLAS behavior).
+# Testing: addCaprCohort stopIfExists = FALSE with no tags clears prior tags.
 testthat::test_that("addCaprCohort stopIfExists FALSE without tags drops prior tags", {
   setup <- cm_test_new_manifest("mgmt-add-capr-upsert-notags")
   manifest <- setup$manifest
@@ -707,8 +708,7 @@ testthat::test_that("addCaprCohort stopIfExists FALSE without tags drops prior t
 
   after <- cm_test_get_manifest_row(manifest, "Capr T2D")
   testthat::expect_equal(nrow(after), 1)
-  testthat::expect_false(grepl("revision", after$tags[[1]]))
-  testthat::expect_true(grepl("route", after$tags[[1]]))
+  testthat::expect_true(is.na(after$tags[[1]]))
 })
 
 # Testing: addSqlCohort with stopIfExists = FALSE upserts the existing cohort in place.
@@ -875,6 +875,8 @@ testthat::test_that("addAtlasCohort stopIfExists FALSE updates from ATLAS in pla
   testthat::expect_equal(after$file_path[[1]], before$file_path[[1]])
   testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
   testthat::expect_equal(after$category[[1]], "Comparator")
+  testthat::expect_equal(after$source_type[[1]], "atlas")
+  testthat::expect_false(grepl("route", after$tags[[1]]))
 
   # Default still errors on duplicate label
   testthat::expect_error(
