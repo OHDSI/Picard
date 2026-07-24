@@ -1,5 +1,5 @@
 # ============================================================================
-# Dissemination Script Template - {study_name}
+# Dissemination Script Template - <<study_name>>
 # ============================================================================
 #
 # Purpose: Format and prepare merged study results for dissemination

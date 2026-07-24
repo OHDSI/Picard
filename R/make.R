@@ -1309,7 +1309,7 @@ makeDisseminationScript <- function(
 
   # Read and populate template
   disseminationTemplate <- readr::read_file(templatePath) |>
-    glue::glue(study_name = studyName)
+    glue::glue(study_name = studyName, .open = "<<", .close = ">>")
 
   # Display message
   txt <- glue::glue_col("Create {cyan {file_name}.R} in {yellow {fs::path_rel(diss_folder_path)}}")

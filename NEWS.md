@@ -22,6 +22,7 @@
 - Add task prefix to the `importAndBind()` save to avoid similar output names between tasks.
 - Add method to ExecutionSettings to `reviewConnectionDetails()` pulls the connectionDetails used. 
 - Modify `getServerCredentials()` to not evaluate full yml file, only pull the specific block and evaluate (See issue #30, #33). 
+- Fix `makeDisseminationScript()` change the glue brackets to carrots
 
 # picard 0.0.6
 
