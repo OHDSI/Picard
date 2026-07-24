@@ -453,13 +453,19 @@ Batch-import cohorts from ATLAS via a cohortsLoad dataframe
 Either create a dataframe or read in a csv file with columns \code{atlasId}, \code{label}, \code{category} (required) plus any
 additional columns treated as tag key-value pairs for tags. Calls \code{addAtlasCohort()} for each row.
 
-The load file is a transient, one-time import mechanism: rows whose
-atlasId or label are already registered in the manifest are an error, not
-an update. To sync registered cohorts with ATLAS, run
-\code{updateAtlasCohorts()}; to update a single cohort, use
-\code{addAtlasCohort(stopIfExists = FALSE)}.
+By default, the load file is treated as a transient, one-time import
+mechanism: rows whose atlasId is already registered in the manifest are
+an error, not an update. Set \code{stopIfExists = FALSE} to instead update
+those rows in place (delegates to \code{addAtlasCohort(stopIfExists = FALSE)}
+for each), which supports iterating on the load file across repeated
+runs. To sync registered cohorts with ATLAS without a load file, use
+\code{updateAtlasCohorts()}.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$importAtlasCohorts(cohortsLoad, atlasConnection = NULL)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$importAtlasCohorts(
+  cohortsLoad,
+  atlasConnection = NULL,
+  stopIfExists = TRUE
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -469,6 +475,12 @@ an update. To sync registered cohorts with ATLAS, run
 
 \item{\code{atlasConnection}}{An ATLAS connection object with a \code{getCohortDefinition(cohortId)} method.
 If \code{NULL}, falls back to the connection stored via \verb{$setAtlasConnection()}.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when any
+load row's atlasId is already registered in the manifest. If FALSE,
+those rows are updated in place instead (same ID/file path, hash
+refreshed, category/tags replaced) via \code{addAtlasCohort(stopIfExists = FALSE)}.
+Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -596,16 +608,24 @@ Invisible integer. The assigned cohort ID.
 \subsection{Method \code{addDependentCustomCohort()}}{
 Add a dependent custom SQL cohort
 
-Registers an existing SQL file in the manifest as a dependency-aware derived cohort.
-The SQL file must already exist on disk and must preserve the standard Picard
-cohort write contract using \.code{@target_database_schema.@target_cohort_table}
-and \.code{@target_cohort_id}.
+Registers a SQL file in the manifest as a dependency-aware derived cohort.
+The source SQL file must preserve the standard Picard cohort write contract
+using \.code{@target_database_schema.@target_cohort_table} and
+\.code{@target_cohort_id}.
+
+\code{dependentCohortIdList} and \code{sqlParameters} values are rendered into the
+source SQL immediately (via \.code{SqlRender::render()}) and the result is
+written to \.code{inputs/cohorts/derived/\if{html}{\out{<label>}}.sql} — the file registered
+in the manifest — exactly like the built-in derived cohort types (subset,
+union, etc.). Only the connection/schema placeholders (\.code{@target_cohort_id}
+and friends) are left for \.code{generateCohorts()} to fill in at execution time.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$addDependentCustomCohort(
   filePath,
   label,
   category,
   dependentCohortIdList,
+  sqlParameters = list(),
   tags = list(),
   stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
@@ -614,26 +634,36 @@ and \.code{@target_cohort_id}.
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{filePath}}{Character. Path to the SQL file.}
+\item{\code{filePath}}{Character. Path to the source SQL file/template.}
 
 \item{\code{label}}{Character. Display name for the cohort.}
 
 \item{\code{category}}{Character. Required classification.}
 
-\item{\code{dependentCohortIdList}}{Named list. Each name is a SqlRender parameter to expose
-in the SQL file and each value is the cohort ID — or an integer vector of
-cohort IDs — to inject at runtime. Vectors render comma-separated, for use
-in \.code{IN (@param)} clauses.
-Example: \.code{list(inc_cohort_id = 10L, exc_cohort_ids = c(12L, 14L))}.}
+\item{\code{dependentCohortIdList}}{Named list. Each name is a SqlRender parameter to
+render into the SQL file. Each value is, preferably, a manifest entry —
+a data.frame/tibble with an \.code{id} column, as returned by query methods
+like \.code{queryCohortsByLabel()} (a single row bakes in one ID; a multi-row
+table bakes in a comma-separated vector, for \.code{IN (@param)} clauses) —
+or, for backward compatibility, a raw integer cohort ID (or integer vector).
+These IDs also become this cohort's \.code{depends_on} parents for staleness
+tracking. When entries carry a \.code{label} column, it's included (purely
+for QC) in a generated comment header at the top of the derived SQL file.
+Example: \.code{list(inc_cohort_id = ckdEntry, exc_cohort_id = t2dEntry)}.}
+
+\item{\code{sqlParameters}}{Named list. Optional additional SqlRender parameters to
+render into the SQL file (any type — thresholds, dates, strings, etc.),
+not treated as cohort dependencies.
+Example: \.code{list(min_days = 30L, index_year = 2020L)}.}
 
 \item{\code{tags}}{Named list. Optional metadata tags.}
 
 \item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
 active or stale cohort with this label is already registered. If FALSE,
 updates the registered cohort in place (same ID): the dependent cohort
-IDs and the SQL file registration (path and content hash) are replaced,
-the cohort is marked 'stale' for regeneration, and its own dependents
-are marked stale too. Default: TRUE (fail-safe).}
+IDs/sqlParameters are re-rendered into the generated file, the cohort is
+marked 'stale' for regeneration, and its own dependents are marked stale
+too. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }

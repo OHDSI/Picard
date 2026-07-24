@@ -555,22 +555,33 @@ for comprehensive examples of all derived cohort types.
 Use this pattern when a custom SQL cohort depends on one or more previously
 defined cohorts (for example inclusion/exclusion cohorts). This registers the
 cohort as a dependency-aware derived type (`custom_derived`) so execution order,
-stale detection, and dependency hashing are handled automatically. 
+stale detection, and dependency hashing are handled automatically.
+
+Like the built-in derived cohort builders (subset, union, etc.), the values you
+supply are rendered into the SQL immediately and the rendered file is written to
+`inputs/cohorts/derived/<label>.sql` — that generated file, not your source file,
+is what's registered in the manifest. Only the connection/schema placeholders
+(`@target_cohort_id` and friends) are left unrendered, for `generateCohorts()`
+to fill in at execution time.
 
 ```{r}
 cohortManifest <- loadCohortManifest()
 
-# Example dependencies already in the manifest:
-# - 1001 = Inclusion cohort
-# - 1002 = Exclusion cohort
+# Preferred: entries from manifest query results
+inclusionEntry <- cohortManifest$queryCohortsByLabel("Inclusion cohort")
+exclusionEntry <- cohortManifest$queryCohortsByLabel("Exclusion cohort")
 
 cohortManifest$addDependentCustomCohort(
   filePath = here::here("inputs/cohorts/sql/my_custom_dependent.sql"),
   label = "Eligible_With_Exclusions",
   category = "Derived Cohorts",
   dependentCohortIdList = list(
-    inc_cohort_id = 1001L,
-    exc_cohort_id = 1002L
+    inc_cohort_id = inclusionEntry,
+    exc_cohort_id = exclusionEntry
+  ),
+  # Optional: any other values (not cohort IDs) to render into the SQL too
+  sqlParameters = list(
+    min_days = 30L
   ),
   tags = list(owner = "epi_team", source = "custom_sql")
 )
@@ -579,10 +590,26 @@ cohortManifest$addDependentCustomCohort(
 How it works:
 
 - `dependentCohortIdList` is a **named mapping** of SqlRender parameter name to
-  cohort ID.
-- Parameter names are flexible (for example `inc_cohort_id`, `exc_cohort_id`,
-  `baseline_cohort_id`) and are injected at runtime.
-- All mapped cohort IDs must already exist in the manifest.
+  a dependent cohort. Parameter names are flexible (for example `inc_cohort_id`,
+  `exc_cohort_id`, `baseline_cohort_id`).
+  - Preferred: a manifest entry (a data.frame/tibble with an `id` column, as
+    returned by `queryCohortsByLabel()` and similar query methods) — a single
+    row bakes in one ID, a multi-row table bakes in a comma-separated vector
+    of IDs, for `IN (@param)` clauses. Same pattern as `baseCohortEntry`/
+    `cohortEntries` on the built-in derived builders.
+  - Backward compatible: a raw integer cohort ID (or integer vector).
+  - All referenced cohort IDs must already exist in the manifest, and they
+    become this cohort's `depends_on` parents for staleness tracking.
+- `sqlParameters` is an optional **named mapping** of SqlRender parameter name
+  to any other value (thresholds, dates, strings, etc.) you want baked into the
+  SQL. These are not treated as cohort dependencies.
+- Both are rendered into the SQL at registration time — not at runtime.
+- When `dependentCohortIdList` entries are manifest entries with a `label`
+  column, those labels (purely for QC) are written into a generated comment
+  header at the top of the derived SQL file — e.g.
+  `inc_cohort_id: id 1001, label Inclusion cohort` — so anyone reading the
+  generated file can see at a glance which cohorts were baked in, without
+  cross-referencing the manifest.
 
 Your SQL file should reference the mapped placeholders:
 
@@ -697,57 +724,58 @@ SELECT
 FROM T1;
 
 ```
-Notice that in this template I am using cohort I have already created but building a custom derivation to analyze. I want to do this for several cohorts in my manifest. 
-I apply this sql template in an R function to create each custom derived cohort and add it to the manifest. 
+Notice that in this template I am using cohorts I have already created but building a custom derivation to analyze. I want to do this for several inclusion/exclusion pairs in my manifest.
+
+Because `addDependentCustomCohort()` renders `dependentCohortIdList`/`sqlParameters`
+into the SQL and writes the result to `inputs/cohorts/derived/<label>.sql` itself,
+the template file in `inputs/cohorts/R/src/sql` can be reused as-is, unmodified,
+for every pair — there's no need to hand-copy or pre-render it first. I apply this
+sql template in an R function to build each custom derived cohort from the manifest:
 
 ```{r}
 
 buildCensoredComplement <- function(
   cohortManifest,
-  inclusionCohortId,
-  inclusionCohortLabel,
-  exclusionCohortId,
-  exclusionCohortLabel,
-  inputsDir = here::here("inputs/cohorts/R"),
-  outputPath = here::here("inputs/cohorts/sql")
+  inclusionEntry,
+  exclusionEntry,
+  inputsDir = here::here("inputs/cohorts/R")
 ) {
 
   sqlTemplatePath <- fs::path(inputsDir, "src/sql/censored_complement.sql")
-  sqlTemplate <- SqlRender::readSql(sqlTemplatePath)
 
-  # make the save label
-  cohortLabel <- glue::glue("{inclusionCohortLabel} - {exclusionCohortLabel} exclusion")
-  outputLabel <- snakecase::to_snake_case(cohortLabel)
-
-  sqlOutputPath <- fs::path(outputPath, outputLabel, ext = "sql")
-  SqlRender::writeSql(sqlTemplate, sqlOutputPath)
+  cohortLabel <- glue::glue("{inclusionEntry$label[1]} - {exclusionEntry$label[1]} exclusion")
 
   check_if_there <- is.null(cohortManifest$queryCohortsByLabel(cohortLabel))
   if (!check_if_there) {
     cli::cli_alert_warning("Censored Complement {.val {cohortLabel}} already exists. Skipped!")
   } else {
     cli::cli_alert_info("Create Censored Complement for {.val {cohortLabel}}")
-    cli::cli_alert_success("Save Censored Complement to {.file {sqlOutputPath}}")
     cohortManifest$addDependentCustomCohort(
-      filePath = sqlOutputPath,
+      filePath = sqlTemplatePath,
       label = cohortLabel,
       category = "Target Sub Pop",
       dependentCohortIdList = list(
-        inc_cohort_id = inclusionCohortId,
-        exc_cohort_id = exclusionCohortId
+        inc_cohort_id = inclusionEntry,
+        exc_cohort_id = exclusionEntry
       )
     )
   }
 
-  invisible(sqlOutputPath)
+  invisible(cohortLabel)
 }
 ```
 
-In the derived cohort template, I do not replace the `@inc_cohort_id`
-or `@exc_cohort_id`. The `$addDependentCustomCohort` keeps track of these labels and renders them at execution time. 
+`addDependentCustomCohort()` reads `sqlTemplatePath`, renders `@inc_cohort_id`/
+`@exc_cohort_id` with the literal cohort IDs, and writes the result to its own
+generated file under `inputs/cohorts/derived/` — so the same template is safely
+reused across calls, since each call produces its own uniquely named output
+(named after `label`), never overwriting the template or another cohort's file.
 
-These same templating strategies can be applied to `$addSqlCohort`. Ensure that the template is in the `inputs/cohorts/R/src/sql` folder
-and the R script to render the template is in `inputs/cohorts/R/src`.
+This templating strategy can also be applied to `$addSqlCohort`, which does *not*
+render or bake parameters into the file — keep the template in
+`inputs/cohorts/R/src/sql` and pre-render it yourself (for example with
+`SqlRender::render()`) before registering, since `addSqlCohort()` registers
+whatever file it's given as-is.
 
 ---
 

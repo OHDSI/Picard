@@ -437,7 +437,7 @@ testthat::test_that("addDependentCustomCohort stopIfExists FALSE updates deps an
 })
 
 # Testing: dependentCohortIdList entries accept vectors of IDs, stored in depends_on
-# and rendered comma-separated at generation time.
+# and baked comma-separated into the generated derived SQL file.
 testthat::test_that("addDependentCustomCohort accepts vectors of dependent IDs", {
   setup <- cm_test_new_manifest("mgmt-depcustom-vector")
   manifest <- setup$manifest
@@ -470,20 +470,64 @@ testthat::test_that("addDependentCustomCohort accepts vectors of dependent IDs",
     c(ckd_id, t2d_id, death_id)
   )
 
-  # Generation-side round trip: params come back atomic and render for IN clauses
-  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
-  on.exit(DBI::dbDisconnect(conn), add = TRUE)
-  params <- get_custom_derived_sql_params(conn, as.integer(dep_id))
-  testthat::expect_false(is.list(params$exc_cohort_id))
-  testthat::expect_equal(as.integer(params$exc_cohort_id), c(t2d_id, death_id))
+  # The dependent IDs are baked directly into the generated derived SQL file
+  # (like the other derived cohort types) - the vector renders comma-separated
+  # and the original @inc_cohort_id/@exc_cohort_id placeholders are gone.
+  testthat::expect_true(grepl("inputs/cohorts/derived", row$file_path[[1]], fixed = TRUE))
+  rendered_sql <- readr::read_file(row$file_path[[1]])
+  testthat::expect_false(grepl("@inc_cohort_id", rendered_sql, fixed = TRUE))
+  testthat::expect_false(grepl("@exc_cohort_id", rendered_sql, fixed = TRUE))
+  testthat::expect_true(grepl(as.character(t2d_id), rendered_sql, fixed = TRUE))
+  testthat::expect_true(grepl(as.character(death_id), rendered_sql, fixed = TRUE))
+  testthat::expect_true(grepl(paste0(t2d_id, ",", death_id), rendered_sql, fixed = TRUE))
 
-  rendered <- SqlRender::render(
-    "cohort_definition_id IN (@exc_cohort_id)",
-    exc_cohort_id = params$exc_cohort_id
+  # Connection/schema placeholders are left for generateCohorts() to fill in
+  testthat::expect_true(grepl("@target_cohort_id", rendered_sql, fixed = TRUE))
+  testthat::expect_true(grepl("@target_database_schema", rendered_sql, fixed = TRUE))
+})
+
+# Testing: dependentCohortIdList accepts manifest entries (data.frame/tibble
+# with an id column), like the other dependent cohort builders, and renders
+# their labels into a QC header comment on the generated derived SQL file.
+testthat::test_that("addDependentCustomCohort accepts manifest entries and renders a QC header", {
+  setup <- cm_test_new_manifest("mgmt-depcustom-entries")
+  manifest <- setup$manifest
+
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "Chronic Kidney Disease", fixture_name = "ckd.json")
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "Type 2 Diabetes", fixture_name = "t2d.json")
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "All-Cause Death", fixture_name = "death.json")
+
+  ckd_entry <- manifest$queryCohortsByLabel("Chronic Kidney Disease")
+  exclusion_entries <- manifest$queryCohortsByLabel(c("Type 2 Diabetes", "All-Cause Death"))
+  t2d_id <- as.integer(exclusion_entries$id[exclusion_entries$label == "Type 2 Diabetes"][1])
+  death_id <- as.integer(exclusion_entries$id[exclusion_entries$label == "All-Cause Death"][1])
+
+  fixture <- cm_test_sql_fixture_path("my_custom_dependent.sql")
+  local_sql <- fs::path(setup$paths$sql_dir, "my_custom_dependent.sql")
+  fs::file_copy(fixture, local_sql)
+
+  manifest$addDependentCustomCohort(
+    filePath = local_sql,
+    label = "Dep Entries",
+    category = "Derived Cohorts",
+    dependentCohortIdList = list(
+      inc_cohort_id = ckd_entry,
+      exc_cohort_id = exclusion_entries
+    )
   )
-  testthat::expect_true(grepl(as.character(t2d_id), rendered, fixed = TRUE))
-  testthat::expect_true(grepl(as.character(death_id), rendered, fixed = TRUE))
-  testthat::expect_true(grepl(",", rendered, fixed = TRUE))
+
+  row <- cm_test_get_manifest_row(manifest, "Dep Entries")
+  testthat::expect_equal(
+    sort(jsonlite::fromJSON(row$depends_on[[1]])),
+    sort(c(as.integer(ckd_entry$id[1]), t2d_id, death_id))
+  )
+
+  rendered_sql <- readr::read_file(row$file_path[[1]])
+  testthat::expect_true(grepl("Dependent cohorts", rendered_sql, fixed = TRUE))
+  testthat::expect_true(grepl("Chronic Kidney Disease", rendered_sql, fixed = TRUE))
+  testthat::expect_true(grepl("Type 2 Diabetes", rendered_sql, fixed = TRUE))
+  testthat::expect_true(grepl("All-Cause Death", rendered_sql, fixed = TRUE))
+  testthat::expect_true(grepl(as.character(ckd_entry$id[1]), rendered_sql, fixed = TRUE))
 })
 
 # Testing: addDependentCustomCohort default stopIfExists = TRUE errors on duplicate labels.
@@ -516,6 +560,93 @@ testthat::test_that("addDependentCustomCohort errors on duplicate label by defau
       dependentCohortIdList = list(inc_cohort_id = ckd_id, exc_cohort_id = t2d_id)
     ),
     regexp = "already in use"
+  )
+})
+
+# Testing: sqlParameters render arbitrary (non cohort-ID) values into the
+# generated derived SQL file alongside dependentCohortIdList.
+testthat::test_that("addDependentCustomCohort renders sqlParameters into the generated file", {
+  setup <- cm_test_new_manifest("mgmt-depcustom-sqlparams")
+  manifest <- setup$manifest
+
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "Chronic Kidney Disease", fixture_name = "ckd.json")
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "Type 2 Diabetes", fixture_name = "t2d.json")
+  rows <- manifest$tabulateManifest(filter = "active")
+  ckd_id <- as.integer(rows$id[rows$label == "Chronic Kidney Disease"][1])
+  t2d_id <- as.integer(rows$id[rows$label == "Type 2 Diabetes"][1])
+
+  local_sql <- fs::path(setup$paths$sql_dir, "my_custom_dependent_params.sql")
+  writeLines(c(
+    "DELETE FROM @target_database_schema.@target_cohort_table",
+    "WHERE cohort_definition_id = @target_cohort_id;",
+    "",
+    "INSERT INTO @target_database_schema.@target_cohort_table",
+    "  (cohort_definition_id, subject_id, cohort_start_date, cohort_end_date)",
+    "SELECT",
+    "  @target_cohort_id,",
+    "  i.subject_id,",
+    "  i.cohort_start_date,",
+    "  DATEADD(day, @min_days, i.cohort_start_date)",
+    "FROM @target_database_schema.@target_cohort_table i",
+    "WHERE i.cohort_definition_id = @inc_cohort_id",
+    "  AND i.cohort_definition_id != @exc_cohort_id;"
+  ), local_sql)
+
+  manifest$addDependentCustomCohort(
+    filePath = local_sql,
+    label = "Dep Params",
+    category = "Derived Cohorts",
+    dependentCohortIdList = list(inc_cohort_id = ckd_id, exc_cohort_id = t2d_id),
+    sqlParameters = list(min_days = 30L)
+  )
+
+  row <- cm_test_get_manifest_row(manifest, "Dep Params")
+  rendered_sql <- readr::read_file(row$file_path[[1]])
+  testthat::expect_true(grepl("DATEADD(day, 30,", rendered_sql, fixed = TRUE))
+  testthat::expect_false(grepl("@min_days", rendered_sql, fixed = TRUE))
+  testthat::expect_false(grepl("@inc_cohort_id", rendered_sql, fixed = TRUE))
+  testthat::expect_true(grepl(as.character(ckd_id), rendered_sql, fixed = TRUE))
+
+  rule <- jsonlite::fromJSON(row$dependency_rule[[1]])
+  testthat::expect_equal(as.integer(rule$sqlParameters$min_days), 30L)
+})
+
+# Testing: sqlParameters cannot collide with dependentCohortIdList names or
+# reserved (connection/schema) SqlRender parameter names.
+testthat::test_that("addDependentCustomCohort errors on sqlParameters name collisions", {
+  setup <- cm_test_new_manifest("mgmt-depcustom-sqlparams-collision")
+  manifest <- setup$manifest
+
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "Chronic Kidney Disease", fixture_name = "ckd.json")
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "Type 2 Diabetes", fixture_name = "t2d.json")
+  rows <- manifest$tabulateManifest(filter = "active")
+  ckd_id <- as.integer(rows$id[rows$label == "Chronic Kidney Disease"][1])
+  t2d_id <- as.integer(rows$id[rows$label == "Type 2 Diabetes"][1])
+
+  fixture <- cm_test_sql_fixture_path("my_custom_dependent.sql")
+  local_sql <- fs::path(setup$paths$sql_dir, "my_custom_dependent.sql")
+  fs::file_copy(fixture, local_sql)
+
+  testthat::expect_error(
+    manifest$addDependentCustomCohort(
+      filePath = local_sql,
+      label = "Dep Collide",
+      category = "Derived Cohorts",
+      dependentCohortIdList = list(inc_cohort_id = ckd_id, exc_cohort_id = t2d_id),
+      sqlParameters = list(inc_cohort_id = 5L)
+    ),
+    regexp = "cannot share parameter name"
+  )
+
+  testthat::expect_error(
+    manifest$addDependentCustomCohort(
+      filePath = local_sql,
+      label = "Dep Reserved",
+      category = "Derived Cohorts",
+      dependentCohortIdList = list(inc_cohort_id = ckd_id, exc_cohort_id = t2d_id),
+      sqlParameters = list(target_cohort_id = 5L)
+    ),
+    regexp = "reserved SqlRender parameter"
   )
 })
 
@@ -677,6 +808,37 @@ testthat::test_that("importAtlasCohorts errors on already-registered rows", {
     manifest$importAtlasCohorts(cohortsLoad = collide_df, atlasConnection = conn_both),
     regexp = "already in use"
   )
+})
+
+# Testing: importAtlasCohorts stopIfExists = FALSE updates already-registered rows in place
+# instead of erroring, supporting re-running the same load file while iterating.
+testthat::test_that("importAtlasCohorts stopIfExists FALSE updates existing rows in place", {
+  setup <- cm_test_new_manifest("mgmt-atlas-import-upsert")
+  manifest <- setup$manifest
+  jsons <- cm_test_atlas_fixture_jsons()
+
+  load_df <- data.frame(atlasId = 100L, label = "Atlas Cohort", category = "Target")
+  conn_v1 <- cm_test_fake_atlas_connection(list("100" = jsons$v1))
+  manifest$importAtlasCohorts(cohortsLoad = load_df, atlasConnection = conn_v1)
+  before <- cm_test_get_manifest_row(manifest, "Atlas Cohort")
+
+  # Re-running with stopIfExists = FALSE and a changed definition updates in place
+  conn_v2 <- cm_test_fake_atlas_connection(list("100" = jsons$v2))
+  manifest$importAtlasCohorts(cohortsLoad = load_df, atlasConnection = conn_v2, stopIfExists = FALSE)
+  after <- cm_test_get_manifest_row(manifest, "Atlas Cohort")
+  testthat::expect_equal(nrow(after), 1)
+  testthat::expect_equal(after$id[[1]], before$id[[1]])
+  testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
+
+  # A mix of a new row and an already-registered row processes both
+  mixed_df <- data.frame(
+    atlasId = c(100L, 200L),
+    label = c("Atlas Cohort", "Second Atlas Cohort"),
+    category = c("Target", "Target")
+  )
+  conn_both <- cm_test_fake_atlas_connection(list("100" = jsons$v2, "200" = jsons$v2))
+  manifest$importAtlasCohorts(cohortsLoad = mixed_df, atlasConnection = conn_both, stopIfExists = FALSE)
+  testthat::expect_equal(nrow(cm_test_get_manifest_row(manifest, "Second Atlas Cohort")), 1)
 })
 
 # Testing: addAtlasCohort stopIfExists = FALSE refreshes a single cohort from ATLAS in place.
