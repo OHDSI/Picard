@@ -22,6 +22,8 @@
 - Add task prefix to the `importAndBind()` save to avoid similar output names between tasks.
 - Add method to ExecutionSettings to `reviewConnectionDetails()` pulls the connectionDetails used. 
 - Modify `getServerCredentials()` to not evaluate full yml file, only pull the specific block and evaluate (See issue #30, #33). 
+- Re-registering a derived cohort with `stopIfExists = FALSE` no longer marks it (and its dependents) `stale` when the definition is unchanged, so an accidental re-run of `$addDependentCustomCohort()` or a `build*Cohort()` method no longer drops the cohort out of the active manifest and out of query results. Staleness is now cascaded only on a real definition change; a metadata-only edit updates category/tags without forcing regeneration, and a cohort already marked `stale` stays stale.
+- Stale cohorts are no longer omitted from manifest summaries. Printing a `CohortManifest` counted only active + deleted cohorts, so "Total cohorts" appeared to shrink when cohorts were queued for regeneration; the total now includes stale cohorts, which are reported on their own `Stale:` line and listed separately. `$getManifestStatus()` gains a `stale_count` element, and its `missing_count` now also covers stale entries whose file is missing.
 
 # picard 0.0.6
 

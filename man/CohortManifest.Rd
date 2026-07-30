@@ -661,9 +661,11 @@ Example: \.code{list(min_days = 30L, index_year = 2020L)}.}
 \item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
 active or stale cohort with this label is already registered. If FALSE,
 updates the registered cohort in place (same ID): the dependent cohort
-IDs/sqlParameters are re-rendered into the generated file, the cohort is
-marked 'stale' for regeneration, and its own dependents are marked stale
-too. Default: TRUE (fail-safe).}
+IDs/sqlParameters are re-rendered into the generated file. When that
+changes the definition, the cohort is marked 'stale' for regeneration
+and its own dependents are marked stale too; re-registering an
+identical definition leaves the status untouched.
+Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -770,9 +772,10 @@ Default: 0.}
 \item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
 active or stale cohort with this label is already registered. If FALSE,
 updates the registered derived cohort in place (same ID and file path):
-the SQL is re-rendered, parents and build parameters are replaced, the
-cohort is marked 'stale' for regeneration, and its own dependents are
-marked stale too. Default: TRUE (fail-safe).}
+the SQL is re-rendered and parents and build parameters are replaced.
+When that changes the definition, the cohort is marked 'stale' for
+regeneration and its own dependents are marked stale too; an identical
+re-registration leaves the status untouched. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -847,9 +850,10 @@ qualifying events. Default: 'First'.}
 \item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
 active or stale cohort with this label is already registered. If FALSE,
 updates the registered derived cohort in place (same ID and file path):
-the SQL is re-rendered, parents and build parameters are replaced, the
-cohort is marked 'stale' for regeneration, and its own dependents are
-marked stale too. Default: TRUE (fail-safe).}
+the SQL is re-rendered and parents and build parameters are replaced.
+When that changes the definition, the cohort is marked 'stale' for
+regeneration and its own dependents are marked stale too; an identical
+re-registration leaves the status untouched. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -914,9 +918,10 @@ in ALL exclude cohorts.}
 \item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
 active or stale cohort with this label is already registered. If FALSE,
 updates the registered derived cohort in place (same ID and file path):
-the SQL is re-rendered, parents and build parameters are replaced, the
-cohort is marked 'stale' for regeneration, and its own dependents are
-marked stale too. Default: TRUE (fail-safe).}
+the SQL is re-rendered and parents and build parameters are replaced.
+When that changes the definition, the cohort is marked 'stale' for
+regeneration and its own dependents are marked stale too; an identical
+re-registration leaves the status untouched. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -982,9 +987,10 @@ to qualify for the composite. Default: 1 (any subject with at least 1 event qual
 \item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
 active or stale cohort with this label is already registered. If FALSE,
 updates the registered derived cohort in place (same ID and file path):
-the SQL is re-rendered, parents and build parameters are replaced, the
-cohort is marked 'stale' for regeneration, and its own dependents are
-marked stale too. Default: TRUE (fail-safe).}
+the SQL is re-rendered and parents and build parameters are replaced.
+When that changes the definition, the cohort is marked 'stale' for
+regeneration and its own dependents are marked stale too; an identical
+re-registration leaves the status untouched. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -1051,9 +1057,10 @@ Common values: 8507 = Male, 8532 = Female. Default: NULL (all genders).}
 \item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
 active or stale cohort with this label is already registered. If FALSE,
 updates the registered derived cohort in place (same ID and file path):
-the SQL is re-rendered, parents and build parameters are replaced, the
-cohort is marked 'stale' for regeneration, and its own dependents are
-marked stale too. Default: TRUE (fail-safe).}
+the SQL is re-rendered and parents and build parameters are replaced.
+When that changes the definition, the cohort is marked 'stale' for
+regeneration and its own dependents are marked stale too; an identical
+re-registration leaves the status untouched. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -2034,7 +2041,8 @@ Get summary status of manifest
 }
 
 \subsection{Returns}{
-List with elements: active_count, missing_count, deleted_count, next_available_id
+List with elements: active_count, stale_count, missing_count,
+deleted_count, next_available_id
 }
 }
 \if{html}{\out{<hr>}}
@@ -2161,9 +2169,10 @@ Preferred route using manifest query results for the target cohort.}
 \item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
 active or stale cohort with this label is already registered. If FALSE,
 updates the registered derived cohort in place (same ID and file path):
-the SQL is re-rendered, parents and build parameters are replaced, the
-cohort is marked 'stale' for regeneration, and its own dependents are
-marked stale too. Default: TRUE (fail-safe).}
+the SQL is re-rendered and parents and build parameters are replaced.
+When that changes the definition, the cohort is marked 'stale' for
+regeneration and its own dependents are marked stale too; an identical
+re-registration leaves the status untouched. Default: TRUE (fail-safe).}
 
 \item{\code{keep_trace}}{Logical. If TRUE, marks missing as deleted with timestamp (soft delete).
 If FALSE, permanently removes from database (hard delete). Defaults to TRUE.}
@@ -2253,9 +2262,10 @@ Preferred route using manifest query results for the outcome cohort.}
 \item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
 active or stale cohort with this label is already registered. If FALSE,
 updates the registered derived cohort in place (same ID and file path):
-the SQL is re-rendered, parents and build parameters are replaced, the
-cohort is marked 'stale' for regeneration, and its own dependents are
-marked stale too. Default: TRUE (fail-safe).}
+the SQL is re-rendered and parents and build parameters are replaced.
+When that changes the definition, the cohort is marked 'stale' for
+regeneration and its own dependents are marked stale too; an identical
+re-registration leaves the status untouched. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -2321,9 +2331,10 @@ Preferred route using manifest query results for the censor cohort.}
 \item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
 active or stale cohort with this label is already registered. If FALSE,
 updates the registered derived cohort in place (same ID and file path):
-the SQL is re-rendered, parents and build parameters are replaced, the
-cohort is marked 'stale' for regeneration, and its own dependents are
-marked stale too. Default: TRUE (fail-safe).}
+the SQL is re-rendered and parents and build parameters are replaced.
+When that changes the definition, the cohort is marked 'stale' for
+regeneration and its own dependents are marked stale too; an identical
+re-registration leaves the status untouched. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
