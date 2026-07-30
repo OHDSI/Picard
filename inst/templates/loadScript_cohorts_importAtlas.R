@@ -85,14 +85,14 @@ cohortManifest$updateAtlasCohorts()
 # NOTE: no curly braces in this template (it is populated via glue).
 cohortsLoadPath <- here::here("inputs/cohorts/cohortsLoad.csv")
 
-if (fs::file_exists(cohortsLoadPath))
+if (fs::file_exists(cohortsLoadPath)) {
   cohortManifest$importAtlasCohorts(
-    cohortsLoad = readr::read_csv(cohortsLoadPath, show_col_types = FALSE)
-  )
-
-if (!fs::file_exists(cohortsLoadPath))
+      cohortsLoad = readr::read_csv(cohortsLoadPath, show_col_types = FALSE)
+    )
+} else{
   cli::cli_alert_info("No cohortsLoad.csv found - skipping one-time import")
-
+}
+  
 
 # ================================================================================
 # F. REVIEW IMPORTED COHORTS

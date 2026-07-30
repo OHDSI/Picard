@@ -2291,7 +2291,7 @@ ConceptSetManifest <- R6::R6Class(
       }
 
       # Query for concept sets with atlasId tag
-      atlas_subset <- self$queryConceptSetsByTagName(tagName = "atlasId") |>
+      atlas_subset <- self$queryConceptSetsByTagName(tagName = "atlasId", tags_format = "json") |>
         dplyr::mutate(
           tags_list = purrr::map(tags, ~jsonlite::fromJSON(.x)),
           atlasId = purrr::map_int(tags_list, ~.x$atlasId)

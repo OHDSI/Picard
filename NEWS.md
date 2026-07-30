@@ -23,6 +23,7 @@
 - Add method to ExecutionSettings to `reviewConnectionDetails()` pulls the connectionDetails used. 
 - Modify `getServerCredentials()` to not evaluate full yml file, only pull the specific block and evaluate (See issue #30, #33). 
 - Fix `makeDisseminationScript()` change the glue brackets to carrots
+- Fix bug in `$updateAtlasCohorts()`/`$updateAtlasConceptSets()` to use tags in json mode after tab format change. 
 
 # picard 0.0.6
 

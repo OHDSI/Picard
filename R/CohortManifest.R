@@ -1160,21 +1160,19 @@ CohortManifest <- R6::R6Class(
     #'
     #' @param filter Character. One of "active", "deleted", "stale", or "all".
     #'   Defaults to "active".
-    #' @param tags_format Character. One of "nested", "json", or "wide".
-    #'   - "nested" (default): Tags as structured nested tibble
-    #'   - "json": Tags as raw JSON string
-    #'   - "wide": Tags expanded into individual columns
-    #'
+    #' @param tagDelimiter a character used to seperate tags in the view. Default is |
     #' @return Invisibly returns the tibble displayed in the viewer.
-    viewManifest = function(filter = c("active", "deleted", "stale", "all"),
-                            tags_format = c("nested", "json", "wide")) {
+    viewManifest = function(filter = c("active", "deleted", "stale", "all"), tagDelimiter = " | ") {
       filter <- match.arg(filter)
       tags_format <- match.arg(tags_format)
 
-      man <- self$tabulateManifest(filter = filter, tags_format = tags_format) |>
-        dplyr::select(id, label, category, tags, file_path)
+      man <- self$tabulateManifest(filter = filter, tags_format = "json") |>
+        dplyr::select(id, label, category, tags, file_path) |>
+        dplyr::mutate(
+          tags = purrr::map_chr(tags, ~jsonToStingTags(.x, tag_delimiter = tagDelimiter))
+        )
 
-      utils::View(man)
+      DT::datatable(man)
       invisible(man)
     },
 
@@ -3734,7 +3732,7 @@ CohortManifest <- R6::R6Class(
         ))
       }
 
-      cm_atlas_subset <- self$queryCohortsByTagName(tagName = "atlasId") |>
+      cm_atlas_subset <- self$queryCohortsByTagName(tagName = "atlasId", tags_format = "json") |>
         dplyr::mutate(
           tags_list = purrr::map(tags, ~jsonlite::fromJSON(.x)),
           atlasId = purrr::map_int(tags_list, ~.x$atlasId)
