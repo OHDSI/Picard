@@ -1124,13 +1124,10 @@ CohortManifest <- R6::R6Class(
         man <- man |>
           dplyr::mutate(
             tags = purrr::map(tags, function(tags_json) {
-              if (is.na(tags_json) || is.null(tags_json) || tags_json == "") {
-                return(tibble::tibble(tag_name = character(0), tag_value = character(0)))
-              }
-              parsed_tags <- jsonlite::fromJSON(tags_json)
+              parsed_tags <- safe_parse_tags(tags_json)
               tibble::tibble(
-                tag_name = names(parsed_tags),
-                tag_value = as.character(unlist(parsed_tags))
+                tag_name = names(parsed_tags) %||% character(0),
+                tag_value = as.character(unlist(parsed_tags) %||% character(0))
               )
             })
           )
@@ -1139,12 +1136,7 @@ CohortManifest <- R6::R6Class(
         # Expand tags into wide format (one column per tag key)
         man <- man |>
           dplyr::mutate(
-            tags_list = purrr::map(tags, function(tags_json) {
-              if (is.na(tags_json) || is.null(tags_json) || tags_json == "") {
-                return(list())
-              }
-              jsonlite::fromJSON(tags_json)
-            })
+            tags_list = purrr::map(tags, safe_parse_tags)
           ) |>
           tidyr::unnest_wider(tags_list, names_sep = "_") |>
           dplyr::select(-tags)
@@ -1345,10 +1337,7 @@ CohortManifest <- R6::R6Class(
 
           # Identity guard: the registered cohort must be the same ATLAS cohort,
           # otherwise this is almost certainly an accidental label collision
-          registered_tags <- tryCatch(
-            jsonlite::fromJSON(existing$tags[1]),
-            error = function(e) NULL
-          )
+          registered_tags <- safe_parse_tags(existing$tags[1])
           registered_atlas_id <- registered_tags$atlasId
           if (is.null(registered_atlas_id)) {
             cli::cli_abort(c(
@@ -1519,7 +1508,7 @@ CohortManifest <- R6::R6Class(
       }
 
       # Determine which cohorts are new and need to be loaded
-      cm_atlas_subset <- self$queryCohortsByTagName(tagName = "atlasId")
+      cm_atlas_subset <- self$queryCohortsByTagName(tagName = "atlasId", tags_format = "json")
       cohort_load_2 <- check_which_atlas_exist(cm_atlas_subset, cohortsLoad)
 
       # Header
@@ -2855,8 +2844,8 @@ CohortManifest <- R6::R6Class(
     #'
     #' @param ids Integer vector. One or more cohort IDs.
     #' @param tags_format Character. One of "nested", "json", or "wide".
-    #'   - "nested": Tags as nested tibble with tag_name/tag_value columns
-    #'   - "json" (default): Tags as raw JSON string
+    #'   - "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+    #'   - "json": Tags as raw JSON string
     #'   - "wide": Tags expanded into individual columns
     #'
     #' @return Tibble with matching cohorts. Tag columns depend on
@@ -2890,8 +2879,8 @@ CohortManifest <- R6::R6Class(
     #' @param match Character. "any" (default) returns cohorts matching at least one tag;
     #'   "all" returns only cohorts matching every tag.
     #' @param tags_format Character. One of "nested", "json", or "wide".
-    #'   - "nested": Tags as nested tibble with tag_name/tag_value columns
-    #'   - "json" (default): Tags as raw JSON string
+    #'   - "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+    #'   - "json": Tags as raw JSON string
     #'   - "wide": Tags expanded into individual columns
     #'
     #' @return Tibble with matching cohorts. Tag columns depend on
@@ -2922,12 +2911,7 @@ CohortManifest <- R6::R6Class(
 
       manifest_df <- manifest_df |>
         dplyr::mutate(
-          tags_list = purrr::map(.data$tags, function(tags_json) {
-            if (is.na(tags_json) || is.null(tags_json) || tags_json == "") {
-              return(list())
-            }
-            jsonlite::fromJSON(tags_json)
-          })
+          tags_list = purrr::map(.data$tags, safe_parse_tags)
         )
 
       tag_match <- purrr::map_lgl(manifest_df$tags_list, function(cohort_tags) {
@@ -2964,8 +2948,8 @@ CohortManifest <- R6::R6Class(
     #' @param matchType Character. Either "exact" for exact match or "pattern" for pattern matching.
     #'   Defaults to "exact".
     #' @param tags_format Character. One of "nested", "json", or "wide".
-    #'   - "nested": Tags as nested tibble with tag_name/tag_value columns
-    #'   - "json" (default): Tags as raw JSON string
+    #'   - "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+    #'   - "json": Tags as raw JSON string
     #'   - "wide": Tags expanded into individual columns
     #'
     #' @return Tibble with matching cohorts. Tag columns depend on
@@ -3014,8 +2998,8 @@ CohortManifest <- R6::R6Class(
     #' @param matchType Character. Either "exact" for exact match or "pattern" for pattern matching.
     #'   Defaults to "exact".
     #' @param tags_format Character. One of "nested", "json", or "wide".
-    #'   - "nested": Tags as nested tibble with tag_name/tag_value columns
-    #'   - "json" (default): Tags as raw JSON string
+    #'   - "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+    #'   - "json": Tags as raw JSON string
     #'   - "wide": Tags expanded into individual columns
     #'
     #' @return Tibble with matching cohorts. Tag columns depend on
@@ -3061,8 +3045,8 @@ CohortManifest <- R6::R6Class(
     #'
     #' @param tagName Character vector. The name of tags to query.
     #' @param tags_format Character. One of "nested", "json", or "wide".
-    #'   - "nested": Tags as nested tibble with tag_name/tag_value columns
-    #'   - "json" (default): Tags as raw JSON string
+    #'   - "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+    #'   - "json": Tags as raw JSON string
     #'   - "wide": Tags expanded into individual columns
     #'
     #' @return Tibble with matching cohorts. Tag columns depend on
@@ -3073,12 +3057,7 @@ CohortManifest <- R6::R6Class(
 
       tcm <- self$tabulateManifest(filter = "active", tags_format = "json") |> 
         dplyr::mutate(
-          tags_list = purrr::map(.data$tags, function(tags_json) {
-            if (is.na(tags_json) || is.null(tags_json) || tags_json == "") {
-              return(list())
-            }
-            jsonlite::fromJSON(tags_json)
-          })
+          tags_list = purrr::map(.data$tags, safe_parse_tags)
         ) |>
         dplyr::filter(
           purrr::map_lgl(.data$tags_list, ~any(tagName %in% names(.)))
@@ -3097,8 +3076,8 @@ CohortManifest <- R6::R6Class(
     #'
     #' @param tagName Character. The name of the tag to check for absence.
     #' @param tags_format Character. One of "nested", "json", or "wide".
-    #'   - "nested": Tags as nested tibble with tag_name/tag_value columns
-    #'   - "json" (default): Tags as raw JSON string
+    #'   - "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+    #'   - "json": Tags as raw JSON string
     #'   - "wide": Tags expanded into individual columns
     #'
     #' @return Tibble with matching cohorts. Tag columns depend on
@@ -3110,12 +3089,7 @@ CohortManifest <- R6::R6Class(
 
       tcm <- self$tabulateManifest(filter = "active", tags_format = "json") |>
         dplyr::mutate(
-          tags_list = purrr::map(.data$tags, function(tags_json) {
-            if (is.na(tags_json) || is.null(tags_json) || tags_json == "") {
-              return(list())
-            }
-            jsonlite::fromJSON(tags_json)
-          })
+          tags_list = purrr::map(.data$tags, safe_parse_tags)
         ) |>
         dplyr::filter(
           !purrr::map_lgl(.data$tags_list, ~tagName %in% names(.))
@@ -3140,8 +3114,8 @@ CohortManifest <- R6::R6Class(
     #' @param tagValueMapping Named list. Keys are tag names, values are tag values to match.
     #'   Example: \code{list(status = "approved", type = "primary")} requires both conditions (AND logic).
     #' @param tags_format Character. One of "nested", "json", or "wide".
-    #'   - "nested": Tags as nested tibble with tag_name/tag_value columns
-    #'   - "json" (default): Tags as raw JSON string
+    #'   - "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+    #'   - "json": Tags as raw JSON string
     #'   - "wide": Tags expanded into individual columns
     #'
     #' @return Tibble with matching cohorts. Tag columns depend on
@@ -3175,8 +3149,7 @@ CohortManifest <- R6::R6Class(
 
       tcm <- self$tabulateManifest() |>
         dplyr::mutate(
-          tags_list = purrr::map(tags, ~jsonlite::fromJSON(.x)),
-          tag_value = purrr::map_chr(tags_list, ~.x[[tagName]] %||% NA_character_)
+          tag_value = purrr::map_chr(tags, ~as.character(safe_tag_value(.x, tagName)))
         ) |>
         dplyr::filter(!is.na(tag_value)) |>
         dplyr::group_by(tag_value) |>
@@ -3375,7 +3348,7 @@ CohortManifest <- R6::R6Class(
       }
 
       # Parse tags
-      current_tags <- jsonlite::fromJSON(current_tags_json$tags[1])
+      current_tags <- safe_parse_tags(current_tags_json$tags[1])
 
       # Check if tag exists
       if (!tagName %in% names(current_tags)) {
@@ -3419,7 +3392,7 @@ CohortManifest <- R6::R6Class(
       }
 
       # Parse tags
-      current_tags <- jsonlite::fromJSON(current_tags_json$tags[1])
+      current_tags <- safe_parse_tags(current_tags_json$tags[1])
 
       # Check if tag exists
       if (!tagName %in% names(current_tags)) {
@@ -3465,7 +3438,7 @@ CohortManifest <- R6::R6Class(
       }
 
       # Parse existing tags
-      current_tags <- jsonlite::fromJSON(current_tags_json$tags[1])
+      current_tags <- safe_parse_tags(current_tags_json$tags[1])
 
       # Add new tag (overwrites if already exists)
       current_tags[[tagName]] <- tagValue
@@ -3498,7 +3471,7 @@ CohortManifest <- R6::R6Class(
         return(NULL)
       }
 
-      jsonlite::fromJSON(current_tags_json$tags[1])
+      safe_parse_tags(current_tags_json$tags[1])
     },
 
     #' @description Merge multiple tags into a cohort (non-destructive, additive)
@@ -3525,7 +3498,7 @@ CohortManifest <- R6::R6Class(
       }
 
       # Parse and merge
-      current_tags <- jsonlite::fromJSON(current_tags_json$tags[1])
+      current_tags <- safe_parse_tags(current_tags_json$tags[1])
       merged_tags <- c(current_tags, newTags)  # Vector merge adds/overwrites
 
       # Update using existing method
@@ -3548,7 +3521,7 @@ CohortManifest <- R6::R6Class(
 
       # Extract all unique tag names
       all_tag_names <- manifest_tbl |>
-        dplyr::mutate(tags_list = purrr::map(tags, ~jsonlite::fromJSON(.x))) |>
+        dplyr::mutate(tags_list = purrr::map(tags, safe_parse_tags)) |>
         dplyr::pull(tags_list) |>
         purrr::map(names) |>
         unlist() |>
@@ -3734,8 +3707,9 @@ CohortManifest <- R6::R6Class(
 
       cm_atlas_subset <- self$queryCohortsByTagName(tagName = "atlasId", tags_format = "json") |>
         dplyr::mutate(
-          tags_list = purrr::map(tags, ~jsonlite::fromJSON(.x)),
-          atlasId = purrr::map_int(tags_list, ~.x$atlasId)
+          atlasId = purrr::map_int(tags, ~suppressWarnings(
+            as.integer(safe_tag_value(.x, "atlasId", default = NA_integer_))
+          ))
         ) |>
         dplyr::select(
           id, atlasId, label, category, hash, file_path

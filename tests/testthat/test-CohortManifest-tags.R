@@ -460,3 +460,126 @@ testthat::test_that("Tag discovery and audit workflow", {
   testthat::expect_equal(nrow(enum_summary), 1)
   testthat::expect_equal(enum_summary$count[[1]], 2)
 })
+
+# ============================================================================
+# Tag Parsing Robustness (issue #78)
+# ============================================================================
+
+# Testing: safe_parse_tags accepts every shape a `tags` column can arrive in.
+testthat::test_that("safe_parse_tags normalises all tag representations", {
+  # Raw JSON string, as stored in sqlite
+  testthat::expect_equal(
+    safe_parse_tags('{"atlasId":123,"owner":"alice"}'),
+    list(atlasId = 123L, owner = "alice")
+  )
+
+  # "nested" tags_format: a tag_name/tag_value tibble
+  nested <- tibble::tibble(
+    tag_name = c("atlasId", "owner"),
+    tag_value = c("123", "alice")
+  )
+  testthat::expect_equal(
+    safe_parse_tags(nested),
+    list(atlasId = "123", owner = "alice")
+  )
+
+  # Already-parsed list passes through
+  testthat::expect_equal(
+    safe_parse_tags(list(owner = "alice")),
+    list(owner = "alice")
+  )
+
+  # Factors are coerced rather than rejected
+  testthat::expect_equal(
+    safe_parse_tags(factor('{"owner":"alice"}')),
+    list(owner = "alice")
+  )
+
+  # Empty / missing / malformed inputs degrade to an empty list
+  testthat::expect_equal(safe_parse_tags(NULL), list())
+  testthat::expect_equal(safe_parse_tags(NA), list())
+  testthat::expect_equal(safe_parse_tags(NA_character_), list())
+  testthat::expect_equal(safe_parse_tags(""), list())
+  testthat::expect_equal(safe_parse_tags("not json"), list())
+  testthat::expect_equal(
+    safe_parse_tags(tibble::tibble(tag_name = character(0), tag_value = character(0))),
+    list()
+  )
+})
+
+# Testing: safe_tag_value pulls a single tag out regardless of input shape.
+testthat::test_that("safe_tag_value extracts a tag from any representation", {
+  nested <- tibble::tibble(tag_name = "atlasId", tag_value = "123")
+
+  testthat::expect_equal(safe_tag_value('{"atlasId":123}', "atlasId"), 123L)
+  testthat::expect_equal(safe_tag_value(nested, "atlasId"), "123")
+  testthat::expect_true(is.na(safe_tag_value('{"owner":"alice"}', "atlasId")))
+  testthat::expect_equal(
+    safe_tag_value(NA, "atlasId", default = NA_integer_),
+    NA_integer_
+  )
+})
+
+# Testing: check_which_atlas_exist is the shared helper behind the ATLAS import
+# paths. It previously assumed `tags` was JSON and errored with
+# "Argument 'txt' must be a JSON string" when handed the nested tibble that
+# query*ByTagName() returns by default.
+testthat::test_that("check_which_atlas_exist handles json and nested tag columns", {
+  load_df <- tibble::tibble(
+    atlasId = c(123L, 456L),
+    label = c("Registered", "Brand New"),
+    category = c("Test", "Test")
+  )
+
+  json_subset <- tibble::tibble(
+    id = 1L,
+    label = "Registered",
+    category = "Test",
+    tags = '{"atlasId":123}'
+  )
+
+  nested_subset <- tibble::tibble(
+    id = 1L,
+    label = "Registered",
+    category = "Test",
+    tags = list(tibble::tibble(tag_name = "atlasId", tag_value = "123"))
+  )
+
+  for (subset in list(json_subset, nested_subset)) {
+    res <- check_which_atlas_exist(subset, load_df)
+    testthat::expect_equal(res$status, c("active", "new"))
+    testthat::expect_equal(res$id, c(1L, NA_integer_))
+  }
+})
+
+# Testing: an empty manifest (no ATLAS cohorts registered yet) must not error —
+# every load row is simply "new".
+testthat::test_that("check_which_atlas_exist tolerates an empty manifest subset", {
+  empty_subset <- tibble::tibble(
+    id = integer(0),
+    label = character(0),
+    category = character(0),
+    tags = character(0)
+  )
+  load_df <- tibble::tibble(atlasId = 123L, label = "New", category = "Test")
+
+  res <- check_which_atlas_exist(empty_subset, load_df)
+  testthat::expect_equal(res$status, "new")
+})
+
+# Testing: tag summaries read the manifest with its default ("nested") tags
+# format, so they must not assume the column holds JSON strings.
+testthat::test_that("tag summaries work over the default nested tags format", {
+  setup <- cm_test_seed_manifest_for_queries("tags-nested-summaries")
+  manifest <- setup$manifest
+
+  row <- manifest$queryCohortsByLabel("Type 2 Diabetes", matchType = "exact")
+  cohort_id <- as.integer(row$id[[1]])
+  manifest$addCohortTag(cohort_id, "reviewer", "alice")
+
+  testthat::expect_true("reviewer" %in% manifest$listAllUniqueTags())
+
+  summary_tbl <- manifest$getTagValuesSummary("reviewer")
+  testthat::expect_equal(summary_tbl$value, "alice")
+  testthat::expect_equal(summary_tbl$count, 1L)
+})
