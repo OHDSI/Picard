@@ -185,16 +185,18 @@ migrateCohortManifest <- function(dbPath = "inputs/cohorts/cohortManifest.sqlite
     )"
   )
 
+  # Scoped to registered rows: 'stale' cohorts still own their label and file
+  # path (they are pending regeneration, not deleted)
   DBI::dbExecute(
     conn,
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_label_active
-      ON cohort_manifest(label) WHERE status = 'active'"
+      ON cohort_manifest(label) WHERE status IN ('active', 'stale')"
   )
 
   DBI::dbExecute(
     conn,
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_filepath_active
-      ON cohort_manifest(file_path) WHERE status = 'active'"
+      ON cohort_manifest(file_path) WHERE status IN ('active', 'stale')"
   )
 }
 

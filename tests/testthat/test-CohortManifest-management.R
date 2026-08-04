@@ -66,8 +66,43 @@ testthat::test_that("getManifestStatus returns summary list", {
 
   out <- manifest$getManifestStatus()
 
-  testthat::expect_true(all(c("active_count", "missing_count", "deleted_count", "next_available_id") %in% names(out)))
+  testthat::expect_true(all(c("active_count", "stale_count", "missing_count", "deleted_count", "next_available_id") %in% names(out)))
   testthat::expect_true(out$active_count >= 5)
+  testthat::expect_equal(out$stale_count, 0)
+})
+
+# Testing: 'stale' is a freshness marker, not a lifecycle state — a stale cohort
+# is still registered, so it must stay in the manifest counts and printout
+# rather than silently dropping out of the active total.
+testthat::test_that("stale cohorts stay in the manifest total and print listing", {
+  setup <- cm_test_seed_manifest_for_queries("mgmt-status-stale")
+  manifest <- setup$manifest
+
+  before <- manifest$getManifestStatus()
+  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
+  DBI::dbExecute(conn, "UPDATE cohort_manifest SET status = 'stale' WHERE label = 'All-Cause Death'")
+  DBI::dbDisconnect(conn)
+
+  after <- manifest$getManifestStatus()
+  testthat::expect_equal(after$stale_count, 1)
+  # active_count counts registered cohorts, so it is unchanged by staleness
+  testthat::expect_equal(after$active_count, before$active_count)
+
+  printed <- paste(utils::capture.output(print(manifest)), collapse = "\n")
+  testthat::expect_match(printed, "Stale \\(awaiting regeneration\\): 1")
+  testthat::expect_match(printed, "All-Cause Death")
+
+  # And it is still listed by the manifest listing and the query methods
+  active <- manifest$tabulateManifest(filter = "active")
+  testthat::expect_true("All-Cause Death" %in% active$label)
+  testthat::expect_equal(
+    active$status[active$label == "All-Cause Death"][[1]],
+    "stale"
+  )
+  testthat::expect_equal(
+    manifest$queryCohortsByLabel("All-Cause Death", matchType = "exact")$label[[1]],
+    "All-Cause Death"
+  )
 })
 
 # Testing: deleteCohort marks cohort status as deleted when confirmed.
@@ -975,4 +1010,204 @@ testthat::test_that("addCaprCohort errors on duplicate label by default", {
     manifest$addCaprCohort(same, label = "Capr T2D", category = "Target"),
     regexp = "already in use"
   )
+})
+
+# Testing: re-registering an unchanged derived definition must not mark it stale.
+# This is the issue #74 report — an accidental re-run of addDependentCustomCohort()
+# flipped the cohort (and everything downstream) to stale, dropping it out of the
+# active manifest and out of query results.
+testthat::test_that("addDependentCustomCohort re-run with identical args keeps cohort active", {
+  setup <- cm_test_new_manifest("mgmt-depcustom-rerun")
+  manifest <- setup$manifest
+
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "Chronic Kidney Disease", fixture_name = "ckd.json")
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "Type 2 Diabetes", fixture_name = "t2d.json")
+  rows <- manifest$tabulateManifest(filter = "active")
+  ckd_id <- as.integer(rows$id[rows$label == "Chronic Kidney Disease"][1])
+  t2d_id <- as.integer(rows$id[rows$label == "Type 2 Diabetes"][1])
+
+  dep_sql <- cm_test_sql_fixture_path("my_custom_dependent.sql")
+  register <- function(...) {
+    manifest$addDependentCustomCohort(
+      filePath = dep_sql,
+      label = "Dep Custom",
+      category = "Derived Cohorts",
+      dependentCohortIdList = list(inc_cohort_id = ckd_id, exc_cohort_id = t2d_id),
+      tags = list(owner = "epi_team"),
+      ...
+    )
+  }
+
+  dep_id <- as.integer(register())
+
+  # A downstream dependent must not be dragged stale by a no-op re-run either
+  downstream_parents <- manifest$queryCohortsByLabel(
+    labels = c("Dep Custom", "Type 2 Diabetes"),
+    matchType = "exact"
+  )
+  manifest$buildUnionCohort(
+    label = "Downstream_Union",
+    category = "Derived Cohorts",
+    cohortEntries = downstream_parents
+  )
+
+  returned_id <- as.integer(register(stopIfExists = FALSE))
+
+  after <- cm_test_get_manifest_row(manifest, "Dep Custom")
+  testthat::expect_equal(returned_id, dep_id)
+  testthat::expect_equal(after$status[[1]], "active")
+  testthat::expect_equal(cm_test_get_manifest_row(manifest, "Downstream_Union")$status[[1]], "active")
+
+  # Still visible in the active manifest and to label queries
+  active <- manifest$tabulateManifest(filter = "active")
+  testthat::expect_true("Dep Custom" %in% active$label)
+  testthat::expect_equal(
+    as.integer(manifest$queryCohortsByLabel("Dep Custom", matchType = "exact")$id[[1]]),
+    dep_id
+  )
+})
+
+# Testing: a metadata-only re-registration updates the metadata without forcing
+# regeneration of the cohort or its dependents.
+testthat::test_that("derived upsert with metadata-only change leaves status active", {
+  setup <- cm_test_seed_parent_with_union("mgmt-union-metadata-only")
+  manifest <- setup$manifest
+
+  before <- cm_test_get_manifest_row(manifest, "Capr_T2D_or_CKD")
+  testthat::expect_equal(before$status[[1]], "active")
+
+  parents <- manifest$queryCohortsByLabel(
+    labels = c("Capr T2D", "Chronic Kidney Disease"),
+    matchType = "exact"
+  )
+  manifest$buildUnionCohort(
+    label = "Capr_T2D_or_CKD",
+    category = "Recategorized",
+    cohortEntries = parents,
+    stopIfExists = FALSE
+  )
+
+  after <- cm_test_get_manifest_row(manifest, "Capr_T2D_or_CKD")
+  testthat::expect_equal(after$category[[1]], "Recategorized")
+  testthat::expect_equal(after$status[[1]], "active")
+  testthat::expect_equal(after$hash[[1]], before$hash[[1]])
+})
+
+# Testing: an already-stale cohort stays stale when re-registered unchanged —
+# the no-op path must not silently clear a pending regeneration.
+testthat::test_that("derived upsert with identical definition preserves existing stale status", {
+  setup <- cm_test_seed_parent_with_union("mgmt-union-stale-preserved")
+  manifest <- setup$manifest
+
+  union_row <- cm_test_get_manifest_row(manifest, "Capr_T2D_or_CKD")
+  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
+  DBI::dbExecute(
+    conn,
+    "UPDATE cohort_manifest SET status = 'stale' WHERE id = ?",
+    list(as.integer(union_row$id[[1]]))
+  )
+  DBI::dbDisconnect(conn)
+
+  parents <- manifest$queryCohortsByLabel(
+    labels = c("Capr T2D", "Chronic Kidney Disease"),
+    matchType = "exact"
+  )
+  manifest$buildUnionCohort(
+    label = "Capr_T2D_or_CKD",
+    category = "Derived Cohorts",
+    cohortEntries = parents,
+    stopIfExists = FALSE
+  )
+
+  after <- cm_test_get_manifest_row(manifest, "Capr_T2D_or_CKD")
+  testthat::expect_equal(after$status[[1]], "stale")
+})
+
+# Testing: a real definition change still marks the cohort and its dependents
+# stale — the no-op guard must not disable staleness cascading altogether.
+testthat::test_that("derived upsert with changed parents still marks stale and cascades", {
+  setup <- cm_test_new_manifest("mgmt-union-def-changed")
+  manifest <- setup$manifest
+
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "Chronic Kidney Disease", fixture_name = "ckd.json")
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "Type 2 Diabetes", fixture_name = "t2d.json")
+  cm_test_add_capr_cohort(manifest, label = "Capr T2D", category = "Target")
+
+  two_parents <- manifest$queryCohortsByLabel(
+    labels = c("Chronic Kidney Disease", "Type 2 Diabetes"),
+    matchType = "exact"
+  )
+  manifest$buildUnionCohort(
+    label = "Union_Target",
+    category = "Derived Cohorts",
+    cohortEntries = two_parents
+  )
+
+  downstream <- manifest$queryCohortsByLabel(
+    labels = c("Union_Target", "Capr T2D"),
+    matchType = "exact"
+  )
+  manifest$buildUnionCohort(
+    label = "Downstream_Union",
+    category = "Derived Cohorts",
+    cohortEntries = downstream
+  )
+  testthat::expect_equal(cm_test_get_manifest_row(manifest, "Downstream_Union")$status[[1]], "active")
+
+  # Swap one parent out: a genuine definition change
+  new_parents <- manifest$queryCohortsByLabel(
+    labels = c("Chronic Kidney Disease", "Capr T2D"),
+    matchType = "exact"
+  )
+  manifest$buildUnionCohort(
+    label = "Union_Target",
+    category = "Derived Cohorts",
+    cohortEntries = new_parents,
+    stopIfExists = FALSE
+  )
+
+  testthat::expect_equal(cm_test_get_manifest_row(manifest, "Union_Target")$status[[1]], "stale")
+  testthat::expect_equal(cm_test_get_manifest_row(manifest, "Downstream_Union")$status[[1]], "stale")
+})
+
+# Testing: a stale cohort is still a valid parent for new derived cohorts, and
+# still owns its label — the validators must treat it as registered.
+testthat::test_that("stale cohorts remain valid parents and keep their label", {
+  setup <- cm_test_seed_parent_with_union("mgmt-stale-parent")
+  manifest <- setup$manifest
+
+  union_row <- cm_test_get_manifest_row(manifest, "Capr_T2D_or_CKD")
+  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
+  DBI::dbExecute(
+    conn,
+    "UPDATE cohort_manifest SET status = 'stale' WHERE id = ?",
+    list(as.integer(union_row$id[[1]]))
+  )
+  DBI::dbDisconnect(conn)
+
+  # The label is still taken
+  testthat::expect_error(
+    manifest$buildUnionCohort(
+      label = "Capr_T2D_or_CKD",
+      category = "Derived Cohorts",
+      cohortEntries = manifest$queryCohortsByLabel(
+        labels = c("Capr T2D", "Chronic Kidney Disease"),
+        matchType = "exact"
+      )
+    ),
+    regexp = "already in use"
+  )
+
+  # And it can still be built on
+  new_parents <- manifest$queryCohortsByLabel(
+    labels = c("Capr_T2D_or_CKD", "Capr T2D"),
+    matchType = "exact"
+  )
+  testthat::expect_equal(nrow(new_parents), 2L)
+  manifest$buildUnionCohort(
+    label = "Built_On_Stale",
+    category = "Derived Cohorts",
+    cohortEntries = new_parents
+  )
+  testthat::expect_equal(cm_test_get_manifest_row(manifest, "Built_On_Stale")$status[[1]], "active")
 })

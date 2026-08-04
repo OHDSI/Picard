@@ -211,7 +211,7 @@ resetCohortManifest <- function(manifest = NULL,
     n_derived_rows <- DBI::dbGetQuery(
       conn_sq,
       "SELECT COUNT(*) AS n FROM cohort_manifest
-       WHERE status = 'active' AND cohort_type NOT IN ('circe', 'custom')"
+       WHERE status IN ('active', 'stale') AND cohort_type NOT IN ('circe', 'custom')"
     )$n
     DBI::dbDisconnect(conn_sq)
   }
