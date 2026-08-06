@@ -2,9 +2,9 @@
 # File: importCapr.R
 # ================================================================================
 #
-# Study: {studyName}
-# Author: {author}
-# Purpose: {description}
+# Study: <<studyName>>
+# Author: <<author>>
+# Purpose: <<description>>
 #
 # This script allows you to build concept sets programmatically using Capr
 # and add them to the manifest using the manifest API.
