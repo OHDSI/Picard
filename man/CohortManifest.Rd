@@ -258,7 +258,7 @@ for exploring manifest contents without console clutter.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$viewManifest(
   filter = c("active", "deleted", "stale", "all"),
-  tags_format = c("nested", "json", "wide")
+  tagDelimiter = " | "
 )}\if{html}{\out{</div>}}
 }
 
@@ -268,12 +268,7 @@ for exploring manifest contents without console clutter.
 \item{\code{filter}}{Character. One of "active", "deleted", "stale", or "all".
 Defaults to "active".}
 
-\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
-\itemize{
-\item "nested" (default): Tags as structured nested tibble
-\item "json": Tags as raw JSON string
-\item "wide": Tags expanded into individual columns
-}}
+\item{\code{tagDelimiter}}{a character used to seperate tags in the view. Default is |}
 }
 \if{html}{\out{</div>}}
 }
@@ -1135,8 +1130,8 @@ Query cohorts by IDs
 
 \item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
 \itemize{
-\item "nested": Tags as nested tibble with tag_name/tag_value columns
-\item "json" (default): Tags as raw JSON string
+\item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+\item "json": Tags as raw JSON string
 \item "wide": Tags expanded into individual columns
 }}
 }
@@ -1172,8 +1167,8 @@ argument controls whether a cohort must satisfy any or all of them.}
 
 \item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
 \itemize{
-\item "nested": Tags as nested tibble with tag_name/tag_value columns
-\item "json" (default): Tags as raw JSON string
+\item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+\item "json": Tags as raw JSON string
 \item "wide": Tags expanded into individual columns
 }}
 }
@@ -1208,8 +1203,8 @@ Defaults to "exact".}
 
 \item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
 \itemize{
-\item "nested": Tags as nested tibble with tag_name/tag_value columns
-\item "json" (default): Tags as raw JSON string
+\item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+\item "json": Tags as raw JSON string
 \item "wide": Tags expanded into individual columns
 }}
 }
@@ -1244,8 +1239,8 @@ Defaults to "exact".}
 
 \item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
 \itemize{
-\item "nested": Tags as nested tibble with tag_name/tag_value columns
-\item "json" (default): Tags as raw JSON string
+\item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+\item "json": Tags as raw JSON string
 \item "wide": Tags expanded into individual columns
 }}
 }
@@ -1275,8 +1270,8 @@ Query cohorts by category
 
 \item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
 \itemize{
-\item "nested": Tags as nested tibble with tag_name/tag_value columns
-\item "json" (default): Tags as raw JSON string
+\item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+\item "json": Tags as raw JSON string
 \item "wide": Tags expanded into individual columns
 }}
 }
@@ -1306,8 +1301,8 @@ Query cohorts missing a specific tag
 
 \item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
 \itemize{
-\item "nested": Tags as nested tibble with tag_name/tag_value columns
-\item "json" (default): Tags as raw JSON string
+\item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+\item "json": Tags as raw JSON string
 \item "wide": Tags expanded into individual columns
 }}
 }
@@ -1338,8 +1333,8 @@ Example: \code{list(status = "approved", type = "primary")} requires both condit
 
 \item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
 \itemize{
-\item "nested": Tags as nested tibble with tag_name/tag_value columns
-\item "json" (default): Tags as raw JSON string
+\item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+\item "json": Tags as raw JSON string
 \item "wide": Tags expanded into individual columns
 }}
 }
