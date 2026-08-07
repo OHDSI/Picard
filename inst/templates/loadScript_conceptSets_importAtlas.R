@@ -2,9 +2,9 @@
 # File: importAtlas.R
 # ================================================================================
 #
-# Study: {studyName}
-# Author: {author}
-# Purpose: {description}
+# Study: <<studyName>>
+# Author: <<author>>
+# Purpose: <<description>>
 #
 # This script imports concept set definitions from ATLAS using the manifest API.
 # It is designed to be sourced as part of the pre-pipeline setup workflow.

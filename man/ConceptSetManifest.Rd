@@ -70,7 +70,8 @@ this method to apply updates.
 
 \strong{Processing:}
 \enumerate{
-\item Retrieves the concept set definition (CIRCE JSON) by ID
+\item Resolves the concept set by manifest ID or exact label
+\item Retrieves the concept set definition (CIRCE JSON)
 \item Builds SQL query using \code{CirceR::buildConceptSetQuery()}
 \item Executes query against the OMOP vocabulary schema
 \item Returns results with concept_id and concept_name columns
@@ -595,8 +596,8 @@ Query concept sets by IDs
 
 \item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
 \itemize{
-\item "nested": Tags as nested tibble with tag_name/tag_value columns
-\item "json" (default): Tags as raw JSON string
+\item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+\item "json": Tags as raw JSON string
 \item "wide": Tags expanded into individual columns
 }}
 }
@@ -632,8 +633,8 @@ argument controls whether a concept set must satisfy any or all of them.}
 
 \item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
 \itemize{
-\item "nested": Tags as nested tibble with tag_name/tag_value columns
-\item "json" (default): Tags as raw JSON string
+\item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+\item "json": Tags as raw JSON string
 \item "wide": Tags expanded into individual columns
 }}
 }
@@ -668,8 +669,8 @@ Defaults to "exact".}
 
 \item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
 \itemize{
-\item "nested": Tags as nested tibble with tag_name/tag_value columns
-\item "json" (default): Tags as raw JSON string
+\item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+\item "json": Tags as raw JSON string
 \item "wide": Tags expanded into individual columns
 }}
 }
@@ -699,8 +700,8 @@ Query concept sets by tag name
 
 \item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
 \itemize{
-\item "nested": Tags as nested tibble with tag_name/tag_value columns
-\item "json" (default): Tags as raw JSON string
+\item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+\item "json": Tags as raw JSON string
 \item "wide": Tags expanded into individual columns
 }}
 }
@@ -730,8 +731,8 @@ Query concept sets missing a specific tag
 
 \item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
 \itemize{
-\item "nested": Tags as nested tibble with tag_name/tag_value columns
-\item "json" (default): Tags as raw JSON string
+\item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+\item "json": Tags as raw JSON string
 \item "wide": Tags expanded into individual columns
 }}
 }
@@ -762,8 +763,8 @@ Example: \code{list(status = "approved", type = "primary")} requires both condit
 
 \item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
 \itemize{
-\item "nested": Tags as nested tibble with tag_name/tag_value columns
-\item "json" (default): Tags as raw JSON string
+\item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+\item "json": Tags as raw JSON string
 \item "wide": Tags expanded into individual columns
 }}
 }
@@ -819,8 +820,8 @@ Defaults to "exact".}
 
 \item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
 \itemize{
-\item "nested": Tags as nested tibble with tag_name/tag_value columns
-\item "json" (default): Tags as raw JSON string
+\item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+\item "json": Tags as raw JSON string
 \item "wide": Tags expanded into individual columns
 }}
 }
@@ -1389,13 +1390,15 @@ The concept set definition (stored as CIRCE JSON) is used to build a query that 
 all concept IDs and names matching the set definition. Results are returned as a tibble
 with concept identifiers and display names.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$grabConceptInfoFromSet(conceptSetId)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$grabConceptInfoFromSet(conceptSetRef)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{conceptSetId}}{Integer. The concept set ID in the manifest.}
+\item{\code{conceptSetRef}}{Integer or Character. Concept set reference in the
+manifest. Pass either the manifest ID or the exact concept set label.
+Use \code{tabulateManifest()} to inspect available IDs and labels.}
 }
 \if{html}{\out{</div>}}
 }

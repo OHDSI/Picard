@@ -15,6 +15,7 @@
   - `generateCohorts()` now lists stale cohorts in its confirmation prompt (they are exactly the cohorts that need generating) and flags them as such.
   - `print()` and `getManifestStatus()` count stale cohorts as registered and break them out separately; `getManifestStatus()` gains `stale_count`.
   - Fixed `viewManifest()` erroring on an undefined `tags_format` argument; it now also shows the `status` column.
+- Manifest tag parsing no longer assumes the `tags` column holds a JSON string (see Issue #78). The `query*ByTagName()` methods default to `tags_format = "nested"`, which returns tags as a `tag_name`/`tag_value` tibble, so internal callers that re-parsed that column failed with `Argument 'txt' must be a JSON string, URL or file.` This broke `importAtlasCohorts()`/`importAtlasConceptSets()` (and therefore `sourceInputBuilderScripts()`), as well as `listAllUniqueTags()` and `getTagValuesSummary()`. Tag parsing now goes through a shared helper that accepts JSON strings, nested tibbles, and already-parsed lists, and treats missing/empty/malformed tags as no tags.
 - add `$queryConceptSetsByCategory()` it was missing
 - add `stopIfExists` option to ATLAS csv load builders (see Issue #65)
 - Custom dependent cohort builder is now consistent with the other dependent cohort builders - the rendered SQL query is written to the file system, and it accepts cohort objects as inputs instead of IDs. 

@@ -1201,7 +1201,9 @@ makeInputBuilderScript <- function(type,
     glue::glue(
       studyName = studyName,
       author = "ADD AUTHOR NAME HERE",
-      description = "Edit this file to build and load your manifest"
+      description = "Edit this file to build and load your manifest",
+      .open = "<<",
+      .close = ">>"
     )
   
   # Display message

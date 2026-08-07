@@ -2,9 +2,9 @@
 # File: buildDependentCohorts.R
 # ================================================================================
 #
-# Study: {studyName}
-# Author: {author}
-# Purpose: {description}
+# Study: <<studyName>>
+# Author: <<author>>
+# Purpose: <<description>>
 #
 # This script builds dependent/derived cohorts that are defined by their
 # relationship to other cohorts already in the manifest.

@@ -2,9 +2,9 @@
 # File: importSql.R
 # ================================================================================
 #
-# Study: {studyName}
-# Author: {author}
-# Purpose: {description}
+# Study: <<studyName>>
+# Author: <<author>>
+# Purpose: <<description>>
 #
 # This script loads custom SQL-based cohorts into the manifest.
 # Use this when a cohort cannot be expressed in ATLAS CIRCE or as a derived cohort.

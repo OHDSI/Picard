@@ -49,4 +49,5 @@ Folder structure expected:
 }\if{html}{\out{</div>}}
 
 All files with the same name from each database are combined with databaseId added and saved to exportPath.
+Exported filenames are prefixed with the task sequence from \code{taskName} (e.g., \verb{01_results.csv}) to avoid collisions across tasks.
 }

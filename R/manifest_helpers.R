@@ -1298,6 +1298,69 @@ cascadeStaleDownstream <- function(dbPath, cohort_ids) {
   invisible(visited)
 }
 
+#' Parse a manifest tags value into a named list
+#'
+#' Manifest tags are stored in sqlite as a JSON string, but they reach calling
+#' code in several shapes: the raw JSON string (`tags_format = "json"`), a
+#' nested `tag_name`/`tag_value` tibble (`tags_format = "nested"`, the default
+#' for `tabulateManifest()` and the `query*()` methods), or an already-parsed
+#' list. `safe_parse_tags()` normalises any of those to a named list so tag
+#' handling never depends on which format it was handed.
+#'
+#' @param tags A JSON string, a named list, or a `tag_name`/`tag_value` data
+#'   frame. `NULL`, `NA`, empty strings, and unparseable JSON all yield
+#'   `list()`.
+#'
+#' @return A named list of tag values.
+#' @noRd
+safe_parse_tags <- function(tags) {
+  if (is.null(tags) || length(tags) == 0) {
+    return(list())
+  }
+
+  # "nested" format: one row per tag
+  if (is.data.frame(tags)) {
+    if (nrow(tags) == 0 || !all(c("tag_name", "tag_value") %in% names(tags))) {
+      return(list())
+    }
+    return(stats::setNames(as.list(tags$tag_value), as.character(tags$tag_name)))
+  }
+
+  # Already parsed
+  if (is.list(tags)) {
+    return(as.list(tags))
+  }
+
+  tags <- as.character(tags)
+  if (length(tags) != 1L || is.na(tags) || !nzchar(trimws(tags))) {
+    return(list())
+  }
+
+  parsed <- tryCatch(jsonlite::fromJSON(tags), error = function(e) NULL)
+  if (is.null(parsed) || length(parsed) == 0) {
+    return(list())
+  }
+
+  as.list(parsed)
+}
+
+#' Pull a single tag value out of a manifest tags value
+#'
+#' @param tags Anything `safe_parse_tags()` accepts.
+#' @param tagName Character. Name of the tag to extract.
+#' @param default Value returned when the tag is absent or empty.
+#'
+#' @return The first value stored under `tagName`, or `default`.
+#' @noRd
+safe_tag_value <- function(tags, tagName, default = NA_character_) {
+  parsed <- safe_parse_tags(tags)
+  value <- parsed[[tagName]]
+  if (is.null(value) || length(value) == 0 || all(is.na(value))) {
+    return(default)
+  }
+  value[[1]]
+}
+
 list_tags_in_row <- function(row) {
   reserved_cols <- c("atlasId","label", "category", "file_name") # file_name is legacy
   tag_cols <- setdiff(names(row), reserved_cols)
@@ -1318,8 +1381,9 @@ check_which_atlas_exist <- function(atlas_subset, input_load) {
       id, label, category, tags
     ) |> 
     dplyr::mutate(
-      tags_list = purrr::map(tags, ~jsonlite::fromJSON(.x)),
-      atlasId = purrr::map_int(tags_list, ~.x$atlasId),
+      atlasId = purrr::map_int(tags, ~suppressWarnings(
+        as.integer(safe_tag_value(.x, "atlasId", default = NA_integer_))
+      )),
       status = "active"
     ) |>
     dplyr::select(
@@ -1338,17 +1402,12 @@ check_which_atlas_exist <- function(atlas_subset, input_load) {
 
 
 jsonToStingTags <- function(tags_json, tag_delimiter) {
-  if (is.na(tags_json) || is.null(tags_json) || tags_json == "") {
-    rr <- ""
-    return(rr)
-  }
-  
-  parsed_tags <- jsonlite::fromJSON(tags_json)
+  parsed_tags <- safe_parse_tags(tags_json)
   if (length(parsed_tags) == 0) {
     rr <- ""
     return(rr)
   }
-  
+
   tag_values <- as.character(unlist(parsed_tags, use.names = FALSE))
   tag_names <- names(parsed_tags)
   
