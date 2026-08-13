@@ -371,8 +371,10 @@ evaluate_cohort_skip_status <- function(
         dependency_status <- "New" 
     }
   } else {
+    # A cohort explicitly marked stale is never skipped, whatever the checksum
+    # says — 'stale' is the manifest asserting the generated table is out of date
     current_hash <- cohort$getSqlHash()
-    if (!is.null(stored_hash) && !is.na(stored_hash) && stored_hash == current_hash) {
+    if (!is_stale && !is.null(stored_hash) && !is.na(stored_hash) && stored_hash == current_hash) {
       should_skip <- TRUE
     }
   }

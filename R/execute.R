@@ -299,20 +299,33 @@ generateCohorts <- function(executionSettings, pipelineVersion, override = FALSE
     stop("No cohorts found in manifest. Please add cohorts before generating.")
   }
   
-  # Display the cohorts that will be generated
+  # Display the cohorts that will be generated. This listing covers every
+  # registered cohort, including ones marked 'stale' — those are exactly the
+  # cohorts that need regenerating, so hiding them here would be backwards.
+  staleCount <- sum(cmSummary$status == "stale", na.rm = TRUE)
+
   cli::cli_rule("Cohorts to Generate")
   cli::cli_alert_info("Found {nrow(cmSummary)} cohort(s) in manifest")
-  
+  if (staleCount > 0) {
+    cli::cli_alert_warning(
+      "{staleCount} cohort(s) are marked stale and will be regenerated (flagged below)."
+    )
+  }
+
   # Format and display the cohorts
   for (i in seq_len(nrow(cmSummary))) {
     row <- cmSummary[i, ]
     cohort_id <- row$id
     cohort_label <- row$label
     cohort_tags <- row$tags
-    
+
     # Display basic info
-    cli::cli_alert_success("Cohort {cohort_id}: {cohort_label}")
-    
+    if (identical(row$status, "stale")) {
+      cli::cli_alert_warning("Cohort {cohort_id}: {cohort_label} [stale - will regenerate]")
+    } else {
+      cli::cli_alert_success("Cohort {cohort_id}: {cohort_label}")
+    }
+
     # Display tags if available
     if (!is.na(cohort_tags) && cohort_tags != "" && cohort_tags != "NULL") {
       cli::cli_bullets(c(i = "Tags: {cohort_tags}"))

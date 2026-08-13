@@ -9,6 +9,12 @@
 
 ## Bug Fixes
 
+- Fixed several problems with the `'stale'` cohort status (see Issue #74). `'stale'` now consistently means "registered, but needs regenerating", rather than removing a cohort from the study:
+  - Re-running a derived cohort builder (e.g. `addDependentCustomCohort()`, `buildUnionCohort()`) with `stopIfExists = FALSE` and unchanged inputs no longer marks the cohort — and everything downstream of it — stale. Staleness is now cascaded only on a real definition change (content hash, file path, parents, or build rule), and a metadata-only edit no longer forces regeneration.
+  - Stale cohorts are once again returned by `tabulateManifest(filter = "active")` and therefore by all `query...()` methods, so they can be queried by label/tag/category and used as parents for new derived cohorts.
+  - `generateCohorts()` now lists stale cohorts in its confirmation prompt (they are exactly the cohorts that need generating) and flags them as such.
+  - `print()` and `getManifestStatus()` count stale cohorts as registered and break them out separately; `getManifestStatus()` gains `stale_count`.
+  - Fixed `viewManifest()` erroring on an undefined `tags_format` argument; it now also shows the `status` column.
 - Manifest tag parsing no longer assumes the `tags` column holds a JSON string (see Issue #78). The `query*ByTagName()` methods default to `tags_format = "nested"`, which returns tags as a `tag_name`/`tag_value` tibble, so internal callers that re-parsed that column failed with `Argument 'txt' must be a JSON string, URL or file.` This broke `importAtlasCohorts()`/`importAtlasConceptSets()` (and therefore `sourceInputBuilderScripts()`), as well as `listAllUniqueTags()` and `getTagValuesSummary()`. Tag parsing now goes through a shared helper that accepts JSON strings, nested tibbles, and already-parsed lists, and treats missing/empty/malformed tags as no tags.
 - add `$queryConceptSetsByCategory()` it was missing
 - add `stopIfExists` option to ATLAS csv load builders (see Issue #65)
