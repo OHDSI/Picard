@@ -140,3 +140,51 @@ testthat::test_that("prepareDisseminationData rejects non-scalar flags", {
     regexp = "missing"
   )
 })
+
+# Testing: standardizeDataTypes() must not destroy columns that match a type
+# rule but cannot be coerced to it. The "_id$" rule matches the character
+# database_id column produced by cleanColumnNames() (issue #87 follow-up).
+testthat::test_that("standardizeDataTypes preserves character id columns", {
+  data <- tibble::tibble(
+    database_id = c("db_alpha", "db_beta"),
+    cohort_id = c("1", "2"),
+    person_count = c("10", "20")
+  )
+
+  result <- suppressMessages(standardizeDataTypes(data))
+
+  testthat::expect_identical(result$database_id, c("db_alpha", "db_beta"))
+  testthat::expect_identical(result$cohort_id, c(1L, 2L))
+  testthat::expect_identical(result$person_count, c(10L, 20L))
+})
+
+testthat::test_that("standardizeDataTypes reports the columns it skips", {
+  data <- tibble::tibble(database_id = c("db_alpha", "db_beta"))
+
+  testthat::expect_message(
+    standardizeDataTypes(data),
+    "Skipping database_id"
+  )
+})
+
+testthat::test_that("standardizeDataTypes keeps genuine NA values", {
+  data <- tibble::tibble(cohort_id = c("1", NA, "3"))
+
+  result <- suppressMessages(standardizeDataTypes(data))
+
+  testthat::expect_identical(result$cohort_id, c(1L, NA_integer_, 3L))
+})
+
+# Testing: the full default-flag path an analyst actually calls, end to end.
+testthat::test_that("prepareDisseminationData does not blank out databaseId", {
+  data <- tibble::tibble(
+    databaseId = c("db_alpha", "db_beta"),
+    cohortId = c(1L, 2L),
+    personCount = c(10L, 20L)
+  )
+
+  result <- suppressMessages(prepareDisseminationData(data))
+
+  testthat::expect_identical(result$database_id, c("db_alpha", "db_beta"))
+  testthat::expect_false(anyNA(result$database_id))
+})
