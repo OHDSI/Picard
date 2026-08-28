@@ -271,7 +271,7 @@ prepareDisseminationData <- function(
 
   checkmate::assert_data_frame(data)
   checkmate::assert_logical(c(clean_names, format_percentages, format_floats, standardize_types),
-    len = 1, any.missing = FALSE
+    len = 4, any.missing = FALSE
   )
 
   cli::cli_rule("Prepare Dissemination Data")
