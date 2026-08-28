@@ -28,6 +28,13 @@ library(picard)
 #   - outputPath: Base output directory for results
 #   - resultsPath: Merged results directory (dissemination/export/merge/v{version}/)
 
+# To test this script interactively (line by line) before running it via
+# sourceDisseminationScripts(), build the same object yourself:
+# disseminationEnv <- createDisseminationEnv(
+#   pipelineVersion = "1.0.0",
+#   databaseIds = c("database_1", "database_2")
+# )
+
 cat("Dissemination Metadata:\n")
 cat("  Pipeline Version:", disseminationEnv$pipelineVersion, "\n")
 cat("  Database IDs:", paste(disseminationEnv$databaseIds, collapse = ", "), "\n")

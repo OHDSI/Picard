@@ -1351,6 +1351,127 @@ sourceInputBuilderScripts <- function(
   invisible(ll)
 }
 
+#' Detect the pipeline version recorded in a study's config.yml
+#'
+#' @param projectPath Character. Path to the project root directory.
+#' @return Character scalar with the version, or NULL when it cannot be found.
+#' @noRd
+detect_pipeline_version <- function(projectPath) {
+  configFilePath <- fs::path(projectPath, "config.yml")
+
+  if (!fs::file_exists(configFilePath)) {
+    return(NULL)
+  }
+
+  version <- tryCatch(
+    config::get("version", file = configFilePath),
+    error = function(e) NULL
+  )
+
+  if (is.null(version) || length(version) == 0) {
+    return(NULL)
+  }
+
+  as.character(version)[1]
+}
+
+#' Create a Dissemination Environment Object
+#'
+#' @description
+#' Builds the \code{disseminationEnv} object that dissemination scripts in
+#' \code{dissemination/pretty/R/} rely on. \code{\link{sourceDisseminationScripts}}
+#' creates this object automatically before sourcing those scripts, but while
+#' authoring a script you often want the same metadata at the console so the
+#' code can be tested line by line. Call this function to build it standalone.
+#'
+#' @param projectPath Character. Path to the project root directory.
+#'   Defaults to \code{here::here()}.
+#' @param pipelineVersion Character. The pipeline/study version being disseminated
+#'   (e.g., "1.0.0"). If NULL (default), attempts to auto-detect from config.yml.
+#' @param databaseIds Character vector. Database IDs that were included in
+#'   postprocessing (e.g., c("database_1", "database_2")). If NULL (default), the
+#'   corresponding element is NULL and can be set manually by the user.
+#' @param outputPath Character. Base output directory for dissemination scripts.
+#'   Defaults to \code{here::here("dissemination/pretty")}.
+#' @param verbose Logical. If TRUE (default), reports the metadata that was built.
+#'
+#' @return A list with elements:
+#'   \itemize{
+#'     \item \code{pipelineVersion}: The version string (or NULL when unknown)
+#'     \item \code{databaseIds}: Vector of database IDs (or NULL)
+#'     \item \code{outputPath}: Base output directory for results
+#'     \item \code{resultsPath}: Merged results path for the version
+#'       (\code{dissemination/export/merge/v{version}}), or \code{NA_character_}
+#'       when the version is unknown
+#'   }
+#'
+#' @details
+#' Use this while developing a dissemination script:
+#' assign the result to a variable named \code{disseminationEnv} in the global
+#' environment so the script body behaves exactly as it will when
+#' \code{\link{sourceDisseminationScripts}} runs it.
+#'
+#' @examples
+#' \dontrun{
+#' # Build the object interactively while writing a dissemination script
+#' disseminationEnv <- createDisseminationEnv(
+#'   pipelineVersion = "1.0.0",
+#'   databaseIds = c("database_1", "database_2")
+#' )
+#'
+#' # Now the script code can be run line by line
+#' results <- readr::read_csv(
+#'   fs::path(disseminationEnv$resultsPath, "cohort_counts.csv")
+#' )
+#' }
+#'
+#' @export
+createDisseminationEnv <- function(
+    projectPath = here::here(),
+    pipelineVersion = NULL,
+    databaseIds = NULL,
+    outputPath = here::here("dissemination/pretty"),
+    verbose = TRUE) {
+
+  checkmate::assert_string(projectPath)
+  checkmate::assert_string(pipelineVersion, null.ok = TRUE)
+  checkmate::assert_character(
+    databaseIds,
+    min.len = 1, any.missing = FALSE, null.ok = TRUE
+  )
+  checkmate::assert_string(outputPath)
+  checkmate::assert_logical(verbose, len = 1, any.missing = FALSE)
+
+  if (is.null(pipelineVersion)) {
+    pipelineVersion <- detect_pipeline_version(projectPath)
+  }
+
+  disseminationEnv <- list(
+    pipelineVersion = pipelineVersion,
+    databaseIds = databaseIds,
+    outputPath = outputPath,
+    resultsPath = if (!is.null(pipelineVersion)) {
+      fs::path(projectPath, "dissemination/export/merge", paste0("v", pipelineVersion))
+    } else {
+      NA_character_
+    }
+  )
+
+  if (verbose) {
+    if (is.null(pipelineVersion)) {
+      cli::cli_alert_warning(
+        "No pipeline version found in {.file config.yml}; {.code resultsPath} is unavailable. Supply {.arg pipelineVersion} to set it."
+      )
+    } else {
+      cli::cli_alert_info(
+        "Dissemination metadata: pipelineVersion = {.val {pipelineVersion}}, resultsPath = {.file {disseminationEnv$resultsPath}}"
+      )
+    }
+  }
+
+  disseminationEnv
+}
+
 #' Source Dissemination Scripts
 #'
 #' A convenience function that sources all R scripts from the dissemination
@@ -1363,8 +1484,11 @@ sourceInputBuilderScripts <- function(
 #' Dissemination scripts are sourced from \code{dissemination/pretty/R/} in
 #' alphabetical order. Each script is sourced in the global environment, so
 #' any variables, functions, or file outputs are available at the console level.
-#' A \code{disseminationEnv} object is automatically created and injected into
-#' the global environment for use by dissemination scripts.
+#' A \code{disseminationEnv} object is automatically created (via
+#' \code{\link{createDisseminationEnv}}) and injected into the global
+#' environment for use by dissemination scripts. Call
+#' \code{\link{createDisseminationEnv}} directly to build the same object at the
+#' console while authoring a dissemination script.
 #'
 #' @param projectPath Character. Path to the project root directory.
 #'   Defaults to \code{here::here()}.
@@ -1421,26 +1545,14 @@ sourceDisseminationScripts <- function(
   directories_checked <- character(0)
   errors <- list()
 
-  # Auto-detect pipelineVersion from config if not provided
-  if (is.null(pipelineVersion)) {
-    tryCatch({
-      pipelineVersion <- config::get("version", file = fs::path(projectPath, "config.yml"))
-    }, error = function(e) {
-      # Version not found, will remain NULL
-    })
-  }
-
   # Create disseminationEnv object to inject into global environment
   # This allows dissemination scripts to access metadata without hardcoding
-  disseminationEnv <- list(
+  disseminationEnv <- createDisseminationEnv(
+    projectPath = projectPath,
     pipelineVersion = pipelineVersion,
     databaseIds = databaseIds,
     outputPath = outputPath,
-    resultsPath = if (!is.null(pipelineVersion)) {
-      fs::path(projectPath, "dissemination/export/merge", paste0("v", pipelineVersion))
-    } else {
-      NA_character_
-    }
+    verbose = FALSE
   )
 
   # Define dissemination scripts directory
