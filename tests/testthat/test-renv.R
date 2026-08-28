@@ -57,3 +57,51 @@ testthat::test_that("renv_status_drift tolerates missing records", {
     character(0)
   )
 })
+
+# Testing: the pipeline records renv.lock for the audit trail but must never
+# rewrite it — snapshotting mid-run dirties the tree the code-state check just
+# validated, so keeping the lockfile current is the analyst's call.
+testthat::test_that("captureLockfile hashes without modifying the lockfile", {
+  tmp <- withr::local_tempdir()
+  lock <- fs::path(tmp, "renv.lock")
+  readr::write_file('{"R": {"Version": "4.4.1"}}', lock)
+
+  before_mtime <- fs::file_info(lock)$modification_time
+  before_content <- readr::read_file(lock)
+
+  hash <- captureLockfile(path = lock)
+
+  testthat::expect_identical(hash, rlang::hash(before_content))
+  testthat::expect_identical(readr::read_file(lock), before_content)
+  testthat::expect_identical(fs::file_info(lock)$modification_time, before_mtime)
+})
+
+testthat::test_that("captureLockfile archives a versioned copy when asked", {
+  tmp <- withr::local_tempdir()
+  lock <- fs::path(tmp, "renv.lock")
+  readr::write_file('{"R": {"Version": "4.4.1"}}', lock)
+
+  suppressMessages(
+    captureLockfile(versionLabel = "1.2.0", savePath = tmp, path = lock)
+  )
+
+  archived <- fs::path(tmp, "renv_lock_1.2.0.json")
+  testthat::expect_true(fs::file_exists(archived))
+  testthat::expect_identical(readr::read_file(archived), readr::read_file(lock))
+})
+
+testthat::test_that("captureLockfile aborts when the lockfile is missing", {
+  tmp <- withr::local_tempdir()
+
+  testthat::expect_error(
+    captureLockfile(path = fs::path(tmp, "renv.lock")),
+    "not found"
+  )
+})
+
+testthat::test_that("preflight checks do not call renv::snapshot", {
+  body_text <- paste(deparse(body(runPreflightChecks)), collapse = " ")
+
+  testthat::expect_false(grepl("snapshotEnvironment(", body_text, fixed = TRUE))
+  testthat::expect_true(grepl("lockfileHashOnDisk(", body_text, fixed = TRUE))
+})

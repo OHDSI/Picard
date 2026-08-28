@@ -49,6 +49,32 @@ initializeRenv <- function() {
   })
 }
 
+# Record the lockfile as it currently stands on disk, without writing to it.
+# Used for the run audit trail, where capturing what the environment *is* must
+# not change what it is. Optionally archives a versioned copy for provenance.
+captureLockfile <- function(versionLabel = NULL, savePath = NULL, path = "renv.lock") {
+  if (!fs::file_exists(path)) {
+    cli::cli_abort("{.file {path}} not found. Run {.code initializeRenv()} first.")
+  }
+
+  lockfile_content <- readr::read_file(path)
+
+  if (!is.null(versionLabel)) {
+    versioned_path <- fs::path(
+      savePath %||% ".",
+      glue::glue("renv_lock_{versionLabel}.json")
+    )
+    readr::write_file(lockfile_content, versioned_path)
+    cli::cli_alert_success("Versioned copy saved: {fs::path_rel(versioned_path)}")
+  }
+
+  invisible(rlang::hash(lockfile_content))
+}
+
+lockfileHashOnDisk <- function(path = "renv.lock") {
+  captureLockfile(path = path)
+}
+
 #' Snapshot Current Environment State
 #' @description Captures all package versions and saves lockfile.
 #'   Useful before major pipeline operations for reproducibility tracking.
@@ -78,41 +104,7 @@ snapshotEnvironment <- function(versionLabel = NULL, savePath = NULL) {
     renv::snapshot(prompt = FALSE)
     cli::cli_alert_success("✓ Snapshot complete: renv.lock updated")
 
-    # Save versioned copy if requested
-    if (!is.null(versionLabel)) {
-      lockfile_path <- "renv.lock"
-
-      if (!file.exists(lockfile_path)) {
-        cli::cli_abort("renv.lock not found. Run initializeRenv() first.")
-      }
-
-      # Read lockfile
-      lockfile_content <- readr::read_file(lockfile_path)
-
-      # Compute hash
-      lockfile_hash <- rlang::hash(lockfile_content)
-
-      # Determine save path
-      if (is.null(savePath)) {
-        savePath <- "."
-      }
-
-      # Save versioned copy
-      versioned_path <- fs::path(
-        savePath,
-        glue::glue("renv_lock_{versionLabel}.json")
-      )
-
-      readr::write_file(lockfile_content, versioned_path)
-      cli::cli_alert_success("✓ Versioned copy saved: {fs::path_rel(versioned_path)}")
-
-      return(invisible(lockfile_hash))
-    } else {
-      # Return hash of main lockfile anyway
-      lockfile_content <- readr::read_file("renv.lock")
-      lockfile_hash <- rlang::hash(lockfile_content)
-      return(invisible(lockfile_hash))
-    }
+    captureLockfile(versionLabel = versionLabel, savePath = savePath)
   }, error = function(e) {
     cli::cli_abort("Failed to snapshot environment: {e$message}")
   })
