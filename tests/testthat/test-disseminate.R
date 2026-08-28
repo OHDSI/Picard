@@ -51,8 +51,9 @@ testthat::test_that("importAndBind labels merged results with databaseId", {
     )
   )
 
+  # importAndBind() prefixes merged files with the task sequence from taskName
   merged <- readr::read_csv(
-    fs::path(root, "dissemination", "export", "merge", "cohort_counts.csv"),
+    fs::path(root, "dissemination", "export", "merge", "01_cohort_counts.csv"),
     show_col_types = FALSE
   )
 
