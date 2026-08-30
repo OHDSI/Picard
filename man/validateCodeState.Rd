@@ -4,14 +4,34 @@
 \alias{validateCodeState}
 \title{Validate Code State Before Pipeline Operations}
 \usage{
-validateCodeState()
+validateCodeState(ignorePaths = character(0))
+}
+\arguments{
+\item{ignorePaths}{Character vector of repo-relative folder or file paths whose
+uncommitted changes should not block execution. Defaults to \code{character(0)},
+i.e. any uncommitted change blocks.}
 }
 \value{
-Character. Current commit SHA (invisible)
+Invisibly, a list with:
+\itemize{
+\item \code{sha} - the HEAD commit SHA,
+\item \code{status} - \code{"clean"} when the working tree had no uncommitted changes,
+\code{"dirty-ignored"} when it did but every change fell inside \code{ignorePaths},
+\item \code{clean} - logical, \code{TRUE} only when the tree was genuinely clean,
+\item \code{ignoredFiles} - the uncommitted files that were tolerated,
+\item \code{ignorePaths} - the normalized paths that were honoured.
+}
 }
 \description{
-Ensures the repository is in a clean state (no uncommitted changes)
-before running major pipeline operations. Returns the current commit SHA for
+Ensures the repository is in a clean state before running major
+pipeline operations, and reports the current commit SHA for
 audit/reproducibility tracking.
+
+Uncommitted changes confined to \code{ignorePaths} do not block execution. This is
+the supported escape hatch for study repositories whose \verb{inputs/} folder churns
+without a deliberate edit (manifest sqlite files rewritten on re-import,
+ATLAS-sourced JSON refetched). Changes anywhere else - notably \verb{analysis/} -
+still abort. The default ignores nothing, so behaviour is unchanged unless a
+study opts in.
 }
 \keyword{internal}

@@ -402,11 +402,20 @@ generateCohorts <- function(executionSettings, pipelineVersion, override = FALSE
 #'  based on file changes, dependencies, cohort changes, and previous errors. Automatically builds execution settings from configBlock.
 #'  Default: FALSE
 #' @param env the execution environment
+#' @param codeState List or NULL. Working-tree provenance from
+#'   \code{runPreflightChecks()} (\code{sha} and \code{status}). Recorded in
+#'   \code{exec/logs/task_run_history.csv} alongside each run. NULL — the
+#'   default, used when a task is run outside the pipeline — records the code
+#'   state as \code{"unrecorded"} rather than implying a clean tree.
 #' @keywords internal
 execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
                          checkStatus = FALSE,
                          env = rlang::caller_env(),
-                         cohortTableSuffix = NULL) {
+                         cohortTableSuffix = NULL,
+                         codeState = NULL) {
+
+  commitSha <- codeState$sha %||% NA_character_
+  codeStateLabel <- codeState$status %||% "unrecorded"
 
   cli::cat_rule(glue::glue_col("Run Task: {yellow {taskFile}}"))
   cli::cat_bullet(
@@ -423,7 +432,8 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
   if (!file.exists(fullTaskFilePath)) {
     cli::cli_alert_danger("Task file not found: {fs::path_rel(fullTaskFilePath)}")
     recordTaskExecution(taskFile, configBlock, pipelineVersion, "failed",
-                        errorMessage = "Task file does not exist")
+                        errorMessage = "Task file does not exist",
+                        commitSha = commitSha, codeState = codeStateLabel)
     stop("Task file does not exist")
   }
 
@@ -451,7 +461,8 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
 
       if (!statusCheck$should_rerun) {
         cli::cli_alert_success("Task is up to date - skipping execution")
-        recordTaskExecution(taskFile, configBlock, pipelineVersion, "skipped")
+        recordTaskExecution(taskFile, configBlock, pipelineVersion, "skipped",
+                            commitSha = commitSha, codeState = codeStateLabel)
         return(invisible(NULL))
       }
     }
@@ -463,7 +474,8 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
   }, error = function(e) {
     cli::cli_alert_danger("Task validation failed: {e$message}")
     recordTaskExecution(taskFile, configBlock, pipelineVersion, "failed",
-                        errorMessage = paste("Validation failed:", e$message))
+                        errorMessage = paste("Validation failed:", e$message),
+                        commitSha = commitSha, codeState = codeStateLabel)
     stop("Invalid task structure - cannot execute")
   })
 
@@ -476,7 +488,8 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
   }, error = function(e) {
     cli::cli_alert_danger("Failed to read task file: {e$message}")
     recordTaskExecution(taskFile, configBlock, pipelineVersion, "failed",
-                        errorMessage = paste("Read error:", e$message))
+                        errorMessage = paste("Read error:", e$message),
+                        commitSha = commitSha, codeState = codeStateLabel)
     stop("Error reading task file")
   })
 
@@ -486,7 +499,8 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
   }, error = function(e) {
     cli::cli_alert_danger("Failed to parse task file: {e$message}")
     recordTaskExecution(taskFile, configBlock, pipelineVersion, "failed",
-                        errorMessage = paste("Parse error:", e$message))
+                        errorMessage = paste("Parse error:", e$message),
+                        commitSha = commitSha, codeState = codeStateLabel)
     stop("Error parsing task expressions")
   })
 
@@ -510,10 +524,12 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
   # Record success or failure
   if (!is.null(executionError)) {
     recordTaskExecution(taskFile, configBlock, pipelineVersion, "failed",
-                        errorMessage = executionError)
+                        errorMessage = executionError,
+                        commitSha = commitSha, codeState = codeStateLabel)
     stop(executionError)
   } else {
-    recordTaskExecution(taskFile, configBlock, pipelineVersion, "success")
+    recordTaskExecution(taskFile, configBlock, pipelineVersion, "success",
+                        commitSha = commitSha, codeState = codeStateLabel)
     cli::cli_alert_success("Task {taskFile} completed successfully")
   }
 
@@ -594,6 +610,11 @@ normalizeTestNamespaceLabel <- function(label, maxChars = 24) {
 #' @param skipConnectivityCheck Logical. If TRUE (default), skips the optional
 #'   database connectivity pre-flight check. Set to FALSE to attempt a test
 #'   connection to each config block before execution begins.
+#' @param ignoreUncommittedPaths Character vector or NULL. Repo-relative paths
+#'   whose uncommitted changes do not fail the code-state check. NULL (default)
+#'   reads the list from config.yml, which itself defaults to ignoring nothing.
+#' @param skipCodeStateCheck Logical. If TRUE, skips the code-state check
+#'   entirely. Default: FALSE
 #' @param env the execution environment
 #' @param pipelineVersionOverride Character. Optional test-mode override for
 #'   the pipeline version folder label.
@@ -603,6 +624,8 @@ normalizeTestNamespaceLabel <- function(label, maxChars = 24) {
 #' @keywords internal
 execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
                              skipRenv = FALSE, skipConnectivityCheck = TRUE,
+                             ignoreUncommittedPaths = NULL,
+                             skipCodeStateCheck = FALSE,
                              env = rlang::caller_env(),
                              pipelineVersionOverride = NULL,
                              cohortTableSuffix = NULL) {
@@ -681,12 +704,15 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
     testMode = testMode,
     skipRenv = skipRenv,
     skipConnectivityCheck = skipConnectivityCheck,
+    ignoreUncommittedPaths = ignoreUncommittedPaths,
+    skipCodeStateCheck = skipCodeStateCheck,
     resultsPath = here::here("exec/results"),
     tasksFolderPath = here::here("analysis/tasks")
   )
 
   lockfileHash <- preFlightResult$lockfileHash
   taskFilesToRun <- preFlightResult$taskFilesToRun
+  codeState <- preFlightResult$codeState
 
   if (length(taskFilesToRun) == 0) {
     cli::cli_alert_warning("No task files found in analysis/tasks folder")
@@ -749,6 +775,14 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
       glue::glue("Update Type: {updateType}"),
       glue::glue("Tasks: {length(taskFilesToRun)}"),
       glue::glue("Test Mode: {testMode}"),
+      glue::glue("Code State: {codeState$status %||% 'unrecorded'}"),
+      glue::glue("Commit SHA: {codeState$sha %||% 'unrecorded'}"),
+      if (length(codeState$ignoredFiles %||% character(0)) > 0) {
+        glue::glue(
+          "Uncommitted Files Ignored ({length(codeState$ignoredFiles)}): ",
+          "{paste(codeState$ignoredFiles, collapse = ', ')}"
+        )
+      },
       "================================================================================",
       ""
     )
@@ -809,7 +843,8 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
           pipelineVersion = pipelineVersion,
           cohortTableSuffix = cohortTableSuffixResolved,
           checkStatus = TRUE,
-          env = env
+          env = env,
+          codeState = codeState
         )
         
         successMsg <- glue::glue("  [{format(Sys.time(), '%H:%M:%S')}] ✓ Task completed successfully")
@@ -865,6 +900,7 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
       glue::glue("Total Tasks: {length(taskResults)}"),
       glue::glue("Log File: {fs::path_rel(logFilePath)}"),
       glue::glue("Test Mode: {testMode}"),
+      glue::glue("Code State: {codeState$status %||% 'unrecorded'}"),
       "================================================================================",
       ""
     )
@@ -937,6 +973,19 @@ testStudyPipeline <- function(configBlock, testLabel = "dev", env = rlang::calle
 #' @param skipConnectivityCheck Logical. If TRUE (default), skips the optional
 #'   database connectivity pre-flight check. Set to FALSE to attempt a test
 #'   connection to each config block before execution begins.
+#' @param ignoreUncommittedPaths Character vector or NULL. Repo-relative paths
+#'   (e.g. `"inputs"`) whose uncommitted changes should not fail the code-state
+#'   pre-flight check. Changes anywhere else — notably `analysis/` — still fail
+#'   it. When NULL (default) the list is read from `ignoreUncommittedPaths` in
+#'   the `default:` block of config.yml, which itself defaults to ignoring
+#'   nothing, so behaviour is unchanged unless a study opts in. Pass
+#'   `character(0)` to force strict checking regardless of config.yml.
+#' @param skipCodeStateCheck Logical. If TRUE, skips the code-state check
+#'   entirely — a last resort when `ignoreUncommittedPaths` cannot express the
+#'   churn. The run proceeds, but the pre-flight checklist raises a warning and
+#'   the run history records the tree as `"unverified-skipped"`. Defaults to
+#'   FALSE. Deliberately not settable from config.yml, so it cannot be baked
+#'   permanently into a study.
 #' @param env The execution environment. Defaults to caller environment.
 #' @return Invisibly returns task results list
 #' @export
@@ -944,13 +993,32 @@ testStudyPipeline <- function(configBlock, testLabel = "dev", env = rlang::calle
 #' \dontrun{
 #' # Run production pipeline with patch version increment
 #' execStudyPipeline(configBlock = "myConfig", updateType = "patch")
+#'
+#' # Tolerate manifest/ATLAS churn under inputs/ for this run only
+#' execStudyPipeline(
+#'   configBlock = "myConfig",
+#'   updateType = "patch",
+#'   ignoreUncommittedPaths = "inputs"
+#' )
+#'
+#' # Last resort: do not check the working tree at all
+#' execStudyPipeline(
+#'   configBlock = "myConfig",
+#'   updateType = "patch",
+#'   skipCodeStateCheck = TRUE
+#' )
 #' }
 execStudyPipeline <- function(configBlock, updateType, skipRenv = FALSE,
-                              skipConnectivityCheck = TRUE, env = rlang::caller_env()) {
+                              skipConnectivityCheck = TRUE,
+                              ignoreUncommittedPaths = NULL,
+                              skipCodeStateCheck = FALSE,
+                              env = rlang::caller_env()) {
   checkmate::assert_character(configBlock, min.len = 1, any.missing = FALSE)
   checkmate::assert_string(updateType, min.chars = 1)
   checkmate::assert_logical(skipRenv, len = 1)
   checkmate::assert_logical(skipConnectivityCheck, len = 1)
+  checkmate::assert_character(ignoreUncommittedPaths, any.missing = FALSE, null.ok = TRUE)
+  checkmate::assert_logical(skipCodeStateCheck, len = 1, any.missing = FALSE)
   
   # Check current branch
   branch <- get_current_branch()
@@ -1039,6 +1107,8 @@ execStudyPipeline <- function(configBlock, updateType, skipRenv = FALSE,
     testMode = FALSE,
     skipRenv = skipRenv,
     skipConnectivityCheck = skipConnectivityCheck,
+    ignoreUncommittedPaths = ignoreUncommittedPaths,
+    skipCodeStateCheck = skipCodeStateCheck,
     env = env
   )
   

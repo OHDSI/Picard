@@ -160,6 +160,14 @@ shouldRerunTask <- function(
 #' @param cohortManifestHash Character. Hash of cohort manifest at time of execution (optional)
 #' @param errorMessage Character. Error message if status is "failed" (optional)
 #' @param tasksFolderPath Character. Path to tasks folder (optional)
+#' @param commitSha Character. HEAD commit SHA at execution time, from the
+#'   pre-flight code-state check (optional).
+#' @param codeState Character. Provenance of the working tree at execution time:
+#'   \code{"clean"}, \code{"dirty-ignored"} (uncommitted changes were tolerated
+#'   under configured ignore paths), \code{"unverified-skipped"} (the code-state
+#'   check was skipped), \code{"unverified-test-mode"}, or \code{"unrecorded"}
+#'   for calls outside a pipeline run. Recorded so the audit trail never implies
+#'   a clean tree when the tree was not clean.
 #'
 #' @return Invisibly TRUE if successful
 #' @export
@@ -170,7 +178,9 @@ recordTaskExecution <- function(
     status,
     cohortManifestHash = NA_character_,
     errorMessage = NA_character_,
-    tasksFolderPath = here::here("analysis/tasks")) {
+    tasksFolderPath = here::here("analysis/tasks"),
+    commitSha = NA_character_,
+    codeState = "unrecorded") {
 
   if (!file.exists(taskFile)) {
     taskFile <- fs::path(tasksFolderPath, taskFile)
@@ -206,6 +216,8 @@ recordTaskExecution <- function(
     cohort_manifest_hash = ifelse(is.na(cohortManifestHash), "", cohortManifestHash),
     status = status,
     error_message = ifelse(is.na(errorMessage), "", errorMessage),
+    commit_sha = ifelse(is.na(commitSha), "", as.character(commitSha)),
+    code_state = ifelse(is.na(codeState), "unrecorded", as.character(codeState)),
     stringsAsFactors = FALSE
   )
 
@@ -233,29 +245,70 @@ recordTaskExecution <- function(
 #' @return Data frame with history records
 #' @keywords internal
 .initializeTaskHistory <- function(historyFile) {
-  if (file.exists(historyFile)) {
-    tryCatch({
-      readr::read_csv(
-        historyFile,
-        show_col_types = FALSE,
-        col_types = readr::cols(
-          task_name = readr::col_character(),
-          config_block = readr::col_character(),
-          last_run_time = readr::col_character(),
-          pipeline_version = readr::col_character(),
-          task_file_hash = readr::col_character(),
-          cohort_manifest_hash = readr::col_character(),
-          status = readr::col_character(),
-          error_message = readr::col_character()
-        )
-      )
-    }, error = function(e) {
+  if (!file.exists(historyFile)) {
+    return(.createEmptyHistory())
+  }
+
+  historyDf <- tryCatch(
+    .readTaskHistory(historyFile),
+    error = function(e) {
       cli::cli_alert_warning("Could not read task history file, creating new one")
       .createEmptyHistory()
-    })
-  } else {
-    .createEmptyHistory()
+    }
+  )
+
+  .ensureHistoryColumns(historyDf)
+}
+
+
+#' @title Read Task Run History
+#' @description Reads task_run_history.csv as all-character columns. Every column
+#'   is read permissively so that history files written by older picard versions
+#'   — which lack the \code{commit_sha} and \code{code_state} provenance columns
+#'   — still load; missing columns are back-filled by [.ensureHistoryColumns()].
+#' @param historyFile Character. Path to history file
+#' @return Data frame with history records
+#' @keywords internal
+.readTaskHistory <- function(historyFile) {
+  readr::read_csv(
+    historyFile,
+    show_col_types = FALSE,
+    col_types = readr::cols(.default = readr::col_character())
+  )
+}
+
+
+#' @title Back-fill Task History Columns
+#' @description Adds any columns missing from a history data frame and orders
+#'   them to match [.createEmptyHistory()]. Rows written before the provenance
+#'   columns existed are marked \code{"unrecorded"} rather than \code{"clean"},
+#'   so an old row is never mistaken for a verified-clean run.
+#' @param historyDf Data frame of history records
+#' @return Data frame with the full column set
+#' @keywords internal
+.ensureHistoryColumns <- function(historyDf) {
+  template <- .createEmptyHistory()
+
+  if (is.null(historyDf) || !is.data.frame(historyDf)) {
+    return(template)
   }
+
+  historyDf <- as.data.frame(historyDf, stringsAsFactors = FALSE)
+
+  for (column in names(template)) {
+    if (!column %in% names(historyDf)) {
+      historyDf[[column]] <- if (identical(column, "code_state")) {
+        "unrecorded"
+      } else {
+        ""
+      }
+    } else {
+      historyDf[[column]] <- as.character(historyDf[[column]])
+      historyDf[[column]][is.na(historyDf[[column]])] <- ""
+    }
+  }
+
+  historyDf[, names(template), drop = FALSE]
 }
 
 
@@ -272,6 +325,8 @@ recordTaskExecution <- function(
     cohort_manifest_hash = character(),
     status = character(),
     error_message = character(),
+    commit_sha = character(),
+    code_state = character(),
     stringsAsFactors = FALSE
   )
 }
@@ -365,20 +420,7 @@ getTaskRunSummary <- function(configBlock = NULL, taskName = NULL) {
   }
 
   historyDf <- tryCatch({
-    readr::read_csv(
-      historyFile,
-      show_col_types = FALSE,
-      col_types = readr::cols(
-        task_name = readr::col_character(),
-        config_block = readr::col_character(),
-        last_run_time = readr::col_character(),
-        pipeline_version = readr::col_character(),
-        task_file_hash = readr::col_character(),
-        cohort_manifest_hash = readr::col_character(),
-        status = readr::col_character(),
-        error_message = readr::col_character()
-      )
-    )
+    .ensureHistoryColumns(.readTaskHistory(historyFile))
   }, error = function(e) {
     cli::cli_alert_danger("Failed to read task history: {e$message}")
     return(data.frame())
@@ -412,20 +454,7 @@ displayTaskStatusReport <- function(limit = 20) {
   }
 
   historyDf <- tryCatch({
-    readr::read_csv(
-      historyFile,
-      show_col_types = FALSE,
-      col_types = readr::cols(
-        task_name = readr::col_character(),
-        config_block = readr::col_character(),
-        last_run_time = readr::col_character(),
-        pipeline_version = readr::col_character(),
-        task_file_hash = readr::col_character(),
-        cohort_manifest_hash = readr::col_character(),
-        status = readr::col_character(),
-        error_message = readr::col_character()
-      )
-    )
+    .ensureHistoryColumns(.readTaskHistory(historyFile))
   }, error = function(e) {
     cli::cli_alert_danger("Failed to read task history: {e$message}")
     return(NULL)
@@ -477,10 +506,16 @@ displayTaskStatusReport <- function(limit = 20) {
         ""
       }
 
+      codeMsg <- if (!is.na(row$code_state) && !row$code_state %in% c("", "clean")) {
+        paste0(" [code state: ", row$code_state, "]")
+      } else {
+        ""
+      }
+
       cat(sprintf(
-        "  [%s] %s (%s v%s) at %s%s\n",
+        "  [%s] %s (%s v%s) at %s%s%s\n",
         statusIcon, row$task_name, row$config_block,
-        row$pipeline_version, row$last_run_time, errMsg
+        row$pipeline_version, row$last_run_time, codeMsg, errMsg
       ))
     }
   }

@@ -11,7 +11,9 @@ recordTaskExecution(
   status,
   cohortManifestHash = NA_character_,
   errorMessage = NA_character_,
-  tasksFolderPath = here::here("analysis/tasks")
+  tasksFolderPath = here::here("analysis/tasks"),
+  commitSha = NA_character_,
+  codeState = "unrecorded"
 )
 }
 \arguments{
@@ -28,6 +30,16 @@ recordTaskExecution(
 \item{errorMessage}{Character. Error message if status is "failed" (optional)}
 
 \item{tasksFolderPath}{Character. Path to tasks folder (optional)}
+
+\item{commitSha}{Character. HEAD commit SHA at execution time, from the
+pre-flight code-state check (optional).}
+
+\item{codeState}{Character. Provenance of the working tree at execution time:
+\code{"clean"}, \code{"dirty-ignored"} (uncommitted changes were tolerated
+under configured ignore paths), \code{"unverified-skipped"} (the code-state
+check was skipped), \code{"unverified-test-mode"}, or \code{"unrecorded"}
+for calls outside a pipeline run. Recorded so the audit trail never implies
+a clean tree when the tree was not clean.}
 }
 \value{
 Invisibly TRUE if successful
