@@ -7,6 +7,10 @@
 - Added `viewManifest()` convenience method for both `CohortManifest` and `ConceptSetManifest` to interactively explore manifest metadata in RStudio viewer with streamlined columns (id, label, category, tags, file_path).
 - Enhanced `tabulateManifest()` with `tags_format` parameter supporting three formats: `"nested"` (default, parsed tags as tibble with tag_name/tag_value), `"json"` (raw JSON string for backward compatibility), and `"wide"` (expanded tags as individual columns for spreadsheet-like analysis).
 
+### Building a disseminationEnv Interactively
+
+- Added `createDisseminationEnv()`, which returns the `disseminationEnv` object a dissemination script receives (`pipelineVersion`, `databaseIds`, `outputPath`, `resultsPath`) without having to run `sourceDisseminationScripts()` first, so a script can be tested as it is written (see Issue #86). `sourceDisseminationScripts()` now builds its environment through the same function, so the two cannot drift.
+
 ## Bug Fixes
 
 - Fixed several problems with the `'stale'` cohort status (see Issue #74). `'stale'` now consistently means "registered, but needs regenerating", rather than removing a cohort from the study:
