@@ -329,15 +329,115 @@ pluckConceptSetExpression <- function(conceptSetId, baseUrl, bearerToken) {
     httr2::req_auth_bearer_token(token = bearerToken)
   resp <- httr2::req_perform(req = req)
   csExp <- httr2::resp_body_json(resp)
-  csExp2 <- RJSONIO::toJSON(csExp, digits = 23, pretty = TRUE)
+  csExp2 <- RJSONIO::toJSON(
+    canonicalize_concept_set_expression(csExp),
+    digits = 23,
+    pretty = TRUE
+  )
   return(csExp2)
+}
+
+# ATLAS returns the concepts of a concept set in a nondeterministic order, so an
+# unchanged definition can serialize to a different JSON string on every fetch.
+# That churns the on-disk JSON file, its content hash and therefore the manifest
+# sqlite file, which then shows up as an uncommitted change in git. Ordering the
+# concepts by a stable key makes the fetch reproducible. A concept set
+# expression is a set of items — reordering them does not change its meaning,
+# and circe resolves concept sets by `id`, not by position.
+
+# Safely read a named element from a parsed JSON node, which RJSONIO/httr2 may
+# hand back as either a named list or a named atomic vector.
+pluck_json_field <- function(x, name) {
+  if (is.null(x) || is.null(names(x)) || !(name %in% names(x))) {
+    return(NULL)
+  }
+  x[[name]]
+}
+
+# Build the sort key for one concept set item. CONCEPT_ID is the primary key,
+# zero-padded so it sorts numerically; vocabulary, code and the inclusion flags
+# break ties so items that share a concept still order deterministically.
+concept_set_item_key <- function(item) {
+  concept <- pluck_json_field(item, "concept")
+
+  conceptField <- function(name) {
+    value <- pluck_json_field(concept, name)
+    if (is.null(value) || length(value) != 1 || is.na(value)) "" else as.character(value)
+  }
+
+  itemFlag <- function(name) {
+    if (isTRUE(pluck_json_field(item, name))) "1" else "0"
+  }
+
+  rawId <- conceptField("CONCEPT_ID")
+  numericId <- suppressWarnings(as.numeric(rawId))
+  idKey <- if (is.na(numericId)) paste0("z", rawId) else sprintf("%020.0f", numericId)
+
+  paste(
+    idKey,
+    conceptField("VOCABULARY_ID"),
+    conceptField("CONCEPT_CODE"),
+    itemFlag("isExcluded"),
+    itemFlag("includeDescendants"),
+    itemFlag("includeMapped"),
+    sep = "|"
+  )
+}
+
+# Sort the `items` of a concept set expression by concept, leaving every other
+# element of the expression untouched.
+canonicalize_concept_set_expression <- function(expression) {
+  items <- pluck_json_field(expression, "items")
+
+  if (!is.list(items) || length(items) < 2) {
+    return(expression)
+  }
+
+  keys <- vapply(items, concept_set_item_key, character(1))
+  expression[["items"]] <- items[order(keys, method = "radix")]
+  expression
+}
+
+# Canonicalize the ConceptSets block of a circe cohort expression: sort each
+# concept set's items, then order the concept sets by their circe id.
+canonicalize_circe_concept_sets <- function(conceptSets) {
+  if (!is.list(conceptSets) || length(conceptSets) == 0) {
+    return(conceptSets)
+  }
+
+  conceptSets <- lapply(conceptSets, function(conceptSet) {
+    if (!is.list(conceptSet)) {
+      return(conceptSet)
+    }
+    expression <- pluck_json_field(conceptSet, "expression")
+    if (!is.null(expression)) {
+      conceptSet[["expression"]] <- canonicalize_concept_set_expression(expression)
+    }
+    conceptSet
+  })
+
+  ids <- vapply(conceptSets, function(conceptSet) {
+    id <- pluck_json_field(conceptSet, "id")
+    if (is.null(id) || length(id) != 1) {
+      return(NA_real_)
+    }
+    suppressWarnings(as.numeric(id))
+  }, numeric(1))
+
+  # Without a usable id on every concept set, leave the order alone rather than
+  # risk reordering against the codeset references in the cohort expression
+  if (anyNA(ids)) {
+    return(conceptSets)
+  }
+
+  conceptSets[order(ids)]
 }
 
 
 formatCohortExpression <- function(expression) {
   # reformat to standard circe
   circe <- list(
-    'ConceptSets' = expression$ConceptSets,
+    'ConceptSets' = canonicalize_circe_concept_sets(expression$ConceptSets),
     'PrimaryCriteria' = expression$PrimaryCriteria,
     'AdditionalCriteria' = expression$AdditionalCriteria,
     'QualifiedLimit' = expression$QualifiedLimit,
