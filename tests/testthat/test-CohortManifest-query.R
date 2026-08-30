@@ -91,10 +91,21 @@ testthat::test_that("getCohortsByLabel supports exact and pattern", {
 
   exact <- manifest$getCohortsByLabel("Type 2 Diabetes", matchType = "exact")
   pattern <- manifest$getCohortsByLabel("Outcome", matchType = "pattern")
+  multi <- manifest$getCohortsByLabel("^C", matchType = "pattern")
 
   testthat::expect_equal(length(exact), 1)
   testthat::expect_equal(exact[[1]]$label, "Type 2 Diabetes")
-  testthat::expect_true(length(pattern) >= 2)
+
+  # Matches labels, not categories: three seeded cohorts are in the "Outcome"
+  # category but only one carries it in its label.
+  testthat::expect_equal(length(pattern), 1)
+  testthat::expect_equal(pattern[[1]]$label, "Major Bleeding Outcome")
+
+  # Patterns are regular expressions, so one can match several labels.
+  testthat::expect_setequal(
+    vapply(multi, function(cohort) cohort$label, character(1)),
+    c("Chronic Kidney Disease", "Custom SQL Cohort")
+  )
 })
 
 # Testing: nCohorts reflects seeded active cohorts in manifest.

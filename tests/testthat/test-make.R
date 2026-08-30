@@ -339,7 +339,7 @@ testthat::test_that("makePrintFriendlyFile generates Rmd output from cohort JSON
   json_target_dir <- fs::path(repo_ctx$repo_path, "inputs/cohorts/json/target")
   fs::dir_create(json_target_dir, recurse = TRUE)
 
-  source_json <- fs::path("tests", "testthat", "test_files", "death.json")
+  source_json <- testthat::test_path("test_files", "death.json")
   testthat::expect_true(fs::file_exists(source_json))
   fs::file_copy(source_json, fs::path(json_target_dir, "death.json"), overwrite = TRUE)
 

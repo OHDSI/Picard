@@ -21,6 +21,7 @@
 - Custom dependent cohort builder is now consistent with the other dependent cohort builders - the rendered SQL query is written to the file system, and it accepts cohort objects as inputs instead of IDs. 
 - Custom dependent cohort builder now also allows user to specify non-cohort-ID params, so the rendered SQL query can be generated in a single function call (see Issue #66)
 - Builder console messages clarified (see Issue #70)
+- `dplyr::select(-.data$tags_list)` in the tag-expansion helpers replaced with `select(-"tags_list")`; use of `.data` in tidyselect expressions was deprecated in tidyselect 1.2.0 and would eventually have errored.
 - on `resetManifest` turn archive default to FALSE
 - Refactor `query...Manifest` methods to use `$tabulateManifest()` internally to be more consistent. 
 - Show current manifest id after import (see Issue #68)

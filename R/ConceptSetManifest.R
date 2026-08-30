@@ -1216,7 +1216,7 @@ ConceptSetManifest <- R6::R6Class(
 
       manifest_df <- manifest_df |>
         dplyr::filter(tag_match) |>
-        dplyr::select(-.data$tags_list)
+        dplyr::select(-"tags_list")
 
       if (nrow(manifest_df) == 0) {
         match_desc <- paste(tagStrings, collapse = " | ")

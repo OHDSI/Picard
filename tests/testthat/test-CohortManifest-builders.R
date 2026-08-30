@@ -1,4 +1,4 @@
-# Testing: addCaprCohort registers a Capr-based cohort with circe source type.
+# Testing: addCaprCohort registers a Capr-based cohort with capr source type.
 testthat::test_that("addCaprCohort registers Capr cohort", {
   setup <- cm_test_new_manifest("build-add-capr")
   manifest <- setup$manifest
@@ -13,7 +13,7 @@ testthat::test_that("addCaprCohort registers Capr cohort", {
   cm_test_assert_cohort_registered(
     manifest = manifest,
     label = "Capr Cohort",
-    expected_source_type = "circe"
+    expected_source_type = "capr"
   )
 })
 
