@@ -22,6 +22,10 @@
 - Custom dependent cohort builder now also allows user to specify non-cohort-ID params, so the rendered SQL query can be generated in a single function call (see Issue #66)
 - Builder console messages clarified (see Issue #70)
 - on `resetManifest` turn archive default to FALSE
+- Fixed two dissemination bugs (see Issue #87):
+  - `prepareDisseminationData()` asserted that four concatenated logical flags had length 1, so it aborted on every call — including all-default calls — and the formatting step could never run.
+  - The dissemination script template checked merged results for a `database_id` column, but `importAndBind()` labels them with camelCase `databaseId`, so the check was always false. The later references to `database_id` are correct, as they operate on data already passed through `cleanColumnNames()`.
+- `standardizeDataTypes()` no longer discards columns it cannot coerce. The default `"_id$"` rule matched the character `database_id` column and `as.integer()` silently turned it into `NA`, since failed coercion raises a warning rather than an error. A conversion that would turn a non-missing value into `NA` is now skipped and reported.
 - Refactor `query...Manifest` methods to use `$tabulateManifest()` internally to be more consistent. 
 - Show current manifest id after import (see Issue #68)
 - remove function forced tags `route = atlas` or `route = capr` (See Issue #67)
