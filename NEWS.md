@@ -17,6 +17,10 @@
   - Fixed `viewManifest()` erroring on an undefined `tags_format` argument; it now also shows the `status` column.
 - Manifest tag parsing no longer assumes the `tags` column holds a JSON string (see Issue #78). The `query*ByTagName()` methods default to `tags_format = "nested"`, which returns tags as a `tag_name`/`tag_value` tibble, so internal callers that re-parsed that column failed with `Argument 'txt' must be a JSON string, URL or file.` This broke `importAtlasCohorts()`/`importAtlasConceptSets()` (and therefore `sourceInputBuilderScripts()`), as well as `listAllUniqueTags()` and `getTagValuesSummary()`. Tag parsing now goes through a shared helper that accepts JSON strings, nested tibbles, and already-parsed lists, and treats missing/empty/malformed tags as no tags.
 - add `$queryConceptSetsByCategory()` it was missing
+- Pipeline pre-flight checks were impossible to pass (#84):
+  - The manifest metadata writers issued an `UPDATE` even when every value already matched the stored row, bumping `updated_at` and rewriting `cohortManifest.sqlite` / `conceptSetManifest.sqlite` on every metadata refresh and every ATLAS re-import. Unchanged assignments are now dropped, so a re-run leaves the manifest files byte-identical and `validateCodeState()` no longer sees uncommitted changes. `cascadeStaleDownstream()` likewise skips rows that are already stale.
+  - `validateEnvironment()` always reported "Environment drift detected!" because it tested `renv::status()` for `NULL`, and `renv::status()` always returns a list. It now reads the `synchronized` flag and compares the library and lockfile package records, and treats source-only mismatches as a warning rather than a blocker.
+  - `runPreflightChecks()` ran `renv::snapshot()` immediately after validating that the working tree was clean, so the check could dirty the tree it had just approved and leave the next run failing its code-state check. The lockfile is now recorded rather than refreshed; keeping `renv.lock` current is the analyst's call, via `snapshotEnvironment()`.
 - add `stopIfExists` option to ATLAS csv load builders (see Issue #65)
 - Custom dependent cohort builder is now consistent with the other dependent cohort builders - the rendered SQL query is written to the file system, and it accepts cohort objects as inputs instead of IDs. 
 - Custom dependent cohort builder now also allows user to specify non-cohort-ID params, so the rendered SQL query can be generated in a single function call (see Issue #66)
@@ -132,9 +136,6 @@ Every `stopIfExists = FALSE` upsert verifies identity before any mutation to pre
 - Change agent mode to correct GitHub Copilot format (i.e. `/.github`).
 - Clean vignettes and documentation to reflect current state of API.
 - Add option that `createBlank...` will open the file.
-- Pipeline pre-flight checks were impossible to pass (#84):
-  - The manifest metadata writers issued an `UPDATE` even when every value already matched the stored row, bumping `updated_at` and rewriting `cohortManifest.sqlite` / `conceptSetManifest.sqlite` on every metadata refresh and every ATLAS re-import. Unchanged assignments are now dropped, so a re-run leaves the manifest files byte-identical and `validateCodeState()` no longer sees uncommitted changes. `cascadeStaleDownstream()` likewise skips rows that are already stale.
-  - `validateEnvironment()` always reported "Environment drift detected!" because it tested `renv::status()` for `NULL`, and `renv::status()` always returns a list. It now reads the `synchronized` flag and compares the library and lockfile package records, and treats source-only mismatches as a warning rather than a blocker.
 
 ### Unit Tests
 
