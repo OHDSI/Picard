@@ -132,6 +132,9 @@ Every `stopIfExists = FALSE` upsert verifies identity before any mutation to pre
 - Change agent mode to correct GitHub Copilot format (i.e. `/.github`).
 - Clean vignettes and documentation to reflect current state of API.
 - Add option that `createBlank...` will open the file.
+- Pipeline pre-flight checks were impossible to pass (#84):
+  - The manifest metadata writers issued an `UPDATE` even when every value already matched the stored row, bumping `updated_at` and rewriting `cohortManifest.sqlite` / `conceptSetManifest.sqlite` on every metadata refresh and every ATLAS re-import. Unchanged assignments are now dropped, so a re-run leaves the manifest files byte-identical and `validateCodeState()` no longer sees uncommitted changes. `cascadeStaleDownstream()` likewise skips rows that are already stale.
+  - `validateEnvironment()` always reported "Environment drift detected!" because it tested `renv::status()` for `NULL`, and `renv::status()` always returns a list. It now reads the `synchronized` flag and compares the library and lockfile package records, and treats source-only mismatches as a warning rather than a blocker.
 
 ### Unit Tests
 

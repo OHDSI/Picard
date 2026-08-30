@@ -336,6 +336,65 @@ testthat::test_that("updateAtlasConceptSets syncs changed definitions in place",
   testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
 })
 
+# Testing: re-importing an unchanged ATLAS concept set leaves the sqlite file
+# byte-identical, so re-running an input builder script does not create an
+# uncommitted change (issue #84).
+testthat::test_that("addAtlasConceptSet with an unchanged definition does not rewrite the sqlite file", {
+  setup <- csm_test_new_manifest("csm-atlas-noop-bytes")
+  manifest <- setup$manifest
+  jsons <- csm_test_atlas_fixture_jsons()
+  db_path <- manifest$getDbPath()
+
+  conn_v1 <- csm_test_fake_atlas_connection(list("200" = jsons$v1))
+  manifest$addAtlasConceptSet(atlasId = 200L, label = "Atlas Concepts",
+                              category = "condition_occurrence",
+                              tags = list(owner = "epi_team"), atlasConnection = conn_v1)
+
+  before <- unname(tools::md5sum(db_path))
+
+  manifest$addAtlasConceptSet(atlasId = 200L, label = "Atlas Concepts",
+                              category = "condition_occurrence",
+                              tags = list(owner = "epi_team"), atlasConnection = conn_v1,
+                              stopIfExists = FALSE)
+
+  testthat::expect_equal(unname(tools::md5sum(db_path)), before)
+
+  # A genuine remote change still writes
+  conn_v2 <- csm_test_fake_atlas_connection(list("200" = jsons$v2))
+  manifest$addAtlasConceptSet(atlasId = 200L, label = "Atlas Concepts",
+                              category = "condition_occurrence",
+                              tags = list(owner = "epi_team"), atlasConnection = conn_v2,
+                              stopIfExists = FALSE)
+
+  testthat::expect_false(identical(unname(tools::md5sum(db_path)), before))
+})
+
+# Testing: writing the metadata a concept set already holds is a no-op on disk.
+testthat::test_that("re-applying identical concept set metadata does not rewrite the sqlite file", {
+  setup <- csm_test_new_manifest("csm-noop-metadata")
+  manifest <- setup$manifest
+  db_path <- manifest$getDbPath()
+
+  capr_cs <- csm_test_make_capr_concept_set()
+  manifest$addCaprConceptSet(capr_cs, label = "T2D Concepts", category = "condition_occurrence")
+
+  concept_set_id <- as.integer(csm_test_get_manifest_row(manifest, "T2D Concepts")$id[[1]])
+
+  manifest$updateConceptSetCategory(concept_set_id, "measurement")
+  after_category <- unname(tools::md5sum(db_path))
+
+  manifest$updateConceptSetCategory(concept_set_id, "measurement")
+  testthat::expect_equal(unname(tools::md5sum(db_path)), after_category)
+
+  # A real metadata change is still written through
+  manifest$updateConceptSetCategory(concept_set_id, "observation")
+  testthat::expect_equal(
+    csm_test_get_manifest_row(manifest, "T2D Concepts")$category[[1]],
+    "observation"
+  )
+  testthat::expect_false(identical(unname(tools::md5sum(db_path)), after_category))
+})
+
 # Testing: addCaprConceptSet default stopIfExists = TRUE errors cleanly on duplicate labels.
 testthat::test_that("addCaprConceptSet errors on duplicate label by default", {
   setup <- csm_test_new_manifest("csm-add-capr-dup")

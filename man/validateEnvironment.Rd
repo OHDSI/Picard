@@ -14,4 +14,13 @@ Checks that installed packages match renv.lock.
 Prevents running pipelines with environment drift.
 Call before execStudyPipeline() or runPostProcessing().
 }
+\details{
+\code{renv::status()} always returns a list describing the project state — it
+never returns \code{NULL} — so the result must be inspected rather than merely
+tested for \code{NULL}. A project is treated as in sync when \code{renv::status()}
+reports \code{synchronized = TRUE}, or (on older renv versions that omit the
+flag) when no package version differs between the project library and
+\code{renv.lock}. Source-only mismatches, such as packages installed from an
+unknown source, are reported as a warning and do not block the pipeline.
+}
 \keyword{internal}

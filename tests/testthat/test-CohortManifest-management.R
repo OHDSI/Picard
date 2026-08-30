@@ -145,6 +145,15 @@ cm_test_get_manifest_row <- function(manifest, label) {
   )
 }
 
+# Purpose: Stamp every manifest row with a fixed updated_at so a later
+# CURRENT_TIMESTAMP write is detectable regardless of clock resolution.
+cm_test_stamp_updated_at <- function(manifest, stamp = "2000-01-01 00:00:00") {
+  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
+  on.exit(DBI::dbDisconnect(conn))
+  DBI::dbExecute(conn, "UPDATE cohort_manifest SET updated_at = ?", list(stamp))
+  invisible(stamp)
+}
+
 # Testing: updateCaprCohort overwrites the registered JSON and refreshes the hash in place.
 testthat::test_that("updateCaprCohort updates definition keeping id and file path", {
   setup <- cm_test_new_manifest("mgmt-update-capr")
@@ -895,11 +904,18 @@ testthat::test_that("addAtlasCohort stopIfExists FALSE updates from ATLAS in pla
                           atlasConnection = conn_v1)
   before <- cm_test_get_manifest_row(manifest, "Atlas Cohort")
 
-  # Unchanged definition is a no-op
+  # Unchanged definition is a no-op — including on disk, so re-running an input
+  # builder script leaves no uncommitted change for the pipeline's clean-worktree
+  # pre-flight check to trip over (issue #84)
+  stamp <- cm_test_stamp_updated_at(manifest)
+  db_before <- unname(tools::md5sum(manifest$getDbPath()))
+
   manifest$addAtlasCohort(atlasId = 100L, label = "Atlas Cohort", category = "Target",
                           atlasConnection = conn_v1, stopIfExists = FALSE)
   unchanged <- cm_test_get_manifest_row(manifest, "Atlas Cohort")
   testthat::expect_equal(unchanged$hash[[1]], before$hash[[1]])
+  testthat::expect_equal(unchanged$updated_at[[1]], stamp)
+  testthat::expect_equal(unname(tools::md5sum(manifest$getDbPath())), db_before)
 
   # Changed definition updates in place, keeping ID and file path
   conn_v2 <- cm_test_fake_atlas_connection(list("100" = jsons$v2))
@@ -998,6 +1014,37 @@ testthat::test_that("updateAtlasCohorts syncs changed definitions in place", {
   testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
 })
 
+# Testing: writing the metadata a cohort already holds must not bump updated_at
+# or rewrite the sqlite file.
+testthat::test_that("re-applying identical cohort metadata does not rewrite the sqlite file", {
+  setup <- cm_test_seed_manifest_for_queries("mgmt-noop-metadata")
+  manifest <- setup$manifest
+  db_path <- manifest$getDbPath()
+
+  row <- cm_test_get_manifest_row(manifest, "Chronic Kidney Disease")
+  cohort_id <- as.integer(row$id[[1]])
+  stored_tags <- jsonlite::fromJSON(row$tags[[1]], simplifyVector = FALSE)
+
+  stamp <- cm_test_stamp_updated_at(manifest)
+  before <- unname(tools::md5sum(db_path))
+
+  manifest$updateCohortLabel(cohort_id, row$label[[1]])
+  manifest$updateCohortCategory(cohort_id, row$category[[1]])
+  manifest$updateCohortTags(cohort_id, stored_tags)
+
+  testthat::expect_equal(
+    cm_test_get_manifest_row(manifest, "Chronic Kidney Disease")$updated_at[[1]],
+    stamp
+  )
+  testthat::expect_equal(unname(tools::md5sum(db_path)), before)
+
+  # A real metadata change is still written through
+  manifest$updateCohortCategory(cohort_id, "Renal Target")
+  after <- cm_test_get_manifest_row(manifest, "Chronic Kidney Disease")
+  testthat::expect_equal(after$category[[1]], "Renal Target")
+  testthat::expect_false(identical(after$updated_at[[1]], stamp))
+})
+
 # Testing: addCaprCohort default stopIfExists = TRUE still errors on duplicate labels.
 testthat::test_that("addCaprCohort errors on duplicate label by default", {
   setup <- cm_test_new_manifest("mgmt-add-capr-dup")
@@ -1051,12 +1098,19 @@ testthat::test_that("addDependentCustomCohort re-run with identical args keeps c
     cohortEntries = downstream_parents
   )
 
+  # A no-op re-run must also leave the manifest file byte-identical, so the
+  # pipeline's clean-worktree pre-flight check still passes (issue #84)
+  stamp <- cm_test_stamp_updated_at(manifest)
+  db_before <- unname(tools::md5sum(manifest$getDbPath()))
+
   returned_id <- as.integer(register(stopIfExists = FALSE))
 
   after <- cm_test_get_manifest_row(manifest, "Dep Custom")
   testthat::expect_equal(returned_id, dep_id)
   testthat::expect_equal(after$status[[1]], "active")
   testthat::expect_equal(cm_test_get_manifest_row(manifest, "Downstream_Union")$status[[1]], "active")
+  testthat::expect_equal(after$updated_at[[1]], stamp)
+  testthat::expect_equal(unname(tools::md5sum(manifest$getDbPath())), db_before)
 
   # Still visible in the active manifest and to label queries
   active <- manifest$tabulateManifest(filter = "active")

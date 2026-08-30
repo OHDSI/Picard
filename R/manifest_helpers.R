@@ -1181,6 +1181,30 @@ getCohortTableNames <- function(cohortTable = "cohort",
 }
 
 
+#' Test whether a candidate manifest column value differs from the stored one
+#'
+#' SQLite rewrites the pages it touches, so an `UPDATE` that assigns the value a
+#' row already holds still changes the manifest file on disk (and bumps
+#' `updated_at`), which surfaces as an uncommitted change in git. Manifest
+#' writers use this to drop no-op assignments before issuing an `UPDATE`.
+#'
+#' @param newValue The value about to be written. `NULL`, zero-length, and `NA`
+#'   are all treated as "no value".
+#' @param storedValue The value currently held in the manifest row.
+#' @return Logical. `TRUE` when the stored value already matches.
+#' @keywords internal
+manifestValueUnchanged <- function(newValue, storedValue) {
+  normalize <- function(x) {
+    if (is.null(x) || length(x) == 0) {
+      return(NA_character_)
+    }
+    as.character(x)[[1]]
+  }
+
+  identical(normalize(newValue), normalize(storedValue))
+}
+
+
 # ============================================================
 # ATLAS IMPORT HELPERS
 # ============================================================
@@ -1273,12 +1297,13 @@ cascadeStaleDownstream <- function(dbPath, cohort_ids) {
   # Build parameterized IN clause with placeholders
   placeholders <- paste(rep("?", length(visited)), collapse = ", ")
 
-  # Bulk update to stale
+  # Bulk update to stale. Rows already stale are excluded so a re-run that
+  # changes nothing leaves the sqlite file byte-identical.
   DBI::dbExecute(
     conn,
     paste0(
       "UPDATE cohort_manifest SET status = 'stale', updated_at = CURRENT_TIMESTAMP",
-      " WHERE id IN (", placeholders, ")"
+      " WHERE id IN (", placeholders, ") AND status <> 'stale'"
     ),
     as.list(visited)
   )

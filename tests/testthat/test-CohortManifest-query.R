@@ -104,3 +104,37 @@ testthat::test_that("nCohorts returns seeded cohort count", {
 
   testthat::expect_equal(manifest$nCohorts(), 5)
 })
+
+# Testing: read-only manifest access leaves the sqlite file byte-identical, so a
+# pipeline pre-flight check does not turn the manifest into an uncommitted
+# change (issue #84).
+testthat::test_that("read-only manifest operations do not rewrite the sqlite file", {
+  setup <- cm_test_seed_manifest_for_queries("query-readonly-bytes")
+  manifest <- setup$manifest
+  db_path <- manifest$getDbPath()
+
+  before <- unname(tools::md5sum(db_path))
+
+  invisible(manifest$getManifest())
+  invisible(manifest$nCohorts())
+  invisible(manifest$tabulateManifest(filter = "active"))
+  invisible(manifest$queryCohortsByLabel("Chronic Kidney Disease", matchType = "exact"))
+  invisible(manifest$validateManifest())
+  invisible(CohortManifest$new(dbPath = db_path))
+
+  testthat::expect_equal(unname(tools::md5sum(db_path)), before)
+})
+
+# Testing: syncManifest against unchanged files on disk is a pure read.
+testthat::test_that("syncManifest with no changes does not rewrite the sqlite file", {
+  setup <- cm_test_seed_manifest_for_queries("query-sync-bytes")
+  manifest <- setup$manifest
+  db_path <- manifest$getDbPath()
+
+  before <- unname(tools::md5sum(db_path))
+
+  out <- manifest$syncManifest(strict_mode = FALSE)
+
+  testthat::expect_true(all(out$action == "unchanged"))
+  testthat::expect_equal(unname(tools::md5sum(db_path)), before)
+})
