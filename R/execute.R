@@ -1088,24 +1088,15 @@ execStudyPipeline <- function(configBlock, updateType, skipRenv = FALSE,
 }
 
 
-addMainFile <- function(repoName, repoFolder, toolType, configBlocks, studyName) {
+addMainFile <- function(repoName, repoFolder, configBlocks, studyName) {
   repoPath <- fs::path(repoFolder, repoName) |>
     fs::path_expand()
 
-  if (toolType == "dbms") {
-    configBlocks <- paste0(configBlocks, collapse = "\", \"")
+  configBlocks <- paste0(configBlocks, collapse = "\", \"")
 
-    mainR <- fs::path_package("picard", "templates/main.R") |>
-      readr::read_file() |>
-      glue::glue()
-
-  }
-
-  if (toolType == "external") {
-    mainR <- fs::path_package("picard", "templates/main_simple.R") |>
-      readr::read_file() |>
-      glue::glue()
-  }
+  mainR <- fs::path_package("picard", "templates/main.R") |>
+    readr::read_file() |>
+    glue::glue()
 
   actionItem(glue::glue_col("Initialize Main Exec File: {green {fs::path(repoPath, 'main.R')}}"))
   readr::write_file(
@@ -1121,25 +1112,20 @@ addMainFile <- function(repoName, repoFolder, toolType, configBlocks, studyName)
 #'   This provides a testing variant of the production pipeline that uses testStudyPipeline().
 #' @param repoName Character. Name of the repository.
 #' @param repoFolder Character. Parent directory of the repository.
-#' @param toolType Character. Tool type, either "dbms" or "external".
 #' @param configBlocks List or Character vector. Database config blocks or block names.
 #' @param studyName Character. Name of the study.
 #' @keywords internal
-addTestMainFile <- function(repoName, repoFolder, toolType, configBlocks, studyName) {
+addTestMainFile <- function(repoName, repoFolder, configBlocks, studyName) {
   repoPath <- fs::path(repoFolder, repoName) |>
     fs::path_expand()
   
   extrasPath <- fs::path(repoPath, "extras")
   
-  if (toolType == "dbms") {
-    # Extract config block names if objects are passed
-    if (!is.character(configBlocks)) {
-      configBlocks <- purrr::map_chr(configBlocks, ~.x$configBlockName)
-    }
-    configBlocks <- paste0(configBlocks, collapse = "\", \"")
-  } else {
-    configBlocks <- ""
+  # Extract config block names if objects are passed
+  if (!is.character(configBlocks)) {
+    configBlocks <- purrr::map_chr(configBlocks, ~.x$configBlockName)
   }
+  configBlocks <- paste0(configBlocks, collapse = "\", \"")
   
   # Create extras directory
   fs::dir_create(extrasPath)
