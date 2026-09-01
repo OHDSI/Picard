@@ -2,6 +2,14 @@
 
 ## New Features
 
+### Code State Escape Hatches
+
+- Scoped escape hatches for the "Code state" pre-flight check, for study repos where files under `inputs/` churn without a deliberate edit. Both default to off, so unchanged studies get exactly the previous behavior.
+  - `execStudyPipeline(ignoreUncommittedPaths = ...)` tolerates uncommitted changes confined to the listed repo-relative paths; changes anywhere else (notably `analysis/`) still fail the check. The list can be set once per study as `ignoreUncommittedPaths` in the `default:` block of `config.yml`, with the argument overriding it for a single run.
+  - `execStudyPipeline(skipCodeStateCheck = TRUE)` skips the check entirely as a last resort. Deliberately not settable from `config.yml`.
+  - Neither hatch is silent: `Code state` is reported as a **warning** rather than a pass, a banner names every ignored file, and the pipeline log records the code state and commit SHA.
+  - `exec/logs/task_run_history.csv` gains `commit_sha` and `code_state` columns (`clean`, `dirty-ignored`, `unverified-skipped`, `unverified-test-mode`, `unrecorded`) so the audit trail never implies a clean tree when the tree was not clean. Existing history files are read and back-filled as `unrecorded`.
+
 ### Tabulate and View Manifest
 
 - Added `viewManifest()` convenience method for both `CohortManifest` and `ConceptSetManifest` to interactively explore manifest metadata in RStudio viewer with streamlined columns (id, label, category, tags, file_path).

@@ -91,6 +91,9 @@ Before running production mode:
 
 You can also do this by using the `saveWork()` function which we describe in [Developing the Pipeline](developing_the_pipeline.html) to save your work and prepare for production.
 
+If step 1 is impossible because files under `inputs/` keep changing on their own,
+see [When the Code State Check Cannot Be Satisfied](#when-the-code-state-check-cannot-be-satisfied).
+
 ### Basic Usage
 
 ```{r eval = FALSE}
@@ -125,6 +128,100 @@ Choose the appropriate semantic version increment:
 - **MINOR (1.0.0 → 1.1.0):** New analyses or features added (backward compatible)
 - **MAJOR (1.0.0 → 2.0.0):** Breaking changes or study redesign
 
+### When the Code State Check Cannot Be Satisfied
+
+Production runs require a clean working tree so that every result can be tied
+back to a known commit. Sometimes that is impossible through no fault of the
+analyst: files under `inputs/` are rewritten without a deliberate edit — the
+cohort and concept set manifest sqlite files are re-written on re-import, and
+ATLAS-sourced JSON is refetched. The run is then blocked by churn nobody asked
+for.
+
+Two escape hatches exist. Both are **opt-in**: change nothing and the check
+behaves exactly as before, failing on any uncommitted change.
+
+#### Preferred: ignore specific paths
+
+`ignoreUncommittedPaths` tolerates uncommitted changes **confined to the listed
+repo-relative paths**. Anything outside them — most importantly `analysis/` —
+still fails the check, so real analysis edits can never slip into a production
+run unnoticed.
+
+Set it once per study in the `default:` block of `config.yml`, where it is
+version-controlled and reviewable alongside the rest of the study
+configuration:
+
+```yaml
+default:
+  projectName: myStudy
+  version: 1.0.0
+  ignoreUncommittedPaths:
+    - inputs
+```
+
+Or pass it per run, which overrides `config.yml` for that invocation:
+
+```{r eval = FALSE}
+execStudyPipeline(
+  configBlock = "primaryDB",
+  updateType = "patch",
+  ignoreUncommittedPaths = "inputs"
+)
+
+# Force strict checking regardless of config.yml
+execStudyPipeline(
+  configBlock = "primaryDB",
+  updateType = "patch",
+  ignoreUncommittedPaths = character(0)
+)
+```
+
+Paths may name a folder (`"inputs"`, `"inputs/cohorts"`) or a single file
+(`"inputs/cohorts/cohortManifest.sqlite"`). `"."` and absolute paths are
+rejected — the repository root cannot be ignored wholesale.
+
+#### Last resort: skip the check
+
+`skipCodeStateCheck = TRUE` disables the code-state check entirely. Reach for it
+only when `ignoreUncommittedPaths` cannot express the churn:
+
+```{r eval = FALSE}
+execStudyPipeline(
+  configBlock = "primaryDB",
+  updateType = "patch",
+  skipCodeStateCheck = TRUE
+)
+```
+
+This is deliberately **not** settable from `config.yml`, so it cannot be baked
+permanently into a study. The branch guard (never run production from `main`) is
+a separate check and is never skipped.
+
+#### Neither hatch is silent
+
+Whenever the check passes only because changes were ignored or skipped, the run
+says so and records it:
+
+- The pre-flight checklist shows `Code state` as a **warning**, not a pass,
+  naming the ignored paths and the number of tolerated files.
+- A banner after the checklist lists every ignored file by name.
+- The pipeline log header (`exec/logs/picard_log_<version>_<timestamp>.txt`)
+  records `Code State:`, `Commit SHA:` and the ignored files.
+- `exec/logs/task_run_history.csv` gains a `commit_sha` and a `code_state`
+  column for every task row. `code_state` is one of:
+
+| `code_state` | Meaning |
+|---|---|
+| `clean` | Working tree had no uncommitted changes |
+| `dirty-ignored` | Uncommitted changes existed but fell entirely inside `ignoreUncommittedPaths` |
+| `unverified-skipped` | Check was skipped with `skipCodeStateCheck = TRUE` |
+| `unverified-test-mode` | Test-mode run; code state is never checked |
+| `unrecorded` | Task run outside the pipeline, or a row written by an older picard version |
+
+So a recorded `commit_sha` never implies the tree matched that commit — read it
+next to `code_state`. `displayTaskStatusReport()` prints the code state inline
+for any row that is not `clean`.
+
 ## Understanding the Pipeline Workflow
 
 Production execution follows five main phases:
@@ -149,8 +246,10 @@ Production mode validates code state strictly. Common issues:
 **"Cannot run production pipeline on main branch!"**
 - Solution: Switch to develop: `git checkout develop`
 
-**"Code state validation failed - uncommitted changes"**
+**"Cannot proceed with uncommitted changes!"**
 - Solution: Commit all changes: `git add .` and `git commit -m "..."`
+- If the changes are incidental churn under `inputs/` that you did not make, see
+  [When the Code State Check Cannot Be Satisfied](#when-the-code-state-check-cannot-be-satisfied)
 
 **"Cohort manifest not found"**
 - Solution: See [Loading Inputs](loading_inputs.html)

@@ -9,13 +9,63 @@
 
 # Helpers for internal use
 
-check_git_status <- function() {
+# Helper: repo-relative paths of every file with uncommitted changes
+uncommitted_files <- function() {
   tryCatch({
     status <- gert::git_status(staged = FALSE)
-    nrow(status) > 0
+    if (nrow(status) == 0) character(0) else as.character(status$file)
   }, error = function(e) {
     cli::cli_abort("Failed to check git status: {e$message}")
   })
+}
+
+check_git_status <- function() {
+  length(uncommitted_files()) > 0
+}
+
+# Helper: strip "./" prefixes and trailing slashes so paths compare cleanly
+normalize_repo_path <- function(path) {
+  path <- sub("^\\./", "", path)
+  sub("/+$", "", path)
+}
+
+# Helper: reject ignore paths that would silently disable the whole check
+assert_ignore_paths <- function(ignorePaths) {
+  checkmate::assert_character(ignorePaths, any.missing = FALSE, null.ok = TRUE)
+
+  if (is.null(ignorePaths) || length(ignorePaths) == 0) {
+    return(character(0))
+  }
+
+  ignorePaths <- normalize_repo_path(trimws(ignorePaths))
+  ignorePaths <- ignorePaths[nzchar(ignorePaths)]
+
+  bad <- ignorePaths[
+    ignorePaths %in% c(".", "..") |
+      fs::is_absolute_path(ignorePaths) |
+      grepl("(^|/)\\.\\.(/|$)", ignorePaths)
+  ]
+
+  if (length(bad) > 0) {
+    cli::cli_abort(c(
+      "Invalid code-state ignore path{?s}: {.val {bad}}",
+      "i" = "Use repo-relative folder or file paths, e.g. {.val inputs}",
+      "i" = "The repository root cannot be ignored wholesale"
+    ))
+  }
+
+  unique(ignorePaths)
+}
+
+# Helper: TRUE when `file` is one of `ignorePaths` or sits underneath one
+path_is_ignored <- function(file, ignorePaths) {
+  if (length(ignorePaths) == 0) {
+    return(FALSE)
+  }
+
+  file <- normalize_repo_path(file)
+  ignorePaths <- normalize_repo_path(ignorePaths)
+  any(file == ignorePaths | startsWith(file, paste0(ignorePaths, "/")))
 }
 
 # Helper: Verify we're on main branch (for protection)
@@ -62,24 +112,9 @@ git_remote_ulysses <- function(gitRemoteUrl, gitRemoteName = "origin") {
   invisible(gitRemoteUrl)
 }
 
-#' Validate Code State Before Pipeline Operations
-#' @description Ensures the repository is in a clean state (no uncommitted changes)
-#'   before running major pipeline operations. Returns the current commit SHA for
-#'   audit/reproducibility tracking.
-#' @return Character. Current commit SHA (invisible)
-#' @keywords internal
-validateCodeState <- function() {
-  # Check for uncommitted changes
-  if (check_git_status()) {
-    cli::cli_abort(c(
-      "Cannot proceed with uncommitted changes!",
-      "i" = "Commit all work first with: {.code saveWork('message')}",
-      "i" = "This ensures reproducibility and auditability"
-    ))
-  }
-
-  # Get current commit SHA
-  sha <- tryCatch({
+# Helper: HEAD commit SHA, aborting when the repository has no commits
+current_commit_sha <- function() {
+  tryCatch({
     log <- gert::git_log()
     if (nrow(log) == 0) {
       cli::cli_abort("No commits found in repository")
@@ -88,9 +123,80 @@ validateCodeState <- function() {
   }, error = function(e) {
     cli::cli_abort("Failed to get git commit SHA: {e$message}")
   })
+}
 
-  cli::cli_alert_success("✓ Code state validated. Commit SHA: {.code {substr(sha, 1, 7)}}")
-  return(invisible(sha))
+#' Validate Code State Before Pipeline Operations
+#' @description Ensures the repository is in a clean state before running major
+#'   pipeline operations, and reports the current commit SHA for
+#'   audit/reproducibility tracking.
+#'
+#'   Uncommitted changes confined to `ignorePaths` do not block execution. This is
+#'   the supported escape hatch for study repositories whose `inputs/` folder churns
+#'   without a deliberate edit (manifest sqlite files rewritten on re-import,
+#'   ATLAS-sourced JSON refetched). Changes anywhere else - notably `analysis/` -
+#'   still abort. The default ignores nothing, so behaviour is unchanged unless a
+#'   study opts in.
+#' @param ignorePaths Character vector of repo-relative folder or file paths whose
+#'   uncommitted changes should not block execution. Defaults to `character(0)`,
+#'   i.e. any uncommitted change blocks.
+#' @return Invisibly, a list with:
+#'   * `sha` - the HEAD commit SHA,
+#'   * `status` - `"clean"` when the working tree had no uncommitted changes,
+#'     `"dirty-ignored"` when it did but every change fell inside `ignorePaths`,
+#'   * `clean` - logical, `TRUE` only when the tree was genuinely clean,
+#'   * `ignoredFiles` - the uncommitted files that were tolerated,
+#'   * `ignorePaths` - the normalized paths that were honoured.
+#' @keywords internal
+validateCodeState <- function(ignorePaths = character(0)) {
+  ignorePaths <- assert_ignore_paths(ignorePaths)
+
+  dirtyFiles <- uncommitted_files()
+  isIgnored <- vapply(
+    dirtyFiles,
+    path_is_ignored,
+    logical(1),
+    ignorePaths = ignorePaths,
+    USE.NAMES = FALSE
+  )
+
+  ignoredFiles <- dirtyFiles[isIgnored]
+  blockingFiles <- dirtyFiles[!isIgnored]
+
+  if (length(blockingFiles) > 0) {
+    preview <- blockingFiles[seq_len(min(10L, length(blockingFiles)))]
+    cli::cli_abort(c(
+      "Cannot proceed with uncommitted changes!",
+      setNames(preview, rep("x", length(preview))),
+      "i" = if (length(blockingFiles) > length(preview)) {
+        paste0("...and ", length(blockingFiles) - length(preview), " more file(s)")
+      },
+      "i" = "Commit all work first with: {.code saveWork('message')}",
+      "i" = "This ensures reproducibility and auditability",
+      "i" = "Incidental churn can be tolerated via {.code ignoreUncommittedPaths}"
+    ))
+  }
+
+  sha <- current_commit_sha()
+
+  if (length(ignoredFiles) > 0) {
+    cli::cli_alert_warning(
+      "Working tree is NOT clean — {length(ignoredFiles)} uncommitted file{?s} ignored under {.path {ignorePaths}}"
+    )
+    cli::cli_bullets(setNames(ignoredFiles, rep("!", length(ignoredFiles))))
+    cli::cli_alert_info(
+      "Recorded commit SHA {.code {substr(sha, 1, 7)}} does not match the working tree exactly"
+    )
+  } else {
+    cli::cli_alert_success("Code state validated. Commit SHA: {.code {substr(sha, 1, 7)}}")
+  }
+
+  invisible(list(
+    sha = sha,
+    status = if (length(ignoredFiles) > 0) "dirty-ignored" else "clean",
+    clean = length(ignoredFiles) == 0,
+    ignoredFiles = ignoredFiles,
+    ignorePaths = ignorePaths
+  ))
 }
 
 #' Sync Local Work to Remote Branch

@@ -9,6 +9,8 @@ execStudyPipeline(
   updateType,
   skipRenv = FALSE,
   skipConnectivityCheck = TRUE,
+  ignoreUncommittedPaths = NULL,
+  skipCodeStateCheck = FALSE,
   env = rlang::caller_env()
 )
 }
@@ -29,6 +31,21 @@ Useful for testing issues. Default: FALSE}
 database connectivity pre-flight check. Set to FALSE to attempt a test
 connection to each config block before execution begins.}
 
+\item{ignoreUncommittedPaths}{Character vector or NULL. Repo-relative paths
+(e.g. \code{"inputs"}) whose uncommitted changes should not fail the code-state
+pre-flight check. Changes anywhere else — notably \verb{analysis/} — still fail
+it. When NULL (default) the list is read from \code{ignoreUncommittedPaths} in
+the \verb{default:} block of config.yml, which itself defaults to ignoring
+nothing, so behaviour is unchanged unless a study opts in. Pass
+\code{character(0)} to force strict checking regardless of config.yml.}
+
+\item{skipCodeStateCheck}{Logical. If TRUE, skips the code-state check
+entirely — a last resort when \code{ignoreUncommittedPaths} cannot express the
+churn. The run proceeds, but the pre-flight checklist raises a warning and
+the run history records the tree as \code{"unverified-skipped"}. Defaults to
+FALSE. Deliberately not settable from config.yml, so it cannot be baked
+permanently into a study.}
+
 \item{env}{The execution environment. Defaults to caller environment.}
 }
 \value{
@@ -43,5 +60,19 @@ the complete pipeline, provides PR instructions, and saves reference to PENDING_
 \dontrun{
 # Run production pipeline with patch version increment
 execStudyPipeline(configBlock = "myConfig", updateType = "patch")
+
+# Tolerate manifest/ATLAS churn under inputs/ for this run only
+execStudyPipeline(
+  configBlock = "myConfig",
+  updateType = "patch",
+  ignoreUncommittedPaths = "inputs"
+)
+
+# Last resort: do not check the working tree at all
+execStudyPipeline(
+  configBlock = "myConfig",
+  updateType = "patch",
+  skipCodeStateCheck = TRUE
+)
 }
 }

@@ -10,6 +10,8 @@ runPreflightChecks(
   testMode = FALSE,
   skipRenv = FALSE,
   skipConnectivityCheck = TRUE,
+  ignoreUncommittedPaths = NULL,
+  skipCodeStateCheck = FALSE,
   resultsPath = here::here("exec/results"),
   tasksFolderPath = here::here("analysis/tasks")
 )
@@ -27,13 +29,27 @@ and branch-sync checks are skipped.}
 \item{skipConnectivityCheck}{Logical. If TRUE (default), database connectivity
 check is skipped.}
 
+\item{ignoreUncommittedPaths}{Character vector or NULL. Repo-relative paths
+whose uncommitted changes should not fail the code-state check. When NULL
+(default) the list is read from \code{ignoreUncommittedPaths} in the
+\code{default:} block of config.yml, which itself defaults to ignoring
+nothing. Pass \code{character(0)} to force strict checking.}
+
+\item{skipCodeStateCheck}{Logical. If TRUE, the code-state check is skipped
+entirely — a last resort. The run is still allowed, but the checklist and
+the run history record that the working tree was never verified.}
+
 \item{resultsPath}{Character. Path to the results root folder for collision check.}
 
 \item{tasksFolderPath}{Character. Path to the tasks folder.}
 }
 \value{
-Invisibly returns a list with \code{lockfileHash} and
-\code{taskFilesToRun} for downstream use in \code{execute_pipeline()}.
+Invisibly returns a list with \code{lockfileHash},
+\code{taskFilesToRun} and \code{codeState} for downstream use in
+\code{execute_pipeline()}. \code{codeState} is a list with \code{sha},
+\code{status}, \code{ignoredFiles} and \code{ignorePaths} and is written
+into \code{exec/logs/task_run_history.csv} so the audit trail never claims
+a clean tree when the tree was not clean.
 }
 \description{
 Runs all pre-execution validation checks and displays a consolidated

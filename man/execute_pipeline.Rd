@@ -10,6 +10,8 @@ execute_pipeline(
   testMode = FALSE,
   skipRenv = FALSE,
   skipConnectivityCheck = TRUE,
+  ignoreUncommittedPaths = NULL,
+  skipCodeStateCheck = FALSE,
   env = rlang::caller_env(),
   pipelineVersionOverride = NULL,
   cohortTableSuffix = NULL
@@ -29,6 +31,13 @@ If FALSE, enforces code validation and version management. Default: FALSE}
 \item{skipConnectivityCheck}{Logical. If TRUE (default), skips the optional
 database connectivity pre-flight check. Set to FALSE to attempt a test
 connection to each config block before execution begins.}
+
+\item{ignoreUncommittedPaths}{Character vector or NULL. Repo-relative paths
+whose uncommitted changes do not fail the code-state check. NULL (default)
+reads the list from config.yml, which itself defaults to ignoring nothing.}
+
+\item{skipCodeStateCheck}{Logical. If TRUE, skips the code-state check
+entirely. Default: FALSE}
 
 \item{env}{the execution environment}
 

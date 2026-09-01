@@ -10,7 +10,8 @@ execute_task(
   pipelineVersion = "dev",
   checkStatus = FALSE,
   env = rlang::caller_env(),
-  cohortTableSuffix = NULL
+  cohortTableSuffix = NULL,
+  codeState = NULL
 )
 }
 \arguments{
@@ -26,6 +27,12 @@ based on file changes, dependencies, cohort changes, and previous errors. Automa
 Default: FALSE}
 
 \item{env}{the execution environment}
+
+\item{codeState}{List or NULL. Working-tree provenance from
+\code{runPreflightChecks()} (\code{sha} and \code{status}). Recorded in
+\code{exec/logs/task_run_history.csv} alongside each run. NULL — the
+default, used when a task is run outside the pipeline — records the code
+state as \code{"unrecorded"} rather than implying a clean tree.}
 }
 \description{
 Function to execute a study task in Ulysses
