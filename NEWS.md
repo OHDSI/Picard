@@ -36,6 +36,7 @@
 - Modify `getServerCredentials()` to not evaluate full yml file, only pull the specific block and evaluate (See issue #30, #33). 
 - Fix `makeDisseminationScript()` change the glue brackets to carrots
 - Fix bug in `$updateAtlasCohorts()`/`$updateAtlasConceptSets()` to use tags in json mode after tab format change. 
+- Regenerated `inst/agent/05-manifest-management.md` from `vignettes/manifest_management.Rmd`. It had not been synced since `viewManifest()` and the `tabulateManifest(tags_format = ...)` options were added, so agents in generated study repos were reading stale manifest guidance.
 
 # picard 0.0.6
 

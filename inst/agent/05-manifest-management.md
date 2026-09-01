@@ -325,14 +325,60 @@ csm <- loadConceptSetManifest(autoSync = TRUE, verbose = TRUE)
 
 ### Cohort manifest
 
+#### Tabulating and Viewing Manifest Data
+
+The manifest provides two methods for viewing cohort metadata:
+
+**Interactive Viewing (Recommended for Exploration)**
+
 ```{r}
-# Full tabular view (all active cohorts)
-manifest$tabulateManifest()
+# Open an interactive RStudio viewer with streamlined metadata
+# Shows: id, label, category, tags, file_path
+manifest$viewManifest()
 
-# Filter to stale cohorts only
-manifest$tabulateManifest(filter = "stale")
+# Filter to specific status
+manifest$viewManifest(filter = "active")
+manifest$viewManifest(filter = "stale")
+manifest$viewManifest(filter = "deleted")
 
-# Stale cohorts with dependency context
+# Control tag format in the viewer:
+# - nested (default): tags as structured tibble with tag_name/tag_value
+# - json: tags as raw JSON string
+# - wide: tags expanded into individual columns
+manifest$viewManifest(tags_format = "nested")
+manifest$viewManifest(tags_format = "wide")  # Excel-like view
+```
+
+**Programmatic Tabulation (for pipelines/analysis)**
+
+```{r}
+# Full tabular view with all columns (id, label, category, tags, file_path, hash, source_type, cohort_type, status, depends_on, created_at, deleted_at)
+tbl <- manifest$tabulateManifest()
+
+# Filter by status
+stale_cohorts <- manifest$tabulateManifest(filter = "stale")
+deleted_cohorts <- manifest$tabulateManifest(filter = "deleted")
+all_cohorts <- manifest$tabulateManifest(filter = "all")
+
+# Control tag format
+# Option 1: nested (default) - tags as nested tibble with tag_name/tag_value pairs
+tbl_nested <- manifest$tabulateManifest(tags_format = "nested")
+# Access nested tags: tbl_nested$tags[[1]] returns a tibble of tag pairs
+
+# Option 2: json (backward compatible) - tags as raw JSON string
+tbl_json <- manifest$tabulateManifest(tags_format = "json")
+# Useful for APIs or custom tag parsing
+
+# Option 3: wide - tags expanded into individual columns
+# Creates one column per unique tag key across the manifest
+tbl_wide <- manifest$tabulateManifest(tags_format = "wide")
+# Columns like: id, label, category, file_path, hash, status, approval_status, domain, etc.
+```
+
+#### Other Cohort Review Methods
+
+```{r}
+# Stale cohorts (files changed since last execution, need regeneration)
 manifest$reviewStaleCohorts()
 
 # Derived cohorts only — with parent labels and rule summaries
@@ -347,19 +393,25 @@ plotCohortGraph(manifest)
 ```{r}
 csm <- loadConceptSetManifest(autoSync = TRUE, verbose = TRUE)
 
-# Tabular view of all concept sets
-csm$tabulateManifest()
+# Interactive view (recommended for exploring)
+csm$viewManifest()
+csm$viewManifest(tags_format = "wide")
+
+# Programmatic access with different tag formats
+tbl_nested <- csm$tabulateManifest(tags_format = "nested")  # default
+tbl_json <- csm$tabulateManifest(tags_format = "json")
+tbl_wide <- csm$tabulateManifest(tags_format = "wide")
 
 # Extract concept set member codes (standard concept IDs)
 csm$extractIncludedCodes(
-  conceptSetIds = c(1L, 2L, 3L)
+  outputFolder = here::here("inputs/conceptSets")
 )
 
 # Extract source codes mapped from concept set members
 # Useful for inspecting ICD-10, NDC, etc. coverage
 csm$extractSourceCodes(
-  conceptSetIds  = c(1L, 2L),
-  sourceVocabs   = c("ICD10CM", "ICD9CM")
+  sourceVocabs = c("ICD10CM", "ICD9CM"),
+  outputFolder = here::here("inputs/conceptSets")
 )
 ```
 
