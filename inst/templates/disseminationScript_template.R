@@ -73,8 +73,8 @@ if (length(result_files) > 0) {
   cat("Dimensions:", nrow(results_df), "rows ×", ncol(results_df), "columns\n")
   
   # Show which databases are in this result
-  if ("database_id" %in% names(results_df)) {
-    cat("Databases in this result:", paste(unique(results_df$database_id), collapse = ", "), "\n")
+  if ("databaseId" %in% names(results_df)) {
+    cat("Databases in this result:", paste(unique(results_df$databaseId), collapse = ", "), "\n")
   }
   cat("\n")
   
@@ -99,17 +99,17 @@ if (length(result_files) > 0) {
 # 3. Example: Pivot Results for Cross-Database Comparison
 # ============================================================================
 
-# If your results have a 'databaseId' column, you can create a wide pivot
-# for easy comparison across databases
+# Merged results carry a 'databaseId' column added by the postprocessing step.
+# prepareDisseminationData(clean_names = TRUE) renames it to 'database_id', so
+# use the snake_case name on formatted_df.
 
 # Uncomment and modify to use:
 # 
-# # Assuming 'databaseId' column exists for grouping
 # comparison_df <- picard::pivotForComparison(
 #   data = formatted_df,
-#   pivotColumns = c("metric_name", "stratum"),  # Columns to pivot
-#   valueColumn = "estimate",                     # Column with values
-#   databaseId = "databaseId"                     # Grouping column
+#   id_cols = c("metric_name", "stratum"),  # Columns identifying each row
+#   names_from = "database_id",             # Column pivoted into new columns
+#   values_from = "estimate"                # Column with values
 # )
 # 
 # output_comparison <- file.path(outputPath, "comparison_wide.csv")
