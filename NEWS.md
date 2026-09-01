@@ -21,6 +21,7 @@
 - Custom dependent cohort builder is now consistent with the other dependent cohort builders - the rendered SQL query is written to the file system, and it accepts cohort objects as inputs instead of IDs. 
 - Custom dependent cohort builder now also allows user to specify non-cohort-ID params, so the rendered SQL query can be generated in a single function call (see Issue #66)
 - Builder console messages clarified (see Issue #70)
+- `dplyr::select(-.data$tags_list)` in the tag-expansion helpers replaced with `select(-"tags_list")`; use of `.data` in tidyselect expressions was deprecated in tidyselect 1.2.0 and would eventually have errored.
 - on `resetManifest` turn archive default to FALSE
 - Fixed two dissemination bugs (see Issue #87):
   - `prepareDisseminationData()` asserted that four concatenated logical flags had length 1, so it aborted on every call — including all-default calls — and the formatting step could never run.
