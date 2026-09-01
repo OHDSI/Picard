@@ -606,12 +606,14 @@ runPostProcessing <- function(pipelineVersion, dbIds, resultsPath = here::here("
     NA_character_
   })
   
-  # Snapshot environment only for production (semver) versions
+  # Record the environment only for production (semver) versions. This archives
+  # renv.lock as it stands; refreshing it is the analyst's call, via
+  # snapshotEnvironment().
   if (!testMode) {
-    lockfileHash <- snapshotEnvironment(versionLabel = pipelineVersion, savePath = NULL)
+    lockfileHash <- captureLockfile(versionLabel = pipelineVersion, savePath = NULL)
   } else {
     lockfileHash <- "dev-skip"
-    cli::cli_alert_info("Skipping environment snapshot for non-production version")
+    cli::cli_alert_info("Skipping environment capture for non-production version")
   }
   
   # Get database names and labels from config

@@ -376,7 +376,6 @@ ConceptSetManifest <- R6::R6Class(
 
       # Prepare update values
       updates <- list()
-      params <- list()
 
       if (!is.null(label)) {
         checkmate::assert_string(label, min.chars = 1)
@@ -390,34 +389,43 @@ ConceptSetManifest <- R6::R6Class(
           cli::cli_abort("Label '{label}' is already in use by concept set {existing$id[1]}")
         }
         updates[["label"]] <- label
-        params[[length(params) + 1]] <- label
       }
 
       if (!is.null(category)) {
         checkmate::assert_string(category, min.chars = 1)
         updates[["category"]] <- category
-        params[[length(params) + 1]] <- category
       }
 
       if (!is.null(tags)) {
         checkmate::assert_list(tags, names = "named")
-        tags_json <- if (length(tags) > 0) {
-          jsonlite::toJSON(tags, auto_unbox = TRUE)
+        updates[["tags"]] <- if (length(tags) > 0) {
+          as.character(jsonlite::toJSON(tags, auto_unbox = TRUE))
         } else {
           NA_character_
         }
-        updates[["tags"]] <- tags_json
-        params[[length(params) + 1]] <- tags_json
       }
 
       if (length(updates) == 0) {
         cli::cli_alert_info("No fields provided to update")
-        invisible(NULL)
+        return(invisible(NULL))
+      }
+
+      # Drop assignments the row already holds — writing them would change the
+      # sqlite file on disk even though nothing changed
+      updates <- updates[!vapply(
+        names(updates),
+        function(field) manifestValueUnchanged(updates[[field]], cs_row[[field]][1]),
+        logical(1)
+      )]
+
+      if (length(updates) == 0) {
+        cli::cli_alert_info("Concept set {conceptSetId} metadata is unchanged")
+        return(invisible(NULL))
       }
 
       # Build update query
       set_clause <- paste(names(updates), "= ?", collapse = ", ")
-      params[[length(params) + 1]] <- conceptSetId
+      params <- c(unname(updates), list(conceptSetId))
 
       DBI::dbExecute(
         conn,

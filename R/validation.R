@@ -637,9 +637,12 @@ runPreflightChecks <- function(configBlock,
     )
   } else {
     env_check <- tryCatch({
+      # Record the lockfile, never rewrite it: snapshotting here would dirty
+      # the working tree the code-state check just validated. Keeping renv.lock
+      # current is the analyst's call, via snapshotEnvironment().
       suppressMessages({
         validateEnvironment()
-        lh <- snapshotEnvironment()
+        lh <- lockfileHashOnDisk()
       })
       list(status = "pass", message = "renv.lock in sync", lockfileHash = lh)
     }, error = function(e) {
