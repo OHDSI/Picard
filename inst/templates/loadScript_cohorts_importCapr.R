@@ -31,8 +31,6 @@ library(picard)
 # A. LOAD OR INITIALIZE MANIFEST
 # ================================================================================
 
-# First time only: Initialize a new manifest (comment out after first run)
-# cohortManifest <- initCohortManifest()
 
 # Subsequent times: Load from existing SQLite database
 cohortManifest <- loadCohortManifest()

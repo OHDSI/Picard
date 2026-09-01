@@ -155,7 +155,7 @@ sm <- makeStudyMeta(
 
 ## Step 2: Configure Database Connection
 
-If analyzing a database (toolType = "dbms"), create a database configuration block using `setDbConfigBlock()`:
+If analyzing a database, create a database configuration block using `setDbConfigBlock()`:
 
 ```{r eval = FALSE}
 db <- setDbConfigBlock(

@@ -62,6 +62,33 @@ runPostProcessing(
 
 By default, test mode is auto-enabled for non-semver version strings.
 
+### Compressing Large Merged Results
+
+Merged results can get large once every database's rows for a task are combined.
+Pass `compress = TRUE` to write the merged per-task result files as gzip-compressed
+`.csv.gz` instead of plain `.csv`:
+
+```{r eval = FALSE}
+runPostProcessing(
+  pipelineVersion = "1.0.0",
+  dbIds = c("database_1", "database_2"),
+  compress = TRUE
+)
+```
+
+- `readr::write_csv()` gzips automatically when the filename ends in `.csv.gz`, and
+  `readr::read_csv()`/`spec_csv()` read `.csv.gz` files transparently on the way back
+  in — no special handling needed to consume them, including in `reviewExportSchema()`
+  and `validateCohortResults()`.
+- Only the merged per-task result files are affected. Reference/QC files
+  (`cohortManifestSnapshot.csv`, `databaseInfo.csv`, `schema_review.csv`,
+  `qc_cohortValidation.csv`, `qc_processMeta.csv`) are always written as plain `.csv`,
+  since those tend to stay small.
+- Any script that reads a merged result file directly (e.g. a dissemination script)
+  needs to account for the `.csv.gz` extension when `compress = TRUE` was used —
+  either check for both extensions, or note in your own documentation which
+  convention this study uses.
+
 ## Output Folder Structure
 
 After processing, results are organized in `dissemination/export/merge/v{version}/`:
@@ -173,6 +200,20 @@ This creates `01_format_results.R` with a template structure. Each script receiv
 - `databaseIds` — Database IDs included
 - `outputPath` — Dissemination output root
 - `resultsPath` — Merged results folder path
+
+### Testing a Script Interactively
+
+`disseminationEnv` is created for you when `sourceDisseminationScripts()` runs, so it does not exist at the console while you are still writing the script. Build the same object yourself with `createDisseminationEnv()` so you can run the script line by line:
+
+```{r eval = FALSE}
+disseminationEnv <- createDisseminationEnv(
+  projectPath = here::here(),
+  pipelineVersion = "1.0.0",
+  databaseIds = c("database_1", "database_2")
+)
+```
+
+`pipelineVersion` is auto-detected from `config.yml` when omitted. The returned object is identical to the one injected by `sourceDisseminationScripts()`.
 
 ### Example Dissemination Script
 

@@ -13,11 +13,7 @@ website:
         href: results.qmd
       - text: Changelog
         href: news.qmd
-  drafts:
-      - egp.qmd
-      - results.qmd
-  draft-mode: visible
-  page-footer: 'Generated Using Ulysses'
+  page-footer: 'Generated Using Picard'
 
 format:
   html:

@@ -40,7 +40,7 @@ createBlankConceptSetsLoadFile()
 # ================================================================================
 
 # First time only: Initialize a new manifest (comment out after first run)
-# conceptSetManifest <- initConceptSetManifest()
+conceptSetManifest <- initConceptSetManifest()
 
 # Subsequent times: Load from existing SQLite database
 conceptSetManifest <- loadConceptSetManifest()

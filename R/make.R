@@ -784,7 +784,6 @@ write_agent_files <- function(repoPath,
                               studyName,
                               projectName,
                               databaseLabel,
-                              toolType,
                               repoName,
                               verbose = TRUE) {
   files_created <- character(0)
@@ -1047,29 +1046,7 @@ initAgentMode <- function(projectPath = here::here(), verbose = TRUE, reset = FA
       projectName <- repoName
     }
 
-    # Extract toolType from config.yml
-    config_path <- fs::path(repoPath, "config.yml")
-    if (!fs::file_exists(config_path)) {
-      cli::cli_alert_warning("config.yml not found. Using 'dbms' as default toolType.")
-      toolType <- "dbms"
-    } else {
-      toolType <- tryCatch(
-        {
-          # Try to extract toolType if it exists, otherwise default to checking database blocks
-          config_content <- readr::read_file(config_path)
-          if (grepl("database:", config_content)) {
-            "dbms"
-          } else {
-            "external"
-          }
-        },
-        error = function(e) {
-          cli::cli_alert_warning("Could not parse config.yml. Using 'dbms' as default.")
-          "dbms"
-        }
-      )
-    }
-
+    # Extract databaseLabel from config.yml
     databaseLabel <- "Database"
 
     if (verbose) {
@@ -1077,8 +1054,7 @@ initAgentMode <- function(projectPath = here::here(), verbose = TRUE, reset = FA
         "Extracted metadata:",
         "  Repository: {repoName}",
         "  Study: {studyName}",
-        "  Project: {projectName}",
-        "  Tool Type: {toolType}"
+        "  Project: {projectName}"
       ))
     }
 
@@ -1089,7 +1065,6 @@ initAgentMode <- function(projectPath = here::here(), verbose = TRUE, reset = FA
       studyName = studyName,
       projectName = projectName,
       databaseLabel = databaseLabel,
-      toolType = toolType,
       repoName = repoName,
       verbose = verbose
     )

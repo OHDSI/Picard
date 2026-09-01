@@ -307,12 +307,10 @@ UlyssesStudy <- R6::R6Class(
         } else {
           ""
         }
-        toolType <- if (hasBlocks) "dbms" else "external"
         
         addMainFile(
           repoName = private$.repoName,
           repoFolder = private$.repoFolder,
-          toolType = toolType,
           configBlocks = configBlocks,
           studyName = private$.studyMeta$studyTitle
         )
@@ -333,15 +331,12 @@ UlyssesStudy <- R6::R6Class(
           private$.studyMeta$projectName,
           private$.repoName
         )
-        hasBlocks <- length(private$.dbConnectionBlocks) > 0
-        toolType <- if (hasBlocks) "dbms" else "external"
 
         write_agent_files(
           repoPath = repoPath,
           studyName = studyName,
           projectName = projectName,
           databaseLabel = "Database",
-          toolType = toolType,
           repoName = private$.repoName
         )
       }, error = function(e) {

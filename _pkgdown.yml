@@ -73,6 +73,7 @@ reference:
       - createAgentBranch
       - createBlankCohortsLoadFile
       - createBlankConceptSetsLoadFile
+      - createDisseminationEnv
       - createExecutionSettings
       - createExecutionSettingsFromConfig
       - createPullRequest

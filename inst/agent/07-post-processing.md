@@ -169,6 +169,20 @@ This creates `01_format_results.R` with a template structure. Each script receiv
 - `outputPath` — Dissemination output root
 - `resultsPath` — Merged results folder path
 
+### Testing a Script Interactively
+
+`disseminationEnv` is created for you when `sourceDisseminationScripts()` runs, so it does not exist at the console while you are still writing the script. Build the same object yourself with `createDisseminationEnv()` so you can run the script line by line:
+
+```{r eval = FALSE}
+disseminationEnv <- createDisseminationEnv(
+  projectPath = here::here(),
+  pipelineVersion = "1.0.0",
+  databaseIds = c("database_1", "database_2")
+)
+```
+
+`pipelineVersion` is auto-detected from `config.yml` when omitted. The returned object is identical to the one injected by `sourceDisseminationScripts()`.
+
 ### Example Dissemination Script
 
 ```{r eval = FALSE}
