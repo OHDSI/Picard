@@ -32,9 +32,6 @@ library(picard)
 # A. LOAD OR INITIALIZE MANIFEST
 # ================================================================================
 
-# First time only: Initialize a new manifest (comment out after first run)
-# conceptSetManifest <- initConceptSetManifest()
-
 # Subsequent times: Load from existing SQLite database
 conceptSetManifest <- loadConceptSetManifest()
 
