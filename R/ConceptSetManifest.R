@@ -1738,8 +1738,13 @@ ConceptSetManifest <- R6::R6Class(
     #' @param combinedTags Named list. Optional metadata tags for the combined set.
     #'   Defaults to `list()`. A tag `sourceConceptSetIds` is automatically added
     #'   with comma-separated source IDs.
+    #' @param stopIfExists Logical. If TRUE (default), raises an error when an
+    #'   active concept set with `combinedLabel` is already registered. If FALSE,
+    #'   updates the existing concept set in place via `addCaprConceptSet()`'s
+    #'   upsert path — it keeps its ID and file path, and `combinedCategory`/
+    #'   `combinedTags` replace the registered metadata. Default: TRUE (fail-safe).
     #'
-    #' @return Invisible integer. The ID of the newly created combined concept set.
+    #' @return Invisible integer. The ID of the newly created (or updated) combined concept set.
     #'
     #' @details
     #' **Processing Steps:**
@@ -1763,7 +1768,8 @@ ConceptSetManifest <- R6::R6Class(
     combineConceptSets = function(conceptSetIds, 
                                   combinedLabel,
                                   combinedCategory = "combined",
-                                  combinedTags = list()) {
+                                  combinedTags = list(),
+                                  stopIfExists = TRUE) {
       if (!requireNamespace("Capr", quietly = TRUE)) {
         cli::cli_abort(c(
           "Package {.pkg Capr} is required for combineConceptSets().",
@@ -1777,6 +1783,7 @@ ConceptSetManifest <- R6::R6Class(
       checkmate::assert_string(combinedLabel, min.chars = 1)
       checkmate::assert_string(combinedCategory, min.chars = 1)
       checkmate::assert_list(combinedTags, names = "named")
+      checkmate::assert_flag(stopIfExists)
       
       # Verify all concept set IDs exist
       cli::cli_rule("Combining {length(conceptSetIds)} Concept Sets")
@@ -1830,7 +1837,8 @@ ConceptSetManifest <- R6::R6Class(
           caprConceptSet = combinedCaprCs,
           label = combinedLabel,
           category = combinedCategory,
-          tags = combinedTags
+          tags = combinedTags,
+          stopIfExists = stopIfExists
         )
       }, error = function(e) {
         cli::cli_abort("Failed to register combined concept set: {e$message}")

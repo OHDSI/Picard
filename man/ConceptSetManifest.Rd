@@ -980,7 +980,8 @@ exclude+descendants), exports the result as JSON, and registers it in the manife
   conceptSetIds,
   combinedLabel,
   combinedCategory = "combined",
-  combinedTags = list()
+  combinedTags = list(),
+  stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -997,11 +998,17 @@ Defaults to \code{"combined"}.}
 \item{\code{combinedTags}}{Named list. Optional metadata tags for the combined set.
 Defaults to \code{list()}. A tag \code{sourceConceptSetIds} is automatically added
 with comma-separated source IDs.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+active concept set with \code{combinedLabel} is already registered. If FALSE,
+updates the existing concept set in place via \code{addCaprConceptSet()}'s
+upsert path — it keeps its ID and file path, and \code{combinedCategory}/
+\code{combinedTags} replace the registered metadata. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Invisible integer. The ID of the newly created combined concept set.
+Invisible integer. The ID of the newly created (or updated) combined concept set.
 }
 }
 \if{html}{\out{<hr>}}

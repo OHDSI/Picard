@@ -185,56 +185,6 @@ updateStudyVersion <- function(versionNumber, projectPath = here::here()) {
 }
 
 
-#' @title Zip and Archive results from a study execution
-#' @param input the type of files to zip and archive. There are three options exportMerge, exportPretty and site. exportMerge is the merged results in long format. The exportPretty are xlsx files with formatted output from the study. The site is the html files of the studyHub
-#' @returns invisible return. Stores the input as a zip file in the exec/archive folder
-#' @export
-zipAndArchive <- function(input) {
-  #ensure input is one of three options
-  checkmate::assert_choice(x = input, choices = c("exportMerge", "exportPretty", "site"))
-
-  # make the archive folder in exec
-  if (!dir.exists("exec/archive")) {
-    archivePathRoot <- fs::dir_create("exec/archive")
-    usethis::use_git_ignore(archivePathRoot)
-  }
-
-  # get time stamp of archive
-  timeStamp <- lubridate::now() |> as.character() |> snakecase::to_snake_case()
-
-  # pull version number from config
-  repoVersion <- config::get(value = "version")
-
-  # if input is exportMerge grab results and prep for archive
-  if (input == "exportMerge") {
-    files2zip <- fs::dir_ls("dissemination/export/merge", type = "file")
-    zipFileName <- glue::glue("exec/archive/export_merge_{repoVersion}_{timeStamp}")
-  }
-
-  # if input is exportPretty grab results and prep for archive
-  if (input == "exportPretty") {
-    files2zip <- fs::dir_ls("dissemination/export/pretty", type = "file")
-    zipFileName <- glue::glue("exec/archive/export_pretty_{repoVersion}_{timeStamp}")
-  }
-
-  # if input is site grab files and prep for archive
-  if (input == "exportMerge") {
-    files2zip <- fs::dir_ls("dissemination/quarto/_site", type = "any")
-    zipFileName <- glue::glue("exec/archive/quarto_site_{repoVersion}_{timeStamp}")
-  }
-
-  # zip results and place in archive
-  utils::zip(zipfile = zipFileName, files = files2zip)
-  cli::cat_bullet(
-    glue::glue("Archived {input} to {zipFileName}."),
-    bullet = "tick",
-    bullet_col = "green"
-  )
-
-  invisible(zipFileName)
-
-}
-
 
 #' @title Generate Cohorts for Pipeline Execution
 #' @description Loads the cohort manifest, displays the cohorts to be generated,
