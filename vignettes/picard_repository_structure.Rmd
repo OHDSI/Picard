@@ -32,16 +32,17 @@ The Ulysses repository organizes folders to match the flow of a real-world evide
 │    (Define phenotypes, cohorts, covariates)                    │
 │         ↓                                                        │
 │ 3. ANALYSIS                                                     │
-│    analysis/tasks/ + analysis/src/ + analysis/migrations/     │
+│    analysis/tasks/ + analysis/src/                              │
 │    (Execute analyses, generate statistics)                      │
 │         ↓                                                        │
 │ 4. EXECUTION OUTPUT                                             │
 │    exec/results/[database]/[version]/[task]/                  │
 │    (Raw results by task, database, version)                     │
 │         ↓                                                        │
-│ 5. DISSEMINATION                                                │
-│    dissemination/export/ + dissemination/quarto/               │
-│    (Format results, create Study Hub website)                   │
+│ 5. POST-PROCESSING & DISSEMINATION                              │
+│    dissemination/export/merge/ + dissemination/pretty/ +       │
+│    dissemination/quarto/                                        │
+│    (Merge results, format for release, build Study Hub website) │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -50,8 +51,8 @@ The Ulysses repository organizes folders to match the flow of a real-world evide
 2. Load or create inputs (cohorts and concept sets)
 3. Execute analysis tasks (code in analysis/tasks runs using inputs)
 4. Raw results written to exec/results organized by database and version
-5. Post-processing (migrations) and formatting (excel, CSV)
-6. Dissemination via Study Hub (quarto website) and formatted exports
+5. Post-processing: `runPostProcessing()` merges raw results across databases into `dissemination/export/merge/`, with reference files and QC reports
+6. Dissemination: numbered scripts in `dissemination/pretty/R/` format merged results via `sourceDisseminationScripts()`; the Study Hub (quarto website) renders narrative and results together
 
 ## Ulysses Repository Outline
 
@@ -362,46 +363,7 @@ This ensures all dependencies are explicit and documented, making task execution
 
 #### analysis/migrations/
 
-Post-processing scripts that clean and reshape pipeline results for dissemination. Migrations are numbered to correspond with their source analysis tasks (e.g., `02_migrate_surveillance.R` cleans output from task `02_surveillance.R`).
-
-**Purpose:**
-
-After `orchestratePipelineExport()` binds raw results with metadata, migrations handle data wrangling tasks that weren't necessary during execution:
-
-- **Aggregating:** Combine results across subgroups or time periods
-- **Standardizing:** Apply demographic weighting or statistical adjustments
-- **Pivoting:** Reshape long format to wide for publication tables
-- **Deriving:** Calculate new metrics (confidence intervals, effect size categories, standardized rates)
-- **Filtering:** Remove rows below minimum cell counts or meeting exclusion criteria
-
-**Workflow:**
-
-```
-Task 02: Pipeline Execution
-    ↓
-orchestratePipelineExport() → raw results to dissemination/export/merge/
-    ↓
-Migration 02: Data Wrangling (02_migrate_surveillance.R)
-    ↓
-dissemination/export/pretty/ → finalized, publication-ready results
-```
-
-**Example Structure:**
-
-```
-analysis/migrations/
-├── 02_migrate_surveillance.R
-│   # Aggregate surveillance counts by age/sex strata
-│   # Apply census weighting for standardization
-│   # Generate crude and standardized prevalence/incidence rates
-├── 03_migrate_comparative.R
-│   # Pivot comparative analysis results wide
-│   # Calculate confidence intervals and p-values
-└── 05_migrate_sensitivity.R
-    # Combine sensitivity analysis variants into summary table
-```
-
-Each migration reads from `dissemination/export/merge/` (raw exported results), performs transformations, and writes cleaned data to `dissemination/export/pretty/` for final dissemination.
+There is no `analysis/migrations/` folder in current Picard studies — post-processing and formatting now happen entirely under `dissemination/`, outside the versioned `analysis/` code. After `execStudyPipeline()` finishes, `runPostProcessing()` merges raw per-database results into `dissemination/export/merge/v{version}/`, and numbered scripts in `dissemination/pretty/R/` (created with `makeDisseminationScript()`, run with `sourceDisseminationScripts()`) handle the data wrangling and formatting that used to live in migration scripts — aggregating, standardizing, pivoting, deriving, and filtering results for dissemination. See [Post-Processing and Dissemination](post_processing.html) and the [Dissemination Folder](#dissemination-folder) section below for the full workflow.
 
 ### Inputs Folder
 
@@ -561,7 +523,7 @@ SQLite database created/managed by `ConceptSetManifest` class. Contains `concept
 
 ### Dissemination Folder
 
-This folder organizes results, evidence outputs, and documentation for sharing with stakeholders. Contains three main subdirectories.
+This folder organizes results, evidence outputs, and documentation for sharing with stakeholders. Contains four main subdirectories: `documents/`, `quarto/`, `export/`, and `pretty/`.
 
 #### dissemination/documents/
 
@@ -599,38 +561,43 @@ Use `buildStudyHub()` to render your documentation into the `_site/` folder, whi
 
 #### dissemination/export/
 
-Results exported from the pipeline via `orchestratePipelineExport()` and processed into various formats for dissemination:
+Raw results merged across databases via `runPostProcessing()`, one subfolder per pipeline version:
 
 ```
 dissemination/export/
-├── merge/                 # Raw merged results from orchestratePipelineExport()
-│   ├── cohortKey.csv      # Cohort definitions (generated)
-│   ├── databaseInfo.csv   # Database metadata (generated)
-│   ├── schema_review.csv  # Schema validation (generated)
-│   ├── task_01_results.csv
-│   ├── task_02_results.csv
-│   └── task_03_results.csv
-├── pretty/                # Formatted results from migration scripts (Excel, CSV, etc.)
-│   ├── mainResults.xlsx
-│   ├── sensitivity_analyses.xlsx
-│   └── suppTable1_demographics.xlsx
-└── studyHubOutput/        # Files sourced by the Study Hub for dynamic rendering
-    ├── table1_demographics.csv
-    ├── figure1_incidence.csv
-    └── results_summary.json
+└── merge/
+    └── v1.0.0/                     # One folder per pipeline version
+        ├── cohort_counts.csv       # Task results merged across databases
+        ├── characterization.csv    # Task results merged across databases
+        ├── cohortManifestSnapshot.csv  # Reference: cohort metadata at execution
+        ├── databaseInfo.csv        # Reference: database details
+        ├── schema_review.csv       # Schema inspection results
+        ├── qc_cohortValidation.csv # QC: cohort completeness validation
+        └── qc_processMeta.csv      # QC: execution metadata
+```
+
+`runPostProcessing(pipelineVersion, dbIds, ...)` reads raw results from `exec/results/` across all databases and tasks for a given version, merges each task's results via `importAndBind()`, adds a `databaseId` column, writes the reference/QC files above, and reviews schema with `reviewExportSchema()`. This folder holds durable, versioned raw exports — it is not touched by formatting scripts.
+
+#### dissemination/pretty/
+
+Where merged results get formatted for final release. Dissemination scripts live in `pretty/R/`, numbered like tasks, and their output is written alongside them by convention:
+
+```
+dissemination/pretty/
+├── R/                          # Dissemination/formatting scripts
+│   ├── 01_format_results.R     # Created via makeDisseminationScript()
+│   └── 02_studyHubTables.R
+├── mainResults.xlsx            # Formatted output written by a script
+└── table1_demographics.csv     # Formatted output written by a script
 ```
 
 **Workflow:**
 
-1. **Merge phase:** `orchestratePipelineExport(pipelineVersion, dbIds)` reads raw results from `exec/results/` across all databases and tasks for a given version. It combines results into long-format CSV files in `dissemination/export/merge/`, along with reference files (cohortKey, databaseInfo, schema_review).
+1. **Merge phase:** `runPostProcessing()` produces the versioned raw results in `dissemination/export/merge/v{version}/` described above.
+2. **Author phase:** `makeDisseminationScript(name = "format_results")` creates a numbered template in `dissemination/pretty/R/`.
+3. **Format phase:** `sourceDisseminationScripts()` sources every script in `dissemination/pretty/R/` in alphabetical order, injecting a `disseminationEnv` object (`pipelineVersion`, `databaseIds`, `outputPath`, `resultsPath`) so each script can read from `dissemination/export/merge/` and write formatted Excel/CSV/JSON output to `dissemination/pretty/` (or wherever `outputPath` points) — for publication tables, Study Hub data, or both. While authoring a script, call `createDisseminationEnv()` directly to build the same object at the console and run the script line by line before wiring it into the full pipeline.
 
-2. **Format phase:** Migration scripts (e.g., `02_migrate_surveillance.R`) read from `dissemination/export/merge/` and perform data wrangling, reshaping, and formatting. Output depends on use case:
-   - **For publication/reports:** Write formatted Excel/CSV files to `dissemination/export/pretty/`
-   - **For Study Hub:** Write data tables and figures to `dissemination/export/studyHubOutput/`
-
-3. **Dissemination:**
-   - Files in `pretty/` are copied directly to publications or referenced by static Quarto reports
-   - Files in `studyHubOutput/` are sourced dynamically by Quarto files in `dissemination/quarto/` to create interactive tables and figures in the Study Hub website
+See [Post-Processing and Dissemination](post_processing.html) for the full walkthrough, including QC reports and advanced usage of `importAndBind()`/`reviewExportSchema()`/`validateCohortResults()`.
 
 ### Exec Folder
 
