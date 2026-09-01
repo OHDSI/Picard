@@ -380,7 +380,6 @@ list.dirs("exec/results/primary_db", recursive = FALSE)
 2. **Verify code quality:** Ensure all tasks run successfully and produce expected results
 3. **Run production:** When ready for official results, use `main.R`
 4. **Review and merge:** Follow code review workflow before accepting to main branch
-5. **Archive results:** Use `zipAndArchive()` to preserve important results
 
 ## See Also
 
