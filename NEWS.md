@@ -48,6 +48,7 @@
 - remove function forced tags `route = atlas` or `route = capr` (See Issue #67)
 - in `$grabConceptInfoFromSet()` change input to conceptSetRef which accepts either a manifest id or a label (See issue #56)
 - Add task prefix to the `importAndBind()` save to avoid similar output names between tasks.
+- Concept sets fetched from ATLAS came back with their concepts in a nondeterministic order, so an unchanged definition serialized to different JSON — and a different content hash — on every fetch, dirtying the study repo's git status (part of #84). Concept set expressions are now canonicalized before serialization: items are ordered by `CONCEPT_ID` (ties broken by vocabulary, code and inclusion flags) and circe `ConceptSets` by their `id`. Ordering is left untouched when any concept set lacks a usable `id`, so `CodesetId` references cannot break.
 - Add method to ExecutionSettings to `reviewConnectionDetails()` pulls the connectionDetails used. 
 - Modify `getServerCredentials()` to not evaluate full yml file, only pull the specific block and evaluate (See issue #30, #33). 
 - Fix `makeDisseminationScript()` change the glue brackets to carrots
