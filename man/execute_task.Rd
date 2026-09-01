@@ -11,7 +11,8 @@ execute_task(
   checkStatus = FALSE,
   env = rlang::caller_env(),
   cohortTableSuffix = NULL,
-  codeState = NULL
+  codeState = NULL,
+  logFilePath = NULL
 )
 }
 \arguments{
@@ -33,6 +34,11 @@ Default: FALSE}
 \code{exec/logs/task_run_history.csv} alongside each run. NULL — the
 default, used when a task is run outside the pipeline — records the code
 state as \code{"unrecorded"} rather than implying a clean tree.}
+
+\item{logFilePath}{Character or NULL. Path to the pipeline log file for
+recording high-level milestones and full error detail. NULL (default)
+when run outside a pipeline (e.g. via \code{testStudyTask()}) — no file
+is written.}
 }
 \description{
 Function to execute a study task in Ulysses

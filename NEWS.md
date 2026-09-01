@@ -49,6 +49,7 @@
 - Fix `makeDisseminationScript()` change the glue brackets to carrots
 - Fix bug in `$updateAtlasCohorts()`/`$updateAtlasConceptSets()` to use tags in json mode after tab format change. 
 - Regenerated `inst/agent/05-manifest-management.md` from `vignettes/manifest_management.Rmd`. It had not been synced since `viewManifest()` and the `tabulateManifest(tags_format = ...)` options were added, so agents in generated study repos were reading stale manifest guidance.
+- `execStudyPipeline()`/`testStudyPipeline()` no longer go silent during a run (see Issue #85). `execute_pipeline()` used `sink(type = "output")` to capture console output into the pipeline log, which redirected every `cli` info bullet and error away from the console for the entire run — nothing showed up live, including the detail of a task's actual error. The sink is removed entirely: console output now streams normally, and the log file is instead written explicitly with high-level milestones (config block/task start, success, failure) plus a full error detail block (class, call, message) on failure. Separately, `execute_task()` was calling `stop()` from inside its per-expression error handler, which skipped the subsequent `recordTaskExecution(..., errorMessage = ...)` call entirely — so `task_run_history.csv` never recorded the real error message for a failed task, only whatever generic message the caller happened to re-throw. The detailed message is now recorded correctly.
 
 # picard 0.0.6
 

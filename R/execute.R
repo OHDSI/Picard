@@ -343,6 +343,35 @@ generateCohorts <- function(executionSettings, pipelineVersion, override = FALSE
 
 
 
+#' Append a milestone line to the pipeline log file (file only, never console).
+#' A no-op when \code{logFilePath} is NULL, so callers don't need to guard it.
+#' @keywords internal
+appendLogLine <- function(logFilePath, ...) {
+  if (is.null(logFilePath)) {
+    return(invisible(NULL))
+  }
+  cat(..., "\n", sep = "", file = logFilePath, append = TRUE)
+  invisible(NULL)
+}
+
+#' Format the full detail of a condition (message + call) for the log file.
+#' The console already gets the short version via cli; this is the durable copy.
+#' @keywords internal
+formatErrorDetail <- function(e) {
+  callTxt <- if (!is.null(conditionCall(e))) paste(deparse(conditionCall(e)), collapse = " ") else "<no call>"
+  paste(
+    c(
+      "----- Full error detail -----",
+      glue::glue("Class: {paste(class(e), collapse = ', ')}"),
+      glue::glue("Call: {callTxt}"),
+      "Message:",
+      conditionMessage(e),
+      "------------------------------"
+    ),
+    collapse = "\n"
+  )
+}
+
 #' @title Function to execute a study task in Ulysses
 #' @param taskFile the name of the taskFile. Only use the base name
 #' @param configBlock the name of the configBlock to use in the execution
@@ -357,12 +386,17 @@ generateCohorts <- function(executionSettings, pipelineVersion, override = FALSE
 #'   \code{exec/logs/task_run_history.csv} alongside each run. NULL — the
 #'   default, used when a task is run outside the pipeline — records the code
 #'   state as \code{"unrecorded"} rather than implying a clean tree.
+#' @param logFilePath Character or NULL. Path to the pipeline log file for
+#'   recording high-level milestones and full error detail. NULL (default)
+#'   when run outside a pipeline (e.g. via \code{testStudyTask()}) — no file
+#'   is written.
 #' @keywords internal
 execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
                          checkStatus = FALSE,
                          env = rlang::caller_env(),
                          cohortTableSuffix = NULL,
-                         codeState = NULL) {
+                         codeState = NULL,
+                         logFilePath = NULL) {
 
   commitSha <- codeState$sha %||% NA_character_
   codeStateLabel <- codeState$status %||% "unrecorded"
@@ -462,9 +496,12 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
       res <- eval(exprs[[ex]], env)
     }, error = function(e) {
       cli::cli_alert_danger("Error executing expression {ex} in task {taskFile}:")
-      cli::cli_alert_danger("{e$message}")
-      executionError <<- paste("Expression", ex, "failed:", e$message)
-      stop(glue::glue("Task execution failed at expression {ex}"))
+      cli::cli_alert_danger("{conditionMessage(e)}")
+      executionError <<- glue::glue("Expression {ex} failed: {conditionMessage(e)}")
+      appendLogLine(logFilePath, glue::glue("[{format(Sys.time(), '%H:%M:%S')}] Task {taskFile} failed at expression {ex}"))
+      appendLogLine(logFilePath, formatErrorDetail(e))
+      # Do not stop() here — let the loop exit via executionError below so
+      # recordTaskExecution() still runs with the full detailed message.
     })
     if (!is.null(executionError)) {
       break
@@ -476,7 +513,7 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
     recordTaskExecution(taskFile, configBlock, pipelineVersion, "failed",
                         errorMessage = executionError,
                         commitSha = commitSha, codeState = codeStateLabel)
-    stop(executionError)
+    stop(executionError, call. = FALSE)
   } else {
     recordTaskExecution(taskFile, configBlock, pipelineVersion, "success",
                         commitSha = commitSha, codeState = codeStateLabel)
@@ -738,14 +775,11 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
     )
     
     writeLines(logHeader, con = logFilePath)
-    
-    # Setup sink for logging to capture all output
-    sink(file = logFilePath, append = TRUE, type = "output")
-    on.exit(sink(), add = TRUE)
-    
-    # Log to file that we're starting cohort generation
-    cat(glue::glue("[{format(Sys.time(), '%H:%M:%S')}] Starting cohort generation...\n"), sep = "")
-    
+
+    # Log to file that we're starting cohort generation (file only — console
+    # already gets this via cli below, streamed live and not redirected)
+    appendLogLine(logFilePath, glue::glue("[{format(Sys.time(), '%H:%M:%S')}] Starting cohort generation..."))
+
   }, error = function(e) {
     cli::cli_alert_warning("Failed to setup logging: {e$message}")
   })
@@ -772,18 +806,16 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
   taskResults <- list()
   
   for (db in seq_along(configBlock)) {
-    logMsg <- glue::glue("\n[{format(Sys.time(), '%H:%M:%S')}] Processing config block: {configBlock[db]}")
-    cat(logMsg, "\n", sep = "")
-    
+    appendLogLine(logFilePath, glue::glue("[{format(Sys.time(), '%H:%M:%S')}] Processing config block: {configBlock[db]}"))
+
     cli::cli_alert_info("Processing config block: {configBlock[db]}")
-    
+
     for (task in seq_along(taskFilesToRun)) {
       taskName <- taskFilesToRun[task]
       taskKey <- glue::glue("{configBlock[db]}_{taskName}")
-      
-      taskLogMsg <- glue::glue("  [{format(Sys.time(), '%H:%M:%S')}] Executing task {task}/{length(taskFilesToRun)}: {taskName}")
-      cat(taskLogMsg, "\n", sep = "")
-      
+
+      appendLogLine(logFilePath, glue::glue("  [{format(Sys.time(), '%H:%M:%S')}] Executing task {task}/{length(taskFilesToRun)}: {taskName}"))
+
       tryCatch({
         cli::cli_alert_info("Executing task {task}/{length(taskFilesToRun)}: {taskName}")
         
@@ -794,11 +826,11 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
           cohortTableSuffix = cohortTableSuffixResolved,
           checkStatus = TRUE,
           env = env,
-          codeState = codeState
+          codeState = codeState,
+          logFilePath = logFilePath
         )
         
-        successMsg <- glue::glue("  [{format(Sys.time(), '%H:%M:%S')}] ✓ Task completed successfully")
-        cat(successMsg, "\n", sep = "")
+        appendLogLine(logFilePath, glue::glue("  [{format(Sys.time(), '%H:%M:%S')}] ✓ Task completed successfully"))
         
         taskResults[[taskKey]] <- list(
           status = "success",
@@ -807,22 +839,17 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
         )
         
       }, error = function(e) {
-        errorMsg <- glue::glue("  [{format(Sys.time(), '%H:%M:%S')}] ✗ Task failed with error: {e$message}")
-        cat(errorMsg, "\n", sep = "")
+        appendLogLine(logFilePath, glue::glue("  [{format(Sys.time(), '%H:%M:%S')}] ✗ Task failed: {taskName}"))
+        appendLogLine(logFilePath, formatErrorDetail(e))
         
         cli::cli_alert_danger("Task failed: {taskName}")
-        cli::cli_alert_danger("Error: {e$message}")
+        cli::cli_alert_danger("Error: {conditionMessage(e)}")
         
-        stop(glue::glue("Pipeline halted at task: {taskName}"))
+        stop(glue::glue("Pipeline halted at task: {taskName}: {conditionMessage(e)}"), call. = FALSE)
       })
     }
   }
-  
-  # Close sink before summary
-  if (!is.null(logFilePath)) {
-    sink()
-  }
-  
+
   # Summary
   cli::cli_rule("Pipeline Execution Complete")
   successCount <- sum(sapply(taskResults, function(x) x$status == "success"))
