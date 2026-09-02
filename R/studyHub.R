@@ -125,43 +125,48 @@ buildStudyHub <- function(projectPath = here::here(), previewHub = TRUE) {
 }
 
 #' @title Publish Study Hub to Posit Connect
-#' @description Builds a Study Hub and deploys the rendered site to Posit Connect.
+#' @description Builds a Study Hub and publishes it to Posit Connect through
+#'   Quarto's public publishing API.
 #' @param projectPath Character. Path to the Ulysses study repository. Defaults to
 #'   the active project.
 #' @param server Character. Posit Connect server hostname.
 #' @param account Character or NULL. Optional Posit Connect account. If NULL,
 #'   the destination resolver selects the configured account.
-#' @param appName Character. Name of the application on Posit Connect.
-#' @param appTitle Character or NULL. Display title on Posit Connect. Defaults to
-#'   `appName`.
-#' @param metadata Named list. Optional deployment metadata passed to
-#'   `rsconnect::deployApp()`.
-#' @param contentCategory Character. Posit Connect content category. Defaults to
-#'   `"site"`.
-#' @return Invisibly returns a list containing the project path, rendered site
-#'   path, and resolved Posit Connect destination.
+#' @param appName Character or NULL. Optional application name passed to Quarto
+#'   as `name`. When NULL, Quarto derives the name from the project directory.
+#' @param appTitle Character or NULL. Optional display title on Posit Connect,
+#'   passed to Quarto as `title`.
+#' @param render Character. Quarto render mode: `"local"`, `"server"`, or
+#'   `"none"`. Defaults to `"local"`.
+#' @param metadata Named list. Optional metadata passed to the Posit Connect
+#'   deployment.
+#' @param noBrowser Logical. If TRUE, prevents Quarto from opening a browser
+#'   after publishing. Defaults to TRUE.
+#' @return Invisibly returns the Study Hub project path.
 #' @export
 publishStudyHubPosit <- function(projectPath = here::here(),
                             server,
                             account = NULL,
-                            appName,
+                            appName = NULL,
                             appTitle = NULL,
+                            render = "local",
                             metadata = list(),
-                            contentCategory = "site") {
-  if (!requireNamespace("rsconnect", quietly = TRUE)) {
+                            noBrowser = TRUE) {
+  if (!requireNamespace("quarto", quietly = TRUE)) {
     cli::cli_abort(c(
-      "Package {.pkg rsconnect} is required to publish a Study Hub.",
-      i = "Install it with {.code install.packages('rsconnect')}."
+      "Package {.pkg quarto} is required to publish a Study Hub.",
+      i = "Install it with {.code install.packages('quarto')}."
     ))
   }
 
   checkmate::assert_string(projectPath, min.chars = 1)
   checkmate::assert_string(server, min.chars = 1)
   checkmate::assert_string(account, min.chars = 1, null.ok = TRUE)
-  checkmate::assert_string(appName, min.chars = 1)
+  checkmate::assert_string(appName, min.chars = 1, null.ok = TRUE)
   checkmate::assert_string(appTitle, min.chars = 1, null.ok = TRUE)
+  checkmate::assert_choice(render, choices = c("local", "server", "none"))
   checkmate::assert_list(metadata, names = "named")
-  checkmate::assert_string(contentCategory, min.chars = 1)
+  checkmate::assert_flag(noBrowser)
 
   projectPath <- fs::path_expand(projectPath)
   docsPath <- fs::path(projectPath, "dissemination/quarto")
@@ -170,49 +175,22 @@ publishStudyHubPosit <- function(projectPath = here::here(),
   }
 
   cli::cli_rule("Publish Study Hub")
-  cli::cli_alert_info("Rendering Study Hub from {.path {fs::path_rel(docsPath)}}")
-  buildStudyHub(projectPath = projectPath, previewHub = FALSE)
+  knitIndexAndNews(projectPath)
+  cli::cli_alert_info("Publishing Study Hub from {.path {fs::path_rel(docsPath)}}")
 
-  inspect <- quarto:::quarto_inspect(docsPath)
-  outputDir <- inspect[["config"]][["project"]][["output-dir"]]
-  if (is.null(outputDir) || length(outputDir) == 0 || is.na(outputDir)) {
-    outputDir <- "_site"
-  }
-  sitePath <- if (fs::is_absolute_path(outputDir)) {
-    fs::path_norm(outputDir)
-  } else {
-    fs::path(docsPath, outputDir)
-  }
-
-  if (!fs::dir_exists(sitePath)) {
-    cli::cli_abort("Rendered Study Hub directory not found: {.path {sitePath}}")
-  }
-
-  destination <- quarto:::resolve_destination(server, account = account, FALSE)
-  resolvedAccount <- destination[["account"]]
-  resolvedServer <- destination[["server"]]
-  if (is.null(resolvedAccount) || is.null(resolvedServer)) {
-    cli::cli_abort("Could not resolve a Posit Connect account and server destination.")
-  }
-
-  cli::cli_alert_info("Deploying {.path {fs::path_rel(sitePath)}} to {.val {resolvedServer}}")
-  rsconnect::deployApp(
-    appDir = sitePath,
-    recordDir = docsPath,
-    appName = appName,
-    appTitle = appTitle %||% appName,
-    account = resolvedAccount,
-    server = resolvedServer,
+  publish_args <- list(
+    input = docsPath,
+    name = appName,
+    title = appTitle,
+    server = server,
+    account = account,
+    render = render,
     metadata = metadata,
-    contentCategory = contentCategory
+    launch.browser = !noBrowser
   )
 
-  cli::cli_alert_success("Study Hub published as {.val {appName}}")
-  invisible(list(
-    projectPath = projectPath,
-    sitePath = sitePath,
-    account = resolvedAccount,
-    server = resolvedServer,
-    appName = appName
-  ))
+  do.call(quarto::quarto_publish_site, publish_args)
+
+  cli::cli_alert_success("Study Hub published to {.val {server}}")
+  invisible(docsPath)
 }
