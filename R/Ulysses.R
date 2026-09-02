@@ -541,6 +541,7 @@ ContributorLine <- R6::R6Class(
 #' - `studyType`: Type of study conducted (read/write)
 #' - `studyLinks`: Character vector of relevant study links (read/write)
 #' - `studyTags`: Character vector of tags describing the study (read/write)
+#' - `studyDescription`: Optional study description (read/write)
 #' - `contributors`: List of ContributorLine objects (read/write)
 #'
 #' ## Methods
@@ -563,6 +564,7 @@ StudyMeta <- R6::R6Class(
     #' @param contributors List of ContributorLine objects. Study team members.
     #' @param studyLinks Character vector. Optional URLs and references for the study.
     #' @param studyTags Character vector. Optional tags describing the study topics/characteristics.
+    #' @param studyDescription Character string. Optional description of the study.
     #'
     #' @return Invisibly returns self.
     initialize = function(studyTitle,
@@ -570,7 +572,8 @@ StudyMeta <- R6::R6Class(
                           studyType,
                           contributors,
                           studyLinks = NULL,
-                          studyTags = NULL) {
+                          studyTags = NULL,
+                          studyDescription = NULL) {
       checkmate::assert_string(x = studyTitle, min.chars = 1)
       checkmate::assert_string(x = therapeuticArea, min.chars = 1)
       checkmate::assert_string(x = studyType, min.chars = 1)
@@ -588,6 +591,9 @@ StudyMeta <- R6::R6Class(
       if (!is.null(studyTags)) {
         private[[".studyTags"]] <- studyTags
       }
+
+      checkmate::assert_string(x = studyDescription, null.ok = TRUE)
+      private[[".studyDescription"]] <- studyDescription
 
       checkmate::assert_list(x = contributors, min.len = 1, types = "ContributorLine")
       private[[".contributors"]] <- contributors
@@ -657,7 +663,8 @@ StudyMeta <- R6::R6Class(
     .studyType = NULL,
     .contributors = NULL,
     .studyLinks = NULL,
-    .studyTags = NULL
+    .studyTags = NULL,
+    .studyDescription = NULL
   ),
   active = list(
     #' @field studyTitle Title of the study. Can be read or set with validation.
@@ -690,6 +697,14 @@ StudyMeta <- R6::R6Class(
       checkmate::assert_character(x = value)
       private[[".studyTags"]] <- value
       cli::cli_alert_info("Updated {.field studyTags}")
+    },
+
+    #' @field studyDescription Optional description of the study. Can be read or set with validation.
+    studyDescription = function(value) {
+      if (missing(value)) return(private$.studyDescription)
+      checkmate::assert_string(x = value, null.ok = TRUE)
+      private[[".studyDescription"]] <- value
+      cli::cli_alert_info("Updated {.field studyDescription}")
     },
 
     #' @field studyLinks Character vector of relevant study resource links and URLs. Can be read or set with validation.
@@ -958,10 +973,10 @@ initReadMeFn <- function(sm, repoName, repoPath) {
   ) |>
     glue::glue_collapse(sep = "\n")
 
-  # prep placeholder for desc
+  # Use the template placeholder when no description was supplied.
   desc <- c(
     "## Study Description",
-    "Add a short description about the study!"
+    sm$studyDescription %||% "Add a short description about the study!"
   ) |>
     glue::glue_collapse(sep = "\n\n")
 

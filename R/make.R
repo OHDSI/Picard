@@ -15,6 +15,7 @@ setContributor <- function(name, email, role) {
 #' @param studyType the study type (typically characterization)
 #' @param studyLinks a list of study links
 #' @param studyTags a list of study tags
+#' @param studyDescription a character string describing the study, or NULL
 #' @returns A StudyMeta R6 class with the study meta
 #' @export
 makeStudyMeta <- function(studyTitle,
@@ -22,14 +23,16 @@ makeStudyMeta <- function(studyTitle,
                           studyType,
                           contributors,
                           studyLinks = NULL,
-                          studyTags = NULL) {
+                          studyTags = NULL,
+                          studyDescription = NULL) {
   StudyMeta$new(
     studyTitle = studyTitle,
     therapeuticArea = therapeuticArea,
     studyType = studyType,
     contributors = contributors,
     studyLinks = studyLinks,
-    studyTags = studyTags
+    studyTags = studyTags,
+    studyDescription = studyDescription
   )
 }
 #' @title Make a database config block
