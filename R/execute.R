@@ -308,9 +308,6 @@ generateCohorts <- function(executionSettings, pipelineVersion, override = FALSE
     counts <- cm$retrieveCohortCounts()
     
     cli::cli_alert_success("Cohort generation completed successfully!")
-    cli::cli_rule("Cohort Counts")
-    print(counts)
-    cli::cli_rule()
     
     # Save cohort counts to output folder
     databaseName <- executionSettings$databaseName
@@ -332,6 +329,12 @@ generateCohorts <- function(executionSettings, pipelineVersion, override = FALSE
     # Save cohort counts to CSV
     outputFile <- fs::path(outputFolder, "cohortCounts.csv")
     readr::write_csv(counts, file = outputFile)
+
+    nonzero_count <- sum(counts$cohort_entries > 0, na.rm = TRUE)
+    zero_count <- sum(counts$cohort_entries == 0, na.rm = TRUE)
+    cli::cli_alert_info(
+      "Cohort counts: {nrow(counts)} cohort(s) returned; {nonzero_count} with records; {zero_count} with zero records"
+    )
     cli::cli_alert_success("Saved cohort counts to: {fs::path_rel(outputFile)}")
     
     return(invisible(counts))
