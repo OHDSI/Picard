@@ -112,7 +112,6 @@ reference:
       - displayTaskStatusReport
       - documentDependencies
       - editSecrets
-      - expandManifestTags
       - formatFloats
       - formatPercentages
       - generateCohorts
@@ -122,6 +121,7 @@ reference:
       - pivotForComparison
       - plotCohortGraph
       - prepareDisseminationData
+      - publishStudyHubPosit
       - recordTaskExecution
       - resetCohortManifest
       - resetConceptSetManifest
@@ -144,7 +144,6 @@ reference:
       - validateConfigYaml
       - validateStudyTask
       - validateUlyssesStructure
-      - zipAndArchive
 
 development:
   mode: "auto"

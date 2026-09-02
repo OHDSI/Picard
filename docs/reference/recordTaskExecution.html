@@ -10,7 +10,7 @@
     
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.6</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.7</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -67,7 +67,9 @@
 <span>  <span class="va">status</span>,</span>
 <span>  cohortManifestHash <span class="op">=</span> <span class="cn">NA_character_</span>,</span>
 <span>  errorMessage <span class="op">=</span> <span class="cn">NA_character_</span>,</span>
-<span>  tasksFolderPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"analysis/tasks"</span><span class="op">)</span></span>
+<span>  tasksFolderPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"analysis/tasks"</span><span class="op">)</span>,</span>
+<span>  commitSha <span class="op">=</span> <span class="cn">NA_character_</span>,</span>
+<span>  codeState <span class="op">=</span> <span class="st">"unrecorded"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -100,6 +102,20 @@
 <dt>tasksFolderPath</dt>
 <dd><p>Character. Path to tasks folder (optional)</p></dd>
 
+
+<dt>commitSha</dt>
+<dd><p>Character. HEAD commit SHA at execution time, from the
+pre-flight code-state check (optional).</p></dd>
+
+
+<dt>codeState</dt>
+<dd><p>Character. Provenance of the working tree at execution time:
+<code>"clean"</code>, <code>"dirty-ignored"</code> (uncommitted changes were tolerated
+under configured ignore paths), <code>"unverified-skipped"</code> (the code-state
+check was skipped), <code>"unverified-test-mode"</code>, or <code>"unrecorded"</code>
+for calls outside a pipeline run. Recorded so the audit trail never implies
+a clean tree when the tree was not clean.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -113,7 +129,7 @@
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Developed by Martin Lavallee.</p>
+  <p>Developed by Martin Lavallee, Katy Sadowski.</p>
 </div>
 
 <div class="pkgdown-footer-right">

@@ -18,7 +18,7 @@ inline validators that stopped on first failure."><!-- mathjax --><script src="h
     
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.6</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.7</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -78,6 +78,8 @@ inline validators that stopped on first failure.</p>
 <span>  testMode <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  skipRenv <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  skipConnectivityCheck <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  ignoreUncommittedPaths <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  skipCodeStateCheck <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  resultsPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"exec/results"</span><span class="op">)</span>,</span>
 <span>  tasksFolderPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"analysis/tasks"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -107,6 +109,20 @@ and branch-sync checks are skipped.</p></dd>
 check is skipped.</p></dd>
 
 
+<dt>ignoreUncommittedPaths</dt>
+<dd><p>Character vector or NULL. Repo-relative paths
+whose uncommitted changes should not fail the code-state check. When NULL
+(default) the list is read from <code>ignoreUncommittedPaths</code> in the
+<code>default:</code> block of config.yml, which itself defaults to ignoring
+nothing. Pass <code>character(0)</code> to force strict checking.</p></dd>
+
+
+<dt>skipCodeStateCheck</dt>
+<dd><p>Logical. If TRUE, the code-state check is skipped
+entirely — a last resort. The run is still allowed, but the checklist and
+the run history record that the working tree was never verified.</p></dd>
+
+
 <dt>resultsPath</dt>
 <dd><p>Character. Path to the results root folder for collision check.</p></dd>
 
@@ -119,8 +135,12 @@ check is skipped.</p></dd>
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     
 
-<p>Invisibly returns a list with <code>lockfileHash</code> and
-<code>taskFilesToRun</code> for downstream use in <code><a href="execute_pipeline.html">execute_pipeline()</a></code>.</p>
+<p>Invisibly returns a list with <code>lockfileHash</code>,
+<code>taskFilesToRun</code> and <code>codeState</code> for downstream use in
+<code><a href="execute_pipeline.html">execute_pipeline()</a></code>. <code>codeState</code> is a list with <code>sha</code>,
+<code>status</code>, <code>ignoredFiles</code> and <code>ignorePaths</code> and is written
+into <code>exec/logs/task_run_history.csv</code> so the audit trail never claims
+a clean tree when the tree was not clean.</p>
     </div>
 
   </main><aside class="col-md-3"><nav id="toc"><h2>On this page</h2>
@@ -128,7 +148,7 @@ check is skipped.</p></dd>
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Developed by Martin Lavallee.</p>
+  <p>Developed by Martin Lavallee, Katy Sadowski.</p>
 </div>
 
 <div class="pkgdown-footer-right">

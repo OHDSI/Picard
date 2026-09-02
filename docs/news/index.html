@@ -10,7 +10,7 @@
     
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.6</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.7</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -53,6 +53,90 @@
       <small>Source: <a href="https://github.com/ohdsi/Picard/blob/HEAD/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.0.7" id="picard-007">picard 0.0.7<a class="anchor" aria-label="anchor" href="#picard-007"></a></h2>
+<div class="section level3">
+<h3 id="new-features-0-0-7">New Features<a class="anchor" aria-label="anchor" href="#new-features-0-0-7"></a></h3>
+<div class="section level4">
+<h4 id="code-state-escape-hatches-0-0-7">Code State Escape Hatches<a class="anchor" aria-label="anchor" href="#code-state-escape-hatches-0-0-7"></a></h4>
+<ul><li>Scoped escape hatches for the “Code state” pre-flight check, for study repos where files under <code>inputs/</code> churn without a deliberate edit. Both default to off, so unchanged studies get exactly the previous behavior.
+<ul><li>
+<code>execStudyPipeline(ignoreUncommittedPaths = ...)</code> tolerates uncommitted changes confined to the listed repo-relative paths; changes anywhere else (notably <code>analysis/</code>) still fail the check. The list can be set once per study as <code>ignoreUncommittedPaths</code> in the <code>default:</code> block of <code>config.yml</code>, with the argument overriding it for a single run.</li>
+<li>
+<code>execStudyPipeline(skipCodeStateCheck = TRUE)</code> skips the check entirely as a last resort. Deliberately not settable from <code>config.yml</code>.</li>
+<li>Neither hatch is silent: <code>Code state</code> is reported as a <strong>warning</strong> rather than a pass, a banner names every ignored file, and the pipeline log records the code state and commit SHA.</li>
+<li>
+<code>exec/logs/task_run_history.csv</code> gains <code>commit_sha</code> and <code>code_state</code> columns (<code>clean</code>, <code>dirty-ignored</code>, <code>unverified-skipped</code>, <code>unverified-test-mode</code>, <code>unrecorded</code>) so the audit trail never implies a clean tree when the tree was not clean. Existing history files are read and back-filled as <code>unrecorded</code>.</li>
+</ul></li>
+</ul></div>
+<div class="section level4">
+<h4 id="tabulate-and-view-manifest-0-0-7">Tabulate and View Manifest<a class="anchor" aria-label="anchor" href="#tabulate-and-view-manifest-0-0-7"></a></h4>
+<ul><li>Added <code>viewManifest()</code> convenience method for both <code>CohortManifest</code> and <code>ConceptSetManifest</code> to interactively explore manifest metadata in RStudio viewer with streamlined columns (id, label, category, tags, file_path).</li>
+<li>Enhanced <code>tabulateManifest()</code> with <code>tags_format</code> parameter supporting three formats: <code>"nested"</code> (default, parsed tags as tibble with tag_name/tag_value), <code>"json"</code> (raw JSON string for backward compatibility), and <code>"wide"</code> (expanded tags as individual columns for spreadsheet-like analysis).</li>
+</ul></div>
+<div class="section level4">
+<h4 id="building-a-disseminationenv-interactively-0-0-7">Building a disseminationEnv Interactively<a class="anchor" aria-label="anchor" href="#building-a-disseminationenv-interactively-0-0-7"></a></h4>
+</div>
+<div class="section level4">
+<h4 id="study-metadata-and-publishing-0-0-7">Study Metadata and Publishing<a class="anchor" aria-label="anchor" href="#study-metadata-and-publishing-0-0-7"></a></h4>
+<ul><li>Added the optional <code>studyDescription</code> field to <code><a href="../reference/makeStudyMeta.html">makeStudyMeta()</a></code>. When supplied, it is inserted into the generated README; when omitted, the existing description placeholder is retained.</li>
+<li>Added <code><a href="../reference/publishStudyHubPosit.html">publishStudyHubPosit()</a></code> to render and publish a Study Hub through Quarto’s public Posit Connect publishing API.</li>
+</ul></div>
+</div>
+<div class="section level3">
+<h3 id="bug-fixes-0-0-7">Bug Fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-0-7"></a></h3>
+<ul><li>Fixed several problems with the <code>'stale'</code> cohort status (see Issue <a href="https://github.com/ohdsi/Picard/issues/74" class="external-link">#74</a>). <code>'stale'</code> now consistently means “registered, but needs regenerating”, rather than removing a cohort from the study:
+<ul><li>Re-running a derived cohort builder (e.g. <code>addDependentCustomCohort()</code>, <code>buildUnionCohort()</code>) with <code>stopIfExists = FALSE</code> and unchanged inputs no longer marks the cohort — and everything downstream of it — stale. Staleness is now cascaded only on a real definition change (content hash, file path, parents, or build rule), and a metadata-only edit no longer forces regeneration.</li>
+<li>Stale cohorts are once again returned by <code>tabulateManifest(filter = "active")</code> and therefore by all <code>query...()</code> methods, so they can be queried by label/tag/category and used as parents for new derived cohorts.</li>
+<li>
+<code><a href="../reference/generateCohorts.html">generateCohorts()</a></code> now lists stale cohorts in its confirmation prompt (they are exactly the cohorts that need generating) and flags them as such.</li>
+<li>
+<code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code> and <code>getManifestStatus()</code> count stale cohorts as registered and break them out separately; <code>getManifestStatus()</code> gains <code>stale_count</code>.</li>
+<li>Fixed <code>viewManifest()</code> erroring on an undefined <code>tags_format</code> argument; it now also shows the <code>status</code> column.</li>
+</ul></li>
+<li>Manifest tag parsing no longer assumes the <code>tags</code> column holds a JSON string (see Issue <a href="https://github.com/ohdsi/Picard/issues/78" class="external-link">#78</a>). The <code>query*ByTagName()</code> methods default to <code>tags_format = "nested"</code>, which returns tags as a <code>tag_name</code>/<code>tag_value</code> tibble, so internal callers that re-parsed that column failed with <code>Argument 'txt' must be a JSON string, URL or file.</code> This broke <code>importAtlasCohorts()</code>/<code>importAtlasConceptSets()</code> (and therefore <code><a href="../reference/sourceInputBuilderScripts.html">sourceInputBuilderScripts()</a></code>), as well as <code>listAllUniqueTags()</code> and <code>getTagValuesSummary()</code>. Tag parsing now goes through a shared helper that accepts JSON strings, nested tibbles, and already-parsed lists, and treats missing/empty/malformed tags as no tags.</li>
+<li>add <code>$queryConceptSetsByCategory()</code> it was missing</li>
+<li>Pipeline pre-flight checks were impossible to pass (<a href="https://github.com/ohdsi/Picard/issues/84" class="external-link">#84</a>):
+<ul><li>The manifest metadata writers issued an <code>UPDATE</code> even when every value already matched the stored row, bumping <code>updated_at</code> and rewriting <code>cohortManifest.sqlite</code> / <code>conceptSetManifest.sqlite</code> on every metadata refresh and every ATLAS re-import. Unchanged assignments are now dropped, so a re-run leaves the manifest files byte-identical and <code><a href="../reference/validateCodeState.html">validateCodeState()</a></code> no longer sees uncommitted changes. <code><a href="../reference/cascadeStaleDownstream.html">cascadeStaleDownstream()</a></code> likewise skips rows that are already stale.</li>
+<li>
+<code><a href="../reference/validateEnvironment.html">validateEnvironment()</a></code> always reported “Environment drift detected!” because it tested <code><a href="https://rstudio.github.io/renv/reference/status.html" class="external-link">renv::status()</a></code> for <code>NULL</code>, and <code><a href="https://rstudio.github.io/renv/reference/status.html" class="external-link">renv::status()</a></code> always returns a list. It now reads the <code>synchronized</code> flag and compares the library and lockfile package records, and treats source-only mismatches as a warning rather than a blocker.</li>
+<li>
+<code><a href="../reference/runPreflightChecks.html">runPreflightChecks()</a></code> ran <code><a href="https://rstudio.github.io/renv/reference/snapshot.html" class="external-link">renv::snapshot()</a></code> immediately after validating that the working tree was clean, so the check could dirty the tree it had just approved and leave the next run failing its code-state check. The lockfile is now recorded rather than refreshed; keeping <code>renv.lock</code> current is the analyst’s call, via <code><a href="../reference/snapshotEnvironment.html">snapshotEnvironment()</a></code>.</li>
+</ul></li>
+<li>add <code>stopIfExists</code> option to ATLAS csv load builders (see Issue <a href="https://github.com/ohdsi/Picard/issues/65" class="external-link">#65</a>)</li>
+<li>Custom dependent cohort builder is now consistent with the other dependent cohort builders - the rendered SQL query is written to the file system, and it accepts cohort objects as inputs instead of IDs.</li>
+<li>Custom dependent cohort builder now also allows user to specify non-cohort-ID params, so the rendered SQL query can be generated in a single function call (see Issue <a href="https://github.com/ohdsi/Picard/issues/66" class="external-link">#66</a>)</li>
+<li>Builder console messages clarified (see Issue <a href="https://github.com/ohdsi/Picard/issues/70" class="external-link">#70</a>)</li>
+<li>
+<code>dplyr::select(-.data$tags_list)</code> in the tag-expansion helpers replaced with <code>select(-"tags_list")</code>; use of <code>.data</code> in tidyselect expressions was deprecated in tidyselect 1.2.0 and would eventually have errored.</li>
+<li>on <code>resetManifest</code> turn archive default to FALSE</li>
+<li>Fixed two dissemination bugs (see Issue <a href="https://github.com/ohdsi/Picard/issues/87" class="external-link">#87</a>):
+<ul><li>
+<code><a href="../reference/prepareDisseminationData.html">prepareDisseminationData()</a></code> asserted that four concatenated logical flags had length 1, so it aborted on every call — including all-default calls — and the formatting step could never run.</li>
+<li>The dissemination script template checked merged results for a <code>database_id</code> column, but <code><a href="../reference/importAndBind.html">importAndBind()</a></code> labels them with camelCase <code>databaseId</code>, so the check was always false. The later references to <code>database_id</code> are correct, as they operate on data already passed through <code><a href="../reference/cleanColumnNames.html">cleanColumnNames()</a></code>.</li>
+</ul></li>
+<li>
+<code><a href="../reference/standardizeDataTypes.html">standardizeDataTypes()</a></code> no longer discards columns it cannot coerce. The default <code>"_id$"</code> rule matched the character <code>database_id</code> column and <code><a href="https://rdrr.io/r/base/integer.html" class="external-link">as.integer()</a></code> silently turned it into <code>NA</code>, since failed coercion raises a warning rather than an error. A conversion that would turn a non-missing value into <code>NA</code> is now skipped and reported.</li>
+<li>Refactor <code>query...Manifest</code> methods to use <code>$tabulateManifest()</code> internally to be more consistent.</li>
+<li>Show current manifest id after import (see Issue <a href="https://github.com/ohdsi/Picard/issues/68" class="external-link">#68</a>)</li>
+<li>remove function forced tags <code>route = atlas</code> or <code>route = capr</code> (See Issue <a href="https://github.com/ohdsi/Picard/issues/67" class="external-link">#67</a>)</li>
+<li>in <code>$grabConceptInfoFromSet()</code> change input to conceptSetRef which accepts either a manifest id or a label (See issue <a href="https://github.com/ohdsi/Picard/issues/56" class="external-link">#56</a>)</li>
+<li>Add task prefix to the <code><a href="../reference/importAndBind.html">importAndBind()</a></code> save to avoid similar output names between tasks.</li>
+<li>Concept sets fetched from ATLAS came back with their concepts in a nondeterministic order, so an unchanged definition serialized to different JSON — and a different content hash — on every fetch, dirtying the study repo’s git status (part of <a href="https://github.com/ohdsi/Picard/issues/84" class="external-link">#84</a>). Concept set expressions are now canonicalized before serialization: items are ordered by <code>CONCEPT_ID</code> (ties broken by vocabulary, code and inclusion flags) and circe <code>ConceptSets</code> by their <code>id</code>. Ordering is left untouched when any concept set lacks a usable <code>id</code>, so <code>CodesetId</code> references cannot break.</li>
+<li>Add method to ExecutionSettings to <code>reviewConnectionDetails()</code> pulls the connectionDetails used.</li>
+<li>Modify <code><a href="../reference/getServerCredentials.html">getServerCredentials()</a></code> to not evaluate full yml file, only pull the specific block and evaluate (See issue <a href="https://github.com/ohdsi/Picard/issues/30" class="external-link">#30</a>, <a href="https://github.com/ohdsi/Picard/issues/33" class="external-link">#33</a>).</li>
+<li>Fix <code><a href="../reference/makeDisseminationScript.html">makeDisseminationScript()</a></code> change the glue brackets to carrots</li>
+<li>Fix bug in <code>$updateAtlasCohorts()</code>/<code>$updateAtlasConceptSets()</code> to use tags in json mode after tab format change.</li>
+<li>Regenerated <code>inst/agent/05-manifest-management.md</code> from <code>vignettes/manifest_management.Rmd</code>. It had not been synced since <code>viewManifest()</code> and the <code>tabulateManifest(tags_format = ...)</code> options were added, so agents in generated study repos were reading stale manifest guidance.</li>
+<li>
+<code><a href="../reference/execStudyPipeline.html">execStudyPipeline()</a></code>/<code><a href="../reference/testStudyPipeline.html">testStudyPipeline()</a></code> no longer go silent during a run (see Issue <a href="https://github.com/ohdsi/Picard/issues/85" class="external-link">#85</a>). <code><a href="../reference/execute_pipeline.html">execute_pipeline()</a></code> used <code>sink(type = "output")</code> to capture console output into the pipeline log, which redirected every <code>cli</code> info bullet and error away from the console for the entire run — nothing showed up live, including the detail of a task’s actual error. The sink is removed entirely: console output now streams normally, and the log file is instead written explicitly with high-level milestones (config block/task start, success, failure) plus a full error detail block (class, call, message) on failure. Separately, <code><a href="../reference/execute_task.html">execute_task()</a></code> was calling <code><a href="https://rdrr.io/r/base/stop.html" class="external-link">stop()</a></code> from inside its per-expression error handler, which skipped the subsequent <code>recordTaskExecution(..., errorMessage = ...)</code> call entirely — so <code>task_run_history.csv</code> never recorded the real error message for a failed task, only whatever generic message the caller happened to re-throw. The detailed message is now recorded correctly.</li>
+<li>Improved cohort-generation reporting (see Issue <a href="https://github.com/ohdsi/Picard/issues/77" class="external-link">#77</a>): failures now use prominent danger-level messages with the failed cohort, label, and underlying error, remaining cohorts are reported as not generated, and the final summary says generation failed when appropriate. The cohort lookup now checks for missing manifest entries before accessing their fields, and cancellation guidance points to builder scripts and manifest methods instead of only <code>cohortsLoad.csv</code>.</li>
+<li>
+<code><a href="../reference/generateCohorts.html">generateCohorts()</a></code> now delegates table creation to <code>executeCohortGeneration(confirm = FALSE)</code>, avoiding duplicate table checks and connection cycles while still creating missing tables automatically. The full cohort-count table is no longer printed to the console; a compact count summary and the saved <code>cohortCounts.csv</code> path are reported instead.</li>
+<li>
+<code>initUlyssesRepo()</code> now aborts when its target repository directory already exists, preventing initialization from overwriting an existing repository.</li>
+</ul></div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.0.6" id="picard-006">picard 0.0.6<a class="anchor" aria-label="anchor" href="#picard-006"></a></h2>
 <div class="section level3">
@@ -585,7 +669,7 @@
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Developed by Martin Lavallee.</p>
+  <p>Developed by Martin Lavallee, Katy Sadowski.</p>
 </div>
 
 <div class="pkgdown-footer-right">

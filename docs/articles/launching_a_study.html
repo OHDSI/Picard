@@ -26,7 +26,7 @@
     
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.6</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.7</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -294,7 +294,8 @@ renv for Reproducibility</a> section below to get started.</p>
 <span>      role <span class="op">=</span> <span class="st">"qc"</span></span>
 <span>    <span class="op">)</span></span>
 <span>  <span class="op">)</span>,</span>
-<span>  studyTags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"OMOP"</span>, <span class="st">"OHDSI"</span>, <span class="st">"Characterization"</span><span class="op">)</span></span>
+<span>  studyTags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"OMOP"</span>, <span class="st">"OHDSI"</span>, <span class="st">"Characterization"</span><span class="op">)</span>,</span>
+<span>  studyDescription <span class="op">=</span> <span class="st">"This study characterizes diabetes populations in an OMOP CDM."</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p><strong>Parameters:</strong> - <code>studyTitle</code>:
 Human-readable project name - <code>therapeuticArea</code>: Therapeutic
@@ -305,13 +306,17 @@ or disease area (e.g., “CRM”, “Oncology”, “Cardiology”) -
 <code><a href="../reference/setContributor.html">setContributor()</a></code> - <code>name</code>: Full name -
 <code>email</code>: Contact email - <code>role</code>: Role type (e.g.,
 “developer”, “qc”, “principal investigator”) - <code>studyTags</code>:
-Character vector of study tags for organization</p>
+Character vector of study tags for organization -
+<code>studyDescription</code>: Optional character string used in the
+generated README study description. If omitted or <code>NULL</code>, the
+README contains the placeholder text
+<code>Add a short description about the study!</code>.</p>
 </div>
 <div class="section level2">
 <h2 id="step-2-configure-database-connection">Step 2: Configure Database Connection<a class="anchor" aria-label="anchor" href="#step-2-configure-database-connection"></a>
 </h2>
-<p>If analyzing a database (toolType = “dbms”), create a database
-configuration block using <code><a href="../reference/setDbConfigBlock.html">setDbConfigBlock()</a></code>:</p>
+<p>If analyzing a database, create a database configuration block using
+<code><a href="../reference/setDbConfigBlock.html">setDbConfigBlock()</a></code>:</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">db</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setDbConfigBlock.html">setDbConfigBlock</a></span><span class="op">(</span></span>
 <span>  configBlockName <span class="op">=</span> <span class="st">"my_cdm"</span>,</span>
@@ -554,7 +559,8 @@ or <code><a href="../reference/setupAtlasSecretsKeyring.html">setupAtlasSecretsK
 <span>      role <span class="op">=</span> <span class="st">"qc"</span></span>
 <span>    <span class="op">)</span></span>
 <span>  <span class="op">)</span>,</span>
-<span>  studyTags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"OMOP"</span>, <span class="st">"OHDSI"</span>, <span class="st">"Characterization"</span><span class="op">)</span></span>
+<span>  studyTags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"OMOP"</span>, <span class="st">"OHDSI"</span>, <span class="st">"Characterization"</span><span class="op">)</span>,</span>
+<span>  studyDescription <span class="op">=</span> <span class="st">"This study characterizes diabetes populations in an OMOP CDM."</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># 2. Configure database connection</span></span>
@@ -640,7 +646,7 @@ Executing your study pipeline in production</li>
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Developed by Martin Lavallee.</p>
+  <p>Developed by Martin Lavallee, Katy Sadowski.</p>
 </div>
 
 <div class="pkgdown-footer-right">
