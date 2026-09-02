@@ -86,6 +86,13 @@ UlyssesStudy <- R6::R6Class(
     #' @return Invisibly returns the path to the initialized repository.
     initUlyssesRepo = function(verbose = TRUE, openProject = FALSE) {
       repoPath <- private$.getRepoPath()
+
+      if (fs::dir_exists(repoPath)) {
+        cli::cli_abort(c(
+          "Repository directory already exists: {.file {repoPath}}",
+          i = "Choose a different {.arg repoName} or {.arg repoFolder}; initialization will not overwrite an existing repository."
+        ))
+      }
       
       if (verbose) cli::cli_h2("Initializing Ulysses Repository")
       
