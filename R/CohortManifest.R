@@ -4906,14 +4906,14 @@ CohortManifest <- R6::R6Class(
           cli::cli_bullets(c("!" = "{missing_tbl$type[i]}: {missing_tbl$name[i]}"))
         }
 
-        if (!interactive()) {
+        if (!interactive() && isTRUE(confirm)) {
           cli::cli_abort(c(
             "Required cohort tables are missing.",
-            i = "Non-interactive session detected. Create tables first with {.code $createAllCohortTables()} and rerun."
+            i = "Non-interactive session detected. Re-run with {.code confirm = FALSE} to create missing tables automatically."
           ))
         }
 
-        should_prompt <- isTRUE(confirm)
+        should_prompt <- isTRUE(confirm) && interactive()
         if (should_prompt) {
           answer <- readline("Missing cohort tables detected. Create now? (yes/no): ")
           if (!identical(trimws(tolower(answer)), "yes")) {
@@ -4994,13 +4994,14 @@ CohortManifest <- R6::R6Class(
         # grab cohorts one at a time
         cohort_id <- sorted_cohort_ids[idx]
         cohort <- self$getCohortById(cohort_id)
-        cohort_label <- cohort$label
-        cohort_type <- cohort$getCohortType()
 
         if (is.null(cohort)) {
           cli::cli_alert_danger("Cohort {cohort_id} not found in manifest")
           next
         }
+
+        cohort_label <- cohort$label
+        cohort_type <- cohort$getCohortType()
 
         ## Phase 1: Check Skip Status
 
@@ -5074,13 +5075,20 @@ CohortManifest <- R6::R6Class(
               }
             }
           }
-          cli::cli_alert_info("Stopping cohort generation due to error at cohort {cohort_id}")
+          cli::cli_alert_danger(
+            "Cohort generation failed at cohort {cohort_id}: {cohort_label}"
+          )
+          cli::cli_alert_danger(
+            "Error: {sub('^Error:\\s*', '', result$result_row$status)}"
+          )
+          cli::cli_alert_warning("Remaining cohorts were not generated.")
           break
         }
       }
       # Step 3: report result 
       res <- report_cohort_results(results_df)
-      return(res)
+      print(res)
+      invisible(res)
         
     },
 

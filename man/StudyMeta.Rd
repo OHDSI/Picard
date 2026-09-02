@@ -18,6 +18,7 @@ methods for generating formatted output of study components.
 \item \code{studyType}: Type of study conducted (read/write)
 \item \code{studyLinks}: Character vector of relevant study links (read/write)
 \item \code{studyTags}: Character vector of tags describing the study (read/write)
+\item \code{studyDescription}: Optional study description (read/write)
 \item \code{contributors}: List of ContributorLine objects (read/write)
 }
 }
@@ -41,6 +42,8 @@ methods for generating formatted output of study components.
 \item{\code{studyType}}{Type of study conducted. Can be read or set with validation.}
 
 \item{\code{studyTags}}{Character vector of tags describing study topics and characteristics. Can be read or set with validation.}
+
+\item{\code{studyDescription}}{Optional description of the study. Can be read or set with validation.}
 
 \item{\code{studyLinks}}{Character vector of relevant study resource links and URLs. Can be read or set with validation.}
 
@@ -70,7 +73,8 @@ Initialize a new StudyMeta instance with study metadata.
   studyType,
   contributors,
   studyLinks = NULL,
-  studyTags = NULL
+  studyTags = NULL,
+  studyDescription = NULL
 )}\if{html}{\out{</div>}}
 }
 
@@ -88,6 +92,8 @@ Initialize a new StudyMeta instance with study metadata.
 \item{\code{studyLinks}}{Character vector. Optional URLs and references for the study.}
 
 \item{\code{studyTags}}{Character vector. Optional tags describing the study topics/characteristics.}
+
+\item{\code{studyDescription}}{Character string. Optional description of the study.}
 }
 \if{html}{\out{</div>}}
 }

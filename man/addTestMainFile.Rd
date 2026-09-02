@@ -4,14 +4,12 @@
 \alias{addTestMainFile}
 \title{Add Test Main File to Extras Folder}
 \usage{
-addTestMainFile(repoName, repoFolder, toolType, configBlocks, studyName)
+addTestMainFile(repoName, repoFolder, configBlocks, studyName)
 }
 \arguments{
 \item{repoName}{Character. Name of the repository.}
 
 \item{repoFolder}{Character. Parent directory of the repository.}
-
-\item{toolType}{Character. Tool type, either "dbms" or "external".}
 
 \item{configBlocks}{List or Character vector. Database config blocks or block names.}
 

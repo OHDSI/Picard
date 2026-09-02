@@ -9,7 +9,8 @@ importAndBind(
   taskName,
   dbIds,
   resultsPath = here::here("exec/results"),
-  exportPath = here::here("dissemination/export/merge")
+  exportPath = here::here("dissemination/export/merge"),
+  compress = FALSE
 )
 }
 \arguments{
@@ -23,6 +24,16 @@ importAndBind(
 
 \item{exportPath}{Character. Path where combined results will be saved.
 Defaults to "dissemination/export/merge"}
+
+\item{compress}{Logical. If TRUE, writes merged files as gzip-compressed CSV
+(\code{.csv.gz}) instead of plain \code{.csv}. Merged results can get large once
+every database's rows for a task are combined; \code{readr::write_csv()} gzips
+automatically when the filename ends in \code{.csv.gz}, and \code{readr::read_csv()}
+(and \code{spec_csv()}) decompress \code{.gz} files transparently on read — no
+special handling needed to consume them. Reference/QC files written by
+\code{\link{runPostProcessing}} (databaseInfo.csv, schema_review.csv, etc.) are
+always plain \code{.csv}, since only the merged per-task results tend to be large.
+Default: FALSE.}
 }
 \value{
 Invisibly returns data frame of export summary with columns: fileName, rowCount, databaseCount
