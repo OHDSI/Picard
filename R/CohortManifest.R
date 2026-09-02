@@ -4906,14 +4906,14 @@ CohortManifest <- R6::R6Class(
           cli::cli_bullets(c("!" = "{missing_tbl$type[i]}: {missing_tbl$name[i]}"))
         }
 
-        if (!interactive()) {
+        if (!interactive() && isTRUE(confirm)) {
           cli::cli_abort(c(
             "Required cohort tables are missing.",
-            i = "Non-interactive session detected. Create tables first with {.code $createAllCohortTables()} and rerun."
+            i = "Non-interactive session detected. Re-run with {.code confirm = FALSE} to create missing tables automatically."
           ))
         }
 
-        should_prompt <- isTRUE(confirm)
+        should_prompt <- isTRUE(confirm) && interactive()
         if (should_prompt) {
           answer <- readline("Missing cohort tables detected. Create now? (yes/no): ")
           if (!identical(trimws(tolower(answer)), "yes")) {
