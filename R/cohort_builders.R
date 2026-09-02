@@ -582,7 +582,11 @@ report_cohort_results <- function(results_df) {
     cli::cli_alert_info("Cohort types: {circe_count} circe + {custom_count} custom + {dependent_count} dependent")
   }
 
-  cli::cli_alert_success("Cohort generation complete")
+  if (failed > 0) {
+    cli::cli_alert_danger("Cohort generation failed")
+  } else {
+    cli::cli_alert_success("Cohort generation complete")
+  }
   cli::cli_alert_info("Total cohorts: {nrow(results_df)} | Successful: {successful} | Skipped: {skipped} | Failed: {failed}")
   cli::cli_alert_info("Total execution time: {total_time_min |> round(2)} min")
 

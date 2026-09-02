@@ -292,8 +292,8 @@ generateCohorts <- function(executionSettings, pipelineVersion, override = FALSE
     if (!(response %in% c("yes", "y"))) {
       cli::cli_alert_info("Cohort generation cancelled by user.")
       cli::cli_bullets(c(
-        i = "To modify cohorts, edit cohortsLoad.csv in Excel and re-run",
-        i = "To import new cohorts from ATLAS, use {.code importAtlasCohorts()}"
+        i = "Update cohort definitions through the builder scripts or manifest methods.",
+        i = "Re-run the pipeline after making the changes."
       ))
       return(invisible(NULL))
     }
