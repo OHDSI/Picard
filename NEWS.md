@@ -17,10 +17,17 @@
 
 ### Building a disseminationEnv Interactively
 
-- Added `createDisseminationEnv()`, which returns the `disseminationEnv` object a dissemination script receives (`pipelineVersion`, `databaseIds`, `outputPath`, `resultsPath`) without having to run `sourceDisseminationScripts()` first, so a script can be tested as it is written (see Issue #86). `sourceDisseminationScripts()` now builds its environment through the same function, so the two cannot drift.
+
+### Study Metadata and Publishing
+
+- Added the optional `studyDescription` field to `makeStudyMeta()`. When supplied, it is inserted into the generated README; when omitted, the existing description placeholder is retained.
+- Added `publishStudyHubPosit()` to render and publish a Study Hub through Quarto's public Posit Connect publishing API.
 
 ## Bug Fixes
 
+- Improved cohort-generation output for Issue #77: failed cohorts now produce prominent failure messages with their ID, label, and underlying error, remaining cohorts are identified as not generated, and the final summary reports failure accurately. Missing cohort objects are also checked before their fields are accessed, and cancellation guidance now points to builder scripts and manifest methods.
+- `generateCohorts()` now relies on `executeCohortGeneration(confirm = FALSE)` as the single table setup path, avoiding duplicate table checks and connection cycles while still creating missing tables automatically. Large cohort-count tables are no longer printed to the console; a compact summary and the saved `cohortCounts.csv` path are reported instead.
+- `initUlyssesRepo()` now stops before writing when the target repository directory already exists, preventing accidental overwrites.
 - Fixed several problems with the `'stale'` cohort status (see Issue #74). `'stale'` now consistently means "registered, but needs regenerating", rather than removing a cohort from the study:
   - Re-running a derived cohort builder (e.g. `addDependentCustomCohort()`, `buildUnionCohort()`) with `stopIfExists = FALSE` and unchanged inputs no longer marks the cohort — and everything downstream of it — stale. Staleness is now cascaded only on a real definition change (content hash, file path, parents, or build rule), and a metadata-only edit no longer forces regeneration.
   - Stale cohorts are once again returned by `tabulateManifest(filter = "active")` and therefore by all `query...()` methods, so they can be queried by label/tag/category and used as parents for new derived cohorts.
