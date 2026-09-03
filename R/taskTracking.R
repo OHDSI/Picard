@@ -387,16 +387,15 @@ recordTaskExecution <- function(
 
 
 #' @title Get Cohort Manifest Hash
-#' @description Computes a SHA256 digest of the cohort manifest's definitions —
-#'   the content hash and dependency structure of every registered
-#'   (`active`/`stale`) cohort. Used by [shouldRerunTask()] to detect cohort
-#'   definition changes that require a task rerun.
-#' @details Reads `cohortManifest.sqlite` directly (no sync, no file rendering),
-#'   so it is a pure read with no side effects. The digest is deterministic —
-#'   independent of row ordering — and independent of where cohort files are
-#'   stored on disk: it hashes each cohort's stored content `hash` plus its
-#'   identity and dependency columns, never its `file_path`. A manifest with no
-#'   registered cohorts hashes to a fixed sentinel rather than failing.
+#' @description Loads the cohort manifest and returns
+#'   [CohortManifest$getManifestHash()][CohortManifest], a SHA256 digest over
+#'   every registered (`active`/`stale`) cohort's definition. Used by
+#'   [shouldRerunTask()] to detect cohort changes that require a task rerun.
+#' @details A thin wrapper around the manifest method, which is the single
+#'   source of truth for what "the cohort definitions changed" means. The load
+#'   is read-only (`autoSync = FALSE`), so this has no side effects. Any failure
+#'   to load or hash the manifest returns `NA_character_`; [shouldRerunTask()]
+#'   treats that as "cannot prove unchanged" and forces the rerun.
 #' @param projectPath Character. A path inside the study repository. Defaults to
 #'   the current project (`here::here()`).
 #' @return Character. SHA256 hex digest, or `NA_character_` if the manifest
@@ -404,34 +403,12 @@ recordTaskExecution <- function(
 #' @keywords internal
 .getCohortManifestHash <- function(projectPath = here::here()) {
   tryCatch({
-    projectRoot <- findStudyProjectRoot(projectPath)
-    dbPath <- fs::path(projectRoot, "inputs", "cohorts", "cohortManifest.sqlite")
-
-    if (!file.exists(dbPath)) {
-      return(NA_character_)
-    }
-
-    conn <- DBI::dbConnect(RSQLite::SQLite(), dbPath)
-    on.exit(DBI::dbDisconnect(conn))
-
-    rows <- DBI::dbGetQuery(
-      conn,
-      "SELECT id, label, cohort_type, source_type, hash, depends_on, dependency_rule
-         FROM cohort_manifest
-        WHERE status IN ('active', 'stale')
-        ORDER BY id"
+    cm <- loadCohortManifest(
+      cohortsFolderPath = projectPath,
+      autoSync = FALSE,
+      verbose = FALSE
     )
-
-    if (nrow(rows) == 0) {
-      return(digest::digest("empty-cohort-manifest", algo = "sha256"))
-    }
-
-    # Normalize to character with NA -> "" so the payload is stable across
-    # DBI/RSQLite type coercions, then serialize deterministically.
-    rows_norm <- lapply(rows, function(col) ifelse(is.na(col), "", as.character(col)))
-    payload <- paste(do.call(paste, c(rows_norm, sep = "\x1f")), collapse = "\x1e")
-
-    digest::digest(payload, algo = "sha256")
+    cm$getManifestHash()
   }, error = function(e) {
     cli::cli_alert_warning("Could not compute cohort manifest hash: {e$message}")
     return(NA_character_)

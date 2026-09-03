@@ -15,17 +15,16 @@ Character. SHA256 hex digest, or \code{NA_character_} if the manifest
 cannot be read.
 }
 \description{
-Computes a SHA256 digest of the cohort manifest's definitions —
-the content hash and dependency structure of every registered
-(\code{active}/\code{stale}) cohort. Used by \code{\link[=shouldRerunTask]{shouldRerunTask()}} to detect cohort
-definition changes that require a task rerun.
+Loads the cohort manifest and returns
+\link[=CohortManifest]{CohortManifest$getManifestHash()}, a SHA256 digest over
+every registered (\code{active}/\code{stale}) cohort's definition. Used by
+\code{\link[=shouldRerunTask]{shouldRerunTask()}} to detect cohort changes that require a task rerun.
 }
 \details{
-Reads \code{cohortManifest.sqlite} directly (no sync, no file rendering),
-so it is a pure read with no side effects. The digest is deterministic —
-independent of row ordering — and independent of where cohort files are
-stored on disk: it hashes each cohort's stored content \code{hash} plus its
-identity and dependency columns, never its \code{file_path}. A manifest with no
-registered cohorts hashes to a fixed sentinel rather than failing.
+A thin wrapper around the manifest method, which is the single
+source of truth for what "the cohort definitions changed" means. The load
+is read-only (\code{autoSync = FALSE}), so this has no side effects. Any failure
+to load or hash the manifest returns \code{NA_character_}; \code{\link[=shouldRerunTask]{shouldRerunTask()}}
+treats that as "cannot prove unchanged" and forces the rerun.
 }
 \keyword{internal}
