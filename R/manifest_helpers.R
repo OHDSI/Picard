@@ -3,6 +3,73 @@
 # Wraps the R6 class methods with convenient top-level functions and provides
 # visualization / review utilities.
 
+#' Find the root of a Picard study repository
+#'
+#' Walks upward from a file or directory until it finds the structural markers
+#' that identify a Picard study repository.
+#'
+#' @param path Character. A file or directory inside the study repository.
+#'   Defaults to the current project detected by `here::here()`.
+#'
+#' @return Character. The normalized absolute path to the study repository root.
+#' @export
+findStudyProjectRoot <- function(path = here::here()) {
+  checkmate::assert_string(path, min.chars = 1)
+
+  candidate <- fs::path_abs(path)
+  if (!fs::dir_exists(candidate) && fs::file_exists(candidate)) {
+    candidate <- fs::path_dir(candidate)
+  }
+
+  required_files <- c("config.yml", "README.md")
+  required_directories <- c("analysis", "inputs", "dissemination")
+
+  repeat {
+    has_required_files <- all(
+      fs::file_exists(fs::path(candidate, required_files))
+    )
+    has_required_directories <- all(
+      fs::dir_exists(fs::path(candidate, required_directories))
+    )
+
+    if (has_required_files && has_required_directories) {
+      return(fs::path_norm(candidate))
+    }
+
+    parent <- fs::path_dir(candidate)
+    if (identical(parent, candidate)) {
+      cli::cli_abort(c(
+        "Could not find a Picard study repository root from {.path {path}}.",
+        i = "Expected a parent directory containing {.file config.yml}, {.file README.md}, and the {.file analysis/}, {.file inputs/}, and {.file dissemination/} directories."
+      ))
+    }
+    candidate <- parent
+  }
+}
+
+manifest_project_root <- function(manifest_db_path) {
+  findStudyProjectRoot(manifest_db_path)
+}
+
+manifest_path_relative <- function(path, manifest_db_path) {
+  fs::path_rel(
+    path = fs::path_abs(path),
+    start = manifest_project_root(manifest_db_path)
+  )
+}
+
+resolve_manifest_path <- function(stored_path, manifest_db_path) {
+  if (fs::is_absolute_path(stored_path)) {
+    return(fs::path_norm(stored_path))
+  }
+
+  fs::path(
+    manifest_project_root(manifest_db_path),
+    stored_path
+  ) |>
+    fs::path_norm()
+}
+
 # ============================================================
 # COHORT MANIFEST HELPERS
 # ============================================================
@@ -20,7 +87,9 @@
 #'
 #' @export
 initCohortManifest <- function(path = "inputs/cohorts") {
-  dbPath <- fs::path(path, "cohortManifest.sqlite")
+  project_root <- findStudyProjectRoot(path)
+  cohorts_folder <- fs::path(project_root, "inputs", "cohorts")
+  dbPath <- fs::path(cohorts_folder, "cohortManifest.sqlite")
 
   if (file.exists(dbPath)) {
     cli::cli_alert_warning("Manifest already exists at {fs::path_rel(dbPath)}.")
@@ -29,8 +98,8 @@ initCohortManifest <- function(path = "inputs/cohorts") {
     return(invisible(NULL))
   }
 
-  if (!dir.exists(path)) {
-    dir.create(path, recursive = TRUE, showWarnings = FALSE)
+  if (!dir.exists(cohorts_folder)) {
+    dir.create(cohorts_folder, recursive = TRUE, showWarnings = FALSE)
   }
 
   cm <- CohortManifest$new(dbPath = dbPath)
@@ -69,6 +138,8 @@ loadCohortManifest <- function(cohortsFolderPath = here::here("inputs/cohorts"),
                                executionSettings = NULL,
                                autoSync = TRUE,
                                verbose = TRUE) {
+  project_root <- findStudyProjectRoot(cohortsFolderPath)
+  cohortsFolderPath <- fs::path(project_root, "inputs", "cohorts")
   dbPath <- fs::path(cohortsFolderPath, "cohortManifest.sqlite")
 
   if (!file.exists(dbPath)) {
