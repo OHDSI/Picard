@@ -1,6 +1,7 @@
 # Purpose: Create an isolated temporary inputs/conceptSets tree and fresh ConceptSetManifest.
 csm_test_new_manifest <- function(test_name = "conceptsetmanifest") {
   root <- fs::file_temp(pattern = paste0("picard-", test_name, "-"))
+  cm_test_write_project_markers(root)
   concept_sets_dir <- fs::path(root, "inputs", "conceptSets")
   fs::dir_create(fs::path(concept_sets_dir, "json"))
 

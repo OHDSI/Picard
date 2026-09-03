@@ -17,6 +17,7 @@ ConceptSetManifest <- R6::R6Class(
   private = list(
     .manifest = NULL,
     .dbPath = NULL,
+    .projectRoot = NULL,
     .executionSettings = NULL,
     .atlasConnection = NULL,
 
@@ -449,12 +450,28 @@ ConceptSetManifest <- R6::R6Class(
     #' @param dbPath Character. Path to the SQLite database. Defaults to
     #'   "inputs/conceptSets/conceptSetManifest.sqlite". The directory is created
     #'   automatically if it does not exist.
-    initialize = function(dbPath = "inputs/conceptSets/conceptSetManifest.sqlite") {
+    #' @param projectRoot Character or NULL. Study repository root against which
+    #'   stored file paths are resolved. When `NULL` (default) the root is
+    #'   discovered once via [findStudyProjectRoot()] from the manifest's
+    #'   directory and cached for the life of the object. Supply an explicit
+    #'   path for tests or unusual layouts.
+    initialize = function(dbPath = "inputs/conceptSets/conceptSetManifest.sqlite",
+                          projectRoot = NULL) {
       private$.dbPath <- dbPath
       private$.manifest <- list()
 
       # Initialize SQLite schema (creates DB and table if needed)
       private$init_manifest(dbPath)
+
+      # Resolve the study repository root once and cache it. All path
+      # resolution inside this class goes through private$.projectRoot rather
+      # than re-walking the filesystem per operation.
+      private$.projectRoot <- if (is.null(projectRoot)) {
+        findStudyProjectRoot(dirname(dbPath))
+      } else {
+        checkmate::assert_string(projectRoot, min.chars = 1)
+        fs::path_norm(fs::path_abs(projectRoot))
+      }
 
       # Load existing active entries from SQLite into memory
       private$load_manifest_from_db()
@@ -563,6 +580,14 @@ ConceptSetManifest <- R6::R6Class(
     #' @return Character. The path to the SQLite database.
     getDbPath = function() {
       private$.dbPath
+    },
+
+    #' Get the study repository root
+    #'
+    #' @return Character. The cached study repository root used to resolve
+    #'   stored file paths.
+    getProjectRoot = function() {
+      private$.projectRoot
     },
 
     #' Get the execution settings

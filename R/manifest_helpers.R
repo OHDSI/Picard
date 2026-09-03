@@ -102,7 +102,7 @@ initCohortManifest <- function(path = "inputs/cohorts") {
     dir.create(cohorts_folder, recursive = TRUE, showWarnings = FALSE)
   }
 
-  cm <- CohortManifest$new(dbPath = dbPath)
+  cm <- CohortManifest$new(dbPath = dbPath, projectRoot = project_root)
   cli::cli_alert_success("Initialized empty cohort manifest at {fs::path_rel(dbPath)}")
   cli::cli_alert_info("Add cohorts with $addAtlasCohort(), $addCaprCohort(), $addCirceCohort(), $addSqlCohort(), or $importAtlasCohorts()")
 
@@ -150,7 +150,7 @@ loadCohortManifest <- function(cohortsFolderPath = here::here("inputs/cohorts"),
     ))
   }
 
-  cm <- CohortManifest$new(dbPath = dbPath)
+  cm <- CohortManifest$new(dbPath = dbPath, projectRoot = project_root)
 
   if (!is.null(executionSettings)) {
     cm$setExecutionSettings(executionSettings)

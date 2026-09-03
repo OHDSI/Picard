@@ -1,14 +1,25 @@
+# Purpose: Write the structural marker files/dirs that findStudyProjectRoot() looks
+# for, so an isolated temp tree resolves as a real Picard study repository root.
+cm_test_write_project_markers <- function(root) {
+  fs::dir_create(root)
+  fs::file_create(fs::path(root, "config.yml"))
+  fs::file_create(fs::path(root, "README.md"))
+  fs::dir_create(fs::path(root, "analysis"))
+  fs::dir_create(fs::path(root, "inputs"))
+  fs::dir_create(fs::path(root, "dissemination"))
+  invisible(root)
+}
+
 # Purpose: Create an isolated temporary inputs/cohorts directory tree and sqlite path for a test run.
 cm_test_make_manifest_paths <- function(test_name = "cohortmanifest") {
   root <- fs::file_temp(pattern = paste0("picard-", test_name, "-"))
-  fs::dir_create(root)
+  cm_test_write_project_markers(root)
 
   inputs_dir <- fs::path(root, "inputs")
   cohorts_dir <- fs::path(inputs_dir, "cohorts")
   sql_dir <- fs::path(cohorts_dir, "sql")
   json_dir <- fs::path(cohorts_dir, "json")
 
-  fs::dir_create(inputs_dir)
   fs::dir_create(cohorts_dir)
   fs::dir_create(sql_dir)
   fs::dir_create(json_dir)
