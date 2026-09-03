@@ -513,6 +513,171 @@ resetCohortManifest <- function(manifest = NULL,
 }
 
 
+# Shared worker for normalizeCohortManifestPaths() / normalizeConceptSetManifestPaths().
+# Rewrites legacy `file_path` values in place so they are stored relative to the
+# study repository root. Only `file_path` is touched — `hash`, `status`,
+# `created_at` and the change-detection `updated_at` are left alone, so path
+# normalization is never mistaken for a definition change.
+normalize_manifest_paths <- function(folder_path,
+                                     manifest_kind = c("cohort", "conceptSet"),
+                                     dry_run = FALSE) {
+  manifest_kind <- match.arg(manifest_kind)
+  checkmate::assert_string(folder_path, min.chars = 1)
+  checkmate::assert_flag(dry_run)
+
+  spec <- switch(
+    manifest_kind,
+    cohort = list(
+      leaf = "cohorts",
+      db_file = "cohortManifest.sqlite",
+      table = "cohort_manifest",
+      statuses = c("active", "stale"),
+      loader = "loadCohortManifest()"
+    ),
+    conceptSet = list(
+      leaf = "conceptSets",
+      db_file = "conceptSetManifest.sqlite",
+      table = "concept_set_manifest",
+      statuses = "active",
+      loader = "loadConceptSetManifest()"
+    )
+  )
+
+  project_root <- findStudyProjectRoot(folder_path)
+  manifest_dir <- fs::path(project_root, "inputs", spec$leaf)
+  db_path <- fs::path(manifest_dir, spec$db_file)
+
+  if (!file.exists(db_path)) {
+    cli::cli_abort(c(
+      "Manifest database not found at {.path {fs::path_rel(db_path)}}.",
+      i = "Nothing to normalize."
+    ))
+  }
+
+  conn <- DBI::dbConnect(RSQLite::SQLite(), db_path)
+  on.exit(DBI::dbDisconnect(conn))
+
+  placeholders <- paste(rep("?", length(spec$statuses)), collapse = ", ")
+  rows <- DBI::dbGetQuery(
+    conn,
+    sprintf(
+      "SELECT id, file_path, status FROM %s WHERE status IN (%s) ORDER BY id",
+      spec$table, placeholders
+    ),
+    as.list(spec$statuses)
+  )
+
+  report <- data.frame(
+    id = integer(),
+    old_path = character(),
+    new_path = character(),
+    status = character(),
+    stringsAsFactors = FALSE
+  )
+  add_row <- function(id, old_path, new_path, status) {
+    report <<- rbind(report, data.frame(
+      id = as.integer(id),
+      old_path = as.character(old_path),
+      new_path = as.character(new_path),
+      status = status,
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  for (i in seq_len(nrow(rows))) {
+    id <- rows$id[i]
+    old_path <- rows$file_path[i]
+
+    if (is.na(old_path) || !nzchar(old_path)) {
+      add_row(id, NA_character_, NA_character_, "no_path")
+      next
+    }
+
+    resolved <- resolve_manifest_path(old_path, project_root, manifest_dir)
+    if (!file.exists(resolved)) {
+      add_row(id, old_path, NA_character_, "broken")
+      next
+    }
+
+    new_path <- as.character(manifest_path_relative(resolved, project_root))
+    if (identical(as.character(old_path), new_path)) {
+      add_row(id, old_path, new_path, "unchanged")
+      next
+    }
+
+    if (!dry_run) {
+      DBI::dbExecute(
+        conn,
+        sprintf("UPDATE %s SET file_path = ? WHERE id = ?", spec$table),
+        list(new_path, id)
+      )
+    }
+    add_row(id, old_path, new_path, if (dry_run) "would_rewrite" else "rewritten")
+  }
+
+  n_rewrite <- sum(report$status %in% c("rewritten", "would_rewrite"))
+  n_broken <- sum(report$status == "broken")
+
+  if (nrow(report) == 0) {
+    cli::cli_alert_info("No active manifest rows to check.")
+  } else if (n_rewrite == 0 && n_broken == 0) {
+    cli::cli_alert_success("All {nrow(report)} path(s) already stored repo-root-relative.")
+  } else {
+    if (n_rewrite > 0) {
+      verb <- if (dry_run) "would rewrite" else "rewrote"
+      cli::cli_alert_success("{verb} {n_rewrite} path(s) to repo-root-relative form.")
+      for (j in which(report$status %in% c("rewritten", "would_rewrite"))) {
+        cli::cli_bullets(c(">" = "[{report$id[j]}] {report$old_path[j]} -> {report$new_path[j]}"))
+      }
+    }
+    if (n_broken > 0) {
+      cli::cli_alert_warning("{n_broken} row(s) point at a file that could not be found - left untouched:")
+      for (j in which(report$status == "broken")) {
+        cli::cli_bullets(c("!" = "[{report$id[j]}] {report$old_path[j]}"))
+      }
+    }
+  }
+  if (dry_run && n_rewrite > 0) {
+    cli::cli_alert_info("Dry run - nothing was written. Re-run with {.code dryRun = FALSE} to apply.")
+  }
+
+  invisible(tibble::as_tibble(report))
+}
+
+
+#' Normalize Legacy Cohort Manifest File Paths
+#'
+#' A one-time cleanup that rewrites the `file_path` of every active/stale row in
+#' `cohortManifest.sqlite` so it is stored **relative to the study repository
+#' root** (the current convention). Manifests created before this convention may
+#' hold working-directory-relative, manifest-folder-relative, or absolute paths;
+#' those still load through a compatibility resolver, but normalizing makes the
+#' stored values stable and portable across machines and working directories.
+#'
+#' Only `file_path` is changed. Content hashes, `status`, timestamps and the
+#' change-detection metadata are left untouched, so running this never marks a
+#' cohort stale or shows up as a definition change in [syncManifest()].
+#'
+#' Ordinary loads never mutate the SQLite file — this is the *only* operation
+#' that rewrites stored paths, and you run it explicitly.
+#'
+#' @param cohortsFolderPath Character. Path to the cohorts folder (or anywhere
+#'   inside the study repository). Defaults to `here::here("inputs/cohorts")`.
+#' @param dryRun Logical. When `TRUE`, report what would change without writing.
+#'   Defaults to `FALSE`.
+#'
+#' @return Invisibly, a tibble with columns `id`, `old_path`, `new_path`,
+#'   `status` (one of `"rewritten"`, `"would_rewrite"`, `"unchanged"`,
+#'   `"broken"`, `"no_path"`).
+#'
+#' @seealso [findStudyProjectRoot()], [loadCohortManifest()]
+#' @export
+normalizeCohortManifestPaths <- function(cohortsFolderPath = here::here("inputs/cohorts"),
+                                         dryRun = FALSE) {
+  normalize_manifest_paths(cohortsFolderPath, manifest_kind = "cohort", dry_run = dryRun)
+}
+
+
 #' Create Blank Cohorts Load File
 #'
 #' Creates a blank cohortsLoad.csv template file in the specified folder
@@ -966,6 +1131,32 @@ resetConceptSetManifest <- function(manifest = NULL,
   }
 
   invisible(NULL)
+}
+
+
+#' Normalize Legacy Concept Set Manifest File Paths
+#'
+#' The concept-set counterpart of [normalizeCohortManifestPaths()]. Rewrites the
+#' `file_path` of every active row in `conceptSetManifest.sqlite` so it is stored
+#' relative to the study repository root. Only `file_path` changes — hashes,
+#' `status` and timestamps are untouched, so this never registers as a
+#' definition change.
+#'
+#' @param conceptSetsFolderPath Character. Path to the conceptSets folder (or
+#'   anywhere inside the study repository). Defaults to
+#'   `here::here("inputs/conceptSets")`.
+#' @param dryRun Logical. When `TRUE`, report what would change without writing.
+#'   Defaults to `FALSE`.
+#'
+#' @return Invisibly, a tibble with columns `id`, `old_path`, `new_path`,
+#'   `status` (one of `"rewritten"`, `"would_rewrite"`, `"unchanged"`,
+#'   `"broken"`, `"no_path"`).
+#'
+#' @seealso [findStudyProjectRoot()], [loadConceptSetManifest()]
+#' @export
+normalizeConceptSetManifestPaths <- function(conceptSetsFolderPath = here::here("inputs/conceptSets"),
+                                             dryRun = FALSE) {
+  normalize_manifest_paths(conceptSetsFolderPath, manifest_kind = "conceptSet", dry_run = dryRun)
 }
 
 
