@@ -9,7 +9,8 @@ shouldRerunTask(
   configBlock,
   executionSettings,
   pipelineVersion,
-  tasksFolderPath = here::here("analysis/tasks")
+  tasksFolderPath = here::here("analysis/tasks"),
+  cohortManifestHash = NULL
 )
 }
 \arguments{
@@ -22,6 +23,11 @@ shouldRerunTask(
 \item{pipelineVersion}{Character. Current pipeline version (e.g., "1.0.0")}
 
 \item{tasksFolderPath}{Character. Path to tasks folder (default: here::here("analysis/tasks"))}
+
+\item{cohortManifestHash}{Character or NULL. A pre-computed cohort manifest
+hash (see \code{\link[=.getCohortManifestHash]{.getCohortManifestHash()}}). When NULL (default) it is computed
+here; callers that check many tasks in one run pass it in to avoid
+re-loading the manifest per task.}
 }
 \value{
 List with elements:

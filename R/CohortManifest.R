@@ -1102,6 +1102,75 @@ CohortManifest <- R6::R6Class(
       return(private$.manifest)
     },
 
+    #' Compute a deterministic hash of every cohort definition in the manifest
+    #'
+    #' @description
+    #' Produces a single SHA256 string over the *definition* of every active or
+    #' stale cohort, used by the study pipeline (via [shouldRerunTask()]) to
+    #' decide whether cohort changes force affected tasks to rerun.
+    #'
+    #' For each cohort, ordered by id, the hash combines:
+    #'   \itemize{
+    #'     \item \code{id}, \code{cohort_type}, \code{source_type}
+    #'     \item \code{depends_on} and \code{dependency_rule} (normalized JSON)
+    #'     \item the rendered-SQL hash (\code{CohortDef$getSqlHash()}) of the
+    #'       loaded cohort, or the sentinel \code{"<missing>"} when the cohort
+    #'       file is absent from disk
+    #'   }
+    #'
+    #' The rendered SQL — not the raw file bytes — is what executes against the
+    #' CDM, so a cosmetic reformat of a cohort's JSON that renders to identical
+    #' SQL does not move the hash, while any change to the executed SQL does.
+    #' Cosmetic metadata (\code{label}, \code{category}, \code{tags}) is
+    #' deliberately excluded: renaming or retagging a cohort does not change the
+    #' analysis.
+    #'
+    #' @return Character. A SHA256 hash string. An empty manifest hashes to a
+    #'   stable constant.
+    getManifestHash = function() {
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      rows <- DBI::dbGetQuery(
+        conn,
+        "SELECT id, cohort_type, source_type, depends_on, dependency_rule
+           FROM cohort_manifest
+          WHERE status IN ('active', 'stale')
+          ORDER BY id"
+      )
+
+      # id -> rendered-SQL hash for cohorts currently loaded in memory. A cohort
+      # whose file is missing was skipped by load_manifest_from_db() and has no
+      # CohortDef; it falls back to the "<missing>" sentinel below so that a
+      # file disappearing (or reappearing) still moves the manifest hash.
+      sql_hash_by_id <- list()
+      for (cd in private$.manifest) {
+        sql_hash_by_id[[as.character(cd$getId())]] <- cd$getSqlHash()
+      }
+
+      id_chr <- as.character(rows$id)
+      sql_hashes <- vapply(
+        id_chr,
+        function(id) sql_hash_by_id[[id]] %||% "<missing>",
+        character(1)
+      )
+
+      # One "|"-joined line per cohort, ordered by id. depends_on /
+      # dependency_rule are canonicalized so a cosmetic JSON reformat does not
+      # move the hash; label / category / tags are intentionally excluded.
+      entries <- paste(
+        id_chr,
+        rows$cohort_type,
+        rows$source_type,
+        vapply(rows$depends_on, manifest_canonical_json, character(1)),
+        vapply(rows$dependency_rule, manifest_canonical_json, character(1)),
+        sql_hashes,
+        sep = "|"
+      )
+
+      digest::digest(paste(entries, collapse = "\n"), algo = "sha256")
+    },
+
     #' Review dependent cohorts and their dependency metadata
     #'
     #' @description

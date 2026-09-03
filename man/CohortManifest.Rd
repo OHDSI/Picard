@@ -83,6 +83,7 @@ Requires that executionSettings has been set and includes:
   \itemize{
     \item \href{#method-CohortManifest-initialize}{\code{CohortManifest$new()}}
     \item \href{#method-CohortManifest-getManifest}{\code{CohortManifest$getManifest()}}
+    \item \href{#method-CohortManifest-getManifestHash}{\code{CohortManifest$getManifestHash()}}
     \item \href{#method-CohortManifest-reviewDependentCohorts}{\code{CohortManifest$reviewDependentCohorts()}}
     \item \href{#method-CohortManifest-tabulateManifest}{\code{CohortManifest$tabulateManifest()}}
     \item \href{#method-CohortManifest-viewManifest}{\code{CohortManifest$viewManifest()}}
@@ -194,6 +195,41 @@ Get the manifest as a list of CohortDef objects}
   }
   \subsection{Returns}{
     List. A list of CohortDef objects in the manifest, indexed by cohort ID.
+Compute a deterministic hash of every cohort definition in the manifest
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-getManifestHash"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-getManifestHash}{}}}
+\subsection{\code{CohortManifest$getManifestHash()}}{
+  Produces a single SHA256 string over the \emph{definition} of every active or
+stale cohort, used by the study pipeline (via \code{\link[=shouldRerunTask]{shouldRerunTask()}}) to
+decide whether cohort changes force affected tasks to rerun.
+
+For each cohort, ordered by id, the hash combines:
+\itemize{
+\item \code{id}, \code{cohort_type}, \code{source_type}
+\item \code{depends_on} and \code{dependency_rule} (normalized JSON)
+\item the rendered-SQL hash (\code{CohortDef$getSqlHash()}) of the
+loaded cohort, or the sentinel \code{"<missing>"} when the cohort
+file is absent from disk
+}
+
+The rendered SQL — not the raw file bytes — is what executes against the
+CDM, so a cosmetic reformat of a cohort's JSON that renders to identical
+SQL does not move the hash, while any change to the executed SQL does.
+Cosmetic metadata (\code{label}, \code{category}, \code{tags}) is
+deliberately excluded: renaming or retagging a cohort does not change the
+analysis.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$getManifestHash()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character. A SHA256 hash string. An empty manifest hashes to a
+stable constant.
 Review dependent cohorts and their dependency metadata
   }
 }

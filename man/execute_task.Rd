@@ -12,7 +12,8 @@ execute_task(
   env = rlang::caller_env(),
   cohortTableSuffix = NULL,
   codeState = NULL,
-  logFilePath = NULL
+  logFilePath = NULL,
+  cohortManifestHash = NULL
 )
 }
 \arguments{
@@ -39,6 +40,12 @@ state as \code{"unrecorded"} rather than implying a clean tree.}
 recording high-level milestones and full error detail. NULL (default)
 when run outside a pipeline (e.g. via \code{testStudyTask()}) — no file
 is written.}
+
+\item{cohortManifestHash}{Character or NULL. Pre-computed cohort manifest
+hash (see \code{.getCohortManifestHash()}). NULL (default) computes it once
+here; \code{execute_pipeline()} computes it once and passes it in so the
+manifest is not re-loaded for every task. Recorded with the run and used
+for the rerun check.}
 }
 \description{
 Function to execute a study task in Ulysses
