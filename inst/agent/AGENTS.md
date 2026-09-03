@@ -8,7 +8,6 @@ These instructions are tool-agnostic: they apply to any coding agent (Claude Cod
 
 - **Study Title**: {{studyName}}
 - **Project Name**: {{projectName}}
-- **Tool Type**: {{toolType}}
 - **Database**: {{databaseLabel}}
 - **Repository Name**: {{repoName}}
 
