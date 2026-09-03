@@ -133,6 +133,33 @@ resolve_manifest_path <- function(stored_path, project_root, manifest_dir) {
   root_relative
 }
 
+# Re-serialize a JSON string into a canonical form so that two equivalent
+# values (differing only in whitespace or key order) produce the same string.
+# Used when folding manifest columns such as `depends_on` / `dependency_rule`
+# into a content hash, so a cosmetic reformat does not look like a change.
+#
+# A missing / empty value returns "". A value that does not parse as JSON is
+# returned unchanged rather than dropped, so the caller still hashes something
+# stable.
+#
+# @param x Character(1). The JSON string as stored in the manifest.
+# @return Character(1). The canonicalized JSON, "" or the original string.
+manifest_canonical_json <- function(x) {
+  if (length(x) != 1 || is.na(x) || !nzchar(x)) {
+    return("")
+  }
+
+  parsed <- tryCatch(
+    jsonlite::fromJSON(x, simplifyVector = FALSE),
+    error = function(e) NULL
+  )
+  if (is.null(parsed)) {
+    return(as.character(x))
+  }
+
+  as.character(jsonlite::toJSON(parsed, auto_unbox = TRUE))
+}
+
 # ============================================================
 # COHORT MANIFEST HELPERS
 # ============================================================
