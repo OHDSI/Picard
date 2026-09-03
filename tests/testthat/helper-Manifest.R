@@ -35,6 +35,38 @@ cm_test_make_manifest_paths <- function(test_name = "cohortmanifest") {
   return(ll)
 }
 
+# Purpose: Fetch the raw sqlite manifest row(s) for a label (any status).
+cm_test_get_manifest_row <- function(manifest, label) {
+  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
+  on.exit(DBI::dbDisconnect(conn))
+  DBI::dbGetQuery(
+    conn,
+    "SELECT * FROM cohort_manifest WHERE label = ?",
+    list(label)
+  )
+}
+
+# Purpose: Overwrite a manifest row's stored file_path directly in sqlite, to
+# simulate a row written under a legacy path convention (absolute,
+# manifest-folder-relative, working-directory-relative).
+cm_test_set_stored_path <- function(manifest, id, path) {
+  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
+  on.exit(DBI::dbDisconnect(conn))
+  DBI::dbExecute(
+    conn,
+    "UPDATE cohort_manifest SET file_path = ? WHERE id = ?",
+    list(as.character(path), as.integer(id))
+  )
+  invisible(path)
+}
+
+# Purpose: Return the raw sqlite rows for a manifest as a data.frame.
+cm_test_all_rows <- function(manifest) {
+  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
+  on.exit(DBI::dbDisconnect(conn))
+  DBI::dbGetQuery(conn, "SELECT * FROM cohort_manifest ORDER BY id")
+}
+
 # Purpose: Instantiate a fresh CohortManifest bound to the temporary sqlite path.
 cm_test_new_manifest <- function(test_name = "cohortmanifest") {
   paths <- cm_test_make_manifest_paths(test_name)

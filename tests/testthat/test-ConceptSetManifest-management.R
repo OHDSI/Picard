@@ -11,9 +11,45 @@ csm_test_new_manifest <- function(test_name = "conceptsetmanifest") {
 
   ll <- list(
     manifest = manifest,
-    concept_sets_dir = concept_sets_dir
+    root = root,
+    concept_sets_dir = concept_sets_dir,
+    json_dir = fs::path(concept_sets_dir, "json")
   )
   return(ll)
+}
+
+# Purpose: Register a concept set from a JSON file without needing Capr. Writes a
+# minimal valid CIRCE concept-set expression into the manifest's json/ dir.
+csm_test_add_file <- function(setup, label, category = "init") {
+  json_path <- fs::path(setup$json_dir, paste0(gsub("[^A-Za-z0-9]+", "_", label), ".json"))
+  writeLines('{"items":[]}', json_path)
+  setup$manifest$addConceptSetFile(filePath = as.character(json_path), label = label, category = category)
+  invisible(json_path)
+}
+
+# Purpose: Overwrite a concept-set row's stored file_path directly in sqlite.
+csm_test_set_stored_path <- function(manifest, id, path) {
+  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
+  on.exit(DBI::dbDisconnect(conn))
+  DBI::dbExecute(
+    conn,
+    "UPDATE concept_set_manifest SET file_path = ? WHERE id = ?",
+    list(as.character(path), as.integer(id))
+  )
+  invisible(path)
+}
+
+# Purpose: Resolve a manifest-stored (repo-root-relative) file_path to an
+# absolute path for test code that reads or stats the file directly.
+csm_test_resolve_path <- function(manifest, stored_path) {
+  as.character(fs::path(manifest$getProjectRoot(), stored_path))
+}
+
+# Purpose: Return the raw sqlite rows for a concept-set manifest.
+csm_test_all_rows <- function(manifest) {
+  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
+  on.exit(DBI::dbDisconnect(conn))
+  DBI::dbGetQuery(conn, "SELECT * FROM concept_set_manifest ORDER BY id")
 }
 
 # Purpose: Build a minimal Capr concept set for tests; skip when Capr is unavailable.
@@ -50,7 +86,7 @@ testthat::test_that("addCaprConceptSet registers Capr concept set", {
 
   row <- csm_test_get_manifest_row(manifest, "T2D Concepts")
   testthat::expect_equal(nrow(row), 1)
-  testthat::expect_true(fs::file_exists(row$file_path[[1]]))
+  testthat::expect_true(fs::file_exists(csm_test_resolve_path(manifest, row$file_path[[1]])))
 })
 
 # Testing: addCaprConceptSet stopIfExists FALSE upserts in place and drops prior tags when none supplied.
@@ -90,7 +126,7 @@ testthat::test_that("updateCaprConceptSet updates definition keeping id and file
   testthat::expect_equal(after$file_path[[1]], before$file_path[[1]])
   testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
 
-  disk_hash <- rlang::hash(readr::read_file(after$file_path[[1]]))
+  disk_hash <- rlang::hash(readr::read_file(csm_test_resolve_path(manifest, after$file_path[[1]])))
   testthat::expect_equal(after$hash[[1]], disk_hash)
 })
 
@@ -408,4 +444,107 @@ testthat::test_that("addCaprConceptSet errors on duplicate label by default", {
     manifest$addCaprConceptSet(capr_cs, label = "T2D Concepts", category = "condition_occurrence"),
     regexp = "already in use"
   )
+})
+
+# ── Path portability (concept-set equivalents) ────────────────────────────────
+
+# Testing: concept-set registration stores a repo-root-relative path regardless
+# of the working directory it was registered from (step 4).
+testthat::test_that("concept-set registration stores a repo-root-relative path", {
+  setup <- csm_test_new_manifest("csm-register-cwd")
+  nested <- fs::path(setup$root, "analysis", "deep")
+  fs::dir_create(nested)
+  json_path <- fs::path(setup$json_dir, "cs_a.json")
+  writeLines('{"items":[]}', json_path)
+
+  withr::with_dir(nested, {
+    setup$manifest$addConceptSetFile(filePath = as.character(json_path), label = "CS A", category = "init")
+  })
+
+  row <- csm_test_get_manifest_row(setup$manifest, "CS A")
+  testthat::expect_equal(row$file_path[[1]], "inputs/conceptSets/json/cs_a.json")
+})
+
+# Testing: a concept-set manifest loads from an unrelated working directory and
+# legacy stored path conventions still resolve (step 2/3).
+testthat::test_that("concept-set manifest loads legacy paths from an unrelated directory", {
+  setup <- csm_test_new_manifest("csm-legacy-paths")
+  manifest <- setup$manifest
+  csm_test_add_file(setup, "CS One")
+  csm_test_add_file(setup, "CS Two")
+
+  rows <- csm_test_all_rows(manifest)
+  # manifest-folder-relative + absolute
+  csm_test_set_stored_path(manifest, rows$id[1], sub("^inputs/conceptSets/", "", rows$file_path[1]))
+  csm_test_set_stored_path(manifest, rows$id[2], fs::path(manifest$getProjectRoot(), rows$file_path[2]))
+
+  withr::with_dir(withr::local_tempdir(), {
+    reopened <- ConceptSetManifest$new(dbPath = manifest$getDbPath())
+    testthat::expect_equal(length(reopened$getManifest()), 2L)
+  })
+})
+
+# Testing: a missing concept-set file is reported on load, never silently hashed
+# (step 3/7).
+testthat::test_that("missing concept-set file is reported on load", {
+  setup <- csm_test_new_manifest("csm-missing")
+  manifest <- setup$manifest
+  csm_test_add_file(setup, "CS One")
+  original_hash <- csm_test_all_rows(manifest)$hash[1]
+
+  csm_test_set_stored_path(manifest, csm_test_all_rows(manifest)$id[1], "inputs/conceptSets/json/gone.json")
+
+  testthat::expect_message(
+    reopened <- ConceptSetManifest$new(dbPath = manifest$getDbPath()),
+    "missing"
+  )
+  testthat::expect_length(reopened$getManifest(), 0L)
+  testthat::expect_equal(csm_test_all_rows(manifest)$hash[1], original_hash)
+})
+
+# Testing: normalizeConceptSetManifestPaths rewrites legacy paths and preserves
+# hashes; dryRun writes nothing (step 6/7).
+testthat::test_that("normalizeConceptSetManifestPaths rewrites legacy paths and preserves hashes", {
+  setup <- csm_test_new_manifest("csm-normalize")
+  manifest <- setup$manifest
+  root <- manifest$getProjectRoot()
+  csm_test_add_file(setup, "CS One")
+  csm_test_add_file(setup, "CS Two")
+
+  before <- csm_test_all_rows(manifest)
+  csm_test_set_stored_path(manifest, before$id[1], sub("^inputs/conceptSets/", "", before$file_path[1]))
+  csm_test_set_stored_path(manifest, before$id[2], fs::path(root, before$file_path[2]))
+
+  dry <- normalizeConceptSetManifestPaths(
+    conceptSetsFolderPath = fs::path(root, "inputs", "conceptSets"), dryRun = TRUE
+  )
+  testthat::expect_true(any(dry$status == "would_rewrite"))
+  testthat::expect_identical(csm_test_all_rows(manifest)$file_path[1], sub("^inputs/conceptSets/", "", before$file_path[1]))
+
+  report <- normalizeConceptSetManifestPaths(conceptSetsFolderPath = fs::path(root, "inputs", "conceptSets"))
+  after <- csm_test_all_rows(manifest)
+
+  testthat::expect_true(all(!fs::is_absolute_path(after$file_path)))
+  testthat::expect_true(all(fs::file_exists(fs::path(root, after$file_path))))
+  testthat::expect_equal(after$hash, before$hash)
+  testthat::expect_setequal(colnames(report), c("id", "old_path", "new_path", "status"))
+})
+
+# Testing: concept-set syncManifest does not report hash_updated for a
+# path-convention-only difference (step 7).
+testthat::test_that("concept-set syncManifest ignores a path-convention-only difference", {
+  setup <- csm_test_new_manifest("csm-sync-pathonly")
+  manifest <- setup$manifest
+  csm_test_add_file(setup, "CS One")
+
+  rows <- csm_test_all_rows(manifest)
+  original_hash <- rows$hash[1]
+  csm_test_set_stored_path(manifest, rows$id[1], sub("^inputs/conceptSets/", "", rows$file_path[1]))
+
+  withr::with_dir(withr::local_tempdir(), {
+    reopened <- ConceptSetManifest$new(dbPath = manifest$getDbPath())
+    out <- reopened$syncManifest(strict_mode = TRUE)
+    testthat::expect_false("hash_updated" %in% out$action)
+  })
+  testthat::expect_equal(csm_test_all_rows(manifest)$hash[1], original_hash)
 })
