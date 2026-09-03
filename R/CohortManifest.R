@@ -4621,6 +4621,14 @@ CohortManifest <- R6::R6Class(
     #' Only the \code{json/} and \code{sql/} source directories are scanned — derived cohorts
     #' managed via \code{build*()} methods are not touched.
     #'
+    #' Stored file paths are resolved against the study repository root before
+    #' any disk comparison, and hashes are computed from file contents only, so a
+    #' row is reported as \code{"hash_updated"} only when the file's contents
+    #' actually changed — never because its stored path used an older convention.
+    #' To rewrite legacy stored paths to the current repo-root-relative form, run
+    #' \code{normalizeCohortManifestPaths()} once; \code{syncManifest()} does not
+    #' do this.
+    #'
     #' @param strict_mode Logical. If TRUE (default), automatically removes orphaned files found
     #'   on disk. If FALSE, only warns about them without deletion. Default: TRUE.
     #'

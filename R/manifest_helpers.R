@@ -6,12 +6,23 @@
 #' Find the root of a Picard study repository
 #'
 #' Walks upward from a file or directory until it finds the structural markers
-#' that identify a Picard study repository.
+#' that identify a Picard study repository, and returns that directory. This is
+#' how the cohort and concept-set manifests locate the root against which their
+#' stored `file_path` values are resolved, so a manifest loads the same way
+#' regardless of the caller's working directory.
+#'
+#' The markers are the files `config.yml` and `README.md` together with the
+#' directories `analysis/`, `inputs/` and `dissemination/`, all present in the
+#' same directory. The search stops with an error if it reaches the filesystem
+#' root without finding them.
 #'
 #' @param path Character. A file or directory inside the study repository.
 #'   Defaults to the current project detected by `here::here()`.
 #'
 #' @return Character. The normalized absolute path to the study repository root.
+#'
+#' @seealso [normalizeCohortManifestPaths()],
+#'   [normalizeConceptSetManifestPaths()]
 #' @export
 findStudyProjectRoot <- function(path = here::here()) {
   checkmate::assert_string(path, min.chars = 1)
@@ -169,10 +180,16 @@ initCohortManifest <- function(path = "inputs/cohorts") {
 #' If new files exist on disk that aren't in the manifest, a warning is printed
 #' suggesting the appropriate `$add*()` method.
 #'
-#' @param cohortsFolderPath Character. Path to the cohorts folder containing the manifest
-#'   database. Defaults to `here::here("inputs/cohorts")`.
+#' @param cohortsFolderPath Character. Path to the cohorts folder, or anywhere
+#'   inside the study repository. Defaults to `here::here("inputs/cohorts")`. The
+#'   repository root is discovered with [findStudyProjectRoot()] and the manifest
+#'   is always read from `<root>/inputs/cohorts/cohortManifest.sqlite`.
 #' @param executionSettings An ExecutionSettings object containing database configuration
 #'   for cohort generation. Optional; can be added later using `$setExecutionSettings()`.
+#' @param autoSync Logical. If TRUE (default), reconcile the manifest against the
+#'   files on disk after loading (see `$syncManifest()`). This only affects
+#'   file/row reconciliation — it is **not** related to path resolution, and
+#'   setting it to FALSE is not a workaround for a manifest that fails to load.
 #' @param verbose Logical. If TRUE, prints informative messages. Defaults to TRUE.
 #'
 #' @return A CohortManifest R6 object.
@@ -185,6 +202,20 @@ initCohortManifest <- function(path = "inputs/cohorts") {
 #' directories that are not tracked in the manifest. These are reported as warnings
 #' but NOT auto-added (because `category` is required and cannot be guessed).
 #'
+#' ## File paths
+#'
+#' Cohort file paths are stored **relative to the study repository root** (e.g.
+#' `inputs/cohorts/json/mycohort.json`). Loading resolves them against that root,
+#' so a manifest loads identically on any machine and from any working
+#' directory — you do not need to `setwd()` into the study repo first.
+#'
+#' Manifests created before this convention may hold working-directory-relative,
+#' manifest-folder-relative, or absolute paths. Those still resolve through a
+#' compatibility fallback, but you can rewrite them to the current convention
+#' once with [normalizeCohortManifestPaths()]. Ordinary loads never modify the
+#' SQLite file.
+#'
+#' @seealso [normalizeCohortManifestPaths()], [findStudyProjectRoot()]
 #' @export
 loadCohortManifest <- function(cohortsFolderPath = here::here("inputs/cohorts"),
                                executionSettings = NULL,
@@ -656,7 +687,7 @@ normalize_manifest_paths <- function(folder_path,
 #'
 #' Only `file_path` is changed. Content hashes, `status`, timestamps and the
 #' change-detection metadata are left untouched, so running this never marks a
-#' cohort stale or shows up as a definition change in [syncManifest()].
+#' cohort stale or shows up as a definition change in syncManifest.
 #'
 #' Ordinary loads never mutate the SQLite file — this is the *only* operation
 #' that rewrites stored paths, and you run it explicitly.
@@ -935,11 +966,24 @@ initConceptSetManifest <- function(path = "inputs/conceptSets") {
 #'   Defaults to `here::here("inputs/conceptSets")`.
 #' @param executionSettings ExecutionSettings object. Optional.
 #' @param autoSync Logical. If TRUE (default), syncs the manifest to reconcile
-#'   files on disk with the SQLite database (removes orphaned files, flags missing).
+#'   files on disk with the SQLite database (removes orphaned files, flags
+#'   missing). This affects file/row reconciliation only — it is not related to
+#'   path resolution, and FALSE is not a workaround for a manifest that fails
+#'   to load.
 #' @param verbose Logical. If TRUE (default), prints informative messages.
 #'
 #' @return ConceptSetManifest object.
 #'
+#' @details
+#' Concept-set file paths are stored **relative to the study repository root**,
+#' so a manifest loads identically on any machine and from any working
+#' directory. Manifests created before this convention may hold
+#' working-directory-relative, manifest-folder-relative, or absolute paths;
+#' those still resolve through a compatibility fallback, and
+#' [normalizeConceptSetManifestPaths()] rewrites them to the current convention
+#' in one explicit pass. Ordinary loads never modify the SQLite file.
+#'
+#' @seealso [normalizeConceptSetManifestPaths()], [findStudyProjectRoot()]
 #' @export
 loadConceptSetManifest <- function(conceptSetsFolderPath = here::here("inputs/conceptSets"),
                                    executionSettings = NULL,

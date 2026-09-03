@@ -15,5 +15,18 @@ Character. The normalized absolute path to the study repository root.
 }
 \description{
 Walks upward from a file or directory until it finds the structural markers
-that identify a Picard study repository.
+that identify a Picard study repository, and returns that directory. This is
+how the cohort and concept-set manifests locate the root against which their
+stored \code{file_path} values are resolved, so a manifest loads the same way
+regardless of the caller's working directory.
+}
+\details{
+The markers are the files \code{config.yml} and \code{README.md} together with the
+directories \verb{analysis/}, \verb{inputs/} and \verb{dissemination/}, all present in the
+same directory. The search stops with an error if it reaches the filesystem
+root without finding them.
+}
+\seealso{
+\code{\link[=normalizeCohortManifestPaths]{normalizeCohortManifestPaths()}},
+\code{\link[=normalizeConceptSetManifestPaths]{normalizeConceptSetManifestPaths()}}
 }

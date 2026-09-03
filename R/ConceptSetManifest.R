@@ -2558,6 +2558,13 @@ ConceptSetManifest <- R6::R6Class(
     #'   \item Orphaned files on disk not in manifest are automatically deleted.
     #' }
     #'
+    #' Stored file paths are resolved against the study repository root before any
+    #' disk comparison, and hashes are computed from file contents only, so a row
+    #' is reported as \code{"hash_updated"} only when the file's contents actually
+    #' changed — never because its stored path used an older convention. To
+    #' rewrite legacy stored paths to the current repo-root-relative form, run
+    #' \code{normalizeConceptSetManifestPaths()} once.
+    #'
     #' @param strict_mode Logical. If TRUE (default), automatically removes orphaned files found
     #'   on disk. If FALSE, only warns about them without deletion. Default: TRUE.
     #'

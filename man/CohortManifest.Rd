@@ -1956,6 +1956,14 @@ along with their derived dependents (which cannot generate without the parent).
 }
 Only the \code{json/} and \code{sql/} source directories are scanned — derived cohorts
 managed via \code{build*()} methods are not touched.
+
+Stored file paths are resolved against the study repository root before
+any disk comparison, and hashes are computed from file contents only, so a
+row is reported as \code{"hash_updated"} only when the file's contents
+actually changed — never because its stored path used an older convention.
+To rewrite legacy stored paths to the current repo-root-relative form, run
+\code{normalizeCohortManifestPaths()} once; \code{syncManifest()} does not
+do this.
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
     \preformatted{CohortManifest$syncManifest(strict_mode = TRUE)}
