@@ -31,6 +31,7 @@
 - Added `normalizeCohortManifestPaths()` and `normalizeConceptSetManifestPaths()` (exported) to rewrite legacy stored paths to the repo-root-relative convention in one explicit pass. They rewrite `file_path` only — hashes, `status`, and timestamps are untouched — support `dryRun = TRUE`, and report unresolvable rows as `broken`. Ordinary loads and `syncManifest()` never rewrite stored paths.
 - `syncManifest()` compares file **contents**, not paths: a manifest whose stored paths use an older convention now syncs with no spurious `hash_updated` results.
 - `CohortDef$getFilePath()` / `ConceptSetDef$getFilePath()` now return an absolute path (safe to read regardless of `getwd()`); the new `$getDisplayPath(root = NULL)` gives a repo-root-relative path for display.
+- Fixed the internal cohort-manifest hash used by `shouldRerunTask()`: it called a non-existent `CohortDef$getHash()` method, so it always silently returned `NA` and cohort definition changes never triggered a task rerun. It now reads `cohortManifest.sqlite` directly (a pure read — no sync, no side effects), producing a deterministic digest of each cohort's stored content hash and dependency structure. The digest is independent of cohort file paths, so path normalization does not force spurious reruns.
 
 ## Bug Fixes
 

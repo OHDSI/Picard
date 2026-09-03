@@ -4,13 +4,28 @@
 \alias{.getCohortManifestHash}
 \title{Get Cohort Manifest Hash}
 \usage{
-.getCohortManifestHash()
+.getCohortManifestHash(projectPath = here::here())
+}
+\arguments{
+\item{projectPath}{Character. A path inside the study repository. Defaults to
+the current project (\code{here::here()}).}
 }
 \value{
-Character. SHA256 hash of the cohort manifest, or NA_character_ if error occurs
+Character. SHA256 hex digest, or \code{NA_character_} if the manifest
+cannot be read.
 }
 \description{
-Loads the cohort manifest and computes a SHA256 hash of the entire manifest.
-This hash is used to detect changes in cohort definitions that would require task reruns.
+Computes a SHA256 digest of the cohort manifest's definitions —
+the content hash and dependency structure of every registered
+(\code{active}/\code{stale}) cohort. Used by \code{\link[=shouldRerunTask]{shouldRerunTask()}} to detect cohort
+definition changes that require a task rerun.
+}
+\details{
+Reads \code{cohortManifest.sqlite} directly (no sync, no file rendering),
+so it is a pure read with no side effects. The digest is deterministic —
+independent of row ordering — and independent of where cohort files are
+stored on disk: it hashes each cohort's stored content \code{hash} plus its
+identity and dependency columns, never its \code{file_path}. A manifest with no
+registered cohorts hashes to a fixed sentinel rather than failing.
 }
 \keyword{internal}
