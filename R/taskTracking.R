@@ -96,18 +96,25 @@ shouldRerunTask <- function(
 
   # Check 3: Cohort manifest has changed
   currentCohortManifestHash <- .getCohortManifestHash()
-  # .getCohortManifestHash() returns NA_character_ (not NULL) on failure; skip
-  # this check rather than comparing against a missing value
-  if (!is.null(currentCohortManifestHash) && !is.na(currentCohortManifestHash)) {
-    if (!is.null(lastRunInfo) && !is.na(lastRunInfo$cohort_manifest_hash)) {
-      if (lastRunInfo$cohort_manifest_hash != currentCohortManifestHash) {
-        reasons <- c(reasons, "Cohort manifest has changed")
-        rerunNeeded <- TRUE
-      }
-    } else {
-      reasons <- c(reasons, "No previous cohort manifest hash recorded")
-      rerunNeeded <- TRUE
-    }
+  previousCohortManifestHash <- if (!is.null(lastRunInfo)) {
+    lastRunInfo$cohort_manifest_hash
+  } else {
+    NA_character_
+  }
+
+  if (is.null(currentCohortManifestHash) || is.na(currentCohortManifestHash)) {
+    # Fail safe: a missing manifest hash means we cannot prove the cohort
+    # definitions are unchanged, so force the rerun rather than skip the check.
+    reasons <- c(reasons, "Cohort manifest hash unavailable - forcing rerun")
+    rerunNeeded <- TRUE
+  } else if (is.na(previousCohortManifestHash) || !nzchar(previousCohortManifestHash)) {
+    # First run for this task+config, or a run recorded before the hash was
+    # persisted (legacy history rows store ""). Rerun so a hash gets recorded.
+    reasons <- c(reasons, "No previous cohort manifest hash recorded")
+    rerunNeeded <- TRUE
+  } else if (previousCohortManifestHash != currentCohortManifestHash) {
+    reasons <- c(reasons, "Cohort manifest has changed")
+    rerunNeeded <- TRUE
   }
 
   # Check 4: Previous run had errors
