@@ -156,12 +156,19 @@ ConceptSetManifest <- R6::R6Class(
       max_id_result <- DBI::dbGetQuery(conn, "SELECT MAX(id) as max_id FROM concept_set_manifest")
       next_id <- if (is.na(max_id_result$max_id[1])) 1L else as.integer(max_id_result$max_id[1]) + 1L
 
-      # Compute hash from file content
-      hash <- if (file.exists(file_path)) {
-        rlang::hash(readr::read_file(file_path))
-      } else {
-        rlang::hash(label)
+      # Compute hash from file contents. Resolve the incoming path first: a
+      # relative path checked/read against the wrong working directory would
+      # silently produce the label sentinel or the wrong hash. Every add*()
+      # method stages the JSON under inputs/conceptSets/ before reaching here,
+      # so a missing file at this point is a real error.
+      resolved_file <- private$resolve_file_path(file_path)
+      if (!file.exists(resolved_file)) {
+        cli::cli_abort(c(
+          "Cannot register concept set {.val {label}}: file not found.",
+          i = "Expected a definition file at {.path {file_path}}."
+        ))
       }
+      hash <- rlang::hash(readr::read_file(resolved_file))
 
       # Serialize tags to JSON
       tags_json <- if (length(tags) > 0) {
@@ -247,20 +254,14 @@ ConceptSetManifest <- R6::R6Class(
     # Resolve a stored file_path to an absolute path on disk, tolerating the
     # legacy path conventions (absolute / repo-root-relative /
     # manifest-folder-relative). See resolve_manifest_path() in
-    # manifest_helpers.R.
-    resolve_path = function(stored_path) {
+    # manifest_helpers.R. Path resolution never touches file contents, so it
+    # never affects a content hash.
+    resolve_file_path = function(stored_path) {
       resolve_manifest_path(
         stored_path = stored_path,
         project_root = private$.projectRoot,
         manifest_dir = private$.manifestDir
       )
-    },
-
-    # Resolve a stored (potentially relative) file path to an absolute path.
-    # Stored paths are relative to the working directory at manifest-creation time,
-    # which is expected to be the project root. Absolute paths are returned unchanged.
-    resolve_file_path = function(stored_path) {
-      fs::path_abs(stored_path)
     },
 
     # Detect missing concept set files and update status in database
@@ -777,8 +778,10 @@ ConceptSetManifest <- R6::R6Class(
         private$update_concept_set_def(conceptSetId = existing_id, category = category, tags = tags, silent = TRUE)
 
         # Write to a temp file first so a failed write cannot clobber the
-        # registered JSON, and unchanged definitions leave the file untouched
-        file_path <- existing$file_path[1]
+        # registered JSON, and unchanged definitions leave the file untouched.
+        # Resolve the stored path so the copy lands next to the registered file
+        # regardless of the caller's working directory.
+        file_path <- private$resolve_file_path(existing$file_path[1])
         tmp_json <- tempfile(fileext = ".json")
         readr::write_lines(cs_def$expression[1], tmp_json)
         new_hash <- rlang::hash(readr::read_file(tmp_json))
@@ -834,7 +837,7 @@ ConceptSetManifest <- R6::R6Class(
       expression_json <- cs_def$expression[1]
 
       # Save JSON to json/ directory under the manifest folder
-      concept_sets_dir <- dirname(private$.dbPath)
+      concept_sets_dir <- private$.manifestDir
       json_dir <- fs::path(concept_sets_dir, "json")
 
       if (!dir.exists(json_dir)) {
@@ -925,7 +928,7 @@ ConceptSetManifest <- R6::R6Class(
       # Tag the route for provenance
       tags$route <- "capr"
 
-      concept_sets_dir <- dirname(private$.dbPath)
+      concept_sets_dir <- private$.manifestDir
       json_dir <- fs::path(concept_sets_dir, "json")
 
       if (!dir.exists(json_dir)) {
@@ -1002,7 +1005,9 @@ ConceptSetManifest <- R6::R6Class(
       }
 
       cs_id <- as.integer(existing$id[1])
-      file_path <- existing$file_path[1]
+      # Resolve the stored path so the copy lands next to the registered file
+      # regardless of the caller's working directory.
+      file_path <- private$resolve_file_path(existing$file_path[1])
 
       # Export to a temp file first so a failed write cannot clobber the
       # registered JSON, and unchanged definitions leave the file untouched
@@ -1725,6 +1730,8 @@ ConceptSetManifest <- R6::R6Class(
       
       label     <- cs_row$label[1]
       file_path <- cs_row$file_path[1]
+      has_path  <- !is.na(file_path) && nchar(trimws(file_path)) > 0
+      resolved_path <- if (has_path) private$resolve_file_path(file_path) else NA_character_
 
 
       # Request confirmation if not already confirmed
@@ -1741,16 +1748,18 @@ ConceptSetManifest <- R6::R6Class(
 
       # Delete file from disk if it exists and path is not empty
       file_deleted <- FALSE
-      if (!is.na(file_path) && nchar(trimws(file_path)) > 0 && file.exists(file_path)) {
+      if (has_path && file.exists(resolved_path)) {
         tryCatch({
-          unlink(file_path)
+          unlink(resolved_path)
           cli::cli_alert_success("Deleted file: {file_path}")
           file_deleted <- TRUE
         }, error = function(e) {
           cli::cli_alert_warning("Could not delete file {file_path}: {e$message}")
         })
-      }  else if (!file.exists(file_path)) {
+      } else if (has_path) {
         cli::cli_alert_warning("File not found on disk: {file_path} (manifest will be cleaned)")
+      } else {
+        cli::cli_alert_info("No file to delete for concept set {id} (no file path recorded)")
       }
 
       # Mark as deleted in SQLite (soft delete with audit trail)
@@ -2473,7 +2482,7 @@ ConceptSetManifest <- R6::R6Class(
         new_hash <- rlang::hash(expression_json_file)
 
         # Save JSON to file
-        concept_sets_dir <- dirname(dbPath)
+        concept_sets_dir <- private$.manifestDir
         json_dir <- fs::path(concept_sets_dir, "json")
         json_file_path <- fs::path_file(existing_path)
         json_path <- fs::path(json_dir, json_file_path)
@@ -2554,10 +2563,10 @@ ConceptSetManifest <- R6::R6Class(
     syncManifest = function(strict_mode = TRUE) {
       checkmate::assert_flag(strict_mode)
       
-      concept_sets_folder <- dirname(private$.dbPath)
+      concept_sets_folder <- private$.manifestDir
       json_dir <- file.path(concept_sets_folder, "json")
 
-      # Collect all JSON files currently on disk
+      # Collect all JSON files currently on disk (as normalized absolute paths)
       on_disk <- c()
 
       if (dir.exists(json_dir)) {
@@ -2565,7 +2574,11 @@ ConceptSetManifest <- R6::R6Class(
                                          full.names = TRUE, recursive = TRUE))
       }
 
-      on_disk_rel <- fs::path_rel(on_disk)
+      on_disk <- if (length(on_disk) > 0) {
+        as.character(fs::path_norm(fs::path_abs(on_disk)))
+      } else {
+        character(0)
+      }
 
       # Pull current records from the SQLite manifest
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
@@ -2577,6 +2590,16 @@ ConceptSetManifest <- R6::R6Class(
          FROM concept_set_manifest
          WHERE status IN ('active', 'deleted')"
       )
+
+      # Resolved-absolute form of every stored path, so disk/DB comparisons are
+      # independent of which path convention a row was written with.
+      db_resolved <- if (nrow(db_records) > 0) {
+        vapply(db_records$file_path,
+               function(p) as.character(private$resolve_file_path(p)),
+               character(1))
+      } else {
+        character(0)
+      }
 
       results <- data.frame(
         id     = integer(),
@@ -2593,7 +2616,7 @@ ConceptSetManifest <- R6::R6Class(
         rec_id     <- rec$id
         rec_label  <- rec$label
         rec_status <- rec$status
-        file_path  <- private$resolve_file_path(rec$file_path)
+        file_path  <- db_resolved[i]
 
         if (rec_status == "active" && !file.exists(file_path)) {
           # File has gone missing — soft-delete
@@ -2651,8 +2674,7 @@ ConceptSetManifest <- R6::R6Class(
       }
 
       # ── Step 2: Auto-remove orphaned files not in manifest ──────────────────
-      existing_rel <- db_records$file_path
-      orphaned_files <- on_disk[!(on_disk_rel %in% existing_rel)]
+      orphaned_files <- on_disk[!(on_disk %in% db_resolved)]
 
       if (length(orphaned_files) > 0) {
         if (strict_mode) {

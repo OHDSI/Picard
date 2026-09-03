@@ -4,11 +4,6 @@
 \alias{CohortManifest}
 \title{CohortManifest R6 Class}
 \description{
-CohortManifest R6 Class
-
-CohortManifest R6 Class
-}
-\details{
 An R6 class that manages a collection of CohortDef objects and maintains
 metadata in a SQLite database.
 
@@ -85,125 +80,139 @@ Requires that executionSettings has been set and includes:
 }
 \section{Methods}{
 \subsection{Public methods}{
-\itemize{
-\item \href{#method-CohortManifest-new}{\code{CohortManifest$new()}}
-\item \href{#method-CohortManifest-getManifest}{\code{CohortManifest$getManifest()}}
-\item \href{#method-CohortManifest-reviewDependentCohorts}{\code{CohortManifest$reviewDependentCohorts()}}
-\item \href{#method-CohortManifest-tabulateManifest}{\code{CohortManifest$tabulateManifest()}}
-\item \href{#method-CohortManifest-viewManifest}{\code{CohortManifest$viewManifest()}}
-\item \href{#method-CohortManifest-reviewStaleCohorts}{\code{CohortManifest$reviewStaleCohorts()}}
-\item \href{#method-CohortManifest-reloadFromDb}{\code{CohortManifest$reloadFromDb()}}
-\item \href{#method-CohortManifest-getDbPath}{\code{CohortManifest$getDbPath()}}
-\item \href{#method-CohortManifest-getExecutionSettings}{\code{CohortManifest$getExecutionSettings()}}
-\item \href{#method-CohortManifest-setExecutionSettings}{\code{CohortManifest$setExecutionSettings()}}
-\item \href{#method-CohortManifest-getAtlasConnection}{\code{CohortManifest$getAtlasConnection()}}
-\item \href{#method-CohortManifest-setAtlasConnection}{\code{CohortManifest$setAtlasConnection()}}
-\item \href{#method-CohortManifest-addAtlasCohort}{\code{CohortManifest$addAtlasCohort()}}
-\item \href{#method-CohortManifest-importAtlasCohorts}{\code{CohortManifest$importAtlasCohorts()}}
-\item \href{#method-CohortManifest-addCaprCohort}{\code{CohortManifest$addCaprCohort()}}
-\item \href{#method-CohortManifest-updateCaprCohort}{\code{CohortManifest$updateCaprCohort()}}
-\item \href{#method-CohortManifest-addSqlCohort}{\code{CohortManifest$addSqlCohort()}}
-\item \href{#method-CohortManifest-addDependentCustomCohort}{\code{CohortManifest$addDependentCustomCohort()}}
-\item \href{#method-CohortManifest-addCirceCohort}{\code{CohortManifest$addCirceCohort()}}
-\item \href{#method-CohortManifest-buildUnionCohort}{\code{CohortManifest$buildUnionCohort()}}
-\item \href{#method-CohortManifest-buildSubsetCohortTemporal}{\code{CohortManifest$buildSubsetCohortTemporal()}}
-\item \href{#method-CohortManifest-buildComplementCohort}{\code{CohortManifest$buildComplementCohort()}}
-\item \href{#method-CohortManifest-buildCompositeCohort}{\code{CohortManifest$buildCompositeCohort()}}
-\item \href{#method-CohortManifest-buildDemographicCohort}{\code{CohortManifest$buildDemographicCohort()}}
-\item \href{#method-CohortManifest-buildStratifiedCohorts}{\code{CohortManifest$buildStratifiedCohorts()}}
-\item \href{#method-CohortManifest-queryCohortsByIds}{\code{CohortManifest$queryCohortsByIds()}}
-\item \href{#method-CohortManifest-queryCohortsByTag}{\code{CohortManifest$queryCohortsByTag()}}
-\item \href{#method-CohortManifest-queryCohortsByLabel}{\code{CohortManifest$queryCohortsByLabel()}}
-\item \href{#method-CohortManifest-queryCohortsByCategory}{\code{CohortManifest$queryCohortsByCategory()}}
-\item \href{#method-CohortManifest-queryCohortsByTagName}{\code{CohortManifest$queryCohortsByTagName()}}
-\item \href{#method-CohortManifest-queryCohortsMissingTag}{\code{CohortManifest$queryCohortsMissingTag()}}
-\item \href{#method-CohortManifest-queryCohortsWithTagValues}{\code{CohortManifest$queryCohortsWithTagValues()}}
-\item \href{#method-CohortManifest-getTagValuesSummary}{\code{CohortManifest$getTagValuesSummary()}}
-\item \href{#method-CohortManifest-nCohorts}{\code{CohortManifest$nCohorts()}}
-\item \href{#method-CohortManifest-getCohortById}{\code{CohortManifest$getCohortById()}}
-\item \href{#method-CohortManifest-getCohortsByTag}{\code{CohortManifest$getCohortsByTag()}}
-\item \href{#method-CohortManifest-getCohortsByLabel}{\code{CohortManifest$getCohortsByLabel()}}
-\item \href{#method-CohortManifest-updateCohortLabel}{\code{CohortManifest$updateCohortLabel()}}
-\item \href{#method-CohortManifest-updateCohortCategory}{\code{CohortManifest$updateCohortCategory()}}
-\item \href{#method-CohortManifest-updateCohortTags}{\code{CohortManifest$updateCohortTags()}}
-\item \href{#method-CohortManifest-removeCohortTag}{\code{CohortManifest$removeCohortTag()}}
-\item \href{#method-CohortManifest-modifyCohortTagValue}{\code{CohortManifest$modifyCohortTagValue()}}
-\item \href{#method-CohortManifest-addCohortTag}{\code{CohortManifest$addCohortTag()}}
-\item \href{#method-CohortManifest-getCohortTags}{\code{CohortManifest$getCohortTags()}}
-\item \href{#method-CohortManifest-mergeTagsIntoCohort}{\code{CohortManifest$mergeTagsIntoCohort()}}
-\item \href{#method-CohortManifest-listAllUniqueTags}{\code{CohortManifest$listAllUniqueTags()}}
-\item \href{#method-CohortManifest-getTagValue}{\code{CohortManifest$getTagValue()}}
-\item \href{#method-CohortManifest-renameTagKey}{\code{CohortManifest$renameTagKey()}}
-\item \href{#method-CohortManifest-bulkModifyTagValue}{\code{CohortManifest$bulkModifyTagValue()}}
-\item \href{#method-CohortManifest-checkAtlasCohorts}{\code{CohortManifest$checkAtlasCohorts()}}
-\item \href{#method-CohortManifest-updateAtlasCohorts}{\code{CohortManifest$updateAtlasCohorts()}}
-\item \href{#method-CohortManifest-statusReport}{\code{CohortManifest$statusReport()}}
-\item \href{#method-CohortManifest-print}{\code{CohortManifest$print()}}
-\item \href{#method-CohortManifest-checkCohortTables}{\code{CohortManifest$checkCohortTables()}}
-\item \href{#method-CohortManifest-createCohortTable}{\code{CohortManifest$createCohortTable()}}
-\item \href{#method-CohortManifest-createAllCohortTables}{\code{CohortManifest$createAllCohortTables()}}
-\item \href{#method-CohortManifest-createCohortTables}{\code{CohortManifest$createCohortTables()}}
-\item \href{#method-CohortManifest-dropCohortTables}{\code{CohortManifest$dropCohortTables()}}
-\item \href{#method-CohortManifest-syncManifest}{\code{CohortManifest$syncManifest()}}
-\item \href{#method-CohortManifest-cleanCohortTable}{\code{CohortManifest$cleanCohortTable()}}
-\item \href{#method-CohortManifest-executeCohortGeneration}{\code{CohortManifest$executeCohortGeneration()}}
-\item \href{#method-CohortManifest-retrieveCohortCounts}{\code{CohortManifest$retrieveCohortCounts()}}
-\item \href{#method-CohortManifest-validateManifest}{\code{CohortManifest$validateManifest()}}
-\item \href{#method-CohortManifest-getManifestStatus}{\code{CohortManifest$getManifestStatus()}}
-\item \href{#method-CohortManifest-deleteCohort}{\code{CohortManifest$deleteCohort()}}
-\item \href{#method-CohortManifest-buildOPriorT}{\code{CohortManifest$buildOPriorT()}}
-\item \href{#method-CohortManifest-buildTPriorO}{\code{CohortManifest$buildTPriorO()}}
-\item \href{#method-CohortManifest-buildCensorCohort}{\code{CohortManifest$buildCensorCohort()}}
-\item \href{#method-CohortManifest-cleanupMissing}{\code{CohortManifest$cleanupMissing()}}
-\item \href{#method-CohortManifest-clone}{\code{CohortManifest$clone()}}
-}
+  \itemize{
+    \item \href{#method-CohortManifest-initialize}{\code{CohortManifest$new()}}
+    \item \href{#method-CohortManifest-getManifest}{\code{CohortManifest$getManifest()}}
+    \item \href{#method-CohortManifest-reviewDependentCohorts}{\code{CohortManifest$reviewDependentCohorts()}}
+    \item \href{#method-CohortManifest-tabulateManifest}{\code{CohortManifest$tabulateManifest()}}
+    \item \href{#method-CohortManifest-viewManifest}{\code{CohortManifest$viewManifest()}}
+    \item \href{#method-CohortManifest-reviewStaleCohorts}{\code{CohortManifest$reviewStaleCohorts()}}
+    \item \href{#method-CohortManifest-reloadFromDb}{\code{CohortManifest$reloadFromDb()}}
+    \item \href{#method-CohortManifest-getDbPath}{\code{CohortManifest$getDbPath()}}
+    \item \href{#method-CohortManifest-getProjectRoot}{\code{CohortManifest$getProjectRoot()}}
+    \item \href{#method-CohortManifest-getExecutionSettings}{\code{CohortManifest$getExecutionSettings()}}
+    \item \href{#method-CohortManifest-setExecutionSettings}{\code{CohortManifest$setExecutionSettings()}}
+    \item \href{#method-CohortManifest-getAtlasConnection}{\code{CohortManifest$getAtlasConnection()}}
+    \item \href{#method-CohortManifest-setAtlasConnection}{\code{CohortManifest$setAtlasConnection()}}
+    \item \href{#method-CohortManifest-addAtlasCohort}{\code{CohortManifest$addAtlasCohort()}}
+    \item \href{#method-CohortManifest-importAtlasCohorts}{\code{CohortManifest$importAtlasCohorts()}}
+    \item \href{#method-CohortManifest-addCaprCohort}{\code{CohortManifest$addCaprCohort()}}
+    \item \href{#method-CohortManifest-updateCaprCohort}{\code{CohortManifest$updateCaprCohort()}}
+    \item \href{#method-CohortManifest-addSqlCohort}{\code{CohortManifest$addSqlCohort()}}
+    \item \href{#method-CohortManifest-addDependentCustomCohort}{\code{CohortManifest$addDependentCustomCohort()}}
+    \item \href{#method-CohortManifest-addCirceCohort}{\code{CohortManifest$addCirceCohort()}}
+    \item \href{#method-CohortManifest-buildUnionCohort}{\code{CohortManifest$buildUnionCohort()}}
+    \item \href{#method-CohortManifest-buildSubsetCohortTemporal}{\code{CohortManifest$buildSubsetCohortTemporal()}}
+    \item \href{#method-CohortManifest-buildComplementCohort}{\code{CohortManifest$buildComplementCohort()}}
+    \item \href{#method-CohortManifest-buildCompositeCohort}{\code{CohortManifest$buildCompositeCohort()}}
+    \item \href{#method-CohortManifest-buildDemographicCohort}{\code{CohortManifest$buildDemographicCohort()}}
+    \item \href{#method-CohortManifest-buildStratifiedCohorts}{\code{CohortManifest$buildStratifiedCohorts()}}
+    \item \href{#method-CohortManifest-queryCohortsByIds}{\code{CohortManifest$queryCohortsByIds()}}
+    \item \href{#method-CohortManifest-queryCohortsByTag}{\code{CohortManifest$queryCohortsByTag()}}
+    \item \href{#method-CohortManifest-queryCohortsByLabel}{\code{CohortManifest$queryCohortsByLabel()}}
+    \item \href{#method-CohortManifest-queryCohortsByCategory}{\code{CohortManifest$queryCohortsByCategory()}}
+    \item \href{#method-CohortManifest-queryCohortsByTagName}{\code{CohortManifest$queryCohortsByTagName()}}
+    \item \href{#method-CohortManifest-queryCohortsMissingTag}{\code{CohortManifest$queryCohortsMissingTag()}}
+    \item \href{#method-CohortManifest-queryCohortsWithTagValues}{\code{CohortManifest$queryCohortsWithTagValues()}}
+    \item \href{#method-CohortManifest-getTagValuesSummary}{\code{CohortManifest$getTagValuesSummary()}}
+    \item \href{#method-CohortManifest-nCohorts}{\code{CohortManifest$nCohorts()}}
+    \item \href{#method-CohortManifest-getCohortById}{\code{CohortManifest$getCohortById()}}
+    \item \href{#method-CohortManifest-getCohortsByTag}{\code{CohortManifest$getCohortsByTag()}}
+    \item \href{#method-CohortManifest-getCohortsByLabel}{\code{CohortManifest$getCohortsByLabel()}}
+    \item \href{#method-CohortManifest-updateCohortLabel}{\code{CohortManifest$updateCohortLabel()}}
+    \item \href{#method-CohortManifest-updateCohortCategory}{\code{CohortManifest$updateCohortCategory()}}
+    \item \href{#method-CohortManifest-updateCohortTags}{\code{CohortManifest$updateCohortTags()}}
+    \item \href{#method-CohortManifest-removeCohortTag}{\code{CohortManifest$removeCohortTag()}}
+    \item \href{#method-CohortManifest-modifyCohortTagValue}{\code{CohortManifest$modifyCohortTagValue()}}
+    \item \href{#method-CohortManifest-addCohortTag}{\code{CohortManifest$addCohortTag()}}
+    \item \href{#method-CohortManifest-getCohortTags}{\code{CohortManifest$getCohortTags()}}
+    \item \href{#method-CohortManifest-mergeTagsIntoCohort}{\code{CohortManifest$mergeTagsIntoCohort()}}
+    \item \href{#method-CohortManifest-listAllUniqueTags}{\code{CohortManifest$listAllUniqueTags()}}
+    \item \href{#method-CohortManifest-getTagValue}{\code{CohortManifest$getTagValue()}}
+    \item \href{#method-CohortManifest-renameTagKey}{\code{CohortManifest$renameTagKey()}}
+    \item \href{#method-CohortManifest-bulkModifyTagValue}{\code{CohortManifest$bulkModifyTagValue()}}
+    \item \href{#method-CohortManifest-checkAtlasCohorts}{\code{CohortManifest$checkAtlasCohorts()}}
+    \item \href{#method-CohortManifest-updateAtlasCohorts}{\code{CohortManifest$updateAtlasCohorts()}}
+    \item \href{#method-CohortManifest-statusReport}{\code{CohortManifest$statusReport()}}
+    \item \href{#method-CohortManifest-print}{\code{CohortManifest$print()}}
+    \item \href{#method-CohortManifest-checkCohortTables}{\code{CohortManifest$checkCohortTables()}}
+    \item \href{#method-CohortManifest-createCohortTable}{\code{CohortManifest$createCohortTable()}}
+    \item \href{#method-CohortManifest-createAllCohortTables}{\code{CohortManifest$createAllCohortTables()}}
+    \item \href{#method-CohortManifest-createCohortTables}{\code{CohortManifest$createCohortTables()}}
+    \item \href{#method-CohortManifest-dropCohortTables}{\code{CohortManifest$dropCohortTables()}}
+    \item \href{#method-CohortManifest-syncManifest}{\code{CohortManifest$syncManifest()}}
+    \item \href{#method-CohortManifest-cleanCohortTable}{\code{CohortManifest$cleanCohortTable()}}
+    \item \href{#method-CohortManifest-executeCohortGeneration}{\code{CohortManifest$executeCohortGeneration()}}
+    \item \href{#method-CohortManifest-retrieveCohortCounts}{\code{CohortManifest$retrieveCohortCounts()}}
+    \item \href{#method-CohortManifest-validateManifest}{\code{CohortManifest$validateManifest()}}
+    \item \href{#method-CohortManifest-getManifestStatus}{\code{CohortManifest$getManifestStatus()}}
+    \item \href{#method-CohortManifest-deleteCohort}{\code{CohortManifest$deleteCohort()}}
+    \item \href{#method-CohortManifest-buildOPriorT}{\code{CohortManifest$buildOPriorT()}}
+    \item \href{#method-CohortManifest-buildTPriorO}{\code{CohortManifest$buildTPriorO()}}
+    \item \href{#method-CohortManifest-buildCensorCohort}{\code{CohortManifest$buildCensorCohort()}}
+    \item \href{#method-CohortManifest-cleanupMissing}{\code{CohortManifest$cleanupMissing()}}
+    \item \href{#method-CohortManifest-clone}{\code{CohortManifest$clone()}}
+  }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-CohortManifest-new"></a>}}
-\if{latex}{\out{\hypertarget{method-CohortManifest-new}{}}}
-\subsection{Method \code{new()}}{
-Initialize a new CohortManifest
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$new(dbPath = "inputs/cohorts/cohortManifest.sqlite")}\if{html}{\out{</div>}}
+\if{html}{\out{<a id="method-CohortManifest-initialize"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-initialize}{}}}
+\subsection{\code{CohortManifest$new()}}{
+  Initialize a new CohortManifest
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$new(
+  dbPath = "inputs/cohorts/cohortManifest.sqlite",
+  projectRoot = NULL
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{dbPath}}{Character. Path to the SQLite database. Defaults to
+"inputs/cohorts/cohortManifest.sqlite"}
+      \item{\code{projectRoot}}{Character or NULL. Study repository root against which
+stored file paths are resolved. When \code{NULL} (default) the root is
+discovered once via \code{\link[=findStudyProjectRoot]{findStudyProjectRoot()}} from the manifest's
+directory and cached for the life of the object. Supply an explicit
+path for tests or unusual layouts.
+Get the manifest as a list of CohortDef objects}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{dbPath}}{Character. Path to the SQLite database. Defaults to
-"inputs/cohorts/cohortManifest.sqlite"
-Get the manifest as a list of CohortDef objects}
-}
-\if{html}{\out{</div>}}
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-getManifest"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-getManifest}{}}}
-\subsection{Method \code{getManifest()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$getManifest()}\if{html}{\out{</div>}}
+\subsection{\code{CohortManifest$getManifest()}}{
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$getManifest()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List. A list of CohortDef objects in the manifest, indexed by cohort ID.
+Review dependent cohorts and their dependency metadata
+  }
 }
 
-\subsection{Returns}{
-List. A list of CohortDef objects in the manifest, indexed by cohort ID.
-Review dependent cohorts and their dependency metadata
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-reviewDependentCohorts"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-reviewDependentCohorts}{}}}
-\subsection{Method \code{reviewDependentCohorts()}}{
-Returns a summary tibble of all active derived cohorts (union, subset, complement,
+\subsection{\code{CohortManifest$reviewDependentCohorts()}}{
+  Returns a summary tibble of all active derived cohorts (union, subset, complement,
 composite, oprior, tprior, censor, custom_derived) with parsed dependency
 information sourced directly from SQLite. Useful for quickly auditing what
 each derived cohort depends on and how it was built.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$reviewDependentCohorts()}\if{html}{\out{</div>}}
-}
-
-\subsection{Returns}{
-A tibble with columns:
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$reviewDependentCohorts()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    A tibble with columns:
 \itemize{
 \item \code{id} - Cohort ID
 \item \code{label} - Cohort label
@@ -214,24 +223,26 @@ A tibble with columns:
 \item \code{status} - 'active', or 'stale' when the cohort awaits regeneration
 \item \code{created_at} - Timestamp of creation
 }
+  }
 }
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-tabulateManifest"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-tabulateManifest}{}}}
-\subsection{Method \code{tabulateManifest()}}{
-Tabulate the cohort manifest
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$tabulateManifest(
+\subsection{\code{CohortManifest$tabulateManifest()}}{
+  Tabulate the cohort manifest
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$tabulateManifest(
   filter = c("active", "deleted", "stale", "all"),
   tags_format = c("nested", "json", "wide")
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{filter}}{Character. One of "active", "deleted", "stale", or "all".
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{filter}}{Character. One of "active", "deleted", "stale", or "all".
 Defaults to "active".
 
 \code{"active"} returns every cohort registered in the study — both
@@ -241,58 +252,59 @@ database), not a lifecycle state: a stale cohort is still a full member
 of the study and is regenerated by the next \code{generateCohorts()}
 run. Use \code{filter = "stale"} to see just those, or read the
 \code{status} column of the returned tibble.}
-
-\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+      \item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
 \itemize{
 \item "nested" (default): Parse JSON tags into a nested tibble with tag_name/tag_value columns
 \item "json": Keep tags as raw JSON string
 \item "wide": Expand tags into individual columns (one per unique tag key)
 }}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Tibble with cohort manifest data. Tags format depends on tags_format parameter.
+  }
 }
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Tibble with cohort manifest data. Tags format depends on tags_format parameter.
-}
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-viewManifest"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-viewManifest}{}}}
-\subsection{Method \code{viewManifest()}}{
-View the cohort manifest in RStudio viewer
+\subsection{\code{CohortManifest$viewManifest()}}{
+  View the cohort manifest in RStudio viewer
 
 Opens an interactive RStudio viewer showing key cohort metadata:
 id, label, category, tags, status, and file_path. This is a convenience
 function for exploring manifest contents without console clutter.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$viewManifest(
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$viewManifest(
   filter = c("active", "deleted", "stale", "all"),
   tagDelimiter = " | "
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{filter}}{Character. One of "active", "deleted", "stale", or "all".
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{filter}}{Character. One of "active", "deleted", "stale", or "all".
 Defaults to "active", which shows every registered cohort — including
 ones marked \code{'stale'} (pending regeneration). See
 \code{tabulateManifest()} for the full filter semantics.}
-
-\item{\code{tagDelimiter}}{a character used to seperate tags in the view. Default is |}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisibly returns the tibble displayed in the viewer.
+      \item{\code{tagDelimiter}}{a character used to seperate tags in the view. Default is |}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisibly returns the tibble displayed in the viewer.
 Review stale derived cohorts
+  }
 }
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-reviewStaleCohorts"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-reviewStaleCohorts}{}}}
-\subsection{Method \code{reviewStaleCohorts()}}{
-Returns a summary of all cohorts currently marked \code{'stale'} — meaning the
+\subsection{\code{CohortManifest$reviewStaleCohorts()}}{
+  Returns a summary of all cohorts currently marked \code{'stale'} — meaning the
 cohort's own definition, or that of a parent it is built on, has changed since it
 was last executed. Stale cohorts are still fully registered members of the study
 (they appear in \code{tabulateManifest()} and the query methods) and are still
@@ -301,162 +313,189 @@ will run them automatically regardless of checksum state, and clear the flag.
 
 Use \code{resetCohortManifest(scope = "derived")} followed by re-running your build
 script if you need to change build parameters rather than just re-execute.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$reviewStaleCohorts()}\if{html}{\out{</div>}}
-}
-
-\subsection{Returns}{
-A tibble with columns: id, label, cohort_type, category, depends_on, updated_at.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$reviewStaleCohorts()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    A tibble with columns: id, label, cohort_type, category, depends_on, updated_at.
 Returns \code{NULL} invisibly if no stale cohorts exist.
 Reload the in-memory manifest from the SQLite database
+  }
 }
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-reloadFromDb"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-reloadFromDb}{}}}
-\subsection{Method \code{reloadFromDb()}}{
-Re-reads all active cohort records from SQLite and rebuilds the in-memory
+\subsection{\code{CohortManifest$reloadFromDb()}}{
+  Re-reads all active cohort records from SQLite and rebuilds the in-memory
 list of CohortDef objects. Useful after external changes to the database
 (e.g., after \code{resetCohortManifest(scope = "derived")}).
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$reloadFromDb()}\if{html}{\out{</div>}}
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$reloadFromDb()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible self.
+Get the manifest path
+  }
 }
 
-\subsection{Returns}{
-Invisible self.
-Get the manifest path
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-getDbPath"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-getDbPath}{}}}
-\subsection{Method \code{getDbPath()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$getDbPath()}\if{html}{\out{</div>}}
+\subsection{\code{CohortManifest$getDbPath()}}{
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$getDbPath()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character. The path to the SQLite database.
+Get the study repository root
+  }
 }
 
-\subsection{Returns}{
-Character. The path to the SQLite database.
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-getProjectRoot"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-getProjectRoot}{}}}
+\subsection{\code{CohortManifest$getProjectRoot()}}{
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$getProjectRoot()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character. The cached study repository root used to resolve
+stored file paths.
 Get the execution settings
+  }
 }
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-getExecutionSettings"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-getExecutionSettings}{}}}
-\subsection{Method \code{getExecutionSettings()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$getExecutionSettings()}\if{html}{\out{</div>}}
+\subsection{\code{CohortManifest$getExecutionSettings()}}{
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$getExecutionSettings()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Object. The execution settings object for DBMS cohort generation, or NULL if not set.
+Set the execution settings
+  }
 }
 
-\subsection{Returns}{
-Object. The execution settings object for DBMS cohort generation, or NULL if not set.
-Set the execution settings
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-setExecutionSettings"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-setExecutionSettings}{}}}
-\subsection{Method \code{setExecutionSettings()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$setExecutionSettings(executionSettings)}\if{html}{\out{</div>}}
+\subsection{\code{CohortManifest$setExecutionSettings()}}{
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$setExecutionSettings(executionSettings)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{executionSettings}}{Object. Execution settings for DBMS cohort generation.
+Get the stored ATLAS connection}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{executionSettings}}{Object. Execution settings for DBMS cohort generation.
-Get the stored ATLAS connection}
-}
-\if{html}{\out{</div>}}
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-getAtlasConnection"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-getAtlasConnection}{}}}
-\subsection{Method \code{getAtlasConnection()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$getAtlasConnection()}\if{html}{\out{</div>}}
-}
-
-\subsection{Returns}{
-The ATLAS connection object, or NULL if not set.
+\subsection{\code{CohortManifest$getAtlasConnection()}}{
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$getAtlasConnection()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    The ATLAS connection object, or NULL if not set.
 Set an ATLAS connection for use by add/import methods
 
 Stores a connection so it does not need to be passed to
 \code{addAtlasCohort()} or \code{importAtlasCohorts()} on every call.
+  }
 }
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-setAtlasConnection"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-setAtlasConnection}{}}}
-\subsection{Method \code{setAtlasConnection()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$setAtlasConnection(atlasConnection)}\if{html}{\out{</div>}}
+\subsection{\code{CohortManifest$setAtlasConnection()}}{
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$setAtlasConnection(atlasConnection)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{atlasConnection}}{An ATLAS connection object (from \code{getAtlasConnection()}).}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible self for method chaining.
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{atlasConnection}}{An ATLAS connection object (from \code{getAtlasConnection()}).}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible self for method chaining.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-addAtlasCohort"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-addAtlasCohort}{}}}
-\subsection{Method \code{addAtlasCohort()}}{
-Add a single cohort from ATLAS
+\subsection{\code{CohortManifest$addAtlasCohort()}}{
+  Add a single cohort from ATLAS
 
 Fetches a cohort JSON from ATLAS, saves it to \verb{json/}, and registers
 the cohort in the manifest.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$addAtlasCohort(
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$addAtlasCohort(
   atlasId,
   label,
   category,
   tags = list(),
   atlasConnection = NULL,
   stopIfExists = TRUE
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{atlasId}}{Integer. The ATLAS cohort definition ID.}
-
-\item{\code{label}}{Character. Display name for the cohort.}
-
-\item{\code{category}}{Character. Required classification (e.g., 'target', 'outcome').}
-
-\item{\code{tags}}{Named list. Optional metadata tags.}
-
-\item{\code{atlasConnection}}{An ATLAS connection object (e.g., from ROhdsiWebApi::createConnectionDetails)
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{atlasId}}{Integer. The ATLAS cohort definition ID.}
+      \item{\code{label}}{Character. Display name for the cohort.}
+      \item{\code{category}}{Character. Required classification (e.g., 'target', 'outcome').}
+      \item{\code{tags}}{Named list. Optional metadata tags.}
+      \item{\code{atlasConnection}}{An ATLAS connection object (e.g., from ROhdsiWebApi::createConnectionDetails)
 with a method \code{getCohortDefinition(cohortId)} that returns a list with an \code{expression} element.
 If \code{NULL}, falls back to the connection stored via \verb{$setAtlasConnection()}.}
-
-\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+      \item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
 active cohort with this label is already registered. If FALSE, fetches
 the current definition from ATLAS and updates the registered cohort in
 place — same ID and file path, hash refreshed, \code{category}/\code{tags}/atlasId
 replaced, derived dependents marked 'stale'. An unchanged definition
 leaves the file untouched. Default: TRUE (fail-safe).}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible integer. The assigned cohort ID.
+  }
 }
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible integer. The assigned cohort ID.
-}
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-importAtlasCohorts"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-importAtlasCohorts}{}}}
-\subsection{Method \code{importAtlasCohorts()}}{
-Batch-import cohorts from ATLAS via a cohortsLoad dataframe
+\subsection{\code{CohortManifest$importAtlasCohorts()}}{
+  Batch-import cohorts from ATLAS via a cohortsLoad dataframe
 
 Either create a dataframe or read in a csv file with columns \code{atlasId}, \code{label}, \code{category} (required) plus any
 additional columns treated as tag key-value pairs for tags. Calls \code{addAtlasCohort()} for each row.
@@ -468,81 +507,79 @@ those rows in place (delegates to \code{addAtlasCohort(stopIfExists = FALSE)}
 for each), which supports iterating on the load file across repeated
 runs. To sync registered cohorts with ATLAS without a load file, use
 \code{updateAtlasCohorts()}.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$importAtlasCohorts(
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$importAtlasCohorts(
   cohortsLoad,
   atlasConnection = NULL,
   stopIfExists = TRUE
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{cohortsLoad}}{a data frame requiring the columns atlasId, label and category used to bulk add cohorts to the manifest}
-
-\item{\code{atlasConnection}}{An ATLAS connection object with a \code{getCohortDefinition(cohortId)} method.
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{cohortsLoad}}{a data frame requiring the columns atlasId, label and category used to bulk add cohorts to the manifest}
+      \item{\code{atlasConnection}}{An ATLAS connection object with a \code{getCohortDefinition(cohortId)} method.
 If \code{NULL}, falls back to the connection stored via \verb{$setAtlasConnection()}.}
-
-\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when any
+      \item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when any
 load row's atlasId is already registered in the manifest. If FALSE,
 those rows are updated in place instead (same ID/file path, hash
 refreshed, category/tags replaced) via \code{addAtlasCohort(stopIfExists = FALSE)}.
 Default: TRUE (fail-safe).}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible tibble of imported cohorts.
+  }
 }
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible tibble of imported cohorts.
-}
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-addCaprCohort"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-addCaprCohort}{}}}
-\subsection{Method \code{addCaprCohort()}}{
-Add a Capr cohort
+\subsection{\code{CohortManifest$addCaprCohort()}}{
+  Add a Capr cohort
 
 Takes a Capr Cohort object, exports it to JSON in \verb{json/}, and registers
 the cohort in the manifest.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$addCaprCohort(
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$addCaprCohort(
   caprCohort,
   label,
   category,
   tags = list(),
   stopIfExists = TRUE
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{caprCohort}}{A Capr Cohort object (inherits from "Cohort").}
-
-\item{\code{label}}{Character. Display name for the cohort.}
-
-\item{\code{category}}{Character. Required classification.}
-
-\item{\code{tags}}{Named list. Optional metadata tags.}
-
-\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{caprCohort}}{A Capr Cohort object (inherits from "Cohort").}
+      \item{\code{label}}{Character. Display name for the cohort.}
+      \item{\code{category}}{Character. Required classification.}
+      \item{\code{tags}}{Named list. Optional metadata tags.}
+      \item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
 active cohort with this label is already registered. If FALSE, updates
 the existing cohort in place via \code{updateCaprCohort()} — the cohort
 keeps its ID and file path, and \code{category}/\code{tags} replace the
 registered metadata (previous tags are dropped if none are supplied).
 Default: TRUE (fail-safe).}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible integer. The assigned cohort ID.
+  }
 }
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible integer. The assigned cohort ID.
-}
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-updateCaprCohort"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-updateCaprCohort}{}}}
-\subsection{Method \code{updateCaprCohort()}}{
-Update an existing Capr cohort's JSON definition
+\subsection{\code{CohortManifest$updateCaprCohort()}}{
+  Update an existing Capr cohort's JSON definition
 
 Takes a revised Capr Cohort object and upserts it over a cohort already
 registered via \code{addCaprCohort()}: the JSON file recorded in the manifest
@@ -550,71 +587,70 @@ is overwritten in place and the manifest hash is refreshed, so the cohort
 keeps its ID and file path. Any derived cohorts that depend on it are
 marked 'stale'. If the new definition is identical to the registered one,
 nothing is changed.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$updateCaprCohort(caprCohort, label)}\if{html}{\out{</div>}}
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$updateCaprCohort(caprCohort, label)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{caprCohort}}{A Capr Cohort object (inherits from "Cohort").}
+      \item{\code{label}}{Character. Label of the active cohort to update.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible integer. The cohort ID.
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{caprCohort}}{A Capr Cohort object (inherits from "Cohort").}
-
-\item{\code{label}}{Character. Label of the active cohort to update.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible integer. The cohort ID.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-addSqlCohort"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-addSqlCohort}{}}}
-\subsection{Method \code{addSqlCohort()}}{
-Add a custom SQL cohort
+\subsection{\code{CohortManifest$addSqlCohort()}}{
+  Add a custom SQL cohort
 
 Registers an existing SQL file in the manifest. The file must already exist
 on disk (typically in \verb{sql/}).
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$addSqlCohort(
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$addSqlCohort(
   filePath,
   label,
   category,
   tags = list(),
   stopIfExists = TRUE
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{filePath}}{Character. Path to the SQL file.}
-
-\item{\code{label}}{Character. Display name for the cohort.}
-
-\item{\code{category}}{Character. Required classification.}
-
-\item{\code{tags}}{Named list. Optional metadata tags.}
-
-\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{filePath}}{Character. Path to the SQL file.}
+      \item{\code{label}}{Character. Display name for the cohort.}
+      \item{\code{category}}{Character. Required classification.}
+      \item{\code{tags}}{Named list. Optional metadata tags.}
+      \item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
 active cohort with this label is already registered, or the file path
 is registered to another cohort. If FALSE, updates the registered
 cohort in place — same ID, file path registration and content hash
 refreshed, \code{category}/\code{tags} replace the registered metadata (previous
 tags are dropped if none are supplied), and derived dependents are
 marked 'stale' when the definition changed. Default: TRUE (fail-safe).}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible integer. The assigned cohort ID.
+  }
 }
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible integer. The assigned cohort ID.
-}
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-addDependentCustomCohort"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-addDependentCustomCohort}{}}}
-\subsection{Method \code{addDependentCustomCohort()}}{
-Add a dependent custom SQL cohort
+\subsection{\code{CohortManifest$addDependentCustomCohort()}}{
+  Add a dependent custom SQL cohort
 
 Registers a SQL file in the manifest as a dependency-aware derived cohort.
 The source SQL file must preserve the standard Picard cohort write contract
@@ -627,8 +663,9 @@ written to \.code{inputs/cohorts/derived/\if{html}{\out{<label>}}.sql} — the f
 in the manifest — exactly like the built-in derived cohort types (subset,
 union, etc.). Only the connection/schema placeholders (\.code{@target_cohort_id}
 and friends) are left for \.code{generateCohorts()} to fill in at execution time.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$addDependentCustomCohort(
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$addDependentCustomCohort(
   filePath,
   label,
   category,
@@ -636,19 +673,16 @@ and friends) are left for \.code{generateCohorts()} to fill in at execution time
   sqlParameters = list(),
   tags = list(),
   stopIfExists = TRUE
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{filePath}}{Character. Path to the source SQL file/template.}
-
-\item{\code{label}}{Character. Display name for the cohort.}
-
-\item{\code{category}}{Character. Required classification.}
-
-\item{\code{dependentCohortIdList}}{Named list. Each name is a SqlRender parameter to
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{filePath}}{Character. Path to the source SQL file/template.}
+      \item{\code{label}}{Character. Display name for the cohort.}
+      \item{\code{category}}{Character. Required classification.}
+      \item{\code{dependentCohortIdList}}{Named list. Each name is a SqlRender parameter to
 render into the SQL file. Each value is, preferably, a manifest entry —
 a data.frame/tibble with an \.code{id} column, as returned by query methods
 like \.code{queryCohortsByLabel()} (a single row bakes in one ID; a multi-row
@@ -658,63 +692,60 @@ These IDs also become this cohort's \.code{depends_on} parents for staleness
 tracking. When entries carry a \.code{label} column, it's included (purely
 for QC) in a generated comment header at the top of the derived SQL file.
 Example: \.code{list(inc_cohort_id = ckdEntry, exc_cohort_id = t2dEntry)}.}
-
-\item{\code{sqlParameters}}{Named list. Optional additional SqlRender parameters to
+      \item{\code{sqlParameters}}{Named list. Optional additional SqlRender parameters to
 render into the SQL file (any type — thresholds, dates, strings, etc.),
 not treated as cohort dependencies.
 Example: \.code{list(min_days = 30L, index_year = 2020L)}.}
-
-\item{\code{tags}}{Named list. Optional metadata tags.}
-
-\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+      \item{\code{tags}}{Named list. Optional metadata tags.}
+      \item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
 active or stale cohort with this label is already registered. If FALSE,
 updates the registered cohort in place (same ID): the dependent cohort
 IDs/sqlParameters are re-rendered into the generated file, and — only if
 that actually changes the definition — the cohort is marked 'stale' for
 regeneration along with its own dependents. Re-running with unchanged
 inputs leaves the cohort exactly as it was. Default: TRUE (fail-safe).}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible integer. The assigned cohort ID.
+  }
 }
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible integer. The assigned cohort ID.
-}
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-addCirceCohort"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-addCirceCohort}{}}}
-\subsection{Method \code{addCirceCohort()}}{
-Add a Circe JSON cohort from disk
+\subsection{\code{CohortManifest$addCirceCohort()}}{
+  Add a Circe JSON cohort from disk
 
 Registers an existing Circe-compatible JSON file in the manifest.
 The file must already exist on disk (typically in \verb{json/}).
 Validates that the JSON is valid Circe format using CirceR.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$addCirceCohort(filePath, label, category, tags = list())}\if{html}{\out{</div>}}
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$addCirceCohort(filePath, label, category, tags = list())}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{filePath}}{Character. Path to the Circe JSON file.}
+      \item{\code{label}}{Character. Display name for the cohort.}
+      \item{\code{category}}{Character. Required classification.}
+      \item{\code{tags}}{Named list. Optional metadata tags.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible integer. The assigned cohort ID.
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{filePath}}{Character. Path to the Circe JSON file.}
-
-\item{\code{label}}{Character. Display name for the cohort.}
-
-\item{\code{category}}{Character. Required classification.}
-
-\item{\code{tags}}{Named list. Optional metadata tags.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible integer. The assigned cohort ID.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-buildUnionCohort"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-buildUnionCohort}{}}}
-\subsection{Method \code{buildUnionCohort()}}{
-Build a union cohort from existing cohorts
+\subsection{\code{CohortManifest$buildUnionCohort()}}{
+  Build a union cohort from existing cohorts
 
 Creates a derived cohort that is the union of specified parent cohorts.
 Delegates SQL generation to the internal builder function.
@@ -725,8 +756,9 @@ Input route policy:
 \item Backward compatible: provide \code{cohortIds}
 \item Exactly one route must be provided; passing both or neither is an error.
 }
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildUnionCohort(
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$buildUnionCohort(
   label,
   category,
   tags = list(),
@@ -739,62 +771,52 @@ Input route policy:
   washoutDays = 0L,
   firstEraOnly = FALSE,
   stopIfExists = TRUE
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{label}}{Character. Display name for the derived cohort.}
-
-\item{\code{category}}{Character. Required classification.}
-
-\item{\code{tags}}{Named list. Optional metadata tags.}
-
-\item{\code{cohortIds}}{Numeric vector (minimum 2). Legacy ID route to union cohorts.
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{label}}{Character. Display name for the derived cohort.}
+      \item{\code{category}}{Character. Required classification.}
+      \item{\code{tags}}{Named list. Optional metadata tags.}
+      \item{\code{cohortIds}}{Numeric vector (minimum 2). Legacy ID route to union cohorts.
 Supported for backward compatibility and emits a migration warning unless
 \code{options(picard.suppressIdRouteWarning = TRUE)} is set.}
-
-\item{\code{cohortEntries}}{Data frame/tibble with an \code{id} column (minimum 2 rows).
+      \item{\code{cohortEntries}}{Data frame/tibble with an \code{id} column (minimum 2 rows).
 Preferred route using manifest query results.}
-
-\item{\code{gapDays}}{Integer. Bridge eras separated by up to this many days. Default: 0 (only
+      \item{\code{gapDays}}{Integer. Bridge eras separated by up to this many days. Default: 0 (only
 overlapping periods collapse).}
-
-\item{\code{eraPadDays}}{Integer. Expand each source period by this many days on each end before
+      \item{\code{eraPadDays}}{Integer. Expand each source period by this many days on each end before
 collapsing. Applied to individual periods, not the collapsed result. Default: 0.}
-
-\item{\code{minEraDays}}{Integer. Drop collapsed eras shorter than this many days. Default: 0
+      \item{\code{minEraDays}}{Integer. Drop collapsed eras shorter than this many days. Default: 0
 (keep all eras).}
-
-\item{\code{minCohorts}}{Integer. Only include subjects appearing in at least this many distinct
+      \item{\code{minCohorts}}{Integer. Only include subjects appearing in at least this many distinct
 source cohorts. Default: 1 (any subject from any cohort).}
-
-\item{\code{washoutDays}}{Integer. Require a clean period of at least this many days before a
+      \item{\code{washoutDays}}{Integer. Require a clean period of at least this many days before a
 new era can open. Subjects must have no source cohort membership for this period.
 Default: 0.}
-
-\item{\code{firstEraOnly}}{Logical. Return only the first collapsed era per subject. Default: FALSE.}
-
-\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+      \item{\code{firstEraOnly}}{Logical. Return only the first collapsed era per subject. Default: FALSE.}
+      \item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
 active or stale cohort with this label is already registered. If FALSE,
 updates the registered derived cohort in place (same ID and file path):
 the SQL is re-rendered, parents and build parameters are replaced, the
 cohort is marked 'stale' for regeneration (and its own dependents with it)
 only when the definition actually changed — re-running with unchanged
 inputs is a no-op. Default: TRUE (fail-safe).}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible integer. The assigned cohort ID.
+  }
 }
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible integer. The assigned cohort ID.
-}
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-buildSubsetCohortTemporal"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-buildSubsetCohortTemporal}{}}}
-\subsection{Method \code{buildSubsetCohortTemporal()}}{
-Build a subset cohort with temporal criteria
+\subsection{\code{CohortManifest$buildSubsetCohortTemporal()}}{
+  Build a subset cohort with temporal criteria
 
 Creates a derived cohort that subsets a base cohort using temporal
 relationship to a filter cohort.
@@ -805,8 +827,9 @@ Input route policy:
 \item Backward compatible: provide \code{baseCohortId}/\code{filterCohortId}
 \item Exactly one route per role must be provided; both/neither is an error.
 }
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildSubsetCohortTemporal(
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$buildSubsetCohortTemporal(
   label,
   category,
   tags = list(),
@@ -819,60 +842,50 @@ Input route policy:
   endDateType = "base",
   subsetLimit = "First",
   stopIfExists = TRUE
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{label}}{Character. Display name.}
-
-\item{\code{category}}{Character. Required classification.}
-
-\item{\code{tags}}{Named list. Optional metadata tags.}
-
-\item{\code{baseCohortId}}{Integer. Legacy ID route for the base cohort.}
-
-\item{\code{filterCohortId}}{Integer. Legacy ID route for the filter cohort.}
-
-\item{\code{baseCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{label}}{Character. Display name.}
+      \item{\code{category}}{Character. Required classification.}
+      \item{\code{tags}}{Named list. Optional metadata tags.}
+      \item{\code{baseCohortId}}{Integer. Legacy ID route for the base cohort.}
+      \item{\code{filterCohortId}}{Integer. Legacy ID route for the filter cohort.}
+      \item{\code{baseCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
 Preferred route using manifest query results for the base cohort.}
-
-\item{\code{filterCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
+      \item{\code{filterCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
 Preferred route using manifest query results for the filter cohort.}
-
-\item{\code{startWindow}}{SubsetWindowOperator object. Defines the temporal window for the subset cohort start date
+      \item{\code{startWindow}}{SubsetWindowOperator object. Defines the temporal window for the subset cohort start date
 relative to the filter cohort event.}
-
-\item{\code{endWindow}}{SubsetWindowOperator object (optional, NULL allowed). Defines the temporal window for the
+      \item{\code{endWindow}}{SubsetWindowOperator object (optional, NULL allowed). Defines the temporal window for the
 subset cohort end date relative to the filter cohort event. If NULL, the filter cohort end date is not used.}
-
-\item{\code{endDateType}}{Character. Whether to use the base cohort end date ('base') or filter cohort end date ('filter')
+      \item{\code{endDateType}}{Character. Whether to use the base cohort end date ('base') or filter cohort end date ('filter')
 as the cohort end date in the output subset cohort. Default: 'base'.}
-
-\item{\code{subsetLimit}}{Character. One of 'First', 'Last', or 'All'. Specifies which qualifying filter cohort event(s)
+      \item{\code{subsetLimit}}{Character. One of 'First', 'Last', or 'All'. Specifies which qualifying filter cohort event(s)
 to retain per subject. 'First' keeps the earliest event, 'Last' keeps the most recent event, 'All' keeps all
 qualifying events. Default: 'First'.}
-
-\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+      \item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
 active or stale cohort with this label is already registered. If FALSE,
 updates the registered derived cohort in place (same ID and file path):
 the SQL is re-rendered, parents and build parameters are replaced, the
 cohort is marked 'stale' for regeneration (and its own dependents with it)
 only when the definition actually changed — re-running with unchanged
 inputs is a no-op. Default: TRUE (fail-safe).}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible integer. The assigned cohort ID.
+  }
 }
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible integer. The assigned cohort ID.
-}
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-buildComplementCohort"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-buildComplementCohort}{}}}
-\subsection{Method \code{buildComplementCohort()}}{
-Build a complement cohort
+\subsection{\code{CohortManifest$buildComplementCohort()}}{
+  Build a complement cohort
 
 Creates a derived cohort containing all subjects from the population cohort who
 do NOT appear in any (or all) of the exclude cohorts.
@@ -883,8 +896,9 @@ Input route policy:
 \item Backward compatible: provide \code{populationCohortId}/\code{excludeCohortIds}
 \item Exactly one route per role must be provided; both/neither is an error.
 }
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildComplementCohort(
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$buildComplementCohort(
   label,
   category,
   tags = list(),
@@ -894,53 +908,46 @@ Input route policy:
   excludeCohortEntries = NULL,
   complementType = "exclude_any",
   stopIfExists = TRUE
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{label}}{Character. Display name.}
-
-\item{\code{category}}{Character. Required classification.}
-
-\item{\code{tags}}{Named list. Optional metadata tags.}
-
-\item{\code{populationCohortId}}{Integer. Legacy ID route for the population (base) cohort.}
-
-\item{\code{excludeCohortIds}}{Integer vector (min length 1). Legacy ID route for cohorts whose
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{label}}{Character. Display name.}
+      \item{\code{category}}{Character. Required classification.}
+      \item{\code{tags}}{Named list. Optional metadata tags.}
+      \item{\code{populationCohortId}}{Integer. Legacy ID route for the population (base) cohort.}
+      \item{\code{excludeCohortIds}}{Integer vector (min length 1). Legacy ID route for cohorts whose
 subjects should be excluded from the population.}
-
-\item{\code{populationCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
+      \item{\code{populationCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
 Preferred route using manifest query results for the population cohort.}
-
-\item{\code{excludeCohortEntries}}{Data frame/tibble with an \code{id} column (minimum 1 row).
+      \item{\code{excludeCohortEntries}}{Data frame/tibble with an \code{id} column (minimum 1 row).
 Preferred route using manifest query results for exclusion cohorts.}
-
-\item{\code{complementType}}{Character. One of \code{"exclude_any"} (default) or
+      \item{\code{complementType}}{Character. One of \code{"exclude_any"} (default) or
 \code{"exclude_all"}. \code{"exclude_any"} removes subjects present in ANY
 exclude cohort; \code{"exclude_all"} removes subjects only if they appear
 in ALL exclude cohorts.}
-
-\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+      \item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
 active or stale cohort with this label is already registered. If FALSE,
 updates the registered derived cohort in place (same ID and file path):
 the SQL is re-rendered, parents and build parameters are replaced, the
 cohort is marked 'stale' for regeneration (and its own dependents with it)
 only when the definition actually changed — re-running with unchanged
 inputs is a no-op. Default: TRUE (fail-safe).}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible integer. The assigned cohort ID.
+  }
 }
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible integer. The assigned cohort ID.
-}
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-buildCompositeCohort"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-buildCompositeCohort}{}}}
-\subsection{Method \code{buildCompositeCohort()}}{
-Build a composite cohort
+\subsection{\code{CohortManifest$buildCompositeCohort()}}{
+  Build a composite cohort
 
 Creates a derived cohort that requires membership in multiple cohorts
 (intersection logic).
@@ -951,8 +958,9 @@ Input route policy:
 \item Backward compatible: provide \code{criteriaCohortIds}
 \item Exactly one route must be provided; passing both or neither is an error.
 }
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildCompositeCohort(
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$buildCompositeCohort(
   label,
   category,
   tags = list(),
@@ -961,25 +969,20 @@ Input route policy:
   eventSelection = "First",
   minEventCount = 1L,
   stopIfExists = TRUE
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{label}}{Character. Display name.}
-
-\item{\code{category}}{Character. Required classification.}
-
-\item{\code{tags}}{Named list. Optional metadata tags.}
-
-\item{\code{criteriaCohortIds}}{Integer vector. Legacy ID route for cohorts to include in the composite
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{label}}{Character. Display name.}
+      \item{\code{category}}{Character. Required classification.}
+      \item{\code{tags}}{Named list. Optional metadata tags.}
+      \item{\code{criteriaCohortIds}}{Integer vector. Legacy ID route for cohorts to include in the composite
 (e.g., c(1, 2, 3) for Type 1 diabetes, Type 2 diabetes, and secondary diabetes).}
-
-\item{\code{criteriaCohortEntries}}{Data frame/tibble with an \code{id} column (minimum 2 rows).
+      \item{\code{criteriaCohortEntries}}{Data frame/tibble with an \code{id} column (minimum 2 rows).
 Preferred route using manifest query results.}
-
-\item{\code{eventSelection}}{Character. One of 'First', 'Last', or 'All'. Specifies which event(s) to
+      \item{\code{eventSelection}}{Character. One of 'First', 'Last', or 'All'. Specifies which event(s) to
 retain as the cohort_start_date and cohort_end_date in the output:
 \itemize{
 \item 'First': Keep the earliest event (earliest index date)
@@ -987,29 +990,28 @@ retain as the cohort_start_date and cohort_end_date in the output:
 \item 'All': Keep all qualifying events per subject (may result in multiple rows per subject)
 Default: 'First'.
 }}
-
-\item{\code{minEventCount}}{Integer. Minimum number of distinct cohort events required for a subject
+      \item{\code{minEventCount}}{Integer. Minimum number of distinct cohort events required for a subject
 to qualify for the composite. Default: 1 (any subject with at least 1 event qualifies).}
-
-\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+      \item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
 active or stale cohort with this label is already registered. If FALSE,
 updates the registered derived cohort in place (same ID and file path):
 the SQL is re-rendered, parents and build parameters are replaced, the
 cohort is marked 'stale' for regeneration (and its own dependents with it)
 only when the definition actually changed — re-running with unchanged
 inputs is a no-op. Default: TRUE (fail-safe).}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible integer. The assigned cohort ID.
+  }
 }
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible integer. The assigned cohort ID.
-}
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-buildDemographicCohort"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-buildDemographicCohort}{}}}
-\subsection{Method \code{buildDemographicCohort()}}{
-Build a demographic subset cohort
+\subsection{\code{CohortManifest$buildDemographicCohort()}}{
+  Build a demographic subset cohort
 
 Creates a derived cohort that subsets a base cohort by filtering on
 person-level demographic attributes (age, gender, race, ethnicity).
@@ -1020,8 +1022,9 @@ Input route policy:
 \item Backward compatible: provide \code{baseCohortId}
 \item Exactly one route must be provided; passing both or neither is an error.
 }
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildDemographicCohort(
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$buildDemographicCohort(
   label,
   baseCohortId = NULL,
   baseCohortEntry = NULL,
@@ -1033,53 +1036,44 @@ Input route policy:
   ethnicityConceptIds = NULL,
   tags = list(),
   stopIfExists = TRUE
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{label}}{Character. Display name (e.g., "CKD - Males 40-75").}
-
-\item{\code{baseCohortId}}{Integer. Legacy ID route for the base cohort.}
-
-\item{\code{baseCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{label}}{Character. Display name (e.g., "CKD - Males 40-75").}
+      \item{\code{baseCohortId}}{Integer. Legacy ID route for the base cohort.}
+      \item{\code{baseCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
 Preferred route using manifest query results.}
-
-\item{\code{category}}{Character. Required classification.}
-
-\item{\code{minAge}}{Integer or NULL. Minimum age at cohort start. Default: NULL (no minimum).}
-
-\item{\code{maxAge}}{Integer or NULL. Maximum age at cohort start. Default: NULL (no maximum).}
-
-\item{\code{genderConceptIds}}{Integer vector or NULL. Gender concept IDs to include.
+      \item{\code{category}}{Character. Required classification.}
+      \item{\code{minAge}}{Integer or NULL. Minimum age at cohort start. Default: NULL (no minimum).}
+      \item{\code{maxAge}}{Integer or NULL. Maximum age at cohort start. Default: NULL (no maximum).}
+      \item{\code{genderConceptIds}}{Integer vector or NULL. Gender concept IDs to include.
 Common values: 8507 = Male, 8532 = Female. Default: NULL (all genders).}
-
-\item{\code{raceConceptIds}}{Integer vector or NULL. Race concept IDs to include. Default: NULL.}
-
-\item{\code{ethnicityConceptIds}}{Integer vector or NULL. Ethnicity concept IDs to include. Default: NULL.}
-
-\item{\code{tags}}{Named list. Optional metadata tags.}
-
-\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+      \item{\code{raceConceptIds}}{Integer vector or NULL. Race concept IDs to include. Default: NULL.}
+      \item{\code{ethnicityConceptIds}}{Integer vector or NULL. Ethnicity concept IDs to include. Default: NULL.}
+      \item{\code{tags}}{Named list. Optional metadata tags.}
+      \item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
 active or stale cohort with this label is already registered. If FALSE,
 updates the registered derived cohort in place (same ID and file path):
 the SQL is re-rendered, parents and build parameters are replaced, the
 cohort is marked 'stale' for regeneration (and its own dependents with it)
 only when the definition actually changed — re-running with unchanged
 inputs is a no-op. Default: TRUE (fail-safe).}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible integer. The assigned cohort ID.
+  }
 }
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible integer. The assigned cohort ID.
-}
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-buildStratifiedCohorts"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-buildStratifiedCohorts}{}}}
-\subsection{Method \code{buildStratifiedCohorts()}}{
-Split a base cohort into stratified sub-cohorts
+\subsection{\code{CohortManifest$buildStratifiedCohorts()}}{
+  Split a base cohort into stratified sub-cohorts
 
 Splits a single base cohort into N named stratum cohorts plus an automatic
 \strong{Unclassified} cohort containing subjects that match none of the named
@@ -1092,668 +1086,688 @@ Input route policy:
 \item Backward compatible: provide \code{baseCohortId}
 \item Exactly one route must be provided; passing both or neither is an error.
 }
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildStratifiedCohorts(
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$buildStratifiedCohorts(
   baseCohortId = NULL,
   baseCohortEntry = NULL,
   strata,
   labelPrefix = NULL,
   category = "derived",
   tags = list()
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{baseCohortId}}{Integer. Legacy ID route for the cohort definition ID to split.}
-
-\item{\code{baseCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{baseCohortId}}{Integer. Legacy ID route for the cohort definition ID to split.}
+      \item{\code{baseCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
 Preferred route using manifest query results.}
-
-\item{\code{strata}}{Named list. Each element is either a named list of demographic
+      \item{\code{strata}}{Named list. Each element is either a named list of demographic
 filters (keys: \code{genderConceptIds}, \code{raceConceptIds},
 \code{ethnicityConceptIds}, \code{minAge}, \code{maxAge}) or a character
 string SQL WHERE condition referencing \code{bc} (cohort table) and \code{p}
 (person table). Names become cohort labels.}
-
-\item{\code{labelPrefix}}{Character or NULL. If provided, prepended to each stratum name
+      \item{\code{labelPrefix}}{Character or NULL. If provided, prepended to each stratum name
 with a \code{" - "} separator.}
-
-\item{\code{category}}{Character. Category applied to every stratum cohort. Default: \code{"derived"}.}
-
-\item{\code{tags}}{Named list. Optional metadata tags applied to every stratum cohort.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisibly returns a named list of assigned cohort IDs, keyed by cohort label.
+      \item{\code{category}}{Character. Category applied to every stratum cohort. Default: \code{"derived"}.}
+      \item{\code{tags}}{Named list. Optional metadata tags applied to every stratum cohort.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisibly returns a named list of assigned cohort IDs, keyed by cohort label.
 Query cohorts by IDs
+  }
 }
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-queryCohortsByIds"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-queryCohortsByIds}{}}}
-\subsection{Method \code{queryCohortsByIds()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsByIds(
+\subsection{\code{CohortManifest$queryCohortsByIds()}}{
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$queryCohortsByIds(
   ids,
   tags_format = c("nested", "json", "wide")
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{ids}}{Integer vector. One or more cohort IDs.}
-
-\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{ids}}{Integer vector. One or more cohort IDs.}
+      \item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
 \itemize{
 \item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
 \item "json": Tags as raw JSON string
 \item "wide": Tags expanded into individual columns
 }}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Tibble with matching cohorts. Tag columns depend on
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Tibble with matching cohorts. Tag columns depend on
 \code{tags_format}. Returns NULL if no matches are found.
 Query cohorts by tag
+  }
 }
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-queryCohortsByTag"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-queryCohortsByTag}{}}}
-\subsection{Method \code{queryCohortsByTag()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsByTag(
+\subsection{\code{CohortManifest$queryCohortsByTag()}}{
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$queryCohortsByTag(
   tagStrings,
   match = c("any", "all"),
   tags_format = c("nested", "json", "wide")
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{tagStrings}}{Character vector. One or more tags in the format "name: value"
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{tagStrings}}{Character vector. One or more tags in the format "name: value"
 (e.g., "category: primary"). When multiple tags are supplied, the \code{match}
 argument controls whether a cohort must satisfy any or all of them.}
-
-\item{\code{match}}{Character. "any" (default) returns cohorts matching at least one tag;
+      \item{\code{match}}{Character. "any" (default) returns cohorts matching at least one tag;
 "all" returns only cohorts matching every tag.}
-
-\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+      \item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
 \itemize{
 \item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
 \item "json": Tags as raw JSON string
 \item "wide": Tags expanded into individual columns
 }}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Tibble with matching cohorts. Tag columns depend on
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Tibble with matching cohorts. Tag columns depend on
 \code{tags_format}. Returns NULL if no matches are found.
 Query cohorts by label
+  }
 }
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-queryCohortsByLabel"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-queryCohortsByLabel}{}}}
-\subsection{Method \code{queryCohortsByLabel()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsByLabel(
+\subsection{\code{CohortManifest$queryCohortsByLabel()}}{
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$queryCohortsByLabel(
   labels,
   matchType = c("exact", "pattern"),
   tags_format = c("nested", "json", "wide")
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{labels}}{Character vector. One or more labels to search for.
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{labels}}{Character vector. One or more labels to search for.
 A cohort is included when it matches at least one of the supplied labels (OR logic).}
-
-\item{\code{matchType}}{Character. Either "exact" for exact match or "pattern" for pattern matching.
+      \item{\code{matchType}}{Character. Either "exact" for exact match or "pattern" for pattern matching.
 Defaults to "exact".}
-
-\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+      \item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
 \itemize{
 \item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
 \item "json": Tags as raw JSON string
 \item "wide": Tags expanded into individual columns
 }}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Tibble with matching cohorts. Tag columns depend on
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Tibble with matching cohorts. Tag columns depend on
 \code{tags_format}. Returns NULL if no matches are found.
 Query cohorts by tag name
+  }
 }
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-queryCohortsByCategory"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-queryCohortsByCategory}{}}}
-\subsection{Method \code{queryCohortsByCategory()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsByCategory(
+\subsection{\code{CohortManifest$queryCohortsByCategory()}}{
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$queryCohortsByCategory(
   category,
   matchType = c("exact", "pattern"),
   tags_format = c("nested", "json", "wide")
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{category}}{Character vector. One or more category to search for.
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{category}}{Character vector. One or more category to search for.
 A cohort is included when it matches at least one of the supplied category (OR logic).}
-
-\item{\code{matchType}}{Character. Either "exact" for exact match or "pattern" for pattern matching.
+      \item{\code{matchType}}{Character. Either "exact" for exact match or "pattern" for pattern matching.
 Defaults to "exact".}
-
-\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+      \item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
 \itemize{
 \item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
 \item "json": Tags as raw JSON string
 \item "wide": Tags expanded into individual columns
 }}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Tibble with matching cohorts. Tag columns depend on
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Tibble with matching cohorts. Tag columns depend on
 \code{tags_format}. Returns NULL if no matches are found.
 Query cohorts by category
+  }
 }
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-queryCohortsByTagName"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-queryCohortsByTagName}{}}}
-\subsection{Method \code{queryCohortsByTagName()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsByTagName(
+\subsection{\code{CohortManifest$queryCohortsByTagName()}}{
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$queryCohortsByTagName(
   tagName,
   tags_format = c("nested", "json", "wide")
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{tagName}}{Character vector. The name of tags to query.}
-
-\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{tagName}}{Character vector. The name of tags to query.}
+      \item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
 \itemize{
 \item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
 \item "json": Tags as raw JSON string
 \item "wide": Tags expanded into individual columns
 }}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Tibble with matching cohorts. Tag columns depend on
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Tibble with matching cohorts. Tag columns depend on
 \code{tags_format}. Returns NULL if no matches are found.
+  }
 }
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-queryCohortsMissingTag"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-queryCohortsMissingTag}{}}}
-\subsection{Method \code{queryCohortsMissingTag()}}{
-Query cohorts missing a specific tag
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsMissingTag(
+\subsection{\code{CohortManifest$queryCohortsMissingTag()}}{
+  Query cohorts missing a specific tag
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$queryCohortsMissingTag(
   tagName,
   tags_format = c("nested", "json", "wide")
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{tagName}}{Character. The name of the tag to check for absence.}
-
-\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{tagName}}{Character. The name of the tag to check for absence.}
+      \item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
 \itemize{
 \item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
 \item "json": Tags as raw JSON string
 \item "wide": Tags expanded into individual columns
 }}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Tibble with matching cohorts. Tag columns depend on
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Tibble with matching cohorts. Tag columns depend on
 \code{tags_format}. Returns NULL if all cohorts have the tag.
+  }
 }
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-queryCohortsWithTagValues"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-queryCohortsWithTagValues}{}}}
-\subsection{Method \code{queryCohortsWithTagValues()}}{
-Query cohorts by tag value mapping
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsWithTagValues(
+\subsection{\code{CohortManifest$queryCohortsWithTagValues()}}{
+  Query cohorts by tag value mapping
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$queryCohortsWithTagValues(
   tagValueMapping,
   tags_format = c("nested", "json", "wide")
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{tagValueMapping}}{Named list. Keys are tag names, values are tag values to match.
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{tagValueMapping}}{Named list. Keys are tag names, values are tag values to match.
 Example: \code{list(status = "approved", type = "primary")} requires both conditions (AND logic).}
-
-\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+      \item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
 \itemize{
 \item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
 \item "json": Tags as raw JSON string
 \item "wide": Tags expanded into individual columns
 }}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Tibble with matching cohorts. Tag columns depend on
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Tibble with matching cohorts. Tag columns depend on
 \code{tags_format}. Returns NULL if no cohorts match all tag conditions.
+  }
 }
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-getTagValuesSummary"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-getTagValuesSummary}{}}}
-\subsection{Method \code{getTagValuesSummary()}}{
-Get a summary of all unique values for a specific tag
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$getTagValuesSummary(tagName)}\if{html}{\out{</div>}}
+\subsection{\code{CohortManifest$getTagValuesSummary()}}{
+  Get a summary of all unique values for a specific tag
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$getTagValuesSummary(tagName)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{tagName}}{Character. The name of the tag to summarize.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Tibble with columns: value, count, cohorts (comma-separated IDs).
+Returns NULL if no cohorts have the tag.
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{tagName}}{Character. The name of the tag to summarize.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Tibble with columns: value, count, cohorts (comma-separated IDs).
-Returns NULL if no cohorts have the tag.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-nCohorts"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-nCohorts}{}}}
-\subsection{Method \code{nCohorts()}}{
-Get number of cohorts in manifest
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$nCohorts()}\if{html}{\out{</div>}}
+\subsection{\code{CohortManifest$nCohorts()}}{
+  Get number of cohorts in manifest
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$nCohorts()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Integer. The number of cohorts.
+Get a specific cohort by ID
+  }
 }
 
-\subsection{Returns}{
-Integer. The number of cohorts.
-Get a specific cohort by ID
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-getCohortById"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-getCohortById}{}}}
-\subsection{Method \code{getCohortById()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$getCohortById(id)}\if{html}{\out{</div>}}
+\subsection{\code{CohortManifest$getCohortById()}}{
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$getCohortById(id)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{id}}{Integer. The cohort ID.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    CohortDef. The CohortDef object with matching ID, or NULL if not found.
+Get cohorts by tag
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{id}}{Integer. The cohort ID.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-CohortDef. The CohortDef object with matching ID, or NULL if not found.
-Get cohorts by tag
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-getCohortsByTag"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-getCohortsByTag}{}}}
-\subsection{Method \code{getCohortsByTag()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$getCohortsByTag(tagStrings, match = c("any", "all"))}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{tagStrings}}{Character vector. One or more tags in the format "name: value"
+\subsection{\code{CohortManifest$getCohortsByTag()}}{
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$getCohortsByTag(tagStrings, match = c("any", "all"))}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{tagStrings}}{Character vector. One or more tags in the format "name: value"
 (e.g., "category: primary"). When multiple tags are supplied, the \code{match}
 argument controls whether a cohort must satisfy any or all of them.}
-
-\item{\code{match}}{Character. "any" (default) returns cohorts matching at least one tag;
+      \item{\code{match}}{Character. "any" (default) returns cohorts matching at least one tag;
 "all" returns only cohorts matching every tag.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-List. A list of CohortDef objects with matching tags, or NULL if none found.
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List. A list of CohortDef objects with matching tags, or NULL if none found.
 Get cohorts by label
+  }
 }
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-getCohortsByLabel"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-getCohortsByLabel}{}}}
-\subsection{Method \code{getCohortsByLabel()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$getCohortsByLabel(labels, matchType = c("exact", "pattern"))}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{labels}}{Character vector. One or more labels to search for.
+\subsection{\code{CohortManifest$getCohortsByLabel()}}{
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$getCohortsByLabel(labels, matchType = c("exact", "pattern"))}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{labels}}{Character vector. One or more labels to search for.
 A cohort is included when it matches at least one of the supplied labels (OR logic).}
-
-\item{\code{matchType}}{Character. Either "exact" for exact match or "pattern" for pattern matching.
+      \item{\code{matchType}}{Character. Either "exact" for exact match or "pattern" for pattern matching.
 Defaults to "exact".}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List. A list of CohortDef objects with matching labels, or NULL if none found.
+  }
 }
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-List. A list of CohortDef objects with matching labels, or NULL if none found.
-}
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-updateCohortLabel"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-updateCohortLabel}{}}}
-\subsection{Method \code{updateCohortLabel()}}{
-Update a cohort label
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$updateCohortLabel(cohortId, newLabel)}\if{html}{\out{</div>}}
+\subsection{\code{CohortManifest$updateCohortLabel()}}{
+  Update a cohort label
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$updateCohortLabel(cohortId, newLabel)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{cohortId}}{Integer. The cohort ID to update.}
+      \item{\code{newLabel}}{Character. The new label for the cohort.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible NULL.
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{cohortId}}{Integer. The cohort ID to update.}
-
-\item{\code{newLabel}}{Character. The new label for the cohort.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible NULL.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-updateCohortCategory"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-updateCohortCategory}{}}}
-\subsection{Method \code{updateCohortCategory()}}{
-Update a cohort category
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$updateCohortCategory(cohortId, newCategory)}\if{html}{\out{</div>}}
+\subsection{\code{CohortManifest$updateCohortCategory()}}{
+  Update a cohort category
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$updateCohortCategory(cohortId, newCategory)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{cohortId}}{Integer. The cohort ID to update.}
+      \item{\code{newCategory}}{Character. The new category for the cohort.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible NULL.
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{cohortId}}{Integer. The cohort ID to update.}
-
-\item{\code{newCategory}}{Character. The new category for the cohort.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible NULL.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-updateCohortTags"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-updateCohortTags}{}}}
-\subsection{Method \code{updateCohortTags()}}{
-Update cohort tags
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$updateCohortTags(cohortId, newTags)}\if{html}{\out{</div>}}
+\subsection{\code{CohortManifest$updateCohortTags()}}{
+  Update cohort tags
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$updateCohortTags(cohortId, newTags)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{cohortId}}{Integer. The cohort ID to update.}
+      \item{\code{newTags}}{Named list. The new tags for the cohort.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible NULL.
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{cohortId}}{Integer. The cohort ID to update.}
-
-\item{\code{newTags}}{Named list. The new tags for the cohort.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible NULL.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-removeCohortTag"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-removeCohortTag}{}}}
-\subsection{Method \code{removeCohortTag()}}{
-Remove a specific tag from a cohort
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$removeCohortTag(cohortId, tagName)}\if{html}{\out{</div>}}
+\subsection{\code{CohortManifest$removeCohortTag()}}{
+  Remove a specific tag from a cohort
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$removeCohortTag(cohortId, tagName)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{cohortId}}{Integer. The cohort ID to update.}
+      \item{\code{tagName}}{Character. The name of the tag to remove.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible NULL. Emits success message if tag was removed, warning if tag was not found.
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{cohortId}}{Integer. The cohort ID to update.}
-
-\item{\code{tagName}}{Character. The name of the tag to remove.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible NULL. Emits success message if tag was removed, warning if tag was not found.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-modifyCohortTagValue"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-modifyCohortTagValue}{}}}
-\subsection{Method \code{modifyCohortTagValue()}}{
-Modify the value of an existing tag
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$modifyCohortTagValue(cohortId, tagName, newValue)}\if{html}{\out{</div>}}
+\subsection{\code{CohortManifest$modifyCohortTagValue()}}{
+  Modify the value of an existing tag
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$modifyCohortTagValue(cohortId, tagName, newValue)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{cohortId}}{Integer. The cohort ID to update.}
+      \item{\code{tagName}}{Character. The name of the tag to modify.}
+      \item{\code{newValue}}{Character. The new value for the tag.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible NULL. Emits success message if tag was modified, error if tag does not exist.
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{cohortId}}{Integer. The cohort ID to update.}
-
-\item{\code{tagName}}{Character. The name of the tag to modify.}
-
-\item{\code{newValue}}{Character. The new value for the tag.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible NULL. Emits success message if tag was modified, error if tag does not exist.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-addCohortTag"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-addCohortTag}{}}}
-\subsection{Method \code{addCohortTag()}}{
-Add a single tag to a cohort (non-destructive)
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$addCohortTag(cohortId, tagName, tagValue)}\if{html}{\out{</div>}}
+\subsection{\code{CohortManifest$addCohortTag()}}{
+  Add a single tag to a cohort (non-destructive)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$addCohortTag(cohortId, tagName, tagValue)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{cohortId}}{Integer. The cohort ID to update.}
+      \item{\code{tagName}}{Character. The name of the tag to add.}
+      \item{\code{tagValue}}{Character. The value for the new tag.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible NULL. Emits success message if tag was added.
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{cohortId}}{Integer. The cohort ID to update.}
-
-\item{\code{tagName}}{Character. The name of the tag to add.}
-
-\item{\code{tagValue}}{Character. The value for the new tag.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible NULL. Emits success message if tag was added.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-getCohortTags"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-getCohortTags}{}}}
-\subsection{Method \code{getCohortTags()}}{
-Get all tags for a specific cohort
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$getCohortTags(cohortId)}\if{html}{\out{</div>}}
+\subsection{\code{CohortManifest$getCohortTags()}}{
+  Get all tags for a specific cohort
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$getCohortTags(cohortId)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{cohortId}}{Integer. The cohort ID to query.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Named list of tags, or NULL if cohort not found.
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{cohortId}}{Integer. The cohort ID to query.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Named list of tags, or NULL if cohort not found.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-mergeTagsIntoCohort"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-mergeTagsIntoCohort}{}}}
-\subsection{Method \code{mergeTagsIntoCohort()}}{
-Merge multiple tags into a cohort (non-destructive, additive)
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$mergeTagsIntoCohort(cohortId, newTags)}\if{html}{\out{</div>}}
+\subsection{\code{CohortManifest$mergeTagsIntoCohort()}}{
+  Merge multiple tags into a cohort (non-destructive, additive)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$mergeTagsIntoCohort(cohortId, newTags)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{cohortId}}{Integer. The cohort ID to update.}
+      \item{\code{newTags}}{Named list. The tags to add/merge (overwrites existing keys with same name).}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible NULL. Emits success message.
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{cohortId}}{Integer. The cohort ID to update.}
-
-\item{\code{newTags}}{Named list. The tags to add/merge (overwrites existing keys with same name).}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible NULL. Emits success message.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-listAllUniqueTags"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-listAllUniqueTags}{}}}
-\subsection{Method \code{listAllUniqueTags()}}{
-Get all unique tag names used across the manifest
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$listAllUniqueTags()}\if{html}{\out{</div>}}
+\subsection{\code{CohortManifest$listAllUniqueTags()}}{
+  Get all unique tag names used across the manifest
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$listAllUniqueTags()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character vector of unique tag names, sorted alphabetically.
+  }
 }
 
-\subsection{Returns}{
-Character vector of unique tag names, sorted alphabetically.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-getTagValue"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-getTagValue}{}}}
-\subsection{Method \code{getTagValue()}}{
-Get value of a single tag for a cohort
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$getTagValue(cohortId, tagName)}\if{html}{\out{</div>}}
+\subsection{\code{CohortManifest$getTagValue()}}{
+  Get value of a single tag for a cohort
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$getTagValue(cohortId, tagName)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{cohortId}}{Integer. The cohort ID to query.}
+      \item{\code{tagName}}{Character. The name of the tag to retrieve.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character. The tag value, or NULL if tag or cohort not found.
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{cohortId}}{Integer. The cohort ID to query.}
-
-\item{\code{tagName}}{Character. The name of the tag to retrieve.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Character. The tag value, or NULL if tag or cohort not found.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-renameTagKey"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-renameTagKey}{}}}
-\subsection{Method \code{renameTagKey()}}{
-Rename a tag key across specified cohorts (or all cohorts)
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$renameTagKey(oldTagName, newTagName, cohortIds = NULL)}\if{html}{\out{</div>}}
+\subsection{\code{CohortManifest$renameTagKey()}}{
+  Rename a tag key across specified cohorts (or all cohorts)
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$renameTagKey(oldTagName, newTagName, cohortIds = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{oldTagName}}{Character. The current tag name to rename.}
+      \item{\code{newTagName}}{Character. The new tag name.}
+      \item{\code{cohortIds}}{Integer vector or NULL. If NULL, renames across all cohorts that have this tag.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible tibble with id, label, old_value showing what was renamed.
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{oldTagName}}{Character. The current tag name to rename.}
-
-\item{\code{newTagName}}{Character. The new tag name.}
-
-\item{\code{cohortIds}}{Integer vector or NULL. If NULL, renames across all cohorts that have this tag.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible tibble with id, label, old_value showing what was renamed.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-bulkModifyTagValue"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-bulkModifyTagValue}{}}}
-\subsection{Method \code{bulkModifyTagValue()}}{
-Bulk modify a tag value across cohorts matching an old value
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$bulkModifyTagValue(tagName, oldValue, newValue)}\if{html}{\out{</div>}}
+\subsection{\code{CohortManifest$bulkModifyTagValue()}}{
+  Bulk modify a tag value across cohorts matching an old value
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$bulkModifyTagValue(tagName, oldValue, newValue)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{tagName}}{Character. The name of the tag to modify.}
+      \item{\code{oldValue}}{Character. The current value to match and replace.}
+      \item{\code{newValue}}{Character. The new value to set.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible tibble with id, label showing what was modified.
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{tagName}}{Character. The name of the tag to modify.}
-
-\item{\code{oldValue}}{Character. The current value to match and replace.}
-
-\item{\code{newValue}}{Character. The new value to set.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible tibble with id, label showing what was modified.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-checkAtlasCohorts"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-checkAtlasCohorts}{}}}
-\subsection{Method \code{checkAtlasCohorts()}}{
-Auto-detect changes to ATLAS cohorts in remote repository
+\subsection{\code{CohortManifest$checkAtlasCohorts()}}{
+  Auto-detect changes to ATLAS cohorts in remote repository
 
 Queries the manifest for all active ATLAS cohorts (identified by \code{atlasId} in tags),
 fetches their current definitions from ATLAS, computes hashes, and compares against
 the stored local hash. Provides a read-only summary of which cohorts have changed
 in ATLAS since import. No modifications are made.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$checkAtlasCohorts(atlasConnection = NULL)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{atlasConnection}}{An ATLAS connection object  with a method \code{getCohortDefinition(cohortId)}
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$checkAtlasCohorts(atlasConnection = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{atlasConnection}}{An ATLAS connection object  with a method \code{getCohortDefinition(cohortId)}
 that returns a list with an \code{expression} element.
 If \code{NULL} (default), uses the connection stored via \verb{$setAtlasConnection()}.
 If no connection is available, raises an error.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible tibble with columns:
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible tibble with columns:
 \itemize{
 \item \code{id} - Cohort ID in manifest
 \item \code{label} - Cohort label
@@ -1762,161 +1776,177 @@ Invisible tibble with columns:
 \item \code{localHash} - Hash of stored JSON
 \item \code{remoteHash} - Hash of current ATLAS JSON
 }
+  }
 }
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-updateAtlasCohorts"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-updateAtlasCohorts}{}}}
-\subsection{Method \code{updateAtlasCohorts()}}{
-Update ATLAS cohorts with remote definitions
+\subsection{\code{CohortManifest$updateAtlasCohorts()}}{
+  Update ATLAS cohorts with remote definitions
 
 Fetches current definitions from ATLAS for specified cohorts and updates the stored JSON files
 and manifest entries. This is the modification phase that applies changes detected by checkAtlasChanges().
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$updateAtlasCohorts(atlasConnection = NULL)}\if{html}{\out{</div>}}
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$updateAtlasCohorts(atlasConnection = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{atlasConnection}}{An ATLAS connection object with a method \code{getCohortDefinition(cohortId)}.
+If \code{NULL} (default), uses the connection stored via \verb{$setAtlasConnection()}.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    invisible of the tibble of atlas changes to update
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{atlasConnection}}{An ATLAS connection object with a method \code{getCohortDefinition(cohortId)}.
-If \code{NULL} (default), uses the connection stored via \verb{$setAtlasConnection()}.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-invisible of the tibble of atlas changes to update
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-statusReport"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-statusReport}{}}}
-\subsection{Method \code{statusReport()}}{
-Generate a status report for the manifest
+\subsection{\code{CohortManifest$statusReport()}}{
+  Generate a status report for the manifest
 
 Prints a summary table showing all registered cohorts with their
 dependencies and source types. Cohorts marked \code{'stale'} (pending
 regeneration) are included — the \code{status} column tells them apart.
 Useful for auditing the manifest structure.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$statusReport()}\if{html}{\out{</div>}}
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$statusReport()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible tibble with columns: id, label, category, source_type, depends_on, status.
+  }
 }
 
-\subsection{Returns}{
-Invisible tibble with columns: id, label, category, source_type, depends_on, status.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-print"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-print}{}}}
-\subsection{Method \code{print()}}{
-Print a friendly view of the CohortManifest
+\subsection{\code{CohortManifest$print()}}{
+  Print a friendly view of the CohortManifest
 
 Displays key metadata about the manifest and its contents.
 Check cohort tables in the database
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$print()}\if{html}{\out{</div>}}
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$print()}
+    \if{html}{\out{</div>}}
+  }
 }
 
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-checkCohortTables"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-checkCohortTables}{}}}
-\subsection{Method \code{checkCohortTables()}}{
-Checks if necessary tables have been created for execution
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$checkCohortTables()}\if{html}{\out{</div>}}
+\subsection{\code{CohortManifest$checkCohortTables()}}{
+  Checks if necessary tables have been created for execution
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$checkCohortTables()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    tibble with cohort tables and there exist status
+Create a single cohort table in the database
+  }
 }
 
-\subsection{Returns}{
-tibble with cohort tables and there exist status
-Create a single cohort table in the database
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-createCohortTable"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-createCohortTable}{}}}
-\subsection{Method \code{createCohortTable()}}{
-Creates one required cohort table by type using the current execution settings.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$createCohortTable(type, tableName = NULL)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{type}}{Character. One of "main", "inclusion", "inclusion_result",
+\subsection{\code{CohortManifest$createCohortTable()}}{
+  Creates one required cohort table by type using the current execution settings.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$createCohortTable(type, tableName = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{type}}{Character. One of "main", "inclusion", "inclusion_result",
 "inclusion_stats", "summary_stats", "censor_stats", or "checksum".}
-
-\item{\code{tableName}}{Character. Optional explicit table name. If NULL, defaults to
+      \item{\code{tableName}}{Character. Optional explicit table name. If NULL, defaults to
 the name derived from execution settings for the selected type.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible NULL.
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible NULL.
 Create cohort tables in the database
+  }
 }
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-createAllCohortTables"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-createAllCohortTables}{}}}
-\subsection{Method \code{createAllCohortTables()}}{
-Creates the necessary cohort tables in the target database using the execution settings.
+\subsection{\code{CohortManifest$createAllCohortTables()}}{
+  Creates the necessary cohort tables in the target database using the execution settings.
 First checks if tables already exist before attempting creation.
 This is an advanced/manual setup function. Most users should run
 \code{executeCohortGeneration()} and let it create missing tables automatically.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$createAllCohortTables()}\if{html}{\out{</div>}}
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$createAllCohortTables()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible NULL. Creates tables in the database and prints status messages.
+  }
 }
 
-\subsection{Returns}{
-Invisible NULL. Creates tables in the database and prints status messages.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-createCohortTables"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-createCohortTables}{}}}
-\subsection{Method \code{createCohortTables()}}{
-Deprecated alias for createAllCohortTables
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$createCohortTables()}\if{html}{\out{</div>}}
+\subsection{\code{CohortManifest$createCohortTables()}}{
+  Deprecated alias for createAllCohortTables
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$createCohortTables()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible NULL.
+Drop cohort tables from the database
+  }
 }
 
-\subsection{Returns}{
-Invisible NULL.
-Drop cohort tables from the database
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-dropCohortTables"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-dropCohortTables}{}}}
-\subsection{Method \code{dropCohortTables()}}{
-Drops cohort tables from the target database. Can drop all standard cohort tables or specific tables.
+\subsection{\code{CohortManifest$dropCohortTables()}}{
+  Drops cohort tables from the target database. Can drop all standard cohort tables or specific tables.
 This is useful for cleaning up or resetting the cohort generation environment.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$dropCohortTables(tableTypes = NULL)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{tableTypes}}{Character vector. Types of tables to drop. Options: "cohort", "inclusion",
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$dropCohortTables(tableTypes = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{tableTypes}}{Character vector. Types of tables to drop. Options: "cohort", "inclusion",
 "inclusion_result", "inclusion_stats", "summary_stats", "censor_stats", "checksum".
 If NULL (default), drops all table types.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible NULL. Drops tables from the database and prints status messages.
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible NULL. Drops tables from the database and prints status messages.
 Sync the manifest against cohort files on disk
+  }
 }
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-syncManifest"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-syncManifest}{}}}
-\subsection{Method \code{syncManifest()}}{
-Scans the \code{json/} and \code{sql/} subdirectories of the cohorts folder, reconciles
+\subsection{\code{CohortManifest$syncManifest()}}{
+  Scans the \code{json/} and \code{sql/} subdirectories of the cohorts folder, reconciles
 them against the SQLite manifest, and updates both the database and the in-memory list:
 \itemize{
 \item Active manifest records whose file no longer exists are soft-deleted,
@@ -1926,64 +1956,69 @@ along with their derived dependents (which cannot generate without the parent).
 }
 Only the \code{json/} and \code{sql/} source directories are scanned — derived cohorts
 managed via \code{build*()} methods are not touched.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$syncManifest(strict_mode = TRUE)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{strict_mode}}{Logical. If TRUE (default), automatically removes orphaned files found
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$syncManifest(strict_mode = TRUE)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{strict_mode}}{Logical. If TRUE (default), automatically removes orphaned files found
 on disk. If FALSE, only warns about them without deletion. Default: TRUE.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Data frame with columns: id, label, action
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Data frame with columns: id, label, action
 (\code{"hash_updated"}, \code{"missing_flagged"}, \code{"cascade_deleted"},
 \code{"unchanged"}, \code{"auto_removed_orphan"}).
 Clean cohort data from the DBMS for deleted manifest entries
+  }
 }
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-cleanCohortTable"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-cleanCohortTable}{}}}
-\subsection{Method \code{cleanCohortTable()}}{
-For every cohort with \code{status = 'deleted'} in the SQLite manifest, deletes
+\subsection{\code{CohortManifest$cleanCohortTable()}}{
+  For every cohort with \code{status = 'deleted'} in the SQLite manifest, deletes
 the corresponding rows from the DBMS cohort table and checksum table, then marks
 the manifest record as \code{status = 'purged'} so it is not processed again.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$cleanCohortTable()}\if{html}{\out{</div>}}
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$cleanCohortTable()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Data frame with columns: id, label.
+  }
 }
 
-\subsection{Returns}{
-Data frame with columns: id, label.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-executeCohortGeneration"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-executeCohortGeneration}{}}}
-\subsection{Method \code{executeCohortGeneration()}}{
-Generates cohorts in the manifest in the target database using the execution settings.
+\subsection{\code{CohortManifest$executeCohortGeneration()}}{
+  Generates cohorts in the manifest in the target database using the execution settings.
 Checks dependency ordering and regenerates dependent cohorts when parents change.
 Checks the hash of each cohort definition and skips generation if the hash matches what's
 already stored in the cohort_checksum table. If hashes differ or the cohort is not yet in
 the checksum table, regenerates and updates the hash.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$executeCohortGeneration(confirm = TRUE)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{confirm}}{Logical. If TRUE and interactive, asks for confirmation before
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$executeCohortGeneration(confirm = TRUE)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{confirm}}{Logical. If TRUE and interactive, asks for confirmation before
 creating missing tables. If FALSE, missing tables are created without prompting.
 In non-interactive sessions, missing tables are not created automatically.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Data frame with execution results including:
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Data frame with execution results including:
 \itemize{
 \item cohort_id: ID of the generated cohort
 \item label: Label of the cohort
@@ -1993,31 +2028,33 @@ Data frame with execution results including:
 \item status: 'Success', 'Skipped - already generated', 'Dependency skipped', or error message
 \item dependency_status: 'Not applicable' for circe, 'Parent changed' or 'Unchanged' for dependent
 }
+  }
 }
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-retrieveCohortCounts"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-retrieveCohortCounts}{}}}
-\subsection{Method \code{retrieveCohortCounts()}}{
-Retrieve cohort counts from the database
+\subsection{\code{CohortManifest$retrieveCohortCounts()}}{
+  Retrieve cohort counts from the database
 
 Retrieves entry and subject counts for cohorts from the cohort table in the target database.
 Can retrieve counts for all cohorts or a specific subset. Enriches the results with metadata
 (label and tags) from the CohortDef objects in the manifest.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$retrieveCohortCounts(cohortIds = NULL)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{cohortIds}}{Integer vector. Optional. Specific cohort IDs to retrieve counts for.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$retrieveCohortCounts(cohortIds = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{cohortIds}}{Integer vector. Optional. Specific cohort IDs to retrieve counts for.
 If NULL (default), returns counts for all cohorts.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Data frame with columns:
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Data frame with columns:
 \itemize{
 \item cohort_id: The cohort definition ID
 \item label: The cohort label from the CohortDef object
@@ -2025,40 +2062,45 @@ Data frame with columns:
 \item cohort_entries: Total number of cohort records
 \item cohort_subjects: Number of distinct subjects in the cohort
 }
+  }
 }
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-validateManifest"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-validateManifest}{}}}
-\subsection{Method \code{validateManifest()}}{
-Validate manifest and return status of all cohorts
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$validateManifest()}\if{html}{\out{</div>}}
+\subsection{\code{CohortManifest$validateManifest()}}{
+  Validate manifest and return status of all cohorts
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$validateManifest()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    A tibble with columns: id, label, status (active/missing/deleted), deleted_at, file_exists
+  }
 }
 
-\subsection{Returns}{
-A tibble with columns: id, label, status (active/missing/deleted), deleted_at, file_exists
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-getManifestStatus"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-getManifestStatus}{}}}
-\subsection{Method \code{getManifestStatus()}}{
-Get summary status of manifest
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$getManifestStatus()}\if{html}{\out{</div>}}
+\subsection{\code{CohortManifest$getManifestStatus()}}{
+  Get summary status of manifest
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$getManifestStatus()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    List with elements: active_count (registered cohorts, including
+stale ones), stale_count, missing_count, deleted_count, next_available_id
+  }
 }
 
-\subsection{Returns}{
-List with elements: active_count (registered cohorts, including
-stale ones), stale_count, missing_count, deleted_count, next_available_id
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-deleteCohort"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-deleteCohort}{}}}
-\subsection{Method \code{deleteCohort()}}{
-Delete a cohort from manifest and file system
+\subsection{\code{CohortManifest$deleteCohort()}}{
+  Delete a cohort from manifest and file system
 
 Marks a cohort as deleted in the manifest and removes its file from the file
 system (json/ or sql/ directory). The SQLite record is preserved with
@@ -2067,46 +2109,45 @@ status='deleted' for audit trail purposes.
 When a manifest is loaded, only active cohorts are loaded into memory.
 This enforces strict 1:1 correspondence between active manifest entries
 and files on disk.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$deleteCohort(
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$deleteCohort(
   id,
   confirm = FALSE,
   dropFromDBMS = FALSE,
   cascade = FALSE
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{id}}{Integer. The cohort ID to delete.}
-
-\item{\code{confirm}}{Logical. If FALSE (default), prompts for interactive confirmation.
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{id}}{Integer. The cohort ID to delete.}
+      \item{\code{confirm}}{Logical. If FALSE (default), prompts for interactive confirmation.
 Pass TRUE to skip the prompt (suitable for scripts).}
-
-\item{\code{dropFromDBMS}}{Logical. If TRUE, also deletes the cohort from the DBMS
+      \item{\code{dropFromDBMS}}{Logical. If TRUE, also deletes the cohort from the DBMS
 cohort table and checksum table. Requires \code{executionSettings} to be set.
 Default: FALSE (filesystem/manifest cleanup only).}
-
-\item{\code{cascade}}{Logical. If FALSE (default), deletion is refused when the
+      \item{\code{cascade}}{Logical. If FALSE (default), deletion is refused when the
 cohort has derived dependents (deleting it would orphan them and break
 cohort generation). If TRUE, all transitive dependents are deleted too,
 deepest-first. Default: FALSE (fail-safe).}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible NULL.
+  }
 }
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible NULL.
-}
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-buildOPriorT"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-buildOPriorT}{}}}
-\subsection{Method \code{buildOPriorT()}}{
-Clean up missing cohorts from manifest
+\subsection{\code{CohortManifest$buildOPriorT()}}{
+  Clean up missing cohorts from manifest
 
 
-Build a cohort of outcome events with prior target exposure
+  Build a cohort of outcome events with prior target exposure
 
 Creates a derived cohort based on the temporal relationship between an
 outcome cohort and a target (exposure) cohort. Filters outcome events that
@@ -2118,8 +2159,9 @@ Input route policy:
 \item Backward compatible: provide \code{outcomeCohortId}/\code{targetCohortId}
 \item Exactly one route per role must be provided; both/neither is an error.
 }
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildOPriorT(
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$buildOPriorT(
   label,
   category,
   tags = list(),
@@ -2131,36 +2173,29 @@ Input route policy:
   outcomeCohortEntry = NULL,
   targetCohortEntry = NULL,
   stopIfExists = TRUE
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{label}}{Character. Display name (e.g., "GI Bleed - Prior NSAID").}
-
-\item{\code{category}}{Character. Required classification.}
-
-\item{\code{tags}}{Named list. Optional metadata tags.}
-
-\item{\code{outcomeCohortId}}{Integer. Legacy ID route for the outcome cohort definition ID
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{label}}{Character. Display name (e.g., "GI Bleed - Prior NSAID").}
+      \item{\code{category}}{Character. Required classification.}
+      \item{\code{tags}}{Named list. Optional metadata tags.}
+      \item{\code{outcomeCohortId}}{Integer. Legacy ID route for the outcome cohort definition ID
 (e.g., GI bleed).}
-
-\item{\code{targetCohortId}}{Integer. Legacy ID route for the target cohort definition ID
+      \item{\code{targetCohortId}}{Integer. Legacy ID route for the target cohort definition ID
 (e.g., NSAID use).}
-
-\item{\code{mode}}{Character. One of 'prior' or 'no_prior':
+      \item{\code{mode}}{Character. One of 'prior' or 'no_prior':
 \itemize{
 \item 'prior': Retain outcome events where a prior target event exists.
 \item 'no_prior': Retain outcome events where no prior target event exists.
 Default: 'prior'.
 }}
-
-\item{\code{priorTimeWindowDays}}{Integer or NULL. If provided (e.g., 365), only
+      \item{\code{priorTimeWindowDays}}{Integer or NULL. If provided (e.g., 365), only
 consider target events within this many days before the outcome start.
 NULL or 0 means all time. Default: NULL.}
-
-\item{\code{subsetLimit}}{Character. One of 'First', 'Last', or 'All'. Controls
+      \item{\code{subsetLimit}}{Character. One of 'First', 'Last', or 'All'. Controls
 which prior target event anchors the match when multiple exist:
 \itemize{
 \item 'First': Keep the earliest prior target event (default).
@@ -2168,35 +2203,32 @@ which prior target event anchors the match when multiple exist:
 \item 'All': Keep all prior target events (one output row per pair).
 Default: 'First'.
 }}
-
-\item{\code{outcomeCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
+      \item{\code{outcomeCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
 Preferred route using manifest query results for the outcome cohort.}
-
-\item{\code{targetCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
+      \item{\code{targetCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
 Preferred route using manifest query results for the target cohort.}
-
-\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+      \item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
 active or stale cohort with this label is already registered. If FALSE,
 updates the registered derived cohort in place (same ID and file path):
 the SQL is re-rendered, parents and build parameters are replaced, the
 cohort is marked 'stale' for regeneration (and its own dependents with it)
 only when the definition actually changed — re-running with unchanged
 inputs is a no-op. Default: TRUE (fail-safe).}
-
-\item{\code{keep_trace}}{Logical. If TRUE, marks missing as deleted with timestamp (soft delete).
+      \item{\code{keep_trace}}{Logical. If TRUE, marks missing as deleted with timestamp (soft delete).
 If FALSE, permanently removes from database (hard delete). Defaults to TRUE.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible integer. The assigned cohort ID.
+  }
 }
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible integer. The assigned cohort ID.
-}
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-buildTPriorO"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-buildTPriorO}{}}}
-\subsection{Method \code{buildTPriorO()}}{
-Build a cohort of target events with prior outcome occurrence
+\subsection{\code{CohortManifest$buildTPriorO()}}{
+  Build a cohort of target events with prior outcome occurrence
 
 Creates a derived cohort based on the temporal relationship between a
 target (exposure) cohort and an outcome cohort. Filters target events that
@@ -2211,8 +2243,9 @@ Input route policy:
 \item Backward compatible: provide \code{targetCohortId}/\code{outcomeCohortId}
 \item Exactly one route per role must be provided; both/neither is an error.
 }
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildTPriorO(
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$buildTPriorO(
   label,
   category,
   tags = list(),
@@ -2224,36 +2257,29 @@ Input route policy:
   targetCohortEntry = NULL,
   outcomeCohortEntry = NULL,
   stopIfExists = TRUE
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{label}}{Character. Display name (e.g., "NSAID - Prior GI Bleed").}
-
-\item{\code{category}}{Character. Required classification.}
-
-\item{\code{tags}}{Named list. Optional metadata tags.}
-
-\item{\code{targetCohortId}}{Integer. Legacy ID route for the target cohort definition ID
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{label}}{Character. Display name (e.g., "NSAID - Prior GI Bleed").}
+      \item{\code{category}}{Character. Required classification.}
+      \item{\code{tags}}{Named list. Optional metadata tags.}
+      \item{\code{targetCohortId}}{Integer. Legacy ID route for the target cohort definition ID
 (e.g., NSAID use).}
-
-\item{\code{outcomeCohortId}}{Integer. Legacy ID route for the outcome cohort definition ID
+      \item{\code{outcomeCohortId}}{Integer. Legacy ID route for the outcome cohort definition ID
 (e.g., GI bleed).}
-
-\item{\code{mode}}{Character. One of 'prior' or 'no_prior':
+      \item{\code{mode}}{Character. One of 'prior' or 'no_prior':
 \itemize{
 \item 'prior': Retain target events where a prior outcome exists.
 \item 'no_prior': Retain target events where no prior outcome exists.
 Default: 'prior'.
 }}
-
-\item{\code{priorTimeWindowDays}}{Integer or NULL. If provided (e.g., 365), only
+      \item{\code{priorTimeWindowDays}}{Integer or NULL. If provided (e.g., 365), only
 consider outcome events within this many days before the target start.
 NULL or 0 means all time. Default: NULL.}
-
-\item{\code{subsetLimit}}{Character. One of 'First', 'Last', or 'All'. Controls
+      \item{\code{subsetLimit}}{Character. One of 'First', 'Last', or 'All'. Controls
 which prior outcome event anchors the match when multiple exist:
 \itemize{
 \item 'First': Keep the earliest prior outcome event (default).
@@ -2261,32 +2287,30 @@ which prior outcome event anchors the match when multiple exist:
 \item 'All': Keep all prior outcome events (one output row per pair).
 Default: 'First'.
 }}
-
-\item{\code{targetCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
+      \item{\code{targetCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
 Preferred route using manifest query results for the target cohort.}
-
-\item{\code{outcomeCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
+      \item{\code{outcomeCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
 Preferred route using manifest query results for the outcome cohort.}
-
-\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+      \item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
 active or stale cohort with this label is already registered. If FALSE,
 updates the registered derived cohort in place (same ID and file path):
 the SQL is re-rendered, parents and build parameters are replaced, the
 cohort is marked 'stale' for regeneration (and its own dependents with it)
 only when the definition actually changed — re-running with unchanged
 inputs is a no-op. Default: TRUE (fail-safe).}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible integer. The assigned cohort ID.
+  }
 }
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible integer. The assigned cohort ID.
-}
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-buildCensorCohort"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-buildCensorCohort}{}}}
-\subsection{Method \code{buildCensorCohort()}}{
-Censor a target cohort based on a censoring event
+\subsection{\code{CohortManifest$buildCensorCohort()}}{
+  Censor a target cohort based on a censoring event
 
 Truncates the cohort_end_date of each target cohort record to the earliest
 censoring event that occurs between the cohort_start_date and cohort_end_date.
@@ -2305,8 +2329,9 @@ Input route policy:
 \item Backward compatible: provide \code{targetCohortId}/\code{censorCohortId}
 \item Exactly one route per role must be provided; both/neither is an error.
 }
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$buildCensorCohort(
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$buildCensorCohort(
   label,
   category,
   tags = list(),
@@ -2315,77 +2340,75 @@ Input route policy:
   targetCohortEntry = NULL,
   censorCohortEntry = NULL,
   stopIfExists = TRUE
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{label}}{Character. Display name (e.g., "NSAID Use - Censored at Death").}
-
-\item{\code{category}}{Character. Required classification.}
-
-\item{\code{tags}}{Named list. Optional metadata tags.}
-
-\item{\code{targetCohortId}}{Integer. Legacy ID route for the cohort definition ID to censor.}
-
-\item{\code{censorCohortId}}{Integer. Legacy ID route for the cohort definition ID for the censoring event.}
-
-\item{\code{targetCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{label}}{Character. Display name (e.g., "NSAID Use - Censored at Death").}
+      \item{\code{category}}{Character. Required classification.}
+      \item{\code{tags}}{Named list. Optional metadata tags.}
+      \item{\code{targetCohortId}}{Integer. Legacy ID route for the cohort definition ID to censor.}
+      \item{\code{censorCohortId}}{Integer. Legacy ID route for the cohort definition ID for the censoring event.}
+      \item{\code{targetCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
 Preferred route using manifest query results for the target cohort.}
-
-\item{\code{censorCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
+      \item{\code{censorCohortEntry}}{Data frame/tibble with one row and an \code{id} column.
 Preferred route using manifest query results for the censor cohort.}
-
-\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+      \item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
 active or stale cohort with this label is already registered. If FALSE,
 updates the registered derived cohort in place (same ID and file path):
 the SQL is re-rendered, parents and build parameters are replaced, the
 cohort is marked 'stale' for regeneration (and its own dependents with it)
 only when the definition actually changed — re-running with unchanged
 inputs is a no-op. Default: TRUE (fail-safe).}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisible integer. The assigned cohort ID.
+  }
 }
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisible integer. The assigned cohort ID.
-}
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-cleanupMissing"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-cleanupMissing}{}}}
-\subsection{Method \code{cleanupMissing()}}{
-clean up missing files from manifest
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$cleanupMissing(keep_trace = TRUE)}\if{html}{\out{</div>}}
+\subsection{\code{CohortManifest$cleanupMissing()}}{
+  clean up missing files from manifest
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$cleanupMissing(keep_trace = TRUE)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{keep_trace}}{Logical. soft delete with trace}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisibly returns NULL. Displays summary of cleanup actions.
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{keep_trace}}{Logical. soft delete with trace}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisibly returns NULL. Displays summary of cleanup actions.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-clone"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-clone}{}}}
-\subsection{Method \code{clone()}}{
-The objects of this class are cloneable with this method.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$clone(deep = FALSE)}\if{html}{\out{</div>}}
+\subsection{\code{CohortManifest$clone()}}{
+  The objects of this class are cloneable with this method.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$clone(deep = FALSE)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{deep}}{Whether to make a deep clone.}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{deep}}{Whether to make a deep clone.}
-}
-\if{html}{\out{</div>}}
-}
-}
 }

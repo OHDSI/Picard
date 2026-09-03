@@ -88,9 +88,14 @@ manifest_path_relative <- function(path, project_root) {
 #   manifest-folder-relative paths are resolved against this.
 # @return Character. A normalized absolute path.
 resolve_manifest_path <- function(stored_path, project_root, manifest_dir) {
-  checkmate::assert_string(stored_path, min.chars = 1)
   checkmate::assert_string(project_root, min.chars = 1)
   checkmate::assert_string(manifest_dir, min.chars = 1)
+
+  # A missing / empty stored path has nothing to resolve — pass it through so
+  # callers keep their existing NA / "" handling.
+  if (length(stored_path) != 1 || is.na(stored_path) || !nzchar(stored_path)) {
+    return(stored_path)
+  }
 
   # 1. Absolute path — use as-is.
   if (fs::is_absolute_path(stored_path)) {

@@ -178,8 +178,13 @@ CohortManifest <- R6::R6Class(
           list()
         }
 
+        # Resolve the stored path (repo-root-relative, or a legacy convention)
+        # to an absolute path before touching disk. CohortDef$new() asserts the
+        # file exists, so an unresolved relative path would hard-fail here.
+        resolved_path <- private$resolve_path(row$file_path)
+
         # Only create CohortDef if file exists (skip missing files with a warning)
-        if (!file.exists(row$file_path)) {
+        if (!file.exists(resolved_path)) {
           cli::cli_alert_warning("Cohort {row$id} ({row$label}): file missing at {row$file_path}")
           next
         }
@@ -189,7 +194,7 @@ CohortManifest <- R6::R6Class(
           category = row$category,
           sourceType = row$source_type,
           tags = tags,
-          filePath = row$file_path
+          filePath = resolved_path
         )
         cd$setId(as.integer(row$id))
         cd$setCohortType(row$cohort_type)
@@ -224,7 +229,7 @@ CohortManifest <- R6::R6Class(
       
       for (i in seq_len(nrow(db_records))) {
         record <- db_records[i, ]
-        if (!file.exists(record$file_path)) {
+        if (!file.exists(private$resolve_path(record$file_path))) {
           missing_cohorts[[length(missing_cohorts) + 1]] <- record
         }
       }
@@ -385,10 +390,18 @@ CohortManifest <- R6::R6Class(
         list(existingId)
       )
 
-      hash <- if (file.exists(file_path)) {
-        rlang::hash(readr::read_file(file_path))
+      # Resolve the incoming path before hashing: a relative path hashed against
+      # the wrong working directory silently yields the wrong hash (or the
+      # label sentinel). A derived cohort's rendered file is written just before
+      # this call, so a missing file here is a real error.
+      resolved_file <- private$resolve_path(file_path)
+      hash <- if (file.exists(resolved_file)) {
+        rlang::hash(readr::read_file(resolved_file))
       } else {
-        rlang::hash(label)
+        cli::cli_abort(c(
+          "Cannot register derived cohort {.val {label}}: file not found.",
+          i = "Expected a definition file at {.path {file_path}}."
+        ))
       }
 
       depends_on_json <- jsonlite::toJSON(as.integer(depends_on), auto_unbox = FALSE)
@@ -408,8 +421,16 @@ CohortManifest <- R6::R6Class(
       # inlined into the template), so a hash diff is the main proxy for a
       # definition-affecting change; the stored parents/rule and file path are
       # compared too so nothing definition-level slips through unnoticed
+      # Compare paths by resolved-absolute form so a pure path-convention
+      # difference (e.g. a legacy row rewritten repo-root-relative) is not
+      # mistaken for a definition change and does not mark the cohort stale.
+      previous_resolved <- if (!is.na(previous$file_path[1])) {
+        private$resolve_path(previous$file_path[1])
+      } else {
+        NA_character_
+      }
       definition_changed <- !identical(hash, previous$hash[1]) ||
-        !identical(as.character(file_path), as.character(previous$file_path[1])) ||
+        !identical(as.character(resolved_file), as.character(previous_resolved)) ||
         !identical(as.character(depends_on_json), as.character(previous$depends_on[1])) ||
         !identical(as.character(dep_rule_json), as.character(previous$dependency_rule[1]))
       metadata_changed <- !identical(as.character(category), as.character(previous$category[1])) ||
@@ -462,19 +483,34 @@ CohortManifest <- R6::R6Class(
       return(existingId)
     },
 
-    # Validate that a file_path is unique among registered entries
+    # Validate that a file_path is unique among registered entries. Stored rows
+    # may use mixed path conventions (absolute, repo-root-relative, legacy
+    # manifest-folder-relative), so compare on resolved-absolute form rather
+    # than raw string — a raw match would let the same file be registered twice
+    # under two different spellings.
     validate_filepath_unique = function(file_path) {
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
       on.exit(DBI::dbDisconnect(conn))
 
-      existing <- DBI::dbGetQuery(
+      rows <- DBI::dbGetQuery(
         conn,
-        "SELECT id FROM cohort_manifest WHERE file_path = ? AND status IN ('active', 'stale')",
-        list(file_path)
+        "SELECT id, file_path FROM cohort_manifest WHERE status IN ('active', 'stale')"
       )
 
-      if (nrow(existing) > 0) {
-        cli::cli_abort("File path '{file_path}' is already registered to cohort {existing$id[1]}")
+      if (nrow(rows) == 0) {
+        return(invisible(NULL))
+      }
+
+      target <- private$resolve_path(file_path)
+      stored_resolved <- vapply(
+        rows$file_path,
+        function(p) as.character(private$resolve_path(p)),
+        character(1)
+      )
+
+      hit <- which(stored_resolved == as.character(target))
+      if (length(hit) > 0) {
+        cli::cli_abort("File path '{file_path}' is already registered to cohort {rows$id[hit[1]]}")
       }
     },
 
@@ -701,11 +737,24 @@ CohortManifest <- R6::R6Class(
       }
 
       if (!is_dependent) {
-        existing_cohort <- DBI::dbGetQuery(
+        # Compare on resolved-absolute form: stored rows may use any of the
+        # legacy path conventions, and a raw string match would miss a
+        # duplicate registered under a different spelling.
+        all_rows <- DBI::dbGetQuery(
           conn,
-          "SELECT id FROM cohort_manifest WHERE file_path = ? AND status IN ('active', 'stale')",
-          list(rel_path)
+          "SELECT id, file_path FROM cohort_manifest WHERE status IN ('active', 'stale')"
         )
+        target_resolved <- as.character(private$resolve_path(rel_path))
+        match_idx <- if (nrow(all_rows) > 0) {
+          which(vapply(
+            all_rows$file_path,
+            function(p) as.character(private$resolve_path(p)) == target_resolved,
+            logical(1)
+          ))
+        } else {
+          integer(0)
+        }
+        existing_cohort <- all_rows[match_idx, , drop = FALSE]
 
         # A file-path conflict with the upsert target itself is not a conflict
         is_self <- nrow(existing_cohort) > 0 && !is.na(existing_id) &&
@@ -754,7 +803,7 @@ CohortManifest <- R6::R6Class(
         # into a generated derived-cohort file (like the other derived cohort
         # types), leaving the connection/schema placeholders unrendered for
         # generateCohorts() to fill in at execution time.
-        derived_dir <- make_derived_folder(dirname(private$.dbPath))
+        derived_dir <- make_derived_folder(private$.manifestDir)
         render_params <- c(dependentCohortIdList, sqlParameters)
         header <- format_dependent_cohort_header(resolved_ids = dependentCohortIdList, resolved_labels = resolved_labels)
         sql_path <- do.call(
@@ -785,8 +834,15 @@ CohortManifest <- R6::R6Class(
         private$update_cohort_def(cohortId = existing_id, category = category, tags = tags, silent = TRUE)
 
         new_hash <- rlang::hash(sql_content)
+        # Compare paths by resolved-absolute form so a pure path-convention
+        # difference is not mistaken for a definition change.
+        prev_resolved <- if (!is.na(upsert_target$file_path[1])) {
+          as.character(private$resolve_path(upsert_target$file_path[1]))
+        } else {
+          NA_character_
+        }
         definition_changed <- !identical(new_hash, upsert_target$hash[1]) ||
-          !identical(as.character(rel_path), upsert_target$file_path[1])
+          !identical(as.character(private$resolve_path(rel_path)), prev_resolved)
 
         if (!definition_changed) {
           if (metadata_changed) {
@@ -857,13 +913,19 @@ CohortManifest <- R6::R6Class(
       max_id_result <- DBI::dbGetQuery(conn, "SELECT MAX(id) as max_id FROM cohort_manifest")
       next_id <- if (is.na(max_id_result$max_id[1])) 1L else as.integer(max_id_result$max_id[1]) + 1L
 
-      # Compute hash from file
-      if (file.exists(file_path)) {
-        file_content <- readr::read_file(file_path)
-        hash <- rlang::hash(file_content)
-      } else {
-        hash <- rlang::hash(label)
+      # Compute hash from file contents. Resolve the incoming path first: a
+      # relative path checked/read against the wrong working directory would
+      # silently produce the label sentinel or the wrong hash. Every add*()
+      # method stages the file under inputs/cohorts/ before reaching here, so a
+      # missing file at this point is a real error.
+      resolved_file <- private$resolve_path(file_path)
+      if (!file.exists(resolved_file)) {
+        cli::cli_abort(c(
+          "Cannot register cohort {.val {label}}: file not found.",
+          i = "Expected a definition file at {.path {file_path}}."
+        ))
       }
+      hash <- rlang::hash(readr::read_file(resolved_file))
 
       # Serialize tags to JSON
       if (length(tags) > 0) {
@@ -1520,8 +1582,10 @@ CohortManifest <- R6::R6Class(
           private$update_cohort_def(cohortId = existing_id, category = category, tags = tags, silent = TRUE)
 
           # Write to a temp file first so a failed write cannot clobber the
-          # registered JSON, and unchanged definitions leave the file untouched
-          file_path <- existing$file_path[1]
+          # registered JSON, and unchanged definitions leave the file untouched.
+          # Resolve the stored path so the copy lands next to the registered
+          # file regardless of the caller's working directory.
+          file_path <- private$resolve_path(existing$file_path[1])
           tmp_json <- tempfile(fileext = ".json")
           readr::write_lines(cohort_def$expression[1], tmp_json)
           new_hash <- rlang::hash(readr::read_file(tmp_json))
@@ -1586,12 +1650,12 @@ CohortManifest <- R6::R6Class(
       })
 
       # Save JSON to json/ directory
-      cohorts_dir <- dirname(private$.dbPath)
+      cohorts_dir <- private$.manifestDir
       json_dir <- fs::path(cohorts_dir, "json")
 
       if (!dir.exists(json_dir)) {
         dir.create(json_dir, recursive = TRUE)
-      } 
+      }
 
       # extract cohort name from definition to use as file name (fallback to label if not available)
       cohort_name <- ifelse(!is.null(cohort_def$saveName[1]) && cohort_def$saveName[1] != "", cohort_def$saveName[1], label)
@@ -1918,7 +1982,9 @@ CohortManifest <- R6::R6Class(
       }
 
       cohort_id <- as.integer(existing$id[1])
-      file_path <- existing$file_path[1]
+      # Resolve the stored path so the copy lands next to the registered file
+      # regardless of the caller's working directory.
+      file_path <- private$resolve_path(existing$file_path[1])
 
       # Export to a temp file first so a failed write cannot clobber the
       # registered JSON, and unchanged definitions leave the file untouched
@@ -2226,7 +2292,7 @@ CohortManifest <- R6::R6Class(
         )
 
       # Generate SQL via internal builder
-      derived_dir <- make_derived_folder(dirname(private$.dbPath))
+      derived_dir <- make_derived_folder(private$.manifestDir)
       sql_path <- write_derived_template(derived_dir, label, "createUnionCohort.sql",
         cohort_ids = paste(cohortIds, collapse = ", "),
         cohort_id_name_mapping = cohortIdNameMapping,
@@ -2405,7 +2471,7 @@ CohortManifest <- R6::R6Class(
       )
 
       # Generate SQL from template
-      derived_dir <- make_derived_folder(dirname(private$.dbPath))
+      derived_dir <- make_derived_folder(private$.manifestDir)
       sql_path <- write_derived_template(derived_dir, label, "createSubsetCohort_Cohort.sql",
         base_cohort_id = baseCohortId,
         base_cohort_name = baseCohortName,
@@ -2566,7 +2632,7 @@ CohortManifest <- R6::R6Class(
         complementType = complementType
       )
 
-      derived_dir <- make_derived_folder(dirname(private$.dbPath))
+      derived_dir <- make_derived_folder(private$.manifestDir)
       sql_path <- write_derived_template(derived_dir, label, "createComplementCohort.sql",
         population_cohort_id = populationCohortId,
         population_cohort_name = populationCohortName,
@@ -2692,7 +2758,7 @@ CohortManifest <- R6::R6Class(
         minEventCount = as.integer(minEventCount)
       )
 
-      derived_dir <- make_derived_folder(dirname(private$.dbPath))
+      derived_dir <- make_derived_folder(private$.manifestDir)
       cohort_ids_str <- paste(criteriaCohortIds, collapse = ",")
       sql_path <- write_derived_template(derived_dir, label, "createCompositeCohort.sql",
         criteria_cohort_ids = cohort_ids_str,
@@ -4564,11 +4630,11 @@ CohortManifest <- R6::R6Class(
     syncManifest = function(strict_mode = TRUE) {
       checkmate::assert_flag(strict_mode)
       
-      cohorts_folder <- dirname(private$.dbPath)
+      cohorts_folder <- private$.manifestDir
       json_dir <- file.path(cohorts_folder, "json")
       sql_dir  <- file.path(cohorts_folder, "sql")
 
-      # Collect all source files currently on disk
+      # Collect all source files currently on disk (as normalized absolute paths)
       on_disk <- c()
 
       if (dir.exists(json_dir)) {
@@ -4581,7 +4647,11 @@ CohortManifest <- R6::R6Class(
                                           full.names = TRUE, recursive = TRUE))
       }
 
-      on_disk_rel <- fs::path_rel(on_disk)
+      on_disk <- if (length(on_disk) > 0) {
+        as.character(fs::path_norm(fs::path_abs(on_disk)))
+      } else {
+        character(0)
+      }
 
       # Pull current active source records from the SQLite manifest
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
@@ -4593,6 +4663,17 @@ CohortManifest <- R6::R6Class(
          FROM cohort_manifest
         WHERE cohort_type IN ('circe', 'custom', 'custom_derived')"
       )
+
+      # Resolved-absolute form of every stored path, so disk/DB comparisons are
+      # independent of which path convention a row was written with. Resolving a
+      # path never changes file contents, so this cannot affect a hash.
+      db_resolved <- if (nrow(db_records) > 0) {
+        vapply(db_records$file_path,
+               function(p) as.character(private$resolve_path(p)),
+               character(1))
+      } else {
+        character(0)
+      }
 
       results <- data.frame(
         id     = integer(),
@@ -4609,7 +4690,7 @@ CohortManifest <- R6::R6Class(
         rec_id     <- rec$id
         rec_label  <- rec$label
         rec_status <- rec$status
-        file_path  <- rec$file_path
+        file_path  <- db_resolved[i]
 
         if (rec_status %in% c("active", "stale") && !file.exists(file_path)) {
           # File has gone missing — soft-delete, along with any derived
@@ -4696,8 +4777,7 @@ CohortManifest <- R6::R6Class(
       }
 
       # ── Step 2: Auto-remove orphaned files not in manifest ──────────────────
-      existing_rel <- db_records$file_path
-      orphaned_files <- on_disk[!(on_disk_rel %in% existing_rel)]
+      orphaned_files <- on_disk[!(on_disk %in% db_resolved)]
 
       if (length(orphaned_files) > 0) {
         if (strict_mode) {
@@ -5269,8 +5349,11 @@ CohortManifest <- R6::R6Class(
                               deleted_at = character(), file_exists = logical()))
       }
       
-      # Add file_exists column
-      db_records$file_exists <- sapply(db_records$file_path, file.exists)
+      # Add file_exists column (resolve stored paths before checking disk)
+      db_records$file_exists <- sapply(
+        db_records$file_path,
+        function(p) file.exists(private$resolve_path(p))
+      )
       
       # Convert to tibble and select columns
       result <- tibble::tibble(
@@ -5427,19 +5510,21 @@ CohortManifest <- R6::R6Class(
         )
         del_label <- del_row$label[1]
         file_path <- del_row$file_path[1]
+        has_path <- !is.na(file_path) && nchar(trimws(file_path)) > 0
+        resolved_path <- if (has_path) private$resolve_path(file_path) else NA_character_
 
         # Delete file from disk if it exists and path is not empty
-        if (!is.na(file_path) && nchar(trimws(file_path)) > 0 && file.exists(file_path)) {
+        if (has_path && file.exists(resolved_path)) {
           tryCatch({
-            unlink(file_path)
+            unlink(resolved_path)
             cli::cli_alert_success("Deleted file: {file_path}")
           }, error = function(e) {
             cli::cli_alert_warning("Could not delete file {file_path}: {e$message}")
           })
-        } else if (is.na(file_path) || nchar(trimws(file_path)) == 0) {
+        } else if (!has_path) {
           # Derived cohorts or special cases with no file_path
           cli::cli_alert_info("No file to delete for cohort {del_id} (derived or special cohort)")
-        } else if (!file.exists(file_path)) {
+        } else {
           cli::cli_alert_warning("File not found on disk: {file_path} (manifest will be cleaned)")
         }
 
@@ -5655,7 +5740,7 @@ CohortManifest <- R6::R6Class(
         subsetLimit = subsetLimit
       )
 
-      derived_dir <- make_derived_folder(dirname(private$.dbPath))
+      derived_dir <- make_derived_folder(private$.manifestDir)
       sql_path <- write_derived_template(derived_dir, label, "createOPriorT.sql",
         outcome_cohort_id = outcomeCohortId,
         outcome_cohort_name = outcomeCohortName,
@@ -5824,7 +5909,7 @@ CohortManifest <- R6::R6Class(
         subsetLimit = subsetLimit
       )
 
-      derived_dir <- make_derived_folder(dirname(private$.dbPath))
+      derived_dir <- make_derived_folder(private$.manifestDir)
       sql_path <- write_derived_template(derived_dir, label, "createTPriorO.sql",
         target_cohort_id = targetCohortId,
         target_cohort_name = targetCohortName,
@@ -5971,7 +6056,7 @@ CohortManifest <- R6::R6Class(
         censorCohortId = as.integer(censorCohortId)
       )
       # make and check derived folder
-      derived_dir <- make_derived_folder(dirname(private$.dbPath))
+      derived_dir <- make_derived_folder(private$.manifestDir)
 
       # make rendered sql
       sql_path <- write_derived_template (

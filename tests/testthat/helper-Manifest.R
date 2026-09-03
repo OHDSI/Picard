@@ -76,6 +76,8 @@ cm_test_add_sql_cohort <- function(manifest, paths, label, category = "Test", ta
 }
 
 # Purpose: Add a CIRCE cohort to the manifest using a fixture JSON file.
+# Copies the fixture into the manifest's temp json/ dir first, mirroring the
+# real workflow (JSON lives under inputs/cohorts/json/ inside the study repo).
 cm_test_add_circe_cohort <- function(manifest, paths, label, category = "Test", tags = list(), fixture_name = "ckd.json") {
   circe_path <- testthat::test_path("test_files", fixture_name)
   testthat::skip_if_not(
@@ -83,8 +85,11 @@ cm_test_add_circe_cohort <- function(manifest, paths, label, category = "Test", 
     message = paste("Missing CIRCE test fixture:", fixture_name)
   )
 
+  local_json <- fs::path(paths$json_dir, fixture_name)
+  fs::file_copy(circe_path, local_json, overwrite = TRUE)
+
   manifest$addCirceCohort(
-    filePath = circe_path,
+    filePath = local_json,
     label = label,
     category = category,
     tags = tags
