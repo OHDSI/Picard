@@ -47,27 +47,74 @@ findStudyProjectRoot <- function(path = here::here()) {
   }
 }
 
-manifest_project_root <- function(manifest_db_path) {
-  findStudyProjectRoot(manifest_db_path)
-}
+# Express `path` relative to the study repository root. This is the form written
+# into a manifest `file_path` column for newly registered files, so that loading
+# is independent of the caller's working directory.
+#
+# @param path Character. A file path (absolute or relative to the current
+#   working directory).
+# @param project_root Character. Absolute path to the study repository root
+#   (typically a manifest object's cached `private$.projectRoot`).
+# @return Character. `path` expressed relative to `project_root`.
+manifest_path_relative <- function(path, project_root) {
+  checkmate::assert_string(path, min.chars = 1)
+  checkmate::assert_string(project_root, min.chars = 1)
 
-manifest_path_relative <- function(path, manifest_db_path) {
   fs::path_rel(
     path = fs::path_abs(path),
-    start = manifest_project_root(manifest_db_path)
+    start = fs::path_abs(project_root)
   )
 }
 
-resolve_manifest_path <- function(stored_path, manifest_db_path) {
+# Resolve a stored manifest `file_path` to an absolute path on disk, tolerating
+# the several path conventions that manifests have used over time:
+#
+#   * absolute paths (older manifests / `ConceptSetManifest$resolve_file_path()`);
+#   * repo-root-relative (the current convention, e.g. `inputs/cohorts/json/x.json`);
+#   * manifest-folder-relative (legacy, e.g. `json/x.json`, `sql/x.sql`, written
+#     when the caller's working directory was the manifest folder).
+#
+# Each candidate is tried in turn; the first that exists on disk wins. When none
+# exist the repo-root-relative candidate is returned so callers surface a
+# stable, meaningful path in "file not found" errors rather than a raw fragment.
+#
+# Path normalization here never touches file contents, so it never affects a
+# content hash.
+#
+# @param stored_path Character. The path exactly as stored in the manifest row.
+# @param project_root Character. Absolute path to the study repository root.
+# @param manifest_dir Character. Absolute path to the folder that holds the
+#   manifest SQLite file (e.g. `<root>/inputs/cohorts`). Legacy
+#   manifest-folder-relative paths are resolved against this.
+# @return Character. A normalized absolute path.
+resolve_manifest_path <- function(stored_path, project_root, manifest_dir) {
+  checkmate::assert_string(stored_path, min.chars = 1)
+  checkmate::assert_string(project_root, min.chars = 1)
+  checkmate::assert_string(manifest_dir, min.chars = 1)
+
+  # 1. Absolute path — use as-is.
   if (fs::is_absolute_path(stored_path)) {
     return(fs::path_norm(stored_path))
   }
 
-  fs::path(
-    manifest_project_root(manifest_db_path),
-    stored_path
-  ) |>
-    fs::path_norm()
+  project_root <- fs::path_abs(project_root)
+  manifest_dir <- fs::path_abs(manifest_dir)
+
+  # 2. Repo-root-relative (current convention). Also the fallback return value.
+  root_relative <- fs::path_norm(fs::path(project_root, stored_path))
+
+  # 3. Manifest-folder-relative (legacy). When `manifest_dir` sits at its
+  #    standard location under the repo this also covers the plan's
+  #    "<root>/inputs/<manifest>/<stored>" tier.
+  manifest_relative <- fs::path_norm(fs::path(manifest_dir, stored_path))
+
+  for (candidate in unique(c(root_relative, manifest_relative))) {
+    if (fs::file_exists(candidate)) {
+      return(candidate)
+    }
+  }
+
+  root_relative
 }
 
 # ============================================================

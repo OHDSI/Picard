@@ -18,6 +18,7 @@ ConceptSetManifest <- R6::R6Class(
     .manifest = NULL,
     .dbPath = NULL,
     .projectRoot = NULL,
+    .manifestDir = NULL,
     .executionSettings = NULL,
     .atlasConnection = NULL,
 
@@ -235,6 +236,24 @@ ConceptSetManifest <- R6::R6Class(
           cli::cli_alert_warning("Schema migration for category column failed: {e$message}")
         })
       }
+    },
+
+    # Express a path relative to the study repository root, the form stored in
+    # the file_path column for newly registered files.
+    to_manifest_path = function(path) {
+      manifest_path_relative(path, private$.projectRoot)
+    },
+
+    # Resolve a stored file_path to an absolute path on disk, tolerating the
+    # legacy path conventions (absolute / repo-root-relative /
+    # manifest-folder-relative). See resolve_manifest_path() in
+    # manifest_helpers.R.
+    resolve_path = function(stored_path) {
+      resolve_manifest_path(
+        stored_path = stored_path,
+        project_root = private$.projectRoot,
+        manifest_dir = private$.manifestDir
+      )
     },
 
     # Resolve a stored (potentially relative) file path to an absolute path.
@@ -472,6 +491,10 @@ ConceptSetManifest <- R6::R6Class(
         checkmate::assert_string(projectRoot, min.chars = 1)
         fs::path_norm(fs::path_abs(projectRoot))
       }
+
+      # Folder holding the manifest SQLite file, resolved to absolute now so
+      # later working-directory changes cannot break path resolution.
+      private$.manifestDir <- fs::path_dir(fs::path_abs(dbPath))
 
       # Load existing active entries from SQLite into memory
       private$load_manifest_from_db()
