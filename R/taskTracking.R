@@ -12,6 +12,10 @@
 #' @param executionSettings ExecutionSettings object
 #' @param pipelineVersion Character. Current pipeline version (e.g., "1.0.0")
 #' @param tasksFolderPath Character. Path to tasks folder (default: here::here("analysis/tasks"))
+#' @param cohortManifestHash Character or NULL. A pre-computed cohort manifest
+#'   hash (see [.getCohortManifestHash()]). When NULL (default) it is computed
+#'   here; callers that check many tasks in one run pass it in to avoid
+#'   re-loading the manifest per task.
 #'
 #' @return List with elements:
 #'   - should_rerun: Logical. TRUE if task should be rerun
@@ -31,7 +35,8 @@ shouldRerunTask <- function(
     configBlock,
     executionSettings,
     pipelineVersion,
-    tasksFolderPath = here::here("analysis/tasks")) {
+    tasksFolderPath = here::here("analysis/tasks"),
+    cohortManifestHash = NULL) {
 
   # Initialize result structure
   reasons <- character()
@@ -95,7 +100,7 @@ shouldRerunTask <- function(
   }
 
   # Check 3: Cohort manifest has changed
-  currentCohortManifestHash <- .getCohortManifestHash()
+  currentCohortManifestHash <- cohortManifestHash %||% .getCohortManifestHash()
   previousCohortManifestHash <- if (!is.null(lastRunInfo)) {
     lastRunInfo$cohort_manifest_hash
   } else {
