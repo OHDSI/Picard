@@ -1,6 +1,8 @@
 # Testing: .getCohortManifestHash() summarises cohort definitions for task-rerun
-# detection. It must be a pure read, deterministic, and independent of where
-# cohort files are stored on disk.
+# detection. It delegates to CohortManifest$getManifestHash() (a digest over each
+# cohort's rendered SQL plus its identity and dependency structure). It must be a
+# pure read, deterministic, and independent of where cohort files are stored on
+# disk.
 
 testthat::test_that(".getCohortManifestHash returns NA when there is no manifest", {
   setup <- cm_test_new_manifest("tt-hash-nodb")
@@ -53,17 +55,21 @@ testthat::test_that(".getCohortManifestHash is unaffected by a stored path-conve
   testthat::expect_identical(.getCohortManifestHash(projectPath = root), before)
 })
 
-testthat::test_that(".getCohortManifestHash changes when a cohort's content hash changes", {
+testthat::test_that(".getCohortManifestHash changes when a cohort's definition changes", {
   setup <- cm_test_seed_manifest_for_queries("tt-hash-content")
   manifest <- setup$manifest
   root <- manifest$getProjectRoot()
   before <- .getCohortManifestHash(projectPath = root)
 
+  # Overwrite one cohort's JSON on disk with a different (valid CIRCE)
+  # definition, so its rendered SQL — what getManifestHash() keys on — changes.
   rows <- cm_test_all_rows(manifest)
-  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
-  DBI::dbExecute(conn, "UPDATE cohort_manifest SET hash = 'changed' WHERE id = ?",
-                 list(rows$id[1]))
-  DBI::dbDisconnect(conn)
+  target <- rows[rows$label == "Chronic Kidney Disease", ]
+  fs::file_copy(
+    testthat::test_path("test_files", "t2d.json"),
+    cm_test_resolve_path(manifest, target$file_path),
+    overwrite = TRUE
+  )
 
   testthat::expect_false(identical(.getCohortManifestHash(projectPath = root), before))
 })
