@@ -3,7 +3,11 @@
 #' @description Determines whether a task needs to be rerun by checking:
 #'   1. Task file modifications (file hash comparison)
 #'   2. Dependency file modifications (extracted from source() calls)
-#'   3. Cohort manifest changes (hash comparison)
+#'   3. Cohort manifest changes — compares
+#'      [CohortManifest$getManifestHash()][CohortManifest] against the hash
+#'      recorded on the previous run. A rerun is forced when the hash differs,
+#'      when no hash was recorded (first run, or a legacy history row), or when
+#'      the current hash cannot be computed at all.
 #'   4. Previous run errors (checked in logs and history)
 #'   5. Version changes
 #'
@@ -195,6 +199,9 @@ recordTaskExecution <- function(
     tasksFolderPath = here::here("analysis/tasks"),
     commitSha = NA_character_,
     codeState = "unrecorded") {
+
+  # Tolerate NULL as "no hash" so the data.frame row below always has length 1.
+  cohortManifestHash <- cohortManifestHash %||% NA_character_
 
   if (!file.exists(taskFile)) {
     taskFile <- fs::path(tasksFolderPath, taskFile)

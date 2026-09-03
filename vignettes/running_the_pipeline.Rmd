@@ -239,6 +239,25 @@ Production execution follows five main phases:
 
 5. **Post-Processing:** Generate version logs, create PR metadata, save PENDING_PR.md
 
+### Task Change Detection
+
+In phase 4 each task is checked before it runs and **skipped when nothing that
+affects its output has changed** since its last recorded run
+(`exec/logs/task_run_history.csv`). A task is re-run when any of these differ
+from that record:
+
+- the task file's own contents;
+- a file the task `source()`s;
+- the **cohort manifest** — any change to a registered cohort's *definition*:
+  the rendered SQL of a cohort, a cohort added or removed, or a derived
+  cohort's build rule. Renaming a cohort or editing its tags does not count;
+- the pipeline version;
+- a previous run that ended in failure.
+
+So after you edit a cohort's JSON or SQL and regenerate, the next pipeline run
+re-executes every task that had run against the old definition. If the manifest
+hash cannot be computed for any reason, tasks are re-run rather than skipped.
+
 ## Handling Errors and Failures
 
 Production mode validates code state strictly. Common issues:

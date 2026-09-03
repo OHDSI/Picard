@@ -44,7 +44,11 @@ Determines whether a task needs to be rerun by checking:
 \enumerate{
 \item Task file modifications (file hash comparison)
 \item Dependency file modifications (extracted from source() calls)
-\item Cohort manifest changes (hash comparison)
+\item Cohort manifest changes — compares
+\link[=CohortManifest]{CohortManifest$getManifestHash()} against the hash
+recorded on the previous run. A rerun is forced when the hash differs,
+when no hash was recorded (first run, or a legacy history row), or when
+the current hash cannot be computed at all.
 \item Previous run errors (checked in logs and history)
 \item Version changes
 }
