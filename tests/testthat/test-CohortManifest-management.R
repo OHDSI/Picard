@@ -172,7 +172,7 @@ testthat::test_that("updateCaprCohort updates definition keeping id and file pat
   testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
 
   # Hash recorded in the manifest matches the file now on disk
-  disk_hash <- rlang::hash(readr::read_file(after$file_path[[1]]))
+  disk_hash <- rlang::hash(readr::read_file(cm_test_resolve_path(manifest, after$file_path[[1]])))
   testthat::expect_equal(after$hash[[1]], disk_hash)
 })
 
@@ -299,7 +299,7 @@ testthat::test_that("syncManifest cascades deletion of dependents of missing par
   manifest <- setup$manifest
 
   parent <- manifest$queryCohortsByLabel("Capr T2D", matchType = "exact")
-  unlink(parent$file_path[[1]])
+  unlink(cm_test_resolve_path(manifest, parent$file_path[[1]]))
 
   out <- manifest$syncManifest(strict_mode = TRUE)
 
@@ -345,7 +345,7 @@ testthat::test_that("buildUnionCohort stopIfExists FALSE updates parent list in 
   testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
 
   # The re-rendered SQL file matches the recorded hash
-  disk_hash <- rlang::hash(readr::read_file(after$file_path[[1]]))
+  disk_hash <- rlang::hash(readr::read_file(cm_test_resolve_path(manifest, after$file_path[[1]])))
   testthat::expect_equal(after$hash[[1]], disk_hash)
 })
 
@@ -518,7 +518,7 @@ testthat::test_that("addDependentCustomCohort accepts vectors of dependent IDs",
   # (like the other derived cohort types) - the vector renders comma-separated
   # and the original @inc_cohort_id/@exc_cohort_id placeholders are gone.
   testthat::expect_true(grepl("inputs/cohorts/derived", row$file_path[[1]], fixed = TRUE))
-  rendered_sql <- readr::read_file(row$file_path[[1]])
+  rendered_sql <- readr::read_file(cm_test_resolve_path(manifest, row$file_path[[1]]))
   testthat::expect_false(grepl("@inc_cohort_id", rendered_sql, fixed = TRUE))
   testthat::expect_false(grepl("@exc_cohort_id", rendered_sql, fixed = TRUE))
   testthat::expect_true(grepl(as.character(t2d_id), rendered_sql, fixed = TRUE))
@@ -566,7 +566,7 @@ testthat::test_that("addDependentCustomCohort accepts manifest entries and rende
     sort(c(as.integer(ckd_entry$id[1]), t2d_id, death_id))
   )
 
-  rendered_sql <- readr::read_file(row$file_path[[1]])
+  rendered_sql <- readr::read_file(cm_test_resolve_path(manifest, row$file_path[[1]]))
   testthat::expect_true(grepl("Dependent cohorts", rendered_sql, fixed = TRUE))
   testthat::expect_true(grepl("Chronic Kidney Disease", rendered_sql, fixed = TRUE))
   testthat::expect_true(grepl("Type 2 Diabetes", rendered_sql, fixed = TRUE))
@@ -645,7 +645,7 @@ testthat::test_that("addDependentCustomCohort renders sqlParameters into the gen
   )
 
   row <- cm_test_get_manifest_row(manifest, "Dep Params")
-  rendered_sql <- readr::read_file(row$file_path[[1]])
+  rendered_sql <- readr::read_file(cm_test_resolve_path(manifest, row$file_path[[1]]))
   testthat::expect_true(grepl("DATEADD(day, 30,", rendered_sql, fixed = TRUE))
   testthat::expect_false(grepl("@min_days", rendered_sql, fixed = TRUE))
   testthat::expect_false(grepl("@inc_cohort_id", rendered_sql, fixed = TRUE))
@@ -766,7 +766,7 @@ testthat::test_that("addSqlCohort stopIfExists FALSE updates existing cohort in 
 
   # Revised SQL registered from a new file path
   revised_sql <- fs::path(setup$paths$sql_dir, "my_custom_cohort_v2.sql")
-  writeLines(c(readr::read_file(before$file_path[[1]]), "-- revised"), revised_sql)
+  writeLines(c(readr::read_file(cm_test_resolve_path(manifest, before$file_path[[1]])), "-- revised"), revised_sql)
   returned_id <- manifest$addSqlCohort(
     filePath = revised_sql,
     label = "Custom SQL Cohort",
@@ -778,7 +778,7 @@ testthat::test_that("addSqlCohort stopIfExists FALSE updates existing cohort in 
   testthat::expect_equal(nrow(after), 1)
   testthat::expect_equal(as.integer(returned_id), as.integer(before$id[[1]]))
   testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
-  testthat::expect_equal(after$file_path[[1]], as.character(fs::path_rel(revised_sql)))
+  testthat::expect_equal(after$file_path[[1]], cm_test_rel_path(manifest, revised_sql))
   testthat::expect_equal(after$category[[1]], "Comparator")
   testthat::expect_true(is.na(after$tags[[1]]))
 })

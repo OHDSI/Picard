@@ -716,7 +716,7 @@ CohortManifest <- R6::R6Class(
         private$validate_label_unique(label)
       }
 
-      rel_path <- fs::path_rel(filePath)
+      rel_path <- private$to_manifest_path(filePath)
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
       on.exit(DBI::dbDisconnect(conn))
 
@@ -816,7 +816,7 @@ CohortManifest <- R6::R6Class(
           label = label,
           category = category,
           tags = tags,
-          file_path = fs::path_rel(sql_path),
+          file_path = private$to_manifest_path(sql_path),
           cohort_type = "custom_derived",
           depends_on = as.integer(unname(dependent_ids)),
           dependency_rule = list(
@@ -1669,7 +1669,7 @@ CohortManifest <- R6::R6Class(
         label = label,
         category = category,
         tags = tags,
-        file_path = fs::path_rel(json_path),
+        file_path = private$to_manifest_path(json_path),
         source_type = "atlas",
         cohort_type = "circe"
       )
@@ -1909,7 +1909,7 @@ CohortManifest <- R6::R6Class(
         label = label,
         category = category,
         tags = tags,
-        file_path = fs::path_rel(json_path),
+        file_path = private$to_manifest_path(json_path),
         source_type = "capr",
         cohort_type = "circe"
       )
@@ -2145,7 +2145,7 @@ CohortManifest <- R6::R6Class(
       private$validate_label_unique(label)
 
       # Validate file_path uniqueness
-      rel_path <- fs::path_rel(filePath)
+      rel_path <- private$to_manifest_path(filePath)
       private$validate_filepath_unique(rel_path)
 
       # Validate CIRCE compatibility
@@ -2311,7 +2311,7 @@ CohortManifest <- R6::R6Class(
         label = label,
         category = category,
         tags = tags,
-        file_path = fs::path_rel(sql_path),
+        file_path = private$to_manifest_path(sql_path),
         cohort_type = "union",
         depends_on = as.integer(cohortIds),
         dependency_rule = dependency_rule
@@ -2490,7 +2490,7 @@ CohortManifest <- R6::R6Class(
         label = label,
         category = category,
         tags = tags,
-        file_path = fs::path_rel(sql_path),
+        file_path = private$to_manifest_path(sql_path),
         cohort_type = "subset",
         depends_on = as.integer(parent_ids),
         dependency_rule = dependency_rule
@@ -2649,7 +2649,7 @@ CohortManifest <- R6::R6Class(
         label = label,
         category = category,
         tags = tags,
-        file_path = fs::path_rel(sql_path),
+        file_path = private$to_manifest_path(sql_path),
         cohort_type = "complement",
         depends_on = parent_ids,
         dependency_rule = dependency_rule
@@ -2772,7 +2772,7 @@ CohortManifest <- R6::R6Class(
         label = label,
         category = category,
         tags = tags,
-        file_path = fs::path_rel(sql_path),
+        file_path = private$to_manifest_path(sql_path),
         cohort_type = "composite",
         depends_on = as.integer(criteriaCohortIds),
         dependency_rule = dependency_rule
@@ -2909,7 +2909,7 @@ CohortManifest <- R6::R6Class(
         label           = label,
         category        = category,
         tags            = tags,
-        file_path       = fs::path_rel(sql_path),
+        file_path       = private$to_manifest_path(sql_path),
         cohort_type     = "subset",
         depends_on      = as.integer(baseCohortId),
         dependency_rule = dependency_rule
@@ -3047,7 +3047,7 @@ CohortManifest <- R6::R6Class(
           label           = cohort_label,
           category        = category,
           tags            = tags,
-          file_path       = fs::path_rel(sql_path),
+          file_path       = private$to_manifest_path(sql_path),
           source_type     = "derived",
           cohort_type     = "subset",
           depends_on      = as.integer(baseCohortId),
@@ -4075,13 +4075,13 @@ CohortManifest <- R6::R6Class(
         new_hash <- rlang::hash(expression_json_file)
 
 
-        # Save JSON to json/ directory
-        cohorts_dir <- dirname(dbPath)
-        json_dir <- fs::path(cohorts_dir, "json")
-
-        # extract cohort name from definition to use as file name (fallback to label if not available)
-        json_file_path <- fs::path_file(existing_path)
-        json_path <- fs::path(json_dir, json_file_path)
+        # Overwrite the registered JSON in place. Resolve the stored path so the
+        # write lands on the registered file regardless of the caller's working
+        # directory or which path convention the row uses.
+        json_path <- private$resolve_path(existing_path)
+        if (!dir.exists(dirname(json_path))) {
+          dir.create(dirname(json_path), recursive = TRUE)
+        }
         readr::write_lines(expression_json, json_path) # make line ending always \\n
 
         #update the manifest sqlite
@@ -5757,7 +5757,7 @@ CohortManifest <- R6::R6Class(
         label = label,
         category = category,
         tags = tags,
-        file_path = fs::path_rel(sql_path),
+        file_path = private$to_manifest_path(sql_path),
         cohort_type = "oprior",
         depends_on = as.integer(c(outcomeCohortId, targetCohortId)),
         dependency_rule = dependency_rule
@@ -5926,7 +5926,7 @@ CohortManifest <- R6::R6Class(
         label = label,
         category = category,
         tags = tags,
-        file_path = fs::path_rel(sql_path),
+        file_path = private$to_manifest_path(sql_path),
         cohort_type = "tprior",
         depends_on = as.integer(c(targetCohortId, outcomeCohortId)),
         dependency_rule = dependency_rule
@@ -6074,7 +6074,7 @@ CohortManifest <- R6::R6Class(
         label = label,
         category = category,
         tags = tags,
-        file_path = fs::path_rel(sql_path),
+        file_path = private$to_manifest_path(sql_path),
         cohort_type = "censor",
         depends_on = as.integer(c(targetCohortId, censorCohortId)),
         dependency_rule = dependency_rule

@@ -147,6 +147,20 @@ cm_test_add_capr_cohort <- function(manifest, label, category = "Test", tags = l
   )
 }
 
+# Purpose: Resolve a manifest-stored (repo-root-relative) file_path to an absolute
+# path, for test code that reads or stats the file directly. The test working
+# directory is tests/testthat, not the temp study repo, so raw stored paths do
+# not resolve on their own.
+cm_test_resolve_path <- function(manifest, stored_path) {
+  as.character(fs::path(manifest$getProjectRoot(), stored_path))
+}
+
+# Purpose: Express an absolute path the way the manifest stores it (relative to
+# the study repo root), for equality assertions against a stored file_path.
+cm_test_rel_path <- function(manifest, path) {
+  as.character(fs::path_rel(fs::path_abs(path), start = manifest$getProjectRoot()))
+}
+
 # Purpose: Assert that a cohort exists in the manifest with optional source/cohort type checks.
 cm_test_assert_cohort_registered <- function(manifest, label, expected_source_type = NULL, expected_cohort_type = NULL) {
   rows <- manifest$queryCohortsByLabel(labels = label, matchType = "exact")
@@ -162,7 +176,11 @@ cm_test_assert_cohort_registered <- function(manifest, label, expected_source_ty
     testthat::expect_equal(rows$cohort_type[[1]], expected_cohort_type)
   }
 
-  testthat::expect_true(fs::file_exists(rows$file_path[[1]]))
+  # Stored paths are repo-root-relative; resolve against the manifest's project
+  # root before checking disk (the test working directory is tests/testthat).
+  testthat::expect_true(
+    fs::file_exists(fs::path(manifest$getProjectRoot(), rows$file_path[[1]]))
+  )
 }
 
 # Purpose: Seed a baseline manifest for query/retrieval tests with fixture cohorts.

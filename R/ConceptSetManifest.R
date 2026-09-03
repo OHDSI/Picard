@@ -177,7 +177,9 @@ ConceptSetManifest <- R6::R6Class(
         NA_character_
       }
 
-      rel_path <- fs::path_rel(file_path)
+      # Store the path relative to the study repository root so the manifest
+      # loads correctly regardless of who registered the file or from where.
+      rel_path <- private$to_manifest_path(file_path)
 
       DBI::dbExecute(
         conn,
@@ -2481,11 +2483,13 @@ ConceptSetManifest <- R6::R6Class(
         expression_json_file <- c(expression_json, "\n") |> paste(collapse = "")
         new_hash <- rlang::hash(expression_json_file)
 
-        # Save JSON to file
-        concept_sets_dir <- private$.manifestDir
-        json_dir <- fs::path(concept_sets_dir, "json")
-        json_file_path <- fs::path_file(existing_path)
-        json_path <- fs::path(json_dir, json_file_path)
+        # Overwrite the registered JSON in place. Resolve the stored path so the
+        # write lands on the registered file regardless of the caller's working
+        # directory or which path convention the row uses.
+        json_path <- private$resolve_file_path(existing_path)
+        if (!dir.exists(dirname(json_path))) {
+          dir.create(dirname(json_path), recursive = TRUE)
+        }
         readr::write_lines(expression_json, json_path)
 
         # Update SQLite manifest
