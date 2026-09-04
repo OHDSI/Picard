@@ -1,6 +1,7 @@
 # Purpose: Create an isolated temporary inputs/conceptSets tree and fresh ConceptSetManifest.
 csm_test_new_manifest <- function(test_name = "conceptsetmanifest") {
   root <- fs::file_temp(pattern = paste0("picard-", test_name, "-"))
+  cm_test_write_project_markers(root)
   concept_sets_dir <- fs::path(root, "inputs", "conceptSets")
   fs::dir_create(fs::path(concept_sets_dir, "json"))
 
@@ -10,9 +11,45 @@ csm_test_new_manifest <- function(test_name = "conceptsetmanifest") {
 
   ll <- list(
     manifest = manifest,
-    concept_sets_dir = concept_sets_dir
+    root = root,
+    concept_sets_dir = concept_sets_dir,
+    json_dir = fs::path(concept_sets_dir, "json")
   )
   return(ll)
+}
+
+# Purpose: Register a concept set from a JSON file without needing Capr. Writes a
+# minimal valid CIRCE concept-set expression into the manifest's json/ dir.
+csm_test_add_file <- function(setup, label, category = "init") {
+  json_path <- fs::path(setup$json_dir, paste0(gsub("[^A-Za-z0-9]+", "_", label), ".json"))
+  writeLines('{"items":[]}', json_path)
+  setup$manifest$addConceptSetFile(filePath = as.character(json_path), label = label, category = category)
+  invisible(json_path)
+}
+
+# Purpose: Overwrite a concept-set row's stored file_path directly in sqlite.
+csm_test_set_stored_path <- function(manifest, id, path) {
+  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
+  on.exit(DBI::dbDisconnect(conn))
+  DBI::dbExecute(
+    conn,
+    "UPDATE concept_set_manifest SET file_path = ? WHERE id = ?",
+    list(as.character(path), as.integer(id))
+  )
+  invisible(path)
+}
+
+# Purpose: Resolve a manifest-stored (repo-root-relative) file_path to an
+# absolute path for test code that reads or stats the file directly.
+csm_test_resolve_path <- function(manifest, stored_path) {
+  as.character(fs::path(manifest$getProjectRoot(), stored_path))
+}
+
+# Purpose: Return the raw sqlite rows for a concept-set manifest.
+csm_test_all_rows <- function(manifest) {
+  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
+  on.exit(DBI::dbDisconnect(conn))
+  DBI::dbGetQuery(conn, "SELECT * FROM concept_set_manifest ORDER BY id")
 }
 
 # Purpose: Build a minimal Capr concept set for tests; skip when Capr is unavailable.
@@ -49,7 +86,7 @@ testthat::test_that("addCaprConceptSet registers Capr concept set", {
 
   row <- csm_test_get_manifest_row(manifest, "T2D Concepts")
   testthat::expect_equal(nrow(row), 1)
-  testthat::expect_true(fs::file_exists(row$file_path[[1]]))
+  testthat::expect_true(fs::file_exists(csm_test_resolve_path(manifest, row$file_path[[1]])))
 })
 
 # Testing: addCaprConceptSet stopIfExists FALSE upserts in place and drops prior tags when none supplied.
@@ -89,7 +126,7 @@ testthat::test_that("updateCaprConceptSet updates definition keeping id and file
   testthat::expect_equal(after$file_path[[1]], before$file_path[[1]])
   testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
 
-  disk_hash <- rlang::hash(readr::read_file(after$file_path[[1]]))
+  disk_hash <- rlang::hash(readr::read_file(csm_test_resolve_path(manifest, after$file_path[[1]])))
   testthat::expect_equal(after$hash[[1]], disk_hash)
 })
 
@@ -183,9 +220,11 @@ testthat::test_that("importAtlasConceptSets errors on already-registered rows", 
   load_df <- data.frame(atlasId = 200L, label = "Atlas Concepts", category = "condition_occurrence")
   conn_v1 <- csm_test_fake_atlas_connection(list("200" = jsons$v1))
 
-  manifest$importAtlasConceptSets(conceptSetsLoad = load_df, atlasConnection = conn_v1)
+  imported <- manifest$importAtlasConceptSets(conceptSetsLoad = load_df, atlasConnection = conn_v1)
   before <- csm_test_get_manifest_row(manifest, "Atlas Concepts")
   testthat::expect_equal(nrow(before), 1)
+  testthat::expect_false(is.na(imported$id[[1]]))
+  testthat::expect_equal(imported$id[[1]], before$id[[1]])
 
   testthat::expect_error(
     manifest$importAtlasConceptSets(conceptSetsLoad = load_df, atlasConnection = conn_v1),
@@ -200,6 +239,42 @@ testthat::test_that("importAtlasConceptSets errors on already-registered rows", 
   testthat::expect_error(
     manifest$importAtlasConceptSets(conceptSetsLoad = collide_df, atlasConnection = conn_both),
     regexp = "already in use"
+  )
+})
+
+# Testing: importAtlasConceptSets stopIfExists = FALSE updates already-registered rows in place
+# instead of erroring, supporting re-running the same load file while iterating.
+testthat::test_that("importAtlasConceptSets stopIfExists FALSE updates existing rows in place", {
+  setup <- csm_test_new_manifest("csm-atlas-import-upsert")
+  manifest <- setup$manifest
+  jsons <- csm_test_atlas_fixture_jsons()
+
+  load_df <- data.frame(atlasId = 200L, label = "Atlas Concepts", category = "condition_occurrence")
+  conn_v1 <- csm_test_fake_atlas_connection(list("200" = jsons$v1))
+  manifest$importAtlasConceptSets(conceptSetsLoad = load_df, atlasConnection = conn_v1)
+  before <- csm_test_get_manifest_row(manifest, "Atlas Concepts")
+
+  # Re-running with stopIfExists = FALSE and a changed definition updates in place
+  conn_v2 <- csm_test_fake_atlas_connection(list("200" = jsons$v2))
+  manifest$importAtlasConceptSets(conceptSetsLoad = load_df, atlasConnection = conn_v2, stopIfExists = FALSE)
+  after <- csm_test_get_manifest_row(manifest, "Atlas Concepts")
+  testthat::expect_equal(nrow(after), 1)
+  testthat::expect_equal(after$id[[1]], before$id[[1]])
+  testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
+
+  # A mix of a new row and an already-registered row processes both
+  mixed_df <- data.frame(
+    atlasId = c(200L, 300L),
+    label = c("Atlas Concepts", "Second Atlas Concepts"),
+    category = c("condition_occurrence", "condition_occurrence")
+  )
+  conn_both <- csm_test_fake_atlas_connection(list("200" = jsons$v2, "300" = jsons$v2))
+  imported_mixed <- manifest$importAtlasConceptSets(conceptSetsLoad = mixed_df, atlasConnection = conn_both, stopIfExists = FALSE)
+  second_row <- csm_test_get_manifest_row(manifest, "Second Atlas Concepts")
+  testthat::expect_equal(nrow(second_row), 1)
+  testthat::expect_equal(
+    imported_mixed$id[imported_mixed$label == "Second Atlas Concepts"],
+    second_row$id[[1]]
   )
 })
 
@@ -298,6 +373,65 @@ testthat::test_that("updateAtlasConceptSets syncs changed definitions in place",
   testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
 })
 
+# Testing: re-importing an unchanged ATLAS concept set leaves the sqlite file
+# byte-identical, so re-running an input builder script does not create an
+# uncommitted change (issue #84).
+testthat::test_that("addAtlasConceptSet with an unchanged definition does not rewrite the sqlite file", {
+  setup <- csm_test_new_manifest("csm-atlas-noop-bytes")
+  manifest <- setup$manifest
+  jsons <- csm_test_atlas_fixture_jsons()
+  db_path <- manifest$getDbPath()
+
+  conn_v1 <- csm_test_fake_atlas_connection(list("200" = jsons$v1))
+  manifest$addAtlasConceptSet(atlasId = 200L, label = "Atlas Concepts",
+                              category = "condition_occurrence",
+                              tags = list(owner = "epi_team"), atlasConnection = conn_v1)
+
+  before <- unname(tools::md5sum(db_path))
+
+  manifest$addAtlasConceptSet(atlasId = 200L, label = "Atlas Concepts",
+                              category = "condition_occurrence",
+                              tags = list(owner = "epi_team"), atlasConnection = conn_v1,
+                              stopIfExists = FALSE)
+
+  testthat::expect_equal(unname(tools::md5sum(db_path)), before)
+
+  # A genuine remote change still writes
+  conn_v2 <- csm_test_fake_atlas_connection(list("200" = jsons$v2))
+  manifest$addAtlasConceptSet(atlasId = 200L, label = "Atlas Concepts",
+                              category = "condition_occurrence",
+                              tags = list(owner = "epi_team"), atlasConnection = conn_v2,
+                              stopIfExists = FALSE)
+
+  testthat::expect_false(identical(unname(tools::md5sum(db_path)), before))
+})
+
+# Testing: writing the metadata a concept set already holds is a no-op on disk.
+testthat::test_that("re-applying identical concept set metadata does not rewrite the sqlite file", {
+  setup <- csm_test_new_manifest("csm-noop-metadata")
+  manifest <- setup$manifest
+  db_path <- manifest$getDbPath()
+
+  capr_cs <- csm_test_make_capr_concept_set()
+  manifest$addCaprConceptSet(capr_cs, label = "T2D Concepts", category = "condition_occurrence")
+
+  concept_set_id <- as.integer(csm_test_get_manifest_row(manifest, "T2D Concepts")$id[[1]])
+
+  manifest$updateConceptSetCategory(concept_set_id, "measurement")
+  after_category <- unname(tools::md5sum(db_path))
+
+  manifest$updateConceptSetCategory(concept_set_id, "measurement")
+  testthat::expect_equal(unname(tools::md5sum(db_path)), after_category)
+
+  # A real metadata change is still written through
+  manifest$updateConceptSetCategory(concept_set_id, "observation")
+  testthat::expect_equal(
+    csm_test_get_manifest_row(manifest, "T2D Concepts")$category[[1]],
+    "observation"
+  )
+  testthat::expect_false(identical(unname(tools::md5sum(db_path)), after_category))
+})
+
 # Testing: addCaprConceptSet default stopIfExists = TRUE errors cleanly on duplicate labels.
 testthat::test_that("addCaprConceptSet errors on duplicate label by default", {
   setup <- csm_test_new_manifest("csm-add-capr-dup")
@@ -310,4 +444,107 @@ testthat::test_that("addCaprConceptSet errors on duplicate label by default", {
     manifest$addCaprConceptSet(capr_cs, label = "T2D Concepts", category = "condition_occurrence"),
     regexp = "already in use"
   )
+})
+
+# ── Path portability (concept-set equivalents) ────────────────────────────────
+
+# Testing: concept-set registration stores a repo-root-relative path regardless
+# of the working directory it was registered from (step 4).
+testthat::test_that("concept-set registration stores a repo-root-relative path", {
+  setup <- csm_test_new_manifest("csm-register-cwd")
+  nested <- fs::path(setup$root, "analysis", "deep")
+  fs::dir_create(nested)
+  json_path <- fs::path(setup$json_dir, "cs_a.json")
+  writeLines('{"items":[]}', json_path)
+
+  withr::with_dir(nested, {
+    setup$manifest$addConceptSetFile(filePath = as.character(json_path), label = "CS A", category = "init")
+  })
+
+  row <- csm_test_get_manifest_row(setup$manifest, "CS A")
+  testthat::expect_equal(row$file_path[[1]], "inputs/conceptSets/json/cs_a.json")
+})
+
+# Testing: a concept-set manifest loads from an unrelated working directory and
+# legacy stored path conventions still resolve (step 2/3).
+testthat::test_that("concept-set manifest loads legacy paths from an unrelated directory", {
+  setup <- csm_test_new_manifest("csm-legacy-paths")
+  manifest <- setup$manifest
+  csm_test_add_file(setup, "CS One")
+  csm_test_add_file(setup, "CS Two")
+
+  rows <- csm_test_all_rows(manifest)
+  # manifest-folder-relative + absolute
+  csm_test_set_stored_path(manifest, rows$id[1], sub("^inputs/conceptSets/", "", rows$file_path[1]))
+  csm_test_set_stored_path(manifest, rows$id[2], fs::path(manifest$getProjectRoot(), rows$file_path[2]))
+
+  withr::with_dir(withr::local_tempdir(), {
+    reopened <- ConceptSetManifest$new(dbPath = manifest$getDbPath())
+    testthat::expect_equal(length(reopened$getManifest()), 2L)
+  })
+})
+
+# Testing: a missing concept-set file is reported on load, never silently hashed
+# (step 3/7).
+testthat::test_that("missing concept-set file is reported on load", {
+  setup <- csm_test_new_manifest("csm-missing")
+  manifest <- setup$manifest
+  csm_test_add_file(setup, "CS One")
+  original_hash <- csm_test_all_rows(manifest)$hash[1]
+
+  csm_test_set_stored_path(manifest, csm_test_all_rows(manifest)$id[1], "inputs/conceptSets/json/gone.json")
+
+  testthat::expect_message(
+    reopened <- ConceptSetManifest$new(dbPath = manifest$getDbPath()),
+    "missing"
+  )
+  testthat::expect_length(reopened$getManifest(), 0L)
+  testthat::expect_equal(csm_test_all_rows(manifest)$hash[1], original_hash)
+})
+
+# Testing: normalizeConceptSetManifestPaths rewrites legacy paths and preserves
+# hashes; dryRun writes nothing (step 6/7).
+testthat::test_that("normalizeConceptSetManifestPaths rewrites legacy paths and preserves hashes", {
+  setup <- csm_test_new_manifest("csm-normalize")
+  manifest <- setup$manifest
+  root <- manifest$getProjectRoot()
+  csm_test_add_file(setup, "CS One")
+  csm_test_add_file(setup, "CS Two")
+
+  before <- csm_test_all_rows(manifest)
+  csm_test_set_stored_path(manifest, before$id[1], sub("^inputs/conceptSets/", "", before$file_path[1]))
+  csm_test_set_stored_path(manifest, before$id[2], fs::path(root, before$file_path[2]))
+
+  dry <- normalizeConceptSetManifestPaths(
+    conceptSetsFolderPath = fs::path(root, "inputs", "conceptSets"), dryRun = TRUE
+  )
+  testthat::expect_true(any(dry$status == "would_rewrite"))
+  testthat::expect_identical(csm_test_all_rows(manifest)$file_path[1], sub("^inputs/conceptSets/", "", before$file_path[1]))
+
+  report <- normalizeConceptSetManifestPaths(conceptSetsFolderPath = fs::path(root, "inputs", "conceptSets"))
+  after <- csm_test_all_rows(manifest)
+
+  testthat::expect_true(all(!fs::is_absolute_path(after$file_path)))
+  testthat::expect_true(all(fs::file_exists(fs::path(root, after$file_path))))
+  testthat::expect_equal(after$hash, before$hash)
+  testthat::expect_setequal(colnames(report), c("id", "old_path", "new_path", "status"))
+})
+
+# Testing: concept-set syncManifest does not report hash_updated for a
+# path-convention-only difference (step 7).
+testthat::test_that("concept-set syncManifest ignores a path-convention-only difference", {
+  setup <- csm_test_new_manifest("csm-sync-pathonly")
+  manifest <- setup$manifest
+  csm_test_add_file(setup, "CS One")
+
+  rows <- csm_test_all_rows(manifest)
+  original_hash <- rows$hash[1]
+  csm_test_set_stored_path(manifest, rows$id[1], sub("^inputs/conceptSets/", "", rows$file_path[1]))
+
+  withr::with_dir(withr::local_tempdir(), {
+    reopened <- ConceptSetManifest$new(dbPath = manifest$getDbPath())
+    out <- reopened$syncManifest(strict_mode = TRUE)
+    testthat::expect_false("hash_updated" %in% out$action)
+  })
+  testthat::expect_equal(csm_test_all_rows(manifest)$hash[1], original_hash)
 })

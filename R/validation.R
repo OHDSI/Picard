@@ -474,6 +474,58 @@ validateTaskDependencies <- function(tasksFolderPath = here::here("analysis/task
 }
 
 
+#' @title Read Configured Code-State Ignore Paths
+#' @description Reads `ignoreUncommittedPaths` from the study's config.yml. The
+#'   setting lives in the `default:` block (alongside `projectName` and
+#'   `version`) and lists repo-relative paths whose uncommitted changes should
+#'   not fail the "Code state" pre-flight check.
+#'
+#'   Putting the list in config.yml keeps it version-controlled and reviewable:
+#'   the same incidental churn recurs on every run, so it is a property of the
+#'   study, not of one invocation.
+#' @param configFilePath Character. Path to config.yml. Defaults to
+#'   "config.yml" in the working directory.
+#' @return Character vector of paths. `character(0)` when the file is absent,
+#'   unparseable, or the setting is not present — so the default is to ignore
+#'   nothing.
+#' @keywords internal
+#' @examples
+#' \dontrun{
+#' # config.yml
+#' # default:
+#' #   projectName: myStudy
+#' #   version: 1.0.0
+#' #   ignoreUncommittedPaths:
+#' #     - inputs
+#' getIgnoreUncommittedPaths()
+#' }
+getIgnoreUncommittedPaths <- function(configFilePath = "config.yml") {
+  checkmate::assert_string(configFilePath, min.chars = 1)
+
+  if (!file.exists(configFilePath)) {
+    return(character(0))
+  }
+
+  configList <- tryCatch(
+    yaml::read_yaml(configFilePath, eval.expr = FALSE),
+    error = function(e) NULL
+  )
+
+  if (is.null(configList)) {
+    return(character(0))
+  }
+
+  paths <- configList$default$ignoreUncommittedPaths %||%
+    configList$ignoreUncommittedPaths
+
+  if (is.null(paths)) {
+    return(character(0))
+  }
+
+  as.character(unlist(paths, use.names = FALSE))
+}
+
+
 #' @title Run Pre-flight Checks
 #' @description Runs all pre-execution validation checks and displays a consolidated
 #'   pass/warn/fail/skip checklist before the pipeline starts. All checks are run
@@ -487,18 +539,39 @@ validateTaskDependencies <- function(tasksFolderPath = here::here("analysis/task
 #' @param skipRenv Logical. If TRUE, renv environment check is skipped.
 #' @param skipConnectivityCheck Logical. If TRUE (default), database connectivity
 #'   check is skipped.
+#' @param ignoreUncommittedPaths Character vector or NULL. Repo-relative paths
+#'   whose uncommitted changes should not fail the code-state check. When NULL
+#'   (default) the list is read from \code{ignoreUncommittedPaths} in the
+#'   \code{default:} block of config.yml, which itself defaults to ignoring
+#'   nothing. Pass \code{character(0)} to force strict checking.
+#' @param skipCodeStateCheck Logical. If TRUE, the code-state check is skipped
+#'   entirely — a last resort. The run is still allowed, but the checklist and
+#'   the run history record that the working tree was never verified.
 #' @param resultsPath Character. Path to the results root folder for collision check.
 #' @param tasksFolderPath Character. Path to the tasks folder.
-#' @return Invisibly returns a list with \code{lockfileHash} and
-#'   \code{taskFilesToRun} for downstream use in \code{execute_pipeline()}.
+#' @return Invisibly returns a list with \code{lockfileHash},
+#'   \code{taskFilesToRun} and \code{codeState} for downstream use in
+#'   \code{execute_pipeline()}. \code{codeState} is a list with \code{sha},
+#'   \code{status}, \code{ignoredFiles} and \code{ignorePaths} and is written
+#'   into \code{exec/logs/task_run_history.csv} so the audit trail never claims
+#'   a clean tree when the tree was not clean.
 #' @keywords internal
 runPreflightChecks <- function(configBlock,
                                pipelineVersion,
                                testMode = FALSE,
                                skipRenv = FALSE,
                                skipConnectivityCheck = TRUE,
+                               ignoreUncommittedPaths = NULL,
+                               skipCodeStateCheck = FALSE,
                                resultsPath = here::here("exec/results"),
                                tasksFolderPath = here::here("analysis/tasks")) {
+
+  checkmate::assert_character(ignoreUncommittedPaths, any.missing = FALSE, null.ok = TRUE)
+  checkmate::assert_logical(skipCodeStateCheck, len = 1, any.missing = FALSE)
+
+  if (is.null(ignoreUncommittedPaths)) {
+    ignoreUncommittedPaths <- getIgnoreUncommittedPaths()
+  }
 
   results <- list()
 
@@ -540,15 +613,18 @@ runPreflightChecks <- function(configBlock,
     paste0("On '", branch, "' (not main)")
   })
 
-  # 2. Code state (skip in test mode)
-  results[["Code state"]] <- .runCheck(
-    "Code state",
-    function() {
-      sha <- validateCodeState()
-      paste0("Clean (commit ", substr(sha, 1, 7), ")")
-    },
-    skip_cond = testMode,
-    skip_msg = "Test mode"
+  # 2. Code state — inlined to capture codeState provenance without <<-
+  code_check <- code_state_check(
+    testMode = testMode,
+    skipCodeStateCheck = skipCodeStateCheck,
+    ignoreUncommittedPaths = ignoreUncommittedPaths
+  )
+
+  codeState <- code_check$codeState
+  results[["Code state"]] <- list(
+    name = "Code state",
+    status = code_check$status,
+    message = code_check$message
   )
 
   # 3. Environment / renv — inlined to capture lockfileHash without <<-
@@ -561,9 +637,12 @@ runPreflightChecks <- function(configBlock,
     )
   } else {
     env_check <- tryCatch({
+      # Record the lockfile, never rewrite it: snapshotting here would dirty
+      # the working tree the code-state check just validated. Keeping renv.lock
+      # current is the analyst's call, via snapshotEnvironment().
       suppressMessages({
         validateEnvironment()
-        lh <- snapshotEnvironment()
+        lh <- lockfileHashOnDisk()
       })
       list(status = "pass", message = "renv.lock in sync", lockfileHash = lh)
     }, error = function(e) {
@@ -621,10 +700,11 @@ runPreflightChecks <- function(configBlock,
       temp_manifest <- loadCohortManifest(executionSettings = NULL, verbose = FALSE)
       manifest_status <- temp_manifest$validateManifest()
     })
-    active  <- manifest_status[manifest_status$status == "active", ]
-    missing <- manifest_status[
-      manifest_status$status == "active" & !manifest_status$file_exists,
-    ]
+    # 'stale' cohorts are registered and will be regenerated by the pipeline —
+    # they count as active for pre-flight purposes
+    registered <- manifest_status$status %in% c("active", "stale")
+    active  <- manifest_status[registered, ]
+    missing <- manifest_status[registered & !manifest_status$file_exists, ]
     msg <- if (nrow(missing) > 0) {
       paste0(nrow(active), " active cohorts (", nrow(missing), " file(s) missing \u2014 see prompt below)")
     } else {
@@ -773,6 +853,9 @@ runPreflightChecks <- function(configBlock,
     cli::cli_alert_success("All pre-flight checks passed")
   }
 
+  # --- Loud banner whenever the code-state check did not pass on its own ---
+  announce_code_state(codeState)
+
   # --- Interactive missing-cohort prompt (fires after full checklist) ---
   if (nrow(missingCohorts) > 0) {
     cli::cli_rule("Missing Cohort Files")
@@ -800,6 +883,143 @@ runPreflightChecks <- function(configBlock,
 
   invisible(list(
     lockfileHash = lockfileHash,
-    taskFilesToRun = taskFilesToRun
+    taskFilesToRun = taskFilesToRun,
+    codeState = codeState
   ))
+}
+
+
+#' @title Run the Code State Pre-flight Check
+#' @description Resolves the "Code state" pre-flight check into a checklist entry
+#'   plus a `codeState` provenance record that downstream code writes to the run
+#'   history. Split out of [runPreflightChecks()] so the escape-hatch logic is
+#'   testable on its own.
+#'
+#'   A run that passes only because changes were ignored, or because the check
+#'   was skipped, is reported as a **warning** rather than a pass or a silent
+#'   skip — an escape hatch that hides itself is worse than no escape hatch.
+#' @param testMode Logical. TRUE when running the pipeline in test mode.
+#' @param skipCodeStateCheck Logical. TRUE to skip the check entirely.
+#' @param ignoreUncommittedPaths Character vector of repo-relative paths whose
+#'   uncommitted changes do not fail the check.
+#' @return A list with \code{status} ("pass", "warn", "fail" or "skip"),
+#'   \code{message} for the checklist line, and \code{codeState}.
+#' @keywords internal
+code_state_check <- function(testMode = FALSE,
+                             skipCodeStateCheck = FALSE,
+                             ignoreUncommittedPaths = character(0)) {
+
+  if (testMode || skipCodeStateCheck) {
+    status <- if (testMode) "unverified-test-mode" else "unverified-skipped"
+    sha <- tryCatch(current_commit_sha(), error = function(e) NA_character_)
+
+    return(list(
+      status = if (testMode) "skip" else "warn",
+      message = if (testMode) {
+        "Test mode"
+      } else {
+        "NOT CHECKED \u2014 skipCodeStateCheck = TRUE; working tree state unverified"
+      },
+      codeState = list(
+        sha = sha,
+        status = status,
+        ignoredFiles = character(0),
+        ignorePaths = character(0)
+      )
+    ))
+  }
+
+  result <- NULL
+
+  invisible(utils::capture.output(
+    result <- tryCatch(
+      {
+        cs <- validateCodeState(ignorePaths = ignoreUncommittedPaths)
+
+        if (identical(cs$status, "clean")) {
+          list(
+            status = "pass",
+            message = paste0("Clean (commit ", substr(cs$sha, 1, 7), ")"),
+            codeState = cs
+          )
+        } else {
+          list(
+            status = "warn",
+            message = paste0(
+              "NOT clean \u2014 ", length(cs$ignoredFiles),
+              " uncommitted file(s) ignored under ",
+              paste(cs$ignorePaths, collapse = ", "),
+              " (commit ", substr(cs$sha, 1, 7), ")"
+            ),
+            codeState = cs
+          )
+        }
+      },
+      error = function(e) {
+        msg <- cli::ansi_strip(conditionMessage(e))
+        msg <- strsplit(msg, "\n")[[1]][1]
+        list(
+          status = "fail",
+          message = msg,
+          codeState = list(
+            sha = NA_character_,
+            status = "dirty-blocked",
+            ignoredFiles = character(0),
+            ignorePaths = ignoreUncommittedPaths
+          )
+        )
+      }
+    ),
+    type = "message"
+  ))
+
+  result
+}
+
+
+#' @title Announce a Non-Clean Code State
+#' @description Prints a loud banner naming the ignored paths and files whenever
+#'   the pre-flight code-state check passed only because changes were ignored, or
+#'   because the check was skipped outright. Silent when the tree was clean.
+#' @param codeState List as returned by [code_state_check()].
+#' @return Invisibly NULL.
+#' @keywords internal
+announce_code_state <- function(codeState) {
+  if (is.null(codeState) || identical(codeState$status, "clean")) {
+    return(invisible(NULL))
+  }
+
+  if (identical(codeState$status, "unverified-test-mode")) {
+    return(invisible(NULL))
+  }
+
+  if (identical(codeState$status, "unverified-skipped")) {
+    cli::cli_rule("Code State NOT Verified")
+    cli::cli_alert_warning("The code-state check was skipped with {.code skipCodeStateCheck = TRUE}")
+    cli::cli_bullets(c(
+      "!" = "Results from this run cannot be tied to a verified working tree",
+      "i" = "Recorded in {.path exec/logs/task_run_history.csv} as {.val unverified-skipped}",
+      "i" = "Prefer {.code ignoreUncommittedPaths} to tolerate only incidental churn"
+    ))
+    cli::cli_rule()
+    return(invisible(NULL))
+  }
+
+  if (identical(codeState$status, "dirty-ignored")) {
+    cli::cli_rule("Code State NOT Clean")
+    cli::cli_alert_warning(
+      "{length(codeState$ignoredFiles)} uncommitted change{?s} {?was/were} ignored under {.path {codeState$ignorePaths}}"
+    )
+    cli::cli_bullets(setNames(
+      codeState$ignoredFiles,
+      rep("!", length(codeState$ignoredFiles))
+    ))
+    cli::cli_bullets(c(
+      "i" = "Commit {.val {substr(codeState$sha, 1, 7)}} does not fully describe this run",
+      "i" = "Recorded in {.path exec/logs/task_run_history.csv} as {.val dirty-ignored}"
+    ))
+    cli::cli_rule()
+  }
+
+  invisible(NULL)
 }

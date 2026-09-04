@@ -29,6 +29,7 @@ An R6 class to define an ExecutionSettings object
 \item \href{#method-ExecutionSettings-connect}{\code{ExecutionSettings$connect()}}
 \item \href{#method-ExecutionSettings-disconnect}{\code{ExecutionSettings$disconnect()}}
 \item \href{#method-ExecutionSettings-getConnection}{\code{ExecutionSettings$getConnection()}}
+\item \href{#method-ExecutionSettings-reviewConnectionDetails}{\code{ExecutionSettings$reviewConnectionDetails()}}
 \item \href{#method-ExecutionSettings-clone}{\code{ExecutionSettings$clone()}}
 }
 }
@@ -137,6 +138,19 @@ with an informative message. Use this to check connection status before database
 
 \subsection{Returns}{
 DatabaseConnectorJdbcConnection or NULL
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ExecutionSettings-reviewConnectionDetails"></a>}}
+\if{latex}{\out{\hypertarget{method-ExecutionSettings-reviewConnectionDetails}{}}}
+\subsection{Method \code{reviewConnectionDetails()}}{
+Return the configured connectionDetails object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ExecutionSettings$reviewConnectionDetails()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+A DatabaseConnector connectionDetails object or NULL.
 }
 }
 \if{html}{\out{<hr>}}

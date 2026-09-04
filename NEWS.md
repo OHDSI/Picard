@@ -1,3 +1,83 @@
+# picard 0.0.7
+
+## New Features
+
+### Code State Escape Hatches
+
+- Scoped escape hatches for the "Code state" pre-flight check, for study repos where files under `inputs/` churn without a deliberate edit. Both default to off, so unchanged studies get exactly the previous behavior.
+  - `execStudyPipeline(ignoreUncommittedPaths = ...)` tolerates uncommitted changes confined to the listed repo-relative paths; changes anywhere else (notably `analysis/`) still fail the check. The list can be set once per study as `ignoreUncommittedPaths` in the `default:` block of `config.yml`, with the argument overriding it for a single run.
+  - `execStudyPipeline(skipCodeStateCheck = TRUE)` skips the check entirely as a last resort. Deliberately not settable from `config.yml`.
+  - Neither hatch is silent: `Code state` is reported as a **warning** rather than a pass, a banner names every ignored file, and the pipeline log records the code state and commit SHA.
+  - `exec/logs/task_run_history.csv` gains `commit_sha` and `code_state` columns (`clean`, `dirty-ignored`, `unverified-skipped`, `unverified-test-mode`, `unrecorded`) so the audit trail never implies a clean tree when the tree was not clean. Existing history files are read and back-filled as `unrecorded`.
+
+### Tabulate and View Manifest
+
+- Added `viewManifest()` convenience method for both `CohortManifest` and `ConceptSetManifest` to interactively explore manifest metadata in RStudio viewer with streamlined columns (id, label, category, tags, file_path).
+- Enhanced `tabulateManifest()` with `tags_format` parameter supporting three formats: `"nested"` (default, parsed tags as tibble with tag_name/tag_value), `"json"` (raw JSON string for backward compatibility), and `"wide"` (expanded tags as individual columns for spreadsheet-like analysis).
+
+### Building a disseminationEnv Interactively
+
+
+### Study Metadata and Publishing
+
+- Added the optional `studyDescription` field to `makeStudyMeta()`. When supplied, it is inserted into the generated README; when omitted, the existing description placeholder is retained.
+- Added `publishStudyHubPosit()` to render and publish a Study Hub through Quarto's public Posit Connect publishing API.
+
+### Portable Manifest File Paths
+
+- Cohort and concept-set `file_path` values are now stored **relative to the study repository root** instead of the caller's working directory, so `loadCohortManifest()` / `loadConceptSetManifest()` resolve them identically on any machine and from any working directory. A file registered by one collaborator now loads for everyone else.
+- Added `findStudyProjectRoot()` (exported): walks upward from a path until it finds the study-repo markers (`config.yml`, `README.md`, `analysis/`, `inputs/`, `dissemination/`). Each manifest object resolves and caches its root once.
+- Legacy manifests keep working: a compatibility resolver tries the repo-root-relative location, then the manifest-folder-relative location, then the stored absolute path.
+- Added `normalizeCohortManifestPaths()` and `normalizeConceptSetManifestPaths()` (exported) to rewrite legacy stored paths to the repo-root-relative convention in one explicit pass. They rewrite `file_path` only — hashes, `status`, and timestamps are untouched — support `dryRun = TRUE`, and report unresolvable rows as `broken`. Ordinary loads and `syncManifest()` never rewrite stored paths.
+- `syncManifest()` compares file **contents**, not paths: a manifest whose stored paths use an older convention now syncs with no spurious `hash_updated` results.
+- `CohortDef$getFilePath()` / `ConceptSetDef$getFilePath()` now return an absolute path (safe to read regardless of `getwd()`); the new `$getDisplayPath(root = NULL)` gives a repo-root-relative path for display.
+
+## Bug Fixes
+
+- Fixed cohort-manifest change detection for task reruns (`shouldRerunTask()`), which was broken three ways at once, so editing a cohort definition never re-ran the tasks that used it:
+  - The hash helper called `CohortDef$getHash()`, a method renamed to `getSqlHash()` months earlier, so it always errored and returned `NA`.
+  - An `NA` hash *disabled* the manifest check instead of forcing a rerun (masking the first bug once a study had any cohorts).
+  - The computed hash was never written to `exec/logs/task_run_history.csv`, so even a working hash had nothing to compare against.
+  - Now `CohortManifest$getManifestHash()` is the single source of truth: a deterministic SHA256 over every active/stale cohort's **rendered SQL** plus its id, type, and dependency structure. Cohort labels, categories, and tags are excluded (renaming or retagging is not a definition change), and the digest is independent of file paths (path normalization does not force spurious reruns). `shouldRerunTask()` compares this against the hash recorded on the previous run and **forces a rerun whenever the hash is unavailable or was never recorded** (existing history rows self-heal on the next run). `execStudyPipeline()` / `testStudyPipeline()` compute it once per run rather than once per task.
+
+- Fixed several problems with the `'stale'` cohort status (see Issue #74). `'stale'` now consistently means "registered, but needs regenerating", rather than removing a cohort from the study:
+  - Re-running a derived cohort builder (e.g. `addDependentCustomCohort()`, `buildUnionCohort()`) with `stopIfExists = FALSE` and unchanged inputs no longer marks the cohort — and everything downstream of it — stale. Staleness is now cascaded only on a real definition change (content hash, file path, parents, or build rule), and a metadata-only edit no longer forces regeneration.
+  - Stale cohorts are once again returned by `tabulateManifest(filter = "active")` and therefore by all `query...()` methods, so they can be queried by label/tag/category and used as parents for new derived cohorts.
+  - `generateCohorts()` now lists stale cohorts in its confirmation prompt (they are exactly the cohorts that need generating) and flags them as such.
+  - `print()` and `getManifestStatus()` count stale cohorts as registered and break them out separately; `getManifestStatus()` gains `stale_count`.
+  - Fixed `viewManifest()` erroring on an undefined `tags_format` argument; it now also shows the `status` column.
+- Manifest tag parsing no longer assumes the `tags` column holds a JSON string (see Issue #78). The `query*ByTagName()` methods default to `tags_format = "nested"`, which returns tags as a `tag_name`/`tag_value` tibble, so internal callers that re-parsed that column failed with `Argument 'txt' must be a JSON string, URL or file.` This broke `importAtlasCohorts()`/`importAtlasConceptSets()` (and therefore `sourceInputBuilderScripts()`), as well as `listAllUniqueTags()` and `getTagValuesSummary()`. Tag parsing now goes through a shared helper that accepts JSON strings, nested tibbles, and already-parsed lists, and treats missing/empty/malformed tags as no tags.
+- add `$queryConceptSetsByCategory()` it was missing
+- Pipeline pre-flight checks were impossible to pass (#84):
+  - The manifest metadata writers issued an `UPDATE` even when every value already matched the stored row, bumping `updated_at` and rewriting `cohortManifest.sqlite` / `conceptSetManifest.sqlite` on every metadata refresh and every ATLAS re-import. Unchanged assignments are now dropped, so a re-run leaves the manifest files byte-identical and `validateCodeState()` no longer sees uncommitted changes. `cascadeStaleDownstream()` likewise skips rows that are already stale.
+  - `validateEnvironment()` always reported "Environment drift detected!" because it tested `renv::status()` for `NULL`, and `renv::status()` always returns a list. It now reads the `synchronized` flag and compares the library and lockfile package records, and treats source-only mismatches as a warning rather than a blocker.
+  - `runPreflightChecks()` ran `renv::snapshot()` immediately after validating that the working tree was clean, so the check could dirty the tree it had just approved and leave the next run failing its code-state check. The lockfile is now recorded rather than refreshed; keeping `renv.lock` current is the analyst's call, via `snapshotEnvironment()`.
+- add `stopIfExists` option to ATLAS csv load builders (see Issue #65)
+- Custom dependent cohort builder is now consistent with the other dependent cohort builders - the rendered SQL query is written to the file system, and it accepts cohort objects as inputs instead of IDs. 
+- Custom dependent cohort builder now also allows user to specify non-cohort-ID params, so the rendered SQL query can be generated in a single function call (see Issue #66)
+- Builder console messages clarified (see Issue #70)
+- `dplyr::select(-.data$tags_list)` in the tag-expansion helpers replaced with `select(-"tags_list")`; use of `.data` in tidyselect expressions was deprecated in tidyselect 1.2.0 and would eventually have errored.
+- on `resetManifest` turn archive default to FALSE
+- Fixed two dissemination bugs (see Issue #87):
+  - `prepareDisseminationData()` asserted that four concatenated logical flags had length 1, so it aborted on every call — including all-default calls — and the formatting step could never run.
+  - The dissemination script template checked merged results for a `database_id` column, but `importAndBind()` labels them with camelCase `databaseId`, so the check was always false. The later references to `database_id` are correct, as they operate on data already passed through `cleanColumnNames()`.
+- `standardizeDataTypes()` no longer discards columns it cannot coerce. The default `"_id$"` rule matched the character `database_id` column and `as.integer()` silently turned it into `NA`, since failed coercion raises a warning rather than an error. A conversion that would turn a non-missing value into `NA` is now skipped and reported.
+- Refactor `query...Manifest` methods to use `$tabulateManifest()` internally to be more consistent. 
+- Show current manifest id after import (see Issue #68)
+- remove function forced tags `route = atlas` or `route = capr` (See Issue #67)
+- in `$grabConceptInfoFromSet()` change input to conceptSetRef which accepts either a manifest id or a label (See issue #56)
+- Add task prefix to the `importAndBind()` save to avoid similar output names between tasks.
+- Concept sets fetched from ATLAS came back with their concepts in a nondeterministic order, so an unchanged definition serialized to different JSON — and a different content hash — on every fetch, dirtying the study repo's git status (part of #84). Concept set expressions are now canonicalized before serialization: items are ordered by `CONCEPT_ID` (ties broken by vocabulary, code and inclusion flags) and circe `ConceptSets` by their `id`. Ordering is left untouched when any concept set lacks a usable `id`, so `CodesetId` references cannot break.
+- Add method to ExecutionSettings to `reviewConnectionDetails()` pulls the connectionDetails used. 
+- Modify `getServerCredentials()` to not evaluate full yml file, only pull the specific block and evaluate (See issue #30, #33). 
+- Fix `makeDisseminationScript()` change the glue brackets to carrots
+- Fix bug in `$updateAtlasCohorts()`/`$updateAtlasConceptSets()` to use tags in json mode after tab format change. 
+- Regenerated `inst/agent/05-manifest-management.md` from `vignettes/manifest_management.Rmd`. It had not been synced since `viewManifest()` and the `tabulateManifest(tags_format = ...)` options were added, so agents in generated study repos were reading stale manifest guidance.
+- `execStudyPipeline()`/`testStudyPipeline()` no longer go silent during a run (see Issue #85). `execute_pipeline()` used `sink(type = "output")` to capture console output into the pipeline log, which redirected every `cli` info bullet and error away from the console for the entire run — nothing showed up live, including the detail of a task's actual error. The sink is removed entirely: console output now streams normally, and the log file is instead written explicitly with high-level milestones (config block/task start, success, failure) plus a full error detail block (class, call, message) on failure. Separately, `execute_task()` was calling `stop()` from inside its per-expression error handler, which skipped the subsequent `recordTaskExecution(..., errorMessage = ...)` call entirely — so `task_run_history.csv` never recorded the real error message for a failed task, only whatever generic message the caller happened to re-throw. The detailed message is now recorded correctly.
+- Improved cohort-generation reporting (see Issue #77): failures now use prominent danger-level messages with the failed cohort, label, and underlying error, remaining cohorts are reported as not generated, and the final summary says generation failed when appropriate. The cohort lookup now checks for missing manifest entries before accessing their fields, and cancellation guidance points to builder scripts and manifest methods instead of only `cohortsLoad.csv`.
+- `generateCohorts()` now delegates table creation to `executeCohortGeneration(confirm = FALSE)`, avoiding duplicate table checks and connection cycles while still creating missing tables automatically. The full cohort-count table is no longer printed to the console; a compact count summary and the saved `cohortCounts.csv` path are reported instead.
+- `initUlyssesRepo()` now aborts when its target repository directory already exists, preventing initialization from overwriting an existing repository.
+
 # picard 0.0.6
 
 ## New Features

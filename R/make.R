@@ -15,6 +15,7 @@ setContributor <- function(name, email, role) {
 #' @param studyType the study type (typically characterization)
 #' @param studyLinks a list of study links
 #' @param studyTags a list of study tags
+#' @param studyDescription a character string describing the study, or NULL
 #' @returns A StudyMeta R6 class with the study meta
 #' @export
 makeStudyMeta <- function(studyTitle,
@@ -22,14 +23,16 @@ makeStudyMeta <- function(studyTitle,
                           studyType,
                           contributors,
                           studyLinks = NULL,
-                          studyTags = NULL) {
+                          studyTags = NULL,
+                          studyDescription = NULL) {
   StudyMeta$new(
     studyTitle = studyTitle,
     therapeuticArea = therapeuticArea,
     studyType = studyType,
     contributors = contributors,
     studyLinks = studyLinks,
-    studyTags = studyTags
+    studyTags = studyTags,
+    studyDescription = studyDescription
   )
 }
 #' @title Make a database config block
@@ -784,7 +787,6 @@ write_agent_files <- function(repoPath,
                               studyName,
                               projectName,
                               databaseLabel,
-                              toolType,
                               repoName,
                               verbose = TRUE) {
   files_created <- character(0)
@@ -1047,29 +1049,7 @@ initAgentMode <- function(projectPath = here::here(), verbose = TRUE, reset = FA
       projectName <- repoName
     }
 
-    # Extract toolType from config.yml
-    config_path <- fs::path(repoPath, "config.yml")
-    if (!fs::file_exists(config_path)) {
-      cli::cli_alert_warning("config.yml not found. Using 'dbms' as default toolType.")
-      toolType <- "dbms"
-    } else {
-      toolType <- tryCatch(
-        {
-          # Try to extract toolType if it exists, otherwise default to checking database blocks
-          config_content <- readr::read_file(config_path)
-          if (grepl("database:", config_content)) {
-            "dbms"
-          } else {
-            "external"
-          }
-        },
-        error = function(e) {
-          cli::cli_alert_warning("Could not parse config.yml. Using 'dbms' as default.")
-          "dbms"
-        }
-      )
-    }
-
+    # Extract databaseLabel from config.yml
     databaseLabel <- "Database"
 
     if (verbose) {
@@ -1077,8 +1057,7 @@ initAgentMode <- function(projectPath = here::here(), verbose = TRUE, reset = FA
         "Extracted metadata:",
         "  Repository: {repoName}",
         "  Study: {studyName}",
-        "  Project: {projectName}",
-        "  Tool Type: {toolType}"
+        "  Project: {projectName}"
       ))
     }
 
@@ -1089,7 +1068,6 @@ initAgentMode <- function(projectPath = here::here(), verbose = TRUE, reset = FA
       studyName = studyName,
       projectName = projectName,
       databaseLabel = databaseLabel,
-      toolType = toolType,
       repoName = repoName,
       verbose = verbose
     )
@@ -1201,7 +1179,9 @@ makeInputBuilderScript <- function(type,
     glue::glue(
       studyName = studyName,
       author = "ADD AUTHOR NAME HERE",
-      description = "Edit this file to build and load your manifest"
+      description = "Edit this file to build and load your manifest",
+      .open = "<<",
+      .close = ">>"
     )
   
   # Display message
@@ -1309,7 +1289,7 @@ makeDisseminationScript <- function(
 
   # Read and populate template
   disseminationTemplate <- readr::read_file(templatePath) |>
-    glue::glue(study_name = studyName)
+    glue::glue(study_name = studyName, .open = "<<", .close = ">>")
 
   # Display message
   txt <- glue::glue_col("Create {cyan {file_name}.R} in {yellow {fs::path_rel(diss_folder_path)}}")

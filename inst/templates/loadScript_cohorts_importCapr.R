@@ -2,9 +2,9 @@
 # File: importCapr.R
 # ================================================================================
 #
-# Study: {studyName}
-# Author: {author}
-# Purpose: {description}
+# Study: <<studyName>>
+# Author: <<author>>
+# Purpose: <<description>>
 #
 # This script allows you to build cohorts programmatically using Capr
 # and add them to the manifest using the manifest API.
@@ -31,8 +31,6 @@ library(picard)
 # A. LOAD OR INITIALIZE MANIFEST
 # ================================================================================
 
-# First time only: Initialize a new manifest (comment out after first run)
-# cohortManifest <- initCohortManifest()
 
 # Subsequent times: Load from existing SQLite database
 cohortManifest <- loadCohortManifest()

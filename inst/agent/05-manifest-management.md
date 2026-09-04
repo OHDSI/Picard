@@ -52,8 +52,8 @@ from SQLite at startup.
 | `category` | User classification (e.g., "Disease Populations") |
 | `cohort_type` | `circe`, `custom`, `custom_derived`, `union`, `subset`, `complement`, `composite`, `oprior`, `tprior`, `censor` |
 | `source_type` | `circe`, `sql`, `derived` |
-| `file_path` | Relative path to the SQL/JSON file on disk |
-| `hash` | MD5 of the file — used by `generateCohorts()` to skip unchanged cohorts |
+| `file_path` | Path to the SQL/JSON file, stored relative to the study repository root (e.g. `inputs/cohorts/json/mycohort.json`) |
+| `hash` | MD5 of the file **contents** — used by `generateCohorts()` to skip unchanged cohorts |
 | `depends_on` | JSON array of parent cohort IDs (derived cohorts only) |
 | `dependency_rule` | JSON object of build parameters (derived cohorts only) |
 | `status` | `active`, `stale`, `deleted`, or `purged` |
@@ -90,6 +90,43 @@ parent hashes plus the `dependency_rule` is used.
 **Stale cohorts** (`status = 'stale'`) bypass the hash check and are always
 re-executed. They are reset to `'active'` automatically after successful
 execution. See [Section 4](#mid-cycle-changes) for how cohorts become stale.
+
+### File paths and portability
+
+Cohort and concept-set file paths are stored **relative to the study repository
+root** — the directory that contains `config.yml`, `README.md`, `analysis/`,
+`inputs/` and `dissemination/`. `loadCohortManifest()` (and
+`loadConceptSetManifest()`) find that root with `findStudyProjectRoot()` and
+resolve every stored path against it, so:
+
+- a manifest loads the same way on any machine and for any collaborator,
+  regardless of the working directory they run R from — you do **not** need to
+  `setwd()` into the study repo first;
+- the `hash` column is always a hash of the file's **contents**, never of its
+  path, so moving between path conventions never changes a hash or marks a
+  cohort as changed.
+
+Manifests created with older picard versions may hold working-directory-relative
+or absolute paths. Those still load — a compatibility resolver tries the
+repo-root-relative location, then the manifest-folder-relative location, then the
+absolute path. To rewrite them to the current convention in one explicit pass:
+
+```r
+# Preview what would change
+normalizeCohortManifestPaths(dryRun = TRUE)
+
+# Apply — rewrites file_path only; hashes, status and timestamps are untouched
+normalizeCohortManifestPaths()
+
+# Concept-set equivalent
+normalizeConceptSetManifestPaths()
+```
+
+Rows whose file cannot be found are reported as `broken` and left unchanged.
+Ordinary `loadCohortManifest()` / `syncManifest()` calls never rewrite stored
+paths — normalization is always something you run deliberately. Note that
+`autoSync = FALSE` only turns off file/row reconciliation; it is unrelated to
+path resolution and is not a fix for a manifest that will not load.
 
 ---
 
@@ -155,6 +192,11 @@ When a base cohort's SQL/JSON file changes, `syncManifest()` will:
 1. Detect the hash difference and update the stored hash
 2. Walk the dependency graph and mark every downstream derived cohort as `'stale'`
 3. Report each staled cohort by name
+
+`syncManifest()` compares **file contents**, not paths. A row is only reported as
+`hash_updated` when the file itself changed — a manifest whose stored paths use
+an older convention (see [File paths and portability](#file-paths-and-portability))
+syncs cleanly with no spurious updates.
 
 Stale derived cohorts still have valid SQL — their parent data has changed but
 their build logic has not. They will be **re-executed automatically** the next
@@ -325,14 +367,60 @@ csm <- loadConceptSetManifest(autoSync = TRUE, verbose = TRUE)
 
 ### Cohort manifest
 
+#### Tabulating and Viewing Manifest Data
+
+The manifest provides two methods for viewing cohort metadata:
+
+**Interactive Viewing (Recommended for Exploration)**
+
 ```{r}
-# Full tabular view (all active cohorts)
-manifest$tabulateManifest()
+# Open an interactive RStudio viewer with streamlined metadata
+# Shows: id, label, category, tags, file_path
+manifest$viewManifest()
 
-# Filter to stale cohorts only
-manifest$tabulateManifest(filter = "stale")
+# Filter to specific status
+manifest$viewManifest(filter = "active")
+manifest$viewManifest(filter = "stale")
+manifest$viewManifest(filter = "deleted")
 
-# Stale cohorts with dependency context
+# Control tag format in the viewer:
+# - nested (default): tags as structured tibble with tag_name/tag_value
+# - json: tags as raw JSON string
+# - wide: tags expanded into individual columns
+manifest$viewManifest(tags_format = "nested")
+manifest$viewManifest(tags_format = "wide")  # Excel-like view
+```
+
+**Programmatic Tabulation (for pipelines/analysis)**
+
+```{r}
+# Full tabular view with all columns (id, label, category, tags, file_path, hash, source_type, cohort_type, status, depends_on, created_at, deleted_at)
+tbl <- manifest$tabulateManifest()
+
+# Filter by status
+stale_cohorts <- manifest$tabulateManifest(filter = "stale")
+deleted_cohorts <- manifest$tabulateManifest(filter = "deleted")
+all_cohorts <- manifest$tabulateManifest(filter = "all")
+
+# Control tag format
+# Option 1: nested (default) - tags as nested tibble with tag_name/tag_value pairs
+tbl_nested <- manifest$tabulateManifest(tags_format = "nested")
+# Access nested tags: tbl_nested$tags[[1]] returns a tibble of tag pairs
+
+# Option 2: json (backward compatible) - tags as raw JSON string
+tbl_json <- manifest$tabulateManifest(tags_format = "json")
+# Useful for APIs or custom tag parsing
+
+# Option 3: wide - tags expanded into individual columns
+# Creates one column per unique tag key across the manifest
+tbl_wide <- manifest$tabulateManifest(tags_format = "wide")
+# Columns like: id, label, category, file_path, hash, status, approval_status, domain, etc.
+```
+
+#### Other Cohort Review Methods
+
+```{r}
+# Stale cohorts (files changed since last execution, need regeneration)
 manifest$reviewStaleCohorts()
 
 # Derived cohorts only — with parent labels and rule summaries
@@ -347,19 +435,25 @@ plotCohortGraph(manifest)
 ```{r}
 csm <- loadConceptSetManifest(autoSync = TRUE, verbose = TRUE)
 
-# Tabular view of all concept sets
-csm$tabulateManifest()
+# Interactive view (recommended for exploring)
+csm$viewManifest()
+csm$viewManifest(tags_format = "wide")
+
+# Programmatic access with different tag formats
+tbl_nested <- csm$tabulateManifest(tags_format = "nested")  # default
+tbl_json <- csm$tabulateManifest(tags_format = "json")
+tbl_wide <- csm$tabulateManifest(tags_format = "wide")
 
 # Extract concept set member codes (standard concept IDs)
 csm$extractIncludedCodes(
-  conceptSetIds = c(1L, 2L, 3L)
+  outputFolder = here::here("inputs/conceptSets")
 )
 
 # Extract source codes mapped from concept set members
 # Useful for inspecting ICD-10, NDC, etc. coverage
 csm$extractSourceCodes(
-  conceptSetIds  = c(1L, 2L),
-  sourceVocabs   = c("ICD10CM", "ICD9CM")
+  sourceVocabs = c("ICD10CM", "ICD9CM"),
+  outputFolder = here::here("inputs/conceptSets")
 )
 ```
 

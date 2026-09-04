@@ -9,7 +9,8 @@ shouldRerunTask(
   configBlock,
   executionSettings,
   pipelineVersion,
-  tasksFolderPath = here::here("analysis/tasks")
+  tasksFolderPath = here::here("analysis/tasks"),
+  cohortManifestHash = NULL
 )
 }
 \arguments{
@@ -22,6 +23,11 @@ shouldRerunTask(
 \item{pipelineVersion}{Character. Current pipeline version (e.g., "1.0.0")}
 
 \item{tasksFolderPath}{Character. Path to tasks folder (default: here::here("analysis/tasks"))}
+
+\item{cohortManifestHash}{Character or NULL. A pre-computed cohort manifest
+hash (see \code{\link[=.getCohortManifestHash]{.getCohortManifestHash()}}). When NULL (default) it is computed
+here; callers that check many tasks in one run pass it in to avoid
+re-loading the manifest per task.}
 }
 \value{
 List with elements:
@@ -38,7 +44,11 @@ Determines whether a task needs to be rerun by checking:
 \enumerate{
 \item Task file modifications (file hash comparison)
 \item Dependency file modifications (extracted from source() calls)
-\item Cohort manifest changes (hash comparison)
+\item Cohort manifest changes — compares
+\link[=CohortManifest]{CohortManifest$getManifestHash()} against the hash
+recorded on the previous run. A rerun is forced when the hash differs,
+when no hash was recorded (first run, or a legacy history row), or when
+the current hash cannot be computed at all.
 \item Previous run errors (checked in logs and history)
 \item Version changes
 }

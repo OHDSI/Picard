@@ -133,6 +133,19 @@ formatFloats <- function(data, float_cols = NULL, decimal_places = 2, remove_tra
   return(data)
 }
 
+# Coerce a single column to a target type. Unknown types are returned
+# untouched so an unrecognised rule is a no-op rather than an error.
+coerce_column <- function(x, target_type) {
+  switch(target_type,
+    integer = as.integer(x),
+    numeric = as.numeric(x),
+    character = as.character(x),
+    logical = as.logical(x),
+    date = as.Date(x),
+    x
+  )
+}
+
 #' Standardize Data Types
 #' @description Standardizes data types across columns based on common patterns
 #'   (e.g., columns ending in "_id" become integers, columns with "date" become dates).
@@ -149,6 +162,10 @@ formatFloats <- function(data, float_cols = NULL, decimal_places = 2, remove_tra
 #' - Columns named "*_date": convert to date (ISO format assumed)
 #' - Columns named "*_count": convert to integer
 #' - Columns containing "flag" or "indicator": convert to logical
+#'
+#' A conversion is only applied if it preserves every non-missing value. A
+#' column that matches a rule but cannot be coerced without introducing `NA`
+#' (for example a character `database_id`) is left as-is and reported.
 #'
 standardizeDataTypes <- function(data, type_rules = NULL) {
   checkmate::assert_data_frame(data)
@@ -170,21 +187,29 @@ standardizeDataTypes <- function(data, type_rules = NULL) {
       matching_cols <- colnames(data)[grepl(pattern, tolower(colnames(data)))]
 
       for (col in matching_cols) {
-        tryCatch({
-          if (target_type == "integer") {
-            data[[col]] <- as.integer(data[[col]])
-          } else if (target_type == "date") {
-            data[[col]] <- as.Date(data[[col]])
-          } else if (target_type == "logical") {
-            data[[col]] <- as.logical(data[[col]])
-          } else if (target_type == "character") {
-            data[[col]] <- as.character(data[[col]])
-          } else if (target_type == "numeric") {
-            data[[col]] <- as.numeric(data[[col]])
+        converted <- tryCatch(
+          suppressWarnings(coerce_column(data[[col]], target_type)),
+          error = function(e) {
+            cli::cli_alert_info("Could not convert {col} to {target_type}: {e$message}")
+            NULL
           }
-        }, error = function(e) {
-          cli::cli_alert_info("Could not convert {col} to {target_type}: {e$message}")
-        })
+        )
+
+        if (is.null(converted)) {
+          next
+        }
+
+        # A coercion that turns real values into NA is data loss, not
+        # standardization: databaseId becomes database_id upstream and matches
+        # "_id$", but holds names like "db_alpha" that have no integer form.
+        if (anyNA(converted[!is.na(data[[col]])])) {
+          cli::cli_alert_info(
+            "Skipping {col}: converting to {target_type} would discard values"
+          )
+          next
+        }
+
+        data[[col]] <- converted
       }
     }
   }
@@ -271,7 +296,7 @@ prepareDisseminationData <- function(
 
   checkmate::assert_data_frame(data)
   checkmate::assert_logical(c(clean_names, format_percentages, format_floats, standardize_types),
-    len = 1, any.missing = FALSE
+    len = 4, any.missing = FALSE
   )
 
   cli::cli_rule("Prepare Dissemination Data")

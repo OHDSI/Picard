@@ -10,7 +10,8 @@ runPostProcessing(
   resultsPath = here::here("exec/results"),
   exportPath = here::here("dissemination/export/merge"),
   cohortsFolderPath = here::here("inputs/cohorts"),
-  testMode = NULL
+  testMode = NULL,
+  compress = FALSE
 )
 }
 \arguments{
@@ -31,6 +32,15 @@ generates a cohortManifestSnapshot.csv reference file.}
 warnings) and qcStatus is set to "DevMode". When NULL (default), testMode is
 automatically set to TRUE for non-semver pipeline versions (e.g. "dev", "test")
 and FALSE for semantic versions (e.g. "1.0.0").}
+
+\item{compress}{Logical. If TRUE, merged per-task result files are written as
+gzip-compressed \code{.csv.gz} instead of plain \code{.csv} (passed through to
+\code{\link{importAndBind}}). Reference/QC files (databaseInfo.csv,
+cohortManifestSnapshot.csv, schema_review.csv, qc_*.csv) are always plain
+\code{.csv} regardless of this setting, since only merged results tend to get
+large. \code{readr::read_csv()}/\code{spec_csv()} read \code{.csv.gz} files
+transparently, so downstream code only needs to know a file may end in
+\code{.gz} when \code{compress = TRUE} was used to produce it. Default: FALSE.}
 }
 \value{
 Data frame summarizing all merged tasks with columns:

@@ -26,7 +26,7 @@
     
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.6</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.7</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -169,6 +169,41 @@ development versions</li>
 <p>By default, test mode is auto-enabled for non-semver version
 strings.</p>
 </div>
+<div class="section level3">
+<h3 id="compressing-large-merged-results">Compressing Large Merged Results<a class="anchor" aria-label="anchor" href="#compressing-large-merged-results"></a>
+</h3>
+<p>Merged results can get large once every database’s rows for a task
+are combined. Pass <code>compress = TRUE</code> to write the merged
+per-task result files as gzip-compressed <code>.csv.gz</code> instead of
+plain <code>.csv</code>:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/runPostProcessing.html">runPostProcessing</a></span><span class="op">(</span></span>
+<span>  pipelineVersion <span class="op">=</span> <span class="st">"1.0.0"</span>,</span>
+<span>  dbIds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"database_1"</span>, <span class="st">"database_2"</span><span class="op">)</span>,</span>
+<span>  compress <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<ul>
+<li>
+<code><a href="https://readr.tidyverse.org/reference/write_delim.html" class="external-link">readr::write_csv()</a></code> gzips automatically when the
+filename ends in <code>.csv.gz</code>, and
+<code><a href="https://readr.tidyverse.org/reference/read_delim.html" class="external-link">readr::read_csv()</a></code>/<code><a href="https://readr.tidyverse.org/reference/spec_delim.html" class="external-link">spec_csv()</a></code> read
+<code>.csv.gz</code> files transparently on the way back in — no special
+handling needed to consume them, including in
+<code><a href="../reference/reviewExportSchema.html">reviewExportSchema()</a></code> and
+<code><a href="../reference/validateCohortResults.html">validateCohortResults()</a></code>.</li>
+<li>Only the merged per-task result files are affected. Reference/QC
+files (<code>cohortManifestSnapshot.csv</code>,
+<code>databaseInfo.csv</code>, <code>schema_review.csv</code>,
+<code>qc_cohortValidation.csv</code>, <code>qc_processMeta.csv</code>)
+are always written as plain <code>.csv</code>, since those tend to stay
+small.</li>
+<li>Any script that reads a merged result file directly (e.g. a
+dissemination script) needs to account for the <code>.csv.gz</code>
+extension when <code>compress = TRUE</code> was used — either check for
+both extensions, or note in your own documentation which convention this
+study uses.</li>
+</ul>
+</div>
 </div>
 <div class="section level2">
 <h2 id="output-folder-structure">Output Folder Structure<a class="anchor" aria-label="anchor" href="#output-folder-structure"></a>
@@ -254,7 +289,7 @@ Status</strong> (OK, HasWarnings, DevMode)</p>
 </h2>
 <p>After results are merged, format them for dissemination using
 numbered scripts in <code>dissemination/pretty/R/</code>:</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Create a new dissemination script</span></span>
 <span><span class="fu"><a href="../reference/makeDisseminationScript.html">makeDisseminationScript</a></span><span class="op">(</span></span>
 <span>  name <span class="op">=</span> <span class="st">"format_results"</span>,</span>
@@ -275,9 +310,27 @@ containing:</p>
 <code>resultsPath</code> — Merged results folder path</li>
 </ul>
 <div class="section level3">
+<h3 id="testing-a-script-interactively">Testing a Script Interactively<a class="anchor" aria-label="anchor" href="#testing-a-script-interactively"></a>
+</h3>
+<p><code>disseminationEnv</code> is created for you when
+<code><a href="../reference/sourceDisseminationScripts.html">sourceDisseminationScripts()</a></code> runs, so it does not exist at
+the console while you are still writing the script. Build the same
+object yourself with <code><a href="../reference/createDisseminationEnv.html">createDisseminationEnv()</a></code> so you can
+run the script line by line:</p>
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">disseminationEnv</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/createDisseminationEnv.html">createDisseminationEnv</a></span><span class="op">(</span></span>
+<span>  projectPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  pipelineVersion <span class="op">=</span> <span class="st">"1.0.0"</span>,</span>
+<span>  databaseIds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"database_1"</span>, <span class="st">"database_2"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p><code>pipelineVersion</code> is auto-detected from
+<code>config.yml</code> when omitted. The returned object is identical
+to the one injected by <code><a href="../reference/sourceDisseminationScripts.html">sourceDisseminationScripts()</a></code>.</p>
+</div>
+<div class="section level3">
 <h3 id="example-dissemination-script">Example Dissemination Script<a class="anchor" aria-label="anchor" href="#example-dissemination-script"></a>
 </h3>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Access metadata from disseminationEnv</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Pipeline version:"</span>, <span class="va">disseminationEnv</span><span class="op">$</span><span class="va">pipelineVersion</span>, <span class="st">"\n"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Databases:"</span>, <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste</a></span><span class="op">(</span><span class="va">disseminationEnv</span><span class="op">$</span><span class="va">databaseIds</span>, collapse <span class="op">=</span> <span class="st">", "</span><span class="op">)</span>, <span class="st">"\n"</span><span class="op">)</span></span>
@@ -298,7 +351,7 @@ containing:</p>
 <h3 id="run-dissemination-scripts">Run Dissemination Scripts<a class="anchor" aria-label="anchor" href="#run-dissemination-scripts"></a>
 </h3>
 <p>After creating scripts, source them all:</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/sourceDisseminationScripts.html">sourceDisseminationScripts</a></span><span class="op">(</span></span>
 <span>  projectPath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  pipelineVersion <span class="op">=</span> <span class="st">"1.0.0"</span>,</span>
@@ -314,7 +367,7 @@ order.</p>
 <h2 id="integration-into-main-r">Integration into main.R<a class="anchor" aria-label="anchor" href="#integration-into-main-r"></a>
 </h2>
 <p>The typical workflow in <code>main.R</code>:</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Phase 2: Execute pipeline</span></span>
 <span><span class="fu"><a href="../reference/execStudyPipeline.html">execStudyPipeline</a></span><span class="op">(</span>pipelineVersion <span class="op">=</span> <span class="st">"1.0.0"</span>, <span class="va">...</span><span class="op">)</span></span>
 <span></span>
@@ -339,7 +392,7 @@ order.</p>
 </h2>
 <p>If you need to merge results for a specific task only, use
 <code><a href="../reference/importAndBind.html">importAndBind()</a></code>:</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ohdsi.github.io/Picard/">picard</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Merge just the descriptive statistics task across all databases</span></span>
@@ -357,7 +410,7 @@ a <code>databaseId</code> column to identify the source.</p>
 <h2 id="advanced-schema-review">Advanced: Schema Review<a class="anchor" aria-label="anchor" href="#advanced-schema-review"></a>
 </h2>
 <p>To examine file structure without full orchestration:</p>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ohdsi.github.io/Picard/">picard</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Review schema of exported files</span></span>
@@ -372,7 +425,7 @@ a <code>databaseId</code> column to identify the source.</p>
 <h2 id="advanced-cohort-validation">Advanced: Cohort Validation<a class="anchor" aria-label="anchor" href="#advanced-cohort-validation"></a>
 </h2>
 <p>To validate cohort results independently:</p>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ohdsi.github.io/Picard/">picard</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Validate cohorts in exported results</span></span>
@@ -431,7 +484,7 @@ concept set setup</li>
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Developed by Martin Lavallee.</p>
+  <p>Developed by Martin Lavallee, Katy Sadowski.</p>
 </div>
 
 <div class="pkgdown-footer-right">

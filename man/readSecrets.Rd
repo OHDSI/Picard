@@ -16,7 +16,7 @@ A named list of server credential blocks.
 }
 \description{
 Reads a secrets.yml file using \code{yaml::read_yaml} with \code{eval.expr = FALSE},
-so \code{!expr} tags are preserved as raw strings for \code{\link[=resolveSecretValue]{resolveSecretValue()}} to
+so \code{!expr} tags are preserved as raw strings for to
 evaluate later. Returns a named list keyed by dbServer names (plus optional
 \code{atlas} key).
 }

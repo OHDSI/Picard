@@ -88,11 +88,14 @@ Requires that executionSettings has been set and includes:
 \itemize{
 \item \href{#method-CohortManifest-new}{\code{CohortManifest$new()}}
 \item \href{#method-CohortManifest-getManifest}{\code{CohortManifest$getManifest()}}
+\item \href{#method-CohortManifest-getManifestHash}{\code{CohortManifest$getManifestHash()}}
 \item \href{#method-CohortManifest-reviewDependentCohorts}{\code{CohortManifest$reviewDependentCohorts()}}
 \item \href{#method-CohortManifest-tabulateManifest}{\code{CohortManifest$tabulateManifest()}}
+\item \href{#method-CohortManifest-viewManifest}{\code{CohortManifest$viewManifest()}}
 \item \href{#method-CohortManifest-reviewStaleCohorts}{\code{CohortManifest$reviewStaleCohorts()}}
 \item \href{#method-CohortManifest-reloadFromDb}{\code{CohortManifest$reloadFromDb()}}
 \item \href{#method-CohortManifest-getDbPath}{\code{CohortManifest$getDbPath()}}
+\item \href{#method-CohortManifest-getProjectRoot}{\code{CohortManifest$getProjectRoot()}}
 \item \href{#method-CohortManifest-getExecutionSettings}{\code{CohortManifest$getExecutionSettings()}}
 \item \href{#method-CohortManifest-setExecutionSettings}{\code{CohortManifest$setExecutionSettings()}}
 \item \href{#method-CohortManifest-getAtlasConnection}{\code{CohortManifest$getAtlasConnection()}}
@@ -163,14 +166,23 @@ Requires that executionSettings has been set and includes:
 \subsection{Method \code{new()}}{
 Initialize a new CohortManifest
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$new(dbPath = "inputs/cohorts/cohortManifest.sqlite")}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$new(
+  dbPath = "inputs/cohorts/cohortManifest.sqlite",
+  projectRoot = NULL
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
 \item{\code{dbPath}}{Character. Path to the SQLite database. Defaults to
-"inputs/cohorts/cohortManifest.sqlite"
+"inputs/cohorts/cohortManifest.sqlite"}
+
+\item{\code{projectRoot}}{Character or NULL. Study repository root against which
+stored file paths are resolved. When \code{NULL} (default) the root is
+discovered once via \code{\link[=findStudyProjectRoot]{findStudyProjectRoot()}} from the manifest's
+directory and cached for the life of the object. Supply an explicit
+path for tests or unusual layouts.
 Get the manifest as a list of CohortDef objects}
 }
 \if{html}{\out{</div>}}
@@ -186,6 +198,39 @@ Get the manifest as a list of CohortDef objects}
 
 \subsection{Returns}{
 List. A list of CohortDef objects in the manifest, indexed by cohort ID.
+Compute a deterministic hash of every cohort definition in the manifest
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-getManifestHash"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-getManifestHash}{}}}
+\subsection{Method \code{getManifestHash()}}{
+Produces a single SHA256 string over the \emph{definition} of every active or
+stale cohort, used by the study pipeline (via \code{\link[=shouldRerunTask]{shouldRerunTask()}}) to
+decide whether cohort changes force affected tasks to rerun.
+
+For each cohort, ordered by id, the hash combines:
+\itemize{
+\item \code{id}, \code{cohort_type}, \code{source_type}
+\item \code{depends_on} and \code{dependency_rule} (normalized JSON)
+\item the rendered-SQL hash (\code{CohortDef$getSqlHash()}) of the
+loaded cohort, or the sentinel \code{"<missing>"} when the cohort
+file is absent from disk
+}
+
+The rendered SQL — not the raw file bytes — is what executes against the
+CDM, so a cosmetic reformat of a cohort's JSON that renders to identical
+SQL does not move the hash, while any change to the executed SQL does.
+Cosmetic metadata (\code{label}, \code{category}, \code{tags}) is
+deliberately excluded: renaming or retagging a cohort does not change the
+analysis.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$getManifestHash()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Character. A SHA256 hash string. An empty manifest hashes to a
+stable constant.
 Review dependent cohorts and their dependency metadata
 }
 }
@@ -210,6 +255,7 @@ A tibble with columns:
 'oprior', 'tprior', 'censor', 'custom_derived'
 \item \code{parent_cohorts} - Human-readable parent list, e.g. "Label A (1), Label B (2)"
 \item \code{rule_summary} - Compact summary of the dependency rule parameters
+\item \code{status} - 'active', or 'stale' when the cohort awaits regeneration
 \item \code{created_at} - Timestamp of creation
 }
 }
@@ -218,24 +264,71 @@ A tibble with columns:
 \if{html}{\out{<a id="method-CohortManifest-tabulateManifest"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-tabulateManifest}{}}}
 \subsection{Method \code{tabulateManifest()}}{
-Tabulate the manifest as a tibble
+Tabulate the cohort manifest
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$tabulateManifest(
-  filter = c("active", "deleted", "stale", "all")
+  filter = c("active", "deleted", "stale", "all"),
+  tags_format = c("nested", "json", "wide")
 )}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{filter}}{Character. Controls which rows are returned. One of
-\code{"active"} (default), \code{"deleted"}, or \code{"all"}.}
+\item{\code{filter}}{Character. One of "active", "deleted", "stale", or "all".
+Defaults to "active".
+
+\code{"active"} returns every cohort registered in the study — both
+\code{'active'} and \code{'stale'} rows. \code{'stale'} is a \emph{freshness}
+marker (the definition changed since it was last generated in the
+database), not a lifecycle state: a stale cohort is still a full member
+of the study and is regenerated by the next \code{generateCohorts()}
+run. Use \code{filter = "stale"} to see just those, or read the
+\code{status} column of the returned tibble.}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested" (default): Parse JSON tags into a nested tibble with tag_name/tag_value columns
+\item "json": Keep tags as raw JSON string
+\item "wide": Expand tags into individual columns (one per unique tag key)
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-A tibble with columns: id, label, category, tags, file_path, hash,
-source_type, cohort_type, status, depends_on, created_at, deleted_at
+Tibble with cohort manifest data. Tags format depends on tags_format parameter.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-viewManifest"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-viewManifest}{}}}
+\subsection{Method \code{viewManifest()}}{
+View the cohort manifest in RStudio viewer
+
+Opens an interactive RStudio viewer showing key cohort metadata:
+id, label, category, tags, status, and file_path. This is a convenience
+function for exploring manifest contents without console clutter.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$viewManifest(
+  filter = c("active", "deleted", "stale", "all"),
+  tagDelimiter = " | "
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{filter}}{Character. One of "active", "deleted", "stale", or "all".
+Defaults to "active", which shows every registered cohort — including
+ones marked \code{'stale'} (pending regeneration). See
+\code{tabulateManifest()} for the full filter semantics.}
+
+\item{\code{tagDelimiter}}{a character used to seperate tags in the view. Default is |}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisibly returns the tibble displayed in the viewer.
 Review stale derived cohorts
 }
 }
@@ -243,10 +336,12 @@ Review stale derived cohorts
 \if{html}{\out{<a id="method-CohortManifest-reviewStaleCohorts"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-reviewStaleCohorts}{}}}
 \subsection{Method \code{reviewStaleCohorts()}}{
-Returns a summary of all cohorts currently marked \code{'stale'} — meaning a parent
-cohort's SQL file has changed since the derived cohort was last executed. Stale cohorts
-are still valid SQL; they just need to be re-executed. \code{executeCohortGeneration()}
-will run them automatically regardless of checksum state.
+Returns a summary of all cohorts currently marked \code{'stale'} — meaning the
+cohort's own definition, or that of a parent it is built on, has changed since it
+was last executed. Stale cohorts are still fully registered members of the study
+(they appear in \code{tabulateManifest()} and the query methods) and are still
+valid SQL; they just need to be re-executed. \code{executeCohortGeneration()}
+will run them automatically regardless of checksum state, and clear the flag.
 
 Use \code{resetCohortManifest(scope = "derived")} followed by re-running your build
 script if you need to change build parameters rather than just re-execute.
@@ -286,6 +381,20 @@ Get the manifest path
 
 \subsection{Returns}{
 Character. The path to the SQLite database.
+Get the study repository root
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-getProjectRoot"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-getProjectRoot}{}}}
+\subsection{Method \code{getProjectRoot()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$getProjectRoot()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Character. The cached study repository root used to resolve
+stored file paths.
 Get the execution settings
 }
 }
@@ -410,13 +519,19 @@ Batch-import cohorts from ATLAS via a cohortsLoad dataframe
 Either create a dataframe or read in a csv file with columns \code{atlasId}, \code{label}, \code{category} (required) plus any
 additional columns treated as tag key-value pairs for tags. Calls \code{addAtlasCohort()} for each row.
 
-The load file is a transient, one-time import mechanism: rows whose
-atlasId or label are already registered in the manifest are an error, not
-an update. To sync registered cohorts with ATLAS, run
-\code{updateAtlasCohorts()}; to update a single cohort, use
-\code{addAtlasCohort(stopIfExists = FALSE)}.
+By default, the load file is treated as a transient, one-time import
+mechanism: rows whose atlasId is already registered in the manifest are
+an error, not an update. Set \code{stopIfExists = FALSE} to instead update
+those rows in place (delegates to \code{addAtlasCohort(stopIfExists = FALSE)}
+for each), which supports iterating on the load file across repeated
+runs. To sync registered cohorts with ATLAS without a load file, use
+\code{updateAtlasCohorts()}.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$importAtlasCohorts(cohortsLoad, atlasConnection = NULL)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$importAtlasCohorts(
+  cohortsLoad,
+  atlasConnection = NULL,
+  stopIfExists = TRUE
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -426,6 +541,12 @@ an update. To sync registered cohorts with ATLAS, run
 
 \item{\code{atlasConnection}}{An ATLAS connection object with a \code{getCohortDefinition(cohortId)} method.
 If \code{NULL}, falls back to the connection stored via \verb{$setAtlasConnection()}.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when any
+load row's atlasId is already registered in the manifest. If FALSE,
+those rows are updated in place instead (same ID/file path, hash
+refreshed, category/tags replaced) via \code{addAtlasCohort(stopIfExists = FALSE)}.
+Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -553,16 +674,24 @@ Invisible integer. The assigned cohort ID.
 \subsection{Method \code{addDependentCustomCohort()}}{
 Add a dependent custom SQL cohort
 
-Registers an existing SQL file in the manifest as a dependency-aware derived cohort.
-The SQL file must already exist on disk and must preserve the standard Picard
-cohort write contract using \.code{@target_database_schema.@target_cohort_table}
-and \.code{@target_cohort_id}.
+Registers a SQL file in the manifest as a dependency-aware derived cohort.
+The source SQL file must preserve the standard Picard cohort write contract
+using \.code{@target_database_schema.@target_cohort_table} and
+\.code{@target_cohort_id}.
+
+\code{dependentCohortIdList} and \code{sqlParameters} values are rendered into the
+source SQL immediately (via \.code{SqlRender::render()}) and the result is
+written to \.code{inputs/cohorts/derived/\if{html}{\out{<label>}}.sql} — the file registered
+in the manifest — exactly like the built-in derived cohort types (subset,
+union, etc.). Only the connection/schema placeholders (\.code{@target_cohort_id}
+and friends) are left for \.code{generateCohorts()} to fill in at execution time.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$addDependentCustomCohort(
   filePath,
   label,
   category,
   dependentCohortIdList,
+  sqlParameters = list(),
   tags = list(),
   stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
@@ -571,26 +700,37 @@ and \.code{@target_cohort_id}.
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{filePath}}{Character. Path to the SQL file.}
+\item{\code{filePath}}{Character. Path to the source SQL file/template.}
 
 \item{\code{label}}{Character. Display name for the cohort.}
 
 \item{\code{category}}{Character. Required classification.}
 
-\item{\code{dependentCohortIdList}}{Named list. Each name is a SqlRender parameter to expose
-in the SQL file and each value is the cohort ID — or an integer vector of
-cohort IDs — to inject at runtime. Vectors render comma-separated, for use
-in \.code{IN (@param)} clauses.
-Example: \.code{list(inc_cohort_id = 10L, exc_cohort_ids = c(12L, 14L))}.}
+\item{\code{dependentCohortIdList}}{Named list. Each name is a SqlRender parameter to
+render into the SQL file. Each value is, preferably, a manifest entry —
+a data.frame/tibble with an \.code{id} column, as returned by query methods
+like \.code{queryCohortsByLabel()} (a single row bakes in one ID; a multi-row
+table bakes in a comma-separated vector, for \.code{IN (@param)} clauses) —
+or, for backward compatibility, a raw integer cohort ID (or integer vector).
+These IDs also become this cohort's \.code{depends_on} parents for staleness
+tracking. When entries carry a \.code{label} column, it's included (purely
+for QC) in a generated comment header at the top of the derived SQL file.
+Example: \.code{list(inc_cohort_id = ckdEntry, exc_cohort_id = t2dEntry)}.}
+
+\item{\code{sqlParameters}}{Named list. Optional additional SqlRender parameters to
+render into the SQL file (any type — thresholds, dates, strings, etc.),
+not treated as cohort dependencies.
+Example: \.code{list(min_days = 30L, index_year = 2020L)}.}
 
 \item{\code{tags}}{Named list. Optional metadata tags.}
 
 \item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
 active or stale cohort with this label is already registered. If FALSE,
 updates the registered cohort in place (same ID): the dependent cohort
-IDs and the SQL file registration (path and content hash) are replaced,
-the cohort is marked 'stale' for regeneration, and its own dependents
-are marked stale too. Default: TRUE (fail-safe).}
+IDs/sqlParameters are re-rendered into the generated file, and — only if
+that actually changes the definition — the cohort is marked 'stale' for
+regeneration along with its own dependents. Re-running with unchanged
+inputs leaves the cohort exactly as it was. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -698,8 +838,9 @@ Default: 0.}
 active or stale cohort with this label is already registered. If FALSE,
 updates the registered derived cohort in place (same ID and file path):
 the SQL is re-rendered, parents and build parameters are replaced, the
-cohort is marked 'stale' for regeneration, and its own dependents are
-marked stale too. Default: TRUE (fail-safe).}
+cohort is marked 'stale' for regeneration (and its own dependents with it)
+only when the definition actually changed — re-running with unchanged
+inputs is a no-op. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -775,8 +916,9 @@ qualifying events. Default: 'First'.}
 active or stale cohort with this label is already registered. If FALSE,
 updates the registered derived cohort in place (same ID and file path):
 the SQL is re-rendered, parents and build parameters are replaced, the
-cohort is marked 'stale' for regeneration, and its own dependents are
-marked stale too. Default: TRUE (fail-safe).}
+cohort is marked 'stale' for regeneration (and its own dependents with it)
+only when the definition actually changed — re-running with unchanged
+inputs is a no-op. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -842,8 +984,9 @@ in ALL exclude cohorts.}
 active or stale cohort with this label is already registered. If FALSE,
 updates the registered derived cohort in place (same ID and file path):
 the SQL is re-rendered, parents and build parameters are replaced, the
-cohort is marked 'stale' for regeneration, and its own dependents are
-marked stale too. Default: TRUE (fail-safe).}
+cohort is marked 'stale' for regeneration (and its own dependents with it)
+only when the definition actually changed — re-running with unchanged
+inputs is a no-op. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -910,8 +1053,9 @@ to qualify for the composite. Default: 1 (any subject with at least 1 event qual
 active or stale cohort with this label is already registered. If FALSE,
 updates the registered derived cohort in place (same ID and file path):
 the SQL is re-rendered, parents and build parameters are replaced, the
-cohort is marked 'stale' for regeneration, and its own dependents are
-marked stale too. Default: TRUE (fail-safe).}
+cohort is marked 'stale' for regeneration (and its own dependents with it)
+only when the definition actually changed — re-running with unchanged
+inputs is a no-op. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -979,8 +1123,9 @@ Common values: 8507 = Male, 8532 = Female. Default: NULL (all genders).}
 active or stale cohort with this label is already registered. If FALSE,
 updates the registered derived cohort in place (same ID and file path):
 the SQL is re-rendered, parents and build parameters are replaced, the
-cohort is marked 'stale' for regeneration, and its own dependents are
-marked stale too. Default: TRUE (fail-safe).}
+cohort is marked 'stale' for regeneration (and its own dependents with it)
+only when the definition actually changed — re-running with unchanged
+inputs is a no-op. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -1049,18 +1194,29 @@ Query cohorts by IDs
 \if{latex}{\out{\hypertarget{method-CohortManifest-queryCohortsByIds}{}}}
 \subsection{Method \code{queryCohortsByIds()}}{
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsByIds(ids)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsByIds(
+  ids,
+  tags_format = c("nested", "json", "wide")
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
 \item{\code{ids}}{Integer vector. One or more cohort IDs.}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+\item "json": Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Data frame. A subset of the manifest with columns id, label, tags, filePath, hash, timestamp for matching cohorts, or NULL if none found.
+Tibble with matching cohorts. Tag columns depend on
+\code{tags_format}. Returns NULL if no matches are found.
 Query cohorts by tag
 }
 }
@@ -1069,7 +1225,11 @@ Query cohorts by tag
 \if{latex}{\out{\hypertarget{method-CohortManifest-queryCohortsByTag}{}}}
 \subsection{Method \code{queryCohortsByTag()}}{
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsByTag(tagStrings, match = c("any", "all"))}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsByTag(
+  tagStrings,
+  match = c("any", "all"),
+  tags_format = c("nested", "json", "wide")
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -1081,11 +1241,19 @@ argument controls whether a cohort must satisfy any or all of them.}
 
 \item{\code{match}}{Character. "any" (default) returns cohorts matching at least one tag;
 "all" returns only cohorts matching every tag.}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+\item "json": Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
+Tibble with matching cohorts. Tag columns depend on
+\code{tags_format}. Returns NULL if no matches are found.
 Query cohorts by label
 }
 }
@@ -1094,7 +1262,11 @@ Query cohorts by label
 \if{latex}{\out{\hypertarget{method-CohortManifest-queryCohortsByLabel}{}}}
 \subsection{Method \code{queryCohortsByLabel()}}{
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsByLabel(labels, matchType = c("exact", "pattern"))}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsByLabel(
+  labels,
+  matchType = c("exact", "pattern"),
+  tags_format = c("nested", "json", "wide")
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -1105,12 +1277,20 @@ A cohort is included when it matches at least one of the supplied labels (OR log
 
 \item{\code{matchType}}{Character. Either "exact" for exact match or "pattern" for pattern matching.
 Defaults to "exact".}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+\item "json": Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
-Query cohorts by category
+Tibble with matching cohorts. Tag columns depend on
+\code{tags_format}. Returns NULL if no matches are found.
+Query cohorts by tag name
 }
 }
 \if{html}{\out{<hr>}}
@@ -1120,7 +1300,8 @@ Query cohorts by category
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsByCategory(
   category,
-  matchType = c("exact", "pattern")
+  matchType = c("exact", "pattern"),
+  tags_format = c("nested", "json", "wide")
 )}\if{html}{\out{</div>}}
 }
 
@@ -1132,11 +1313,19 @@ A cohort is included when it matches at least one of the supplied category (OR l
 
 \item{\code{matchType}}{Character. Either "exact" for exact match or "pattern" for pattern matching.
 Defaults to "exact".}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+\item "json": Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
+Tibble with matching cohorts. Tag columns depend on
+\code{tags_format}. Returns NULL if no matches are found.
 Query cohorts by category
 }
 }
@@ -1145,18 +1334,29 @@ Query cohorts by category
 \if{latex}{\out{\hypertarget{method-CohortManifest-queryCohortsByTagName}{}}}
 \subsection{Method \code{queryCohortsByTagName()}}{
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsByTagName(tagName)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsByTagName(
+  tagName,
+  tags_format = c("nested", "json", "wide")
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{tagName}}{Character vector. The name of tags to query}
+\item{\code{tagName}}{Character vector. The name of tags to query.}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+\item "json": Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
+Tibble with matching cohorts. Tag columns depend on
+\code{tags_format}. Returns NULL if no matches are found.
 }
 }
 \if{html}{\out{<hr>}}
@@ -1165,19 +1365,29 @@ Tibble with columns: id, label, category, tags, file_path, hash, source_type, cr
 \subsection{Method \code{queryCohortsMissingTag()}}{
 Query cohorts missing a specific tag
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsMissingTag(tagName)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsMissingTag(
+  tagName,
+  tags_format = c("nested", "json", "wide")
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
 \item{\code{tagName}}{Character. The name of the tag to check for absence.}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+\item "json": Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
-Returns NULL if all cohorts have the tag.
+Tibble with matching cohorts. Tag columns depend on
+\code{tags_format}. Returns NULL if all cohorts have the tag.
 }
 }
 \if{html}{\out{<hr>}}
@@ -1186,7 +1396,10 @@ Returns NULL if all cohorts have the tag.
 \subsection{Method \code{queryCohortsWithTagValues()}}{
 Query cohorts by tag value mapping
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsWithTagValues(tagValueMapping)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$queryCohortsWithTagValues(
+  tagValueMapping,
+  tags_format = c("nested", "json", "wide")
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -1194,12 +1407,19 @@ Query cohorts by tag value mapping
 \describe{
 \item{\code{tagValueMapping}}{Named list. Keys are tag names, values are tag values to match.
 Example: \code{list(status = "approved", type = "primary")} requires both conditions (AND logic).}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+\item "json": Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
-Returns NULL if no cohorts match all tag conditions.
+Tibble with matching cohorts. Tag columns depend on
+\code{tags_format}. Returns NULL if no cohorts match all tag conditions.
 }
 }
 \if{html}{\out{<hr>}}
@@ -1632,8 +1852,10 @@ invisible of the tibble of atlas changes to update
 \subsection{Method \code{statusReport()}}{
 Generate a status report for the manifest
 
-Prints a summary table showing all active cohorts with their dependencies
-and source types. Useful for auditing the manifest structure.
+Prints a summary table showing all registered cohorts with their
+dependencies and source types. Cohorts marked \code{'stale'} (pending
+regeneration) are included — the \code{status} column tells them apart.
+Useful for auditing the manifest structure.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$statusReport()}\if{html}{\out{</div>}}
 }
@@ -1762,6 +1984,14 @@ along with their derived dependents (which cannot generate without the parent).
 }
 Only the \code{json/} and \code{sql/} source directories are scanned — derived cohorts
 managed via \code{build*()} methods are not touched.
+
+Stored file paths are resolved against the study repository root before
+any disk comparison, and hashes are computed from file contents only, so a
+row is reported as \code{"hash_updated"} only when the file's contents
+actually changed — never because its stored path used an older convention.
+To rewrite legacy stored paths to the current repo-root-relative form, run
+\code{normalizeCohortManifestPaths()} once; \code{syncManifest()} does not
+do this.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$syncManifest(strict_mode = TRUE)}\if{html}{\out{</div>}}
 }
@@ -1886,7 +2116,8 @@ Get summary status of manifest
 }
 
 \subsection{Returns}{
-List with elements: active_count, missing_count, deleted_count, next_available_id
+List with elements: active_count (registered cohorts, including
+stale ones), stale_count, missing_count, deleted_count, next_available_id
 }
 }
 \if{html}{\out{<hr>}}
@@ -2014,8 +2245,9 @@ Preferred route using manifest query results for the target cohort.}
 active or stale cohort with this label is already registered. If FALSE,
 updates the registered derived cohort in place (same ID and file path):
 the SQL is re-rendered, parents and build parameters are replaced, the
-cohort is marked 'stale' for regeneration, and its own dependents are
-marked stale too. Default: TRUE (fail-safe).}
+cohort is marked 'stale' for regeneration (and its own dependents with it)
+only when the definition actually changed — re-running with unchanged
+inputs is a no-op. Default: TRUE (fail-safe).}
 
 \item{\code{keep_trace}}{Logical. If TRUE, marks missing as deleted with timestamp (soft delete).
 If FALSE, permanently removes from database (hard delete). Defaults to TRUE.}
@@ -2106,8 +2338,9 @@ Preferred route using manifest query results for the outcome cohort.}
 active or stale cohort with this label is already registered. If FALSE,
 updates the registered derived cohort in place (same ID and file path):
 the SQL is re-rendered, parents and build parameters are replaced, the
-cohort is marked 'stale' for regeneration, and its own dependents are
-marked stale too. Default: TRUE (fail-safe).}
+cohort is marked 'stale' for regeneration (and its own dependents with it)
+only when the definition actually changed — re-running with unchanged
+inputs is a no-op. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -2174,8 +2407,9 @@ Preferred route using manifest query results for the censor cohort.}
 active or stale cohort with this label is already registered. If FALSE,
 updates the registered derived cohort in place (same ID and file path):
 the SQL is re-rendered, parents and build parameters are replaced, the
-cohort is marked 'stale' for regeneration, and its own dependents are
-marked stale too. Default: TRUE (fail-safe).}
+cohort is marked 'stale' for regeneration (and its own dependents with it)
+only when the definition actually changed — re-running with unchanged
+inputs is a no-op. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }

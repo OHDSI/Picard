@@ -33,6 +33,7 @@ the generated SQL.
 \itemize{
 \item \href{#method-CohortDef-new}{\code{CohortDef$new()}}
 \item \href{#method-CohortDef-getFilePath}{\code{CohortDef$getFilePath()}}
+\item \href{#method-CohortDef-getDisplayPath}{\code{CohortDef$getDisplayPath()}}
 \item \href{#method-CohortDef-getSql}{\code{CohortDef$getSql()}}
 \item \href{#method-CohortDef-getFileHash}{\code{CohortDef$getFileHash()}}
 \item \href{#method-CohortDef-getSqlHash}{\code{CohortDef$getSqlHash()}}
@@ -82,7 +83,30 @@ Get the file path}
 }
 
 \subsection{Returns}{
-Character. Relative path to the cohort file.
+Character. Absolute path to the cohort file — safe to read
+regardless of the current working directory.
+Get the file path for display
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortDef-getDisplayPath"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortDef-getDisplayPath}{}}}
+\subsection{Method \code{getDisplayPath()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CohortDef$getDisplayPath(root = NULL)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{root}}{Character or NULL. Study repository root. When supplied, the
+path is returned relative to it (the form stored in the manifest);
+otherwise the absolute path is returned.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Character. A human-facing path.
 Get the generated SQL
 }
 }

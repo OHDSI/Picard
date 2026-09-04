@@ -12,7 +12,7 @@ Called by both testStudyPipeline and execStudyPipeline with different parameters
     
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.6</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.7</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -69,6 +69,8 @@ Called by both testStudyPipeline and execStudyPipeline with different parameters
 <span>  testMode <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  skipRenv <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  skipConnectivityCheck <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  ignoreUncommittedPaths <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  skipCodeStateCheck <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  env <span class="op">=</span> <span class="fu">rlang</span><span class="fu">::</span><span class="fu"><a href="https://rlang.r-lib.org/reference/stack.html" class="external-link">caller_env</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  pipelineVersionOverride <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  cohortTableSuffix <span class="op">=</span> <span class="cn">NULL</span></span>
@@ -101,6 +103,17 @@ database connectivity pre-flight check. Set to FALSE to attempt a test
 connection to each config block before execution begins.</p></dd>
 
 
+<dt>ignoreUncommittedPaths</dt>
+<dd><p>Character vector or NULL. Repo-relative paths
+whose uncommitted changes do not fail the code-state check. NULL (default)
+reads the list from config.yml, which itself defaults to ignoring nothing.</p></dd>
+
+
+<dt>skipCodeStateCheck</dt>
+<dd><p>Logical. If TRUE, skips the code-state check
+entirely. Default: FALSE</p></dd>
+
+
 <dt>env</dt>
 <dd><p>the execution environment</p></dd>
 
@@ -127,7 +140,7 @@ cohort table names.</p></dd>
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Developed by Martin Lavallee.</p>
+  <p>Developed by Martin Lavallee, Katy Sadowski.</p>
 </div>
 
 <div class="pkgdown-footer-right">

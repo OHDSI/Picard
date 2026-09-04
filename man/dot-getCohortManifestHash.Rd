@@ -4,13 +4,27 @@
 \alias{.getCohortManifestHash}
 \title{Get Cohort Manifest Hash}
 \usage{
-.getCohortManifestHash()
+.getCohortManifestHash(projectPath = here::here())
+}
+\arguments{
+\item{projectPath}{Character. A path inside the study repository. Defaults to
+the current project (\code{here::here()}).}
 }
 \value{
-Character. SHA256 hash of the cohort manifest, or NA_character_ if error occurs
+Character. SHA256 hex digest, or \code{NA_character_} if the manifest
+cannot be read.
 }
 \description{
-Loads the cohort manifest and computes a SHA256 hash of the entire manifest.
-This hash is used to detect changes in cohort definitions that would require task reruns.
+Loads the cohort manifest and returns
+\link[=CohortManifest]{CohortManifest$getManifestHash()}, a SHA256 digest over
+every registered (\code{active}/\code{stale}) cohort's definition. Used by
+\code{\link[=shouldRerunTask]{shouldRerunTask()}} to detect cohort changes that require a task rerun.
+}
+\details{
+A thin wrapper around the manifest method, which is the single
+source of truth for what "the cohort definitions changed" means. The load
+is read-only (\code{autoSync = FALSE}), so this has no side effects. Any failure
+to load or hash the manifest returns \code{NA_character_}; \code{\link[=shouldRerunTask]{shouldRerunTask()}}
+treats that as "cannot prove unchanged" and forces the rerun.
 }
 \keyword{internal}

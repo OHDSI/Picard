@@ -1,11 +1,60 @@
-write_derived_template <- function(derived_dir, label, template_name, ...) {
+# Render a derived cohort's SQL with build-time parameters and write it to
+# inputs/cohorts/derived/<label>.sql. Parameters not passed in `...` (e.g. the
+# connection/schema placeholders filled in at generation time) are left as
+# literal @tokens in the output. `header`, when supplied, is prepended
+# verbatim (after rendering) as a QC comment block - not itself rendered.
+render_and_write_derived_sql <- function(derived_dir, label, sql_content, ..., header = NULL) {
     safe_label <- gsub("[^a-zA-Z0-9_-]", "_", label)
     sql_path <- fs::path(derived_dir, paste0(safe_label, ".sql"))
-    template_path <- system.file("sql", template_name, package = "picard")
-    rendered_sql <- readr::read_file(template_path) |>
-        SqlRender::render(...)
+    rendered_sql <- SqlRender::render(sql_content, ...)
+    if (!is.null(header) && length(header) > 0) {
+      rendered_sql <- paste(c(header, "", rendered_sql), collapse = "\n")
+    }
     writeLines(rendered_sql, sql_path)
     return(sql_path)
+}
+
+write_derived_template <- function(derived_dir, label, template_name, ...) {
+    template_path <- system.file("sql", template_name, package = "picard")
+    sql_content <- readr::read_file(template_path)
+    render_and_write_derived_sql(derived_dir, label, sql_content, ...)
+}
+
+# Build a "/* Dependent cohorts ... */" QC header documenting which cohort
+# (id and, when known, label) was baked into each named SqlRender parameter.
+format_dependent_cohort_header <- function(resolved_ids, resolved_labels) {
+  lines <- mapply(function(param_name, ids, labels) {
+    id_str <- paste(ids, collapse = ",")
+    known_labels <- if (is.null(labels)) character(0) else labels[!is.na(labels)]
+    label_part <- if (length(known_labels) > 0) paste0(", label ", paste(known_labels, collapse = "; ")) else ""
+    paste0("  ", param_name, ": id ", id_str, label_part)
+  }, names(resolved_ids), resolved_ids, resolved_labels, SIMPLIFY = TRUE, USE.NAMES = FALSE)
+
+  c("/*", "Dependent cohorts (baked in at registration time)", lines, "*/")
+}
+
+# SqlRender parameter names reserved for the generation-time connection/schema
+# context (see generate_single_cohort()) - user-supplied dependentCohortIdList
+# or sqlParameters names must not collide with these.
+custom_derived_reserved_param_names <- function() {
+  c(
+    "sql",
+    "header",
+    "cdm_database_schema",
+    "vocabulary_database_schema",
+    "target_database_schema",
+    "target_cohort_table",
+    "target_cohort_id",
+    "output_cohort_id",
+    "output_table",
+    "base_cohort_table",
+    "results_database_schema.cohort_inclusion",
+    "results_database_schema.cohort_inclusion_result",
+    "results_database_schema.cohort_inclusion_stats",
+    "results_database_schema.cohort_summary_stats",
+    "results_database_schema.cohort_censor_stats",
+    "warnOnMissingParameters"
+  )
 }
 
 make_derived_folder <- function(cohorts_dir) {
@@ -322,8 +371,10 @@ evaluate_cohort_skip_status <- function(
         dependency_status <- "New" 
     }
   } else {
+    # A cohort explicitly marked stale is never skipped, whatever the checksum
+    # says — 'stale' is the manifest asserting the generated table is out of date
     current_hash <- cohort$getSqlHash()
-    if (!is.null(stored_hash) && !is.na(stored_hash) && stored_hash == current_hash) {
+    if (!is_stale && !is.null(stored_hash) && !is.na(stored_hash) && stored_hash == current_hash) {
       should_skip <- TRUE
     }
   }
@@ -338,71 +389,6 @@ evaluate_cohort_skip_status <- function(
   )
   return(skip_status)
 }
-
-get_custom_derived_sql_params <- function(sqlite_conn, cohort_id) {
-  dep_row <- DBI::dbGetQuery(
-    sqlite_conn,
-    "SELECT dependency_rule FROM cohort_manifest WHERE id = ? AND status IN ('active', 'stale')",
-    list(cohort_id)
-  )
-
-  if (nrow(dep_row) == 0 || is.na(dep_row$dependency_rule[1]) || nchar(dep_row$dependency_rule[1]) == 0) {
-    cli::cli_abort("custom_derived cohort {cohort_id} is missing dependency_rule metadata")
-  }
-
-  dep_rule <- tryCatch(
-    jsonlite::fromJSON(dep_row$dependency_rule[1], simplifyVector = FALSE),
-    error = function(e) {
-      cli::cli_abort("Failed to parse dependency_rule for custom_derived cohort {cohort_id}: {e$message}")
-    }
-  )
-
-  custom_params <- dep_rule$dependentCohortIdList
-  # Vector-valued entries come back from JSON as lists; flatten each to an
-  # atomic vector so SqlRender renders them comma-separated (IN clauses)
-  custom_params <- lapply(custom_params, function(x) unlist(x, use.names = FALSE))
-  if (is.null(custom_params) || length(custom_params) == 0) {
-    cli::cli_abort("custom_derived cohort {cohort_id} is missing dependentCohortIdList metadata")
-  }
-
-  param_names <- names(custom_params)
-  if (is.null(param_names) || any(is.na(param_names)) || any(trimws(param_names) == "")) {
-    cli::cli_abort("custom_derived cohort {cohort_id} has unnamed dependent SqlRender parameters")
-  }
-
-  reserved_names <- c(
-    "sql",
-    "cdm_database_schema",
-    "vocabulary_database_schema",
-    "target_database_schema",
-    "target_cohort_table",
-    "target_cohort_id",
-    "output_cohort_id",
-    "output_table",
-    "base_cohort_table",
-    "results_database_schema.cohort_inclusion",
-    "results_database_schema.cohort_inclusion_result",
-    "results_database_schema.cohort_inclusion_stats",
-    "results_database_schema.cohort_summary_stats",
-    "results_database_schema.cohort_censor_stats",
-    "warnOnMissingParameters"
-  )
-
-  colliding_names <- intersect(param_names, reserved_names)
-  if (length(colliding_names) > 0) {
-    cli::cli_abort(c(
-      "custom_derived cohort {cohort_id} uses reserved SqlRender parameter name(s).",
-      i = "Reserved names: {paste(colliding_names, collapse = ', ')}"
-    ))
-  }
-
-  custom_params <- lapply(custom_params, function(value) {
-    as.integer(value)
-  })
-
-  return(custom_params)
-}
-
 
 generate_single_cohort <- function(
     cohort, 
@@ -448,11 +434,6 @@ generate_single_cohort <- function(
     sql_params$output_cohort_id <- cohort_id
     sql_params$output_table <- output_table_name
     sql_params$base_cohort_table <- output_table_name
-  }
-
-  if (cohort_type == "custom_derived") {
-    custom_sql_params <- get_custom_derived_sql_params(sqlite_conn, cohort_id)
-    sql_params <- c(sql_params, custom_sql_params)
   }
 
   render_result <- try(do.call(SqlRender::render, c(list(sql = cohort_sql), sql_params)), silent = TRUE)
@@ -601,7 +582,11 @@ report_cohort_results <- function(results_df) {
     cli::cli_alert_info("Cohort types: {circe_count} circe + {custom_count} custom + {dependent_count} dependent")
   }
 
-  cli::cli_alert_success("Cohort generation complete")
+  if (failed > 0) {
+    cli::cli_alert_danger("Cohort generation failed")
+  } else {
+    cli::cli_alert_success("Cohort generation complete")
+  }
   cli::cli_alert_info("Total cohorts: {nrow(results_df)} | Successful: {successful} | Skipped: {skipped} | Failed: {failed}")
   cli::cli_alert_info("Total execution time: {total_time_min |> round(2)} min")
 

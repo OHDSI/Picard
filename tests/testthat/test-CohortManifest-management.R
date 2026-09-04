@@ -66,8 +66,43 @@ testthat::test_that("getManifestStatus returns summary list", {
 
   out <- manifest$getManifestStatus()
 
-  testthat::expect_true(all(c("active_count", "missing_count", "deleted_count", "next_available_id") %in% names(out)))
+  testthat::expect_true(all(c("active_count", "stale_count", "missing_count", "deleted_count", "next_available_id") %in% names(out)))
   testthat::expect_true(out$active_count >= 5)
+  testthat::expect_equal(out$stale_count, 0)
+})
+
+# Testing: 'stale' is a freshness marker, not a lifecycle state — a stale cohort
+# is still registered, so it must stay in the manifest counts and printout
+# rather than silently dropping out of the active total.
+testthat::test_that("stale cohorts stay in the manifest total and print listing", {
+  setup <- cm_test_seed_manifest_for_queries("mgmt-status-stale")
+  manifest <- setup$manifest
+
+  before <- manifest$getManifestStatus()
+  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
+  DBI::dbExecute(conn, "UPDATE cohort_manifest SET status = 'stale' WHERE label = 'All-Cause Death'")
+  DBI::dbDisconnect(conn)
+
+  after <- manifest$getManifestStatus()
+  testthat::expect_equal(after$stale_count, 1)
+  # active_count counts registered cohorts, so it is unchanged by staleness
+  testthat::expect_equal(after$active_count, before$active_count)
+
+  printed <- paste(utils::capture.output(print(manifest)), collapse = "\n")
+  testthat::expect_match(printed, "Stale \\(awaiting regeneration\\): 1")
+  testthat::expect_match(printed, "All-Cause Death")
+
+  # And it is still listed by the manifest listing and the query methods
+  active <- manifest$tabulateManifest(filter = "active")
+  testthat::expect_true("All-Cause Death" %in% active$label)
+  testthat::expect_equal(
+    active$status[active$label == "All-Cause Death"][[1]],
+    "stale"
+  )
+  testthat::expect_equal(
+    manifest$queryCohortsByLabel("All-Cause Death", matchType = "exact")$label[[1]],
+    "All-Cause Death"
+  )
 })
 
 # Testing: deleteCohort marks cohort status as deleted when confirmed.
@@ -99,15 +134,13 @@ testthat::test_that("cleanupMissing processes missing active cohorts", {
   testthat::expect_invisible(manifest$cleanupMissing(keep_trace = TRUE))
 })
 
-# Purpose: Fetch the raw sqlite manifest row for a label (any status).
-cm_test_get_manifest_row <- function(manifest, label) {
+# Purpose: Stamp every manifest row with a fixed updated_at so a later
+# CURRENT_TIMESTAMP write is detectable regardless of clock resolution.
+cm_test_stamp_updated_at <- function(manifest, stamp = "2000-01-01 00:00:00") {
   conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
   on.exit(DBI::dbDisconnect(conn))
-  DBI::dbGetQuery(
-    conn,
-    "SELECT * FROM cohort_manifest WHERE label = ?",
-    list(label)
-  )
+  DBI::dbExecute(conn, "UPDATE cohort_manifest SET updated_at = ?", list(stamp))
+  invisible(stamp)
 }
 
 # Testing: updateCaprCohort overwrites the registered JSON and refreshes the hash in place.
@@ -128,7 +161,7 @@ testthat::test_that("updateCaprCohort updates definition keeping id and file pat
   testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
 
   # Hash recorded in the manifest matches the file now on disk
-  disk_hash <- rlang::hash(readr::read_file(after$file_path[[1]]))
+  disk_hash <- rlang::hash(readr::read_file(cm_test_resolve_path(manifest, after$file_path[[1]])))
   testthat::expect_equal(after$hash[[1]], disk_hash)
 })
 
@@ -255,7 +288,7 @@ testthat::test_that("syncManifest cascades deletion of dependents of missing par
   manifest <- setup$manifest
 
   parent <- manifest$queryCohortsByLabel("Capr T2D", matchType = "exact")
-  unlink(parent$file_path[[1]])
+  unlink(cm_test_resolve_path(manifest, parent$file_path[[1]]))
 
   out <- manifest$syncManifest(strict_mode = TRUE)
 
@@ -301,7 +334,7 @@ testthat::test_that("buildUnionCohort stopIfExists FALSE updates parent list in 
   testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
 
   # The re-rendered SQL file matches the recorded hash
-  disk_hash <- rlang::hash(readr::read_file(after$file_path[[1]]))
+  disk_hash <- rlang::hash(readr::read_file(cm_test_resolve_path(manifest, after$file_path[[1]])))
   testthat::expect_equal(after$hash[[1]], disk_hash)
 })
 
@@ -437,7 +470,7 @@ testthat::test_that("addDependentCustomCohort stopIfExists FALSE updates deps an
 })
 
 # Testing: dependentCohortIdList entries accept vectors of IDs, stored in depends_on
-# and rendered comma-separated at generation time.
+# and baked comma-separated into the generated derived SQL file.
 testthat::test_that("addDependentCustomCohort accepts vectors of dependent IDs", {
   setup <- cm_test_new_manifest("mgmt-depcustom-vector")
   manifest <- setup$manifest
@@ -470,20 +503,64 @@ testthat::test_that("addDependentCustomCohort accepts vectors of dependent IDs",
     c(ckd_id, t2d_id, death_id)
   )
 
-  # Generation-side round trip: params come back atomic and render for IN clauses
-  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
-  on.exit(DBI::dbDisconnect(conn), add = TRUE)
-  params <- get_custom_derived_sql_params(conn, as.integer(dep_id))
-  testthat::expect_false(is.list(params$exc_cohort_id))
-  testthat::expect_equal(as.integer(params$exc_cohort_id), c(t2d_id, death_id))
+  # The dependent IDs are baked directly into the generated derived SQL file
+  # (like the other derived cohort types) - the vector renders comma-separated
+  # and the original @inc_cohort_id/@exc_cohort_id placeholders are gone.
+  testthat::expect_true(grepl("inputs/cohorts/derived", row$file_path[[1]], fixed = TRUE))
+  rendered_sql <- readr::read_file(cm_test_resolve_path(manifest, row$file_path[[1]]))
+  testthat::expect_false(grepl("@inc_cohort_id", rendered_sql, fixed = TRUE))
+  testthat::expect_false(grepl("@exc_cohort_id", rendered_sql, fixed = TRUE))
+  testthat::expect_true(grepl(as.character(t2d_id), rendered_sql, fixed = TRUE))
+  testthat::expect_true(grepl(as.character(death_id), rendered_sql, fixed = TRUE))
+  testthat::expect_true(grepl(paste0(t2d_id, ",", death_id), rendered_sql, fixed = TRUE))
 
-  rendered <- SqlRender::render(
-    "cohort_definition_id IN (@exc_cohort_id)",
-    exc_cohort_id = params$exc_cohort_id
+  # Connection/schema placeholders are left for generateCohorts() to fill in
+  testthat::expect_true(grepl("@target_cohort_id", rendered_sql, fixed = TRUE))
+  testthat::expect_true(grepl("@target_database_schema", rendered_sql, fixed = TRUE))
+})
+
+# Testing: dependentCohortIdList accepts manifest entries (data.frame/tibble
+# with an id column), like the other dependent cohort builders, and renders
+# their labels into a QC header comment on the generated derived SQL file.
+testthat::test_that("addDependentCustomCohort accepts manifest entries and renders a QC header", {
+  setup <- cm_test_new_manifest("mgmt-depcustom-entries")
+  manifest <- setup$manifest
+
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "Chronic Kidney Disease", fixture_name = "ckd.json")
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "Type 2 Diabetes", fixture_name = "t2d.json")
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "All-Cause Death", fixture_name = "death.json")
+
+  ckd_entry <- manifest$queryCohortsByLabel("Chronic Kidney Disease")
+  exclusion_entries <- manifest$queryCohortsByLabel(c("Type 2 Diabetes", "All-Cause Death"))
+  t2d_id <- as.integer(exclusion_entries$id[exclusion_entries$label == "Type 2 Diabetes"][1])
+  death_id <- as.integer(exclusion_entries$id[exclusion_entries$label == "All-Cause Death"][1])
+
+  fixture <- cm_test_sql_fixture_path("my_custom_dependent.sql")
+  local_sql <- fs::path(setup$paths$sql_dir, "my_custom_dependent.sql")
+  fs::file_copy(fixture, local_sql)
+
+  manifest$addDependentCustomCohort(
+    filePath = local_sql,
+    label = "Dep Entries",
+    category = "Derived Cohorts",
+    dependentCohortIdList = list(
+      inc_cohort_id = ckd_entry,
+      exc_cohort_id = exclusion_entries
+    )
   )
-  testthat::expect_true(grepl(as.character(t2d_id), rendered, fixed = TRUE))
-  testthat::expect_true(grepl(as.character(death_id), rendered, fixed = TRUE))
-  testthat::expect_true(grepl(",", rendered, fixed = TRUE))
+
+  row <- cm_test_get_manifest_row(manifest, "Dep Entries")
+  testthat::expect_equal(
+    sort(jsonlite::fromJSON(row$depends_on[[1]])),
+    sort(c(as.integer(ckd_entry$id[1]), t2d_id, death_id))
+  )
+
+  rendered_sql <- readr::read_file(cm_test_resolve_path(manifest, row$file_path[[1]]))
+  testthat::expect_true(grepl("Dependent cohorts", rendered_sql, fixed = TRUE))
+  testthat::expect_true(grepl("Chronic Kidney Disease", rendered_sql, fixed = TRUE))
+  testthat::expect_true(grepl("Type 2 Diabetes", rendered_sql, fixed = TRUE))
+  testthat::expect_true(grepl("All-Cause Death", rendered_sql, fixed = TRUE))
+  testthat::expect_true(grepl(as.character(ckd_entry$id[1]), rendered_sql, fixed = TRUE))
 })
 
 # Testing: addDependentCustomCohort default stopIfExists = TRUE errors on duplicate labels.
@@ -516,6 +593,93 @@ testthat::test_that("addDependentCustomCohort errors on duplicate label by defau
       dependentCohortIdList = list(inc_cohort_id = ckd_id, exc_cohort_id = t2d_id)
     ),
     regexp = "already in use"
+  )
+})
+
+# Testing: sqlParameters render arbitrary (non cohort-ID) values into the
+# generated derived SQL file alongside dependentCohortIdList.
+testthat::test_that("addDependentCustomCohort renders sqlParameters into the generated file", {
+  setup <- cm_test_new_manifest("mgmt-depcustom-sqlparams")
+  manifest <- setup$manifest
+
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "Chronic Kidney Disease", fixture_name = "ckd.json")
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "Type 2 Diabetes", fixture_name = "t2d.json")
+  rows <- manifest$tabulateManifest(filter = "active")
+  ckd_id <- as.integer(rows$id[rows$label == "Chronic Kidney Disease"][1])
+  t2d_id <- as.integer(rows$id[rows$label == "Type 2 Diabetes"][1])
+
+  local_sql <- fs::path(setup$paths$sql_dir, "my_custom_dependent_params.sql")
+  writeLines(c(
+    "DELETE FROM @target_database_schema.@target_cohort_table",
+    "WHERE cohort_definition_id = @target_cohort_id;",
+    "",
+    "INSERT INTO @target_database_schema.@target_cohort_table",
+    "  (cohort_definition_id, subject_id, cohort_start_date, cohort_end_date)",
+    "SELECT",
+    "  @target_cohort_id,",
+    "  i.subject_id,",
+    "  i.cohort_start_date,",
+    "  DATEADD(day, @min_days, i.cohort_start_date)",
+    "FROM @target_database_schema.@target_cohort_table i",
+    "WHERE i.cohort_definition_id = @inc_cohort_id",
+    "  AND i.cohort_definition_id != @exc_cohort_id;"
+  ), local_sql)
+
+  manifest$addDependentCustomCohort(
+    filePath = local_sql,
+    label = "Dep Params",
+    category = "Derived Cohorts",
+    dependentCohortIdList = list(inc_cohort_id = ckd_id, exc_cohort_id = t2d_id),
+    sqlParameters = list(min_days = 30L)
+  )
+
+  row <- cm_test_get_manifest_row(manifest, "Dep Params")
+  rendered_sql <- readr::read_file(cm_test_resolve_path(manifest, row$file_path[[1]]))
+  testthat::expect_true(grepl("DATEADD(day, 30,", rendered_sql, fixed = TRUE))
+  testthat::expect_false(grepl("@min_days", rendered_sql, fixed = TRUE))
+  testthat::expect_false(grepl("@inc_cohort_id", rendered_sql, fixed = TRUE))
+  testthat::expect_true(grepl(as.character(ckd_id), rendered_sql, fixed = TRUE))
+
+  rule <- jsonlite::fromJSON(row$dependency_rule[[1]])
+  testthat::expect_equal(as.integer(rule$sqlParameters$min_days), 30L)
+})
+
+# Testing: sqlParameters cannot collide with dependentCohortIdList names or
+# reserved (connection/schema) SqlRender parameter names.
+testthat::test_that("addDependentCustomCohort errors on sqlParameters name collisions", {
+  setup <- cm_test_new_manifest("mgmt-depcustom-sqlparams-collision")
+  manifest <- setup$manifest
+
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "Chronic Kidney Disease", fixture_name = "ckd.json")
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "Type 2 Diabetes", fixture_name = "t2d.json")
+  rows <- manifest$tabulateManifest(filter = "active")
+  ckd_id <- as.integer(rows$id[rows$label == "Chronic Kidney Disease"][1])
+  t2d_id <- as.integer(rows$id[rows$label == "Type 2 Diabetes"][1])
+
+  fixture <- cm_test_sql_fixture_path("my_custom_dependent.sql")
+  local_sql <- fs::path(setup$paths$sql_dir, "my_custom_dependent.sql")
+  fs::file_copy(fixture, local_sql)
+
+  testthat::expect_error(
+    manifest$addDependentCustomCohort(
+      filePath = local_sql,
+      label = "Dep Collide",
+      category = "Derived Cohorts",
+      dependentCohortIdList = list(inc_cohort_id = ckd_id, exc_cohort_id = t2d_id),
+      sqlParameters = list(inc_cohort_id = 5L)
+    ),
+    regexp = "cannot share parameter name"
+  )
+
+  testthat::expect_error(
+    manifest$addDependentCustomCohort(
+      filePath = local_sql,
+      label = "Dep Reserved",
+      category = "Derived Cohorts",
+      dependentCohortIdList = list(inc_cohort_id = ckd_id, exc_cohort_id = t2d_id),
+      sqlParameters = list(target_cohort_id = 5L)
+    ),
+    regexp = "reserved SqlRender parameter"
   )
 })
 
@@ -555,10 +719,11 @@ testthat::test_that("addCaprCohort stopIfExists FALSE updates existing cohort", 
   testthat::expect_equal(after$file_path[[1]], before$file_path[[1]])
   testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
   testthat::expect_equal(after$category[[1]], "Comparator")
+  testthat::expect_equal(after$source_type[[1]], "capr")
   testthat::expect_true(grepl("revision", after$tags[[1]]))
 })
 
-# Testing: addCaprCohort stopIfExists = FALSE with no tags clears prior tags (matching ATLAS behavior).
+# Testing: addCaprCohort stopIfExists = FALSE with no tags clears prior tags.
 testthat::test_that("addCaprCohort stopIfExists FALSE without tags drops prior tags", {
   setup <- cm_test_new_manifest("mgmt-add-capr-upsert-notags")
   manifest <- setup$manifest
@@ -576,8 +741,7 @@ testthat::test_that("addCaprCohort stopIfExists FALSE without tags drops prior t
 
   after <- cm_test_get_manifest_row(manifest, "Capr T2D")
   testthat::expect_equal(nrow(after), 1)
-  testthat::expect_false(grepl("revision", after$tags[[1]]))
-  testthat::expect_true(grepl("route", after$tags[[1]]))
+  testthat::expect_true(is.na(after$tags[[1]]))
 })
 
 # Testing: addSqlCohort with stopIfExists = FALSE upserts the existing cohort in place.
@@ -591,7 +755,7 @@ testthat::test_that("addSqlCohort stopIfExists FALSE updates existing cohort in 
 
   # Revised SQL registered from a new file path
   revised_sql <- fs::path(setup$paths$sql_dir, "my_custom_cohort_v2.sql")
-  writeLines(c(readr::read_file(before$file_path[[1]]), "-- revised"), revised_sql)
+  writeLines(c(readr::read_file(cm_test_resolve_path(manifest, before$file_path[[1]])), "-- revised"), revised_sql)
   returned_id <- manifest$addSqlCohort(
     filePath = revised_sql,
     label = "Custom SQL Cohort",
@@ -603,7 +767,7 @@ testthat::test_that("addSqlCohort stopIfExists FALSE updates existing cohort in 
   testthat::expect_equal(nrow(after), 1)
   testthat::expect_equal(as.integer(returned_id), as.integer(before$id[[1]]))
   testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
-  testthat::expect_equal(after$file_path[[1]], as.character(fs::path_rel(revised_sql)))
+  testthat::expect_equal(after$file_path[[1]], cm_test_rel_path(manifest, revised_sql))
   testthat::expect_equal(after$category[[1]], "Comparator")
   testthat::expect_true(is.na(after$tags[[1]]))
 })
@@ -658,8 +822,11 @@ testthat::test_that("importAtlasCohorts errors on already-registered rows", {
   load_df <- data.frame(atlasId = 100L, label = "Atlas Cohort", category = "Target")
   conn_v1 <- cm_test_fake_atlas_connection(list("100" = jsons$v1))
 
-  manifest$importAtlasCohorts(cohortsLoad = load_df, atlasConnection = conn_v1)
-  testthat::expect_equal(nrow(cm_test_get_manifest_row(manifest, "Atlas Cohort")), 1)
+  imported <- manifest$importAtlasCohorts(cohortsLoad = load_df, atlasConnection = conn_v1)
+  imported_row <- cm_test_get_manifest_row(manifest, "Atlas Cohort")
+  testthat::expect_equal(nrow(imported_row), 1)
+  testthat::expect_false(is.na(imported$id[[1]]))
+  testthat::expect_equal(imported$id[[1]], imported_row$id[[1]])
 
   # Re-importing the same load file fails fast, and nothing is changed
   before <- cm_test_get_manifest_row(manifest, "Atlas Cohort")
@@ -679,6 +846,42 @@ testthat::test_that("importAtlasCohorts errors on already-registered rows", {
   )
 })
 
+# Testing: importAtlasCohorts stopIfExists = FALSE updates already-registered rows in place
+# instead of erroring, supporting re-running the same load file while iterating.
+testthat::test_that("importAtlasCohorts stopIfExists FALSE updates existing rows in place", {
+  setup <- cm_test_new_manifest("mgmt-atlas-import-upsert")
+  manifest <- setup$manifest
+  jsons <- cm_test_atlas_fixture_jsons()
+
+  load_df <- data.frame(atlasId = 100L, label = "Atlas Cohort", category = "Target")
+  conn_v1 <- cm_test_fake_atlas_connection(list("100" = jsons$v1))
+  manifest$importAtlasCohorts(cohortsLoad = load_df, atlasConnection = conn_v1)
+  before <- cm_test_get_manifest_row(manifest, "Atlas Cohort")
+
+  # Re-running with stopIfExists = FALSE and a changed definition updates in place
+  conn_v2 <- cm_test_fake_atlas_connection(list("100" = jsons$v2))
+  manifest$importAtlasCohorts(cohortsLoad = load_df, atlasConnection = conn_v2, stopIfExists = FALSE)
+  after <- cm_test_get_manifest_row(manifest, "Atlas Cohort")
+  testthat::expect_equal(nrow(after), 1)
+  testthat::expect_equal(after$id[[1]], before$id[[1]])
+  testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
+
+  # A mix of a new row and an already-registered row processes both
+  mixed_df <- data.frame(
+    atlasId = c(100L, 200L),
+    label = c("Atlas Cohort", "Second Atlas Cohort"),
+    category = c("Target", "Target")
+  )
+  conn_both <- cm_test_fake_atlas_connection(list("100" = jsons$v2, "200" = jsons$v2))
+  imported_mixed <- manifest$importAtlasCohorts(cohortsLoad = mixed_df, atlasConnection = conn_both, stopIfExists = FALSE)
+  second_row <- cm_test_get_manifest_row(manifest, "Second Atlas Cohort")
+  testthat::expect_equal(nrow(second_row), 1)
+  testthat::expect_equal(
+    imported_mixed$id[imported_mixed$label == "Second Atlas Cohort"],
+    second_row$id[[1]]
+  )
+})
+
 # Testing: addAtlasCohort stopIfExists = FALSE refreshes a single cohort from ATLAS in place.
 testthat::test_that("addAtlasCohort stopIfExists FALSE updates from ATLAS in place", {
   setup <- cm_test_new_manifest("mgmt-atlas-add-upsert")
@@ -690,11 +893,18 @@ testthat::test_that("addAtlasCohort stopIfExists FALSE updates from ATLAS in pla
                           atlasConnection = conn_v1)
   before <- cm_test_get_manifest_row(manifest, "Atlas Cohort")
 
-  # Unchanged definition is a no-op
+  # Unchanged definition is a no-op — including on disk, so re-running an input
+  # builder script leaves no uncommitted change for the pipeline's clean-worktree
+  # pre-flight check to trip over (issue #84)
+  stamp <- cm_test_stamp_updated_at(manifest)
+  db_before <- unname(tools::md5sum(manifest$getDbPath()))
+
   manifest$addAtlasCohort(atlasId = 100L, label = "Atlas Cohort", category = "Target",
                           atlasConnection = conn_v1, stopIfExists = FALSE)
   unchanged <- cm_test_get_manifest_row(manifest, "Atlas Cohort")
   testthat::expect_equal(unchanged$hash[[1]], before$hash[[1]])
+  testthat::expect_equal(unchanged$updated_at[[1]], stamp)
+  testthat::expect_equal(unname(tools::md5sum(manifest$getDbPath())), db_before)
 
   # Changed definition updates in place, keeping ID and file path
   conn_v2 <- cm_test_fake_atlas_connection(list("100" = jsons$v2))
@@ -705,6 +915,8 @@ testthat::test_that("addAtlasCohort stopIfExists FALSE updates from ATLAS in pla
   testthat::expect_equal(after$file_path[[1]], before$file_path[[1]])
   testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
   testthat::expect_equal(after$category[[1]], "Comparator")
+  testthat::expect_equal(after$source_type[[1]], "atlas")
+  testthat::expect_false(grepl("route", after$tags[[1]]))
 
   # Default still errors on duplicate label
   testthat::expect_error(
@@ -791,6 +1003,37 @@ testthat::test_that("updateAtlasCohorts syncs changed definitions in place", {
   testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
 })
 
+# Testing: writing the metadata a cohort already holds must not bump updated_at
+# or rewrite the sqlite file.
+testthat::test_that("re-applying identical cohort metadata does not rewrite the sqlite file", {
+  setup <- cm_test_seed_manifest_for_queries("mgmt-noop-metadata")
+  manifest <- setup$manifest
+  db_path <- manifest$getDbPath()
+
+  row <- cm_test_get_manifest_row(manifest, "Chronic Kidney Disease")
+  cohort_id <- as.integer(row$id[[1]])
+  stored_tags <- jsonlite::fromJSON(row$tags[[1]], simplifyVector = FALSE)
+
+  stamp <- cm_test_stamp_updated_at(manifest)
+  before <- unname(tools::md5sum(db_path))
+
+  manifest$updateCohortLabel(cohort_id, row$label[[1]])
+  manifest$updateCohortCategory(cohort_id, row$category[[1]])
+  manifest$updateCohortTags(cohort_id, stored_tags)
+
+  testthat::expect_equal(
+    cm_test_get_manifest_row(manifest, "Chronic Kidney Disease")$updated_at[[1]],
+    stamp
+  )
+  testthat::expect_equal(unname(tools::md5sum(db_path)), before)
+
+  # A real metadata change is still written through
+  manifest$updateCohortCategory(cohort_id, "Renal Target")
+  after <- cm_test_get_manifest_row(manifest, "Chronic Kidney Disease")
+  testthat::expect_equal(after$category[[1]], "Renal Target")
+  testthat::expect_false(identical(after$updated_at[[1]], stamp))
+})
+
 # Testing: addCaprCohort default stopIfExists = TRUE still errors on duplicate labels.
 testthat::test_that("addCaprCohort errors on duplicate label by default", {
   setup <- cm_test_new_manifest("mgmt-add-capr-dup")
@@ -803,4 +1046,324 @@ testthat::test_that("addCaprCohort errors on duplicate label by default", {
     manifest$addCaprCohort(same, label = "Capr T2D", category = "Target"),
     regexp = "already in use"
   )
+})
+
+# Testing: re-registering an unchanged derived definition must not mark it stale.
+# This is the issue #74 report — an accidental re-run of addDependentCustomCohort()
+# flipped the cohort (and everything downstream) to stale, dropping it out of the
+# active manifest and out of query results.
+testthat::test_that("addDependentCustomCohort re-run with identical args keeps cohort active", {
+  setup <- cm_test_new_manifest("mgmt-depcustom-rerun")
+  manifest <- setup$manifest
+
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "Chronic Kidney Disease", fixture_name = "ckd.json")
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "Type 2 Diabetes", fixture_name = "t2d.json")
+  rows <- manifest$tabulateManifest(filter = "active")
+  ckd_id <- as.integer(rows$id[rows$label == "Chronic Kidney Disease"][1])
+  t2d_id <- as.integer(rows$id[rows$label == "Type 2 Diabetes"][1])
+
+  dep_sql <- cm_test_sql_fixture_path("my_custom_dependent.sql")
+  register <- function(...) {
+    manifest$addDependentCustomCohort(
+      filePath = dep_sql,
+      label = "Dep Custom",
+      category = "Derived Cohorts",
+      dependentCohortIdList = list(inc_cohort_id = ckd_id, exc_cohort_id = t2d_id),
+      tags = list(owner = "epi_team"),
+      ...
+    )
+  }
+
+  dep_id <- as.integer(register())
+
+  # A downstream dependent must not be dragged stale by a no-op re-run either
+  downstream_parents <- manifest$queryCohortsByLabel(
+    labels = c("Dep Custom", "Type 2 Diabetes"),
+    matchType = "exact"
+  )
+  manifest$buildUnionCohort(
+    label = "Downstream_Union",
+    category = "Derived Cohorts",
+    cohortEntries = downstream_parents
+  )
+
+  # A no-op re-run must also leave the manifest file byte-identical, so the
+  # pipeline's clean-worktree pre-flight check still passes (issue #84)
+  stamp <- cm_test_stamp_updated_at(manifest)
+  db_before <- unname(tools::md5sum(manifest$getDbPath()))
+
+  returned_id <- as.integer(register(stopIfExists = FALSE))
+
+  after <- cm_test_get_manifest_row(manifest, "Dep Custom")
+  testthat::expect_equal(returned_id, dep_id)
+  testthat::expect_equal(after$status[[1]], "active")
+  testthat::expect_equal(cm_test_get_manifest_row(manifest, "Downstream_Union")$status[[1]], "active")
+  testthat::expect_equal(after$updated_at[[1]], stamp)
+  testthat::expect_equal(unname(tools::md5sum(manifest$getDbPath())), db_before)
+
+  # Still visible in the active manifest and to label queries
+  active <- manifest$tabulateManifest(filter = "active")
+  testthat::expect_true("Dep Custom" %in% active$label)
+  testthat::expect_equal(
+    as.integer(manifest$queryCohortsByLabel("Dep Custom", matchType = "exact")$id[[1]]),
+    dep_id
+  )
+})
+
+# Testing: a metadata-only re-registration updates the metadata without forcing
+# regeneration of the cohort or its dependents.
+testthat::test_that("derived upsert with metadata-only change leaves status active", {
+  setup <- cm_test_seed_parent_with_union("mgmt-union-metadata-only")
+  manifest <- setup$manifest
+
+  before <- cm_test_get_manifest_row(manifest, "Capr_T2D_or_CKD")
+  testthat::expect_equal(before$status[[1]], "active")
+
+  parents <- manifest$queryCohortsByLabel(
+    labels = c("Capr T2D", "Chronic Kidney Disease"),
+    matchType = "exact"
+  )
+  manifest$buildUnionCohort(
+    label = "Capr_T2D_or_CKD",
+    category = "Recategorized",
+    cohortEntries = parents,
+    stopIfExists = FALSE
+  )
+
+  after <- cm_test_get_manifest_row(manifest, "Capr_T2D_or_CKD")
+  testthat::expect_equal(after$category[[1]], "Recategorized")
+  testthat::expect_equal(after$status[[1]], "active")
+  testthat::expect_equal(after$hash[[1]], before$hash[[1]])
+})
+
+# Testing: an already-stale cohort stays stale when re-registered unchanged —
+# the no-op path must not silently clear a pending regeneration.
+testthat::test_that("derived upsert with identical definition preserves existing stale status", {
+  setup <- cm_test_seed_parent_with_union("mgmt-union-stale-preserved")
+  manifest <- setup$manifest
+
+  union_row <- cm_test_get_manifest_row(manifest, "Capr_T2D_or_CKD")
+  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
+  DBI::dbExecute(
+    conn,
+    "UPDATE cohort_manifest SET status = 'stale' WHERE id = ?",
+    list(as.integer(union_row$id[[1]]))
+  )
+  DBI::dbDisconnect(conn)
+
+  parents <- manifest$queryCohortsByLabel(
+    labels = c("Capr T2D", "Chronic Kidney Disease"),
+    matchType = "exact"
+  )
+  manifest$buildUnionCohort(
+    label = "Capr_T2D_or_CKD",
+    category = "Derived Cohorts",
+    cohortEntries = parents,
+    stopIfExists = FALSE
+  )
+
+  after <- cm_test_get_manifest_row(manifest, "Capr_T2D_or_CKD")
+  testthat::expect_equal(after$status[[1]], "stale")
+})
+
+# Testing: a real definition change still marks the cohort and its dependents
+# stale — the no-op guard must not disable staleness cascading altogether.
+testthat::test_that("derived upsert with changed parents still marks stale and cascades", {
+  setup <- cm_test_new_manifest("mgmt-union-def-changed")
+  manifest <- setup$manifest
+
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "Chronic Kidney Disease", fixture_name = "ckd.json")
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "Type 2 Diabetes", fixture_name = "t2d.json")
+  cm_test_add_capr_cohort(manifest, label = "Capr T2D", category = "Target")
+
+  two_parents <- manifest$queryCohortsByLabel(
+    labels = c("Chronic Kidney Disease", "Type 2 Diabetes"),
+    matchType = "exact"
+  )
+  manifest$buildUnionCohort(
+    label = "Union_Target",
+    category = "Derived Cohorts",
+    cohortEntries = two_parents
+  )
+
+  downstream <- manifest$queryCohortsByLabel(
+    labels = c("Union_Target", "Capr T2D"),
+    matchType = "exact"
+  )
+  manifest$buildUnionCohort(
+    label = "Downstream_Union",
+    category = "Derived Cohorts",
+    cohortEntries = downstream
+  )
+  testthat::expect_equal(cm_test_get_manifest_row(manifest, "Downstream_Union")$status[[1]], "active")
+
+  # Swap one parent out: a genuine definition change
+  new_parents <- manifest$queryCohortsByLabel(
+    labels = c("Chronic Kidney Disease", "Capr T2D"),
+    matchType = "exact"
+  )
+  manifest$buildUnionCohort(
+    label = "Union_Target",
+    category = "Derived Cohorts",
+    cohortEntries = new_parents,
+    stopIfExists = FALSE
+  )
+
+  testthat::expect_equal(cm_test_get_manifest_row(manifest, "Union_Target")$status[[1]], "stale")
+  testthat::expect_equal(cm_test_get_manifest_row(manifest, "Downstream_Union")$status[[1]], "stale")
+})
+
+# Testing: a stale cohort is still a valid parent for new derived cohorts, and
+# still owns its label — the validators must treat it as registered.
+testthat::test_that("stale cohorts remain valid parents and keep their label", {
+  setup <- cm_test_seed_parent_with_union("mgmt-stale-parent")
+  manifest <- setup$manifest
+
+  union_row <- cm_test_get_manifest_row(manifest, "Capr_T2D_or_CKD")
+  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
+  DBI::dbExecute(
+    conn,
+    "UPDATE cohort_manifest SET status = 'stale' WHERE id = ?",
+    list(as.integer(union_row$id[[1]]))
+  )
+  DBI::dbDisconnect(conn)
+
+  # The label is still taken
+  testthat::expect_error(
+    manifest$buildUnionCohort(
+      label = "Capr_T2D_or_CKD",
+      category = "Derived Cohorts",
+      cohortEntries = manifest$queryCohortsByLabel(
+        labels = c("Capr T2D", "Chronic Kidney Disease"),
+        matchType = "exact"
+      )
+    ),
+    regexp = "already in use"
+  )
+
+  # And it can still be built on
+  new_parents <- manifest$queryCohortsByLabel(
+    labels = c("Capr_T2D_or_CKD", "Capr T2D"),
+    matchType = "exact"
+  )
+  testthat::expect_equal(nrow(new_parents), 2L)
+  manifest$buildUnionCohort(
+    label = "Built_On_Stale",
+    category = "Derived Cohorts",
+    cohortEntries = new_parents
+  )
+  testthat::expect_equal(cm_test_get_manifest_row(manifest, "Built_On_Stale")$status[[1]], "active")
+})
+
+# ── Path portability: normalization + sync hash semantics ─────────────────────
+
+# Testing: normalizeCohortManifestPaths rewrites legacy stored paths to the
+# repo-root-relative form and leaves content hashes untouched (step 6/7).
+testthat::test_that("normalizeCohortManifestPaths rewrites legacy paths and preserves hashes", {
+  setup <- cm_test_seed_manifest_for_queries("mgmt-normalize")
+  manifest <- setup$manifest
+  root <- manifest$getProjectRoot()
+
+  before <- cm_test_all_rows(manifest)
+  circe_id <- before$id[before$cohort_type == "circe"][1]
+  sql_id   <- before$id[before$cohort_type == "custom"][1]
+  canonical_circe <- before$file_path[before$id == circe_id]
+
+  # legacy: manifest-folder-relative and absolute
+  cm_test_set_stored_path(manifest, circe_id, sub("^inputs/cohorts/", "", canonical_circe))
+  cm_test_set_stored_path(manifest, sql_id, fs::path(root, before$file_path[before$id == sql_id]))
+
+  cm_test_stamp_updated_at(manifest, "2000-01-01 00:00:00")
+
+  report <- normalizeCohortManifestPaths(cohortsFolderPath = fs::path(root, "inputs", "cohorts"))
+
+  after <- cm_test_all_rows(manifest)
+  # every active path now repo-root-relative and resolvable
+  testthat::expect_true(all(!fs::is_absolute_path(after$file_path)))
+  testthat::expect_true(all(fs::file_exists(fs::path(root, after$file_path))))
+  # hashes and change-detection timestamps untouched
+  testthat::expect_equal(after$hash, before$hash)
+  testthat::expect_true(all(after$updated_at == "2000-01-01 00:00:00"))
+  # report shape
+  testthat::expect_setequal(colnames(report), c("id", "old_path", "new_path", "status"))
+  testthat::expect_true(all(report$status[report$id %in% c(circe_id, sql_id)] == "rewritten"))
+})
+
+# Testing: normalizeCohortManifestPaths dryRun reports changes without writing (step 6).
+testthat::test_that("normalizeCohortManifestPaths dryRun writes nothing", {
+  setup <- cm_test_seed_manifest_for_queries("mgmt-normalize-dry")
+  manifest <- setup$manifest
+  root <- manifest$getProjectRoot()
+
+  rows <- cm_test_all_rows(manifest)
+  circe_id <- rows$id[rows$cohort_type == "circe"][1]
+  cm_test_set_stored_path(manifest, circe_id, sub("^inputs/cohorts/", "", rows$file_path[rows$id == circe_id]))
+  before <- cm_test_all_rows(manifest)
+
+  report <- normalizeCohortManifestPaths(
+    cohortsFolderPath = fs::path(root, "inputs", "cohorts"), dryRun = TRUE
+  )
+
+  testthat::expect_identical(cm_test_all_rows(manifest)$file_path, before$file_path)
+  testthat::expect_true(any(report$status == "would_rewrite"))
+})
+
+# Testing: normalizeCohortManifestPaths flags rows whose file is missing and
+# leaves them untouched (step 6).
+testthat::test_that("normalizeCohortManifestPaths reports broken rows", {
+  setup <- cm_test_seed_manifest_for_queries("mgmt-normalize-broken")
+  manifest <- setup$manifest
+  root <- manifest$getProjectRoot()
+
+  rows <- cm_test_all_rows(manifest)
+  broken_id <- rows$id[rows$cohort_type == "circe"][1]
+  cm_test_set_stored_path(manifest, broken_id, "inputs/cohorts/json/gone.json")
+
+  report <- normalizeCohortManifestPaths(cohortsFolderPath = fs::path(root, "inputs", "cohorts"))
+
+  testthat::expect_equal(report$status[report$id == broken_id], "broken")
+  testthat::expect_equal(
+    cm_test_all_rows(manifest)$file_path[cm_test_all_rows(manifest)$id == broken_id],
+    "inputs/cohorts/json/gone.json"
+  )
+})
+
+# Testing: syncManifest does not report hash_updated when only the stored path
+# convention differs from the current one (step 7).
+testthat::test_that("syncManifest ignores a path-convention-only difference", {
+  setup <- cm_test_seed_manifest_for_queries("mgmt-sync-pathonly")
+  manifest <- setup$manifest
+
+  rows <- cm_test_all_rows(manifest)
+  circe_id <- rows$id[rows$cohort_type == "circe"][1]
+  original_hash <- rows$hash[rows$id == circe_id]
+
+  # rewrite to manifest-folder-relative, then sync from an unrelated directory
+  cm_test_set_stored_path(manifest, circe_id, sub("^inputs/cohorts/", "", rows$file_path[rows$id == circe_id]))
+
+  withr::with_dir(withr::local_tempdir(), {
+    reopened <- CohortManifest$new(dbPath = manifest$getDbPath())
+    out <- reopened$syncManifest(strict_mode = TRUE)
+    testthat::expect_false("hash_updated" %in% out$action[out$id == circe_id])
+  })
+
+  testthat::expect_equal(
+    cm_test_all_rows(manifest)$hash[cm_test_all_rows(manifest)$id == circe_id],
+    original_hash
+  )
+})
+
+# Testing: a real content change still surfaces as hash_updated (step 7).
+testthat::test_that("syncManifest still reports hash_updated on a real content change", {
+  setup <- cm_test_seed_manifest_for_queries("mgmt-sync-realchange")
+  manifest <- setup$manifest
+  root <- manifest$getProjectRoot()
+
+  rows <- cm_test_all_rows(manifest)
+  circe_id <- rows$id[rows$cohort_type == "circe"][1]
+  disk_path <- fs::path(root, rows$file_path[rows$id == circe_id])
+  cat("\n// touched\n", file = disk_path, append = TRUE)
+
+  out <- manifest$syncManifest(strict_mode = TRUE)
+  testthat::expect_true("hash_updated" %in% out$action[out$id == circe_id])
 })

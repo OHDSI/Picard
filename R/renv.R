@@ -49,6 +49,32 @@ initializeRenv <- function() {
   })
 }
 
+# Record the lockfile as it currently stands on disk, without writing to it.
+# Used for the run audit trail, where capturing what the environment *is* must
+# not change what it is. Optionally archives a versioned copy for provenance.
+captureLockfile <- function(versionLabel = NULL, savePath = NULL, path = "renv.lock") {
+  if (!fs::file_exists(path)) {
+    cli::cli_abort("{.file {path}} not found. Run {.code initializeRenv()} first.")
+  }
+
+  lockfile_content <- readr::read_file(path)
+
+  if (!is.null(versionLabel)) {
+    versioned_path <- fs::path(
+      savePath %||% ".",
+      glue::glue("renv_lock_{versionLabel}.json")
+    )
+    readr::write_file(lockfile_content, versioned_path)
+    cli::cli_alert_success("Versioned copy saved: {fs::path_rel(versioned_path)}")
+  }
+
+  invisible(rlang::hash(lockfile_content))
+}
+
+lockfileHashOnDisk <- function(path = "renv.lock") {
+  captureLockfile(path = path)
+}
+
 #' Snapshot Current Environment State
 #' @description Captures all package versions and saves lockfile.
 #'   Useful before major pipeline operations for reproducibility tracking.
@@ -78,44 +104,84 @@ snapshotEnvironment <- function(versionLabel = NULL, savePath = NULL) {
     renv::snapshot(prompt = FALSE)
     cli::cli_alert_success("✓ Snapshot complete: renv.lock updated")
 
-    # Save versioned copy if requested
-    if (!is.null(versionLabel)) {
-      lockfile_path <- "renv.lock"
-
-      if (!file.exists(lockfile_path)) {
-        cli::cli_abort("renv.lock not found. Run initializeRenv() first.")
-      }
-
-      # Read lockfile
-      lockfile_content <- readr::read_file(lockfile_path)
-
-      # Compute hash
-      lockfile_hash <- rlang::hash(lockfile_content)
-
-      # Determine save path
-      if (is.null(savePath)) {
-        savePath <- "."
-      }
-
-      # Save versioned copy
-      versioned_path <- fs::path(
-        savePath,
-        glue::glue("renv_lock_{versionLabel}.json")
-      )
-
-      readr::write_file(lockfile_content, versioned_path)
-      cli::cli_alert_success("✓ Versioned copy saved: {fs::path_rel(versioned_path)}")
-
-      return(invisible(lockfile_hash))
-    } else {
-      # Return hash of main lockfile anyway
-      lockfile_content <- readr::read_file("renv.lock")
-      lockfile_hash <- rlang::hash(lockfile_content)
-      return(invisible(lockfile_hash))
-    }
+    captureLockfile(versionLabel = versionLabel, savePath = savePath)
   }, error = function(e) {
     cli::cli_abort("Failed to snapshot environment: {e$message}")
   })
+}
+
+# Read the `synchronized` flag from a renv::status() result.
+# Returns NA when the installed renv is too old to report it, so callers can
+# fall back to comparing the library and lockfile records themselves.
+renv_status_synchronized <- function(status) {
+  if (!is.list(status) || is.null(status[["synchronized"]])) {
+    return(NA)
+  }
+  isTRUE(status[["synchronized"]])
+}
+
+# Compare the package records renv::status() reports for the project library
+# against those recorded in renv.lock. Returns a character vector describing
+# each genuine difference ("pkg (lockfile 1.0.0, installed 1.1.0)"), or an
+# empty vector when every recorded package matches.
+#
+# Only Package/Version are compared: a differing Source or Repository is
+# metadata drift (the "unknown source" case) and must not block a pipeline.
+renv_status_drift <- function(status) {
+  packageVersions <- function(lockfileLike) {
+    packages <- if (is.list(lockfileLike)) lockfileLike[["Packages"]] else NULL
+    if (!is.list(packages) || length(packages) == 0) {
+      return(character(0))
+    }
+    versions <- vapply(
+      packages,
+      function(record) as.character(record[["Version"]] %||% NA_character_),
+      character(1)
+    )
+    names(versions) <- vapply(
+      seq_along(packages),
+      function(i) {
+        name <- packages[[i]][["Package"]] %||% names(packages)[i]
+        if (length(name) != 1 || is.na(name)) {
+          name <- paste0("<package ", i, ">")
+        }
+        as.character(name)
+      },
+      character(1)
+    )
+    versions
+  }
+
+  installed <- packageVersions(status[["library"]])
+  recorded <- packageVersions(status[["lockfile"]])
+
+  if (length(installed) == 0 && length(recorded) == 0) {
+    return(character(0))
+  }
+
+  lookup <- function(versions, pkg) {
+    if (pkg %in% names(versions)) unname(versions[[pkg]]) else NA_character_
+  }
+
+  describe <- function(version) {
+    if (is.na(version)) "absent" else version
+  }
+
+  allPackages <- sort(union(names(recorded), names(installed)))
+
+  drift <- vapply(allPackages, function(pkg) {
+    lockVersion <- lookup(recorded, pkg)
+    libVersion <- lookup(installed, pkg)
+    if (identical(lockVersion, libVersion)) {
+      return(NA_character_)
+    }
+    paste0(
+      pkg, " (lockfile ", describe(lockVersion),
+      ", installed ", describe(libVersion), ")"
+    )
+  }, character(1))
+
+  unname(drift[!is.na(drift)])
 }
 
 #' Validate Environment Against Lockfile
@@ -124,72 +190,67 @@ snapshotEnvironment <- function(versionLabel = NULL, savePath = NULL) {
 #'   Call before execStudyPipeline() or runPostProcessing().
 #' @return Invisible TRUE if valid, aborts if drift detected
 #' @keywords internal
+#' @details
+#' `renv::status()` always returns a list describing the project state — it
+#' never returns `NULL` — so the result must be inspected rather than merely
+#' tested for `NULL`. A project is treated as in sync when `renv::status()`
+#' reports `synchronized = TRUE`, or (on older renv versions that omit the
+#' flag) when no package version differs between the project library and
+#' `renv.lock`. Source-only mismatches, such as packages installed from an
+#' unknown source, are reported as a warning and do not block the pipeline.
 validateEnvironment <- function() {
   if (!requireNamespace("renv", quietly = TRUE)) {
     cli::cli_abort("renv package required")
   }
 
-  tryCatch({
-    cli::cli_alert_info("Validating environment state...")
+  cli::cli_alert_info("Validating environment state...")
 
-    # Capture output to detect unknown source packages
-    statusOutput <- utils::capture.output({
-      status <- renv::status()
-    })
-    
-    unknownSourceText <- paste(statusOutput, collapse = "\n")
-    hasUnknownSources <- grepl("unknown source", unknownSourceText, ignore.case = TRUE)
-
-    if (!is.null(status)) {
-      # There are packages that don't match lockfile
-      
-      if (hasUnknownSources) {
-        # Extract package names from status
-        packageNames <- if (is.data.frame(status) && "Package" %in% names(status)) {
-          status$Package
-        } else {
-          c()
-        }
-        
-        if (length(packageNames) > 0) {
-          cli::cli_alert_warning("Found {length(packageNames)} package(s) from unknown source:")
-          for (pkg in packageNames) {
-            cli::cli_bullets(c("!" = "{pkg}"))
-          }
-          cli::cli_bullets(c(
-            "i" = "Unknown source packages are permitted in this environment",
-            "i" = "Pipeline will proceed with execution"
-          ))
-          # Continue despite unknown sources - this is not a blocker
-        } else {
-          # Actual drift detected (not just unknown sources)
-          cli::cli_abort(c(
-            "Environment drift detected!",
-            "i" = "Packages differ from renv.lock",
-            "i" = "Restore with: {.code renv::restore()}",
-            "i" = "Or update with: {.code snapshotEnvironment()}"
-          ))
-        }
-      } else {
-        # Actual drift detected (not unknown sources)
-        cli::cli_abort(c(
-          "Environment drift detected!",
-          "i" = "Packages differ from renv.lock",
-          "i" = "Restore with: {.code renv::restore()}",
-          "i" = "Or update with: {.code snapshotEnvironment()}"
-        ))
-      }
+  status <- NULL
+  statusOutput <- tryCatch(
+    utils::capture.output(status <- renv::status()),
+    error = function(e) {
+      cli::cli_abort("Failed to validate environment: {conditionMessage(e)}")
     }
+  )
 
-    cli::cli_alert_success("✓ Environment validated against renv.lock")
+  if (isTRUE(renv_status_synchronized(status))) {
+    cli::cli_alert_success("Environment validated against renv.lock")
     return(invisible(TRUE))
-  }, error = function(e) {
-    if (grepl("Environment drift", e$message)) {
-      stop(e$message, call. = FALSE)
+  }
+
+  drift <- tryCatch(
+    renv_status_drift(status),
+    error = function(e) character(0)
+  )
+
+  if (length(drift) == 0) {
+    # renv flags the project as out of sync, but no package version differs.
+    # This is metadata-only drift (typically packages installed from a source
+    # renv cannot identify) and is not a reproducibility blocker.
+    hasUnknownSources <- any(grepl(
+      "unknown source",
+      statusOutput,
+      ignore.case = TRUE
+    ))
+
+    if (hasUnknownSources) {
+      cli::cli_alert_warning("Package(s) from an unknown source found in the project library")
     } else {
-      cli::cli_abort("Failed to validate environment: {e$message}")
+      cli::cli_alert_warning("renv reports the project as out of sync, but no package version differs from renv.lock")
     }
-  })
+    cli::cli_bullets(c(
+      "i" = "No package version differs from renv.lock — continuing",
+      "i" = "Run {.code snapshotEnvironment()} to record the current state"
+    ))
+    return(invisible(TRUE))
+  }
+
+  cli::cli_abort(c(
+    "Environment drift detected!",
+    "i" = "{length(drift)} package{?s} out of sync with renv.lock: {drift}",
+    "i" = "Restore with: {.code renv::restore()}",
+    "i" = "Or update with: {.code snapshotEnvironment()}"
+  ))
 }
 
 #' Restore Environment from Lockfile

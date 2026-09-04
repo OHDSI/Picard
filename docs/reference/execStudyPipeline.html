@@ -14,7 +14,7 @@ the complete pipeline, provides PR instructions, and saves reference to PENDING_
     
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.6</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.7</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -71,6 +71,8 @@ the complete pipeline, provides PR instructions, and saves reference to PENDING_
 <span>  <span class="va">updateType</span>,</span>
 <span>  skipRenv <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  skipConnectivityCheck <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  ignoreUncommittedPaths <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  skipCodeStateCheck <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  env <span class="op">=</span> <span class="fu">rlang</span><span class="fu">::</span><span class="fu"><a href="https://rlang.r-lib.org/reference/stack.html" class="external-link">caller_env</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -99,6 +101,25 @@ database connectivity pre-flight check. Set to FALSE to attempt a test
 connection to each config block before execution begins.</p></dd>
 
 
+<dt>ignoreUncommittedPaths</dt>
+<dd><p>Character vector or NULL. Repo-relative paths
+(e.g. <code>"inputs"</code>) whose uncommitted changes should not fail the code-state
+pre-flight check. Changes anywhere else — notably <code>analysis/</code> — still fail
+it. When NULL (default) the list is read from <code>ignoreUncommittedPaths</code> in
+the <code>default:</code> block of config.yml, which itself defaults to ignoring
+nothing, so behaviour is unchanged unless a study opts in. Pass
+<code>character(0)</code> to force strict checking regardless of config.yml.</p></dd>
+
+
+<dt>skipCodeStateCheck</dt>
+<dd><p>Logical. If TRUE, skips the code-state check
+entirely — a last resort when <code>ignoreUncommittedPaths</code> cannot express the
+churn. The run proceeds, but the pre-flight checklist raises a warning and
+the run history records the tree as <code>"unverified-skipped"</code>. Defaults to
+FALSE. Deliberately not settable from config.yml, so it cannot be baked
+permanently into a study.</p></dd>
+
+
 <dt>env</dt>
 <dd><p>The execution environment. Defaults to caller environment.</p></dd>
 
@@ -115,6 +136,20 @@ connection to each config block before execution begins.</p></dd>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span></span></span>
 <span class="r-in"><span><span class="co"># Run production pipeline with patch version increment</span></span></span>
 <span class="r-in"><span><span class="fu">execStudyPipeline</span><span class="op">(</span>configBlock <span class="op">=</span> <span class="st">"myConfig"</span>, updateType <span class="op">=</span> <span class="st">"patch"</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Tolerate manifest/ATLAS churn under inputs/ for this run only</span></span></span>
+<span class="r-in"><span><span class="fu">execStudyPipeline</span><span class="op">(</span></span></span>
+<span class="r-in"><span>  configBlock <span class="op">=</span> <span class="st">"myConfig"</span>,</span></span>
+<span class="r-in"><span>  updateType <span class="op">=</span> <span class="st">"patch"</span>,</span></span>
+<span class="r-in"><span>  ignoreUncommittedPaths <span class="op">=</span> <span class="st">"inputs"</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Last resort: do not check the working tree at all</span></span></span>
+<span class="r-in"><span><span class="fu">execStudyPipeline</span><span class="op">(</span></span></span>
+<span class="r-in"><span>  configBlock <span class="op">=</span> <span class="st">"myConfig"</span>,</span></span>
+<span class="r-in"><span>  updateType <span class="op">=</span> <span class="st">"patch"</span>,</span></span>
+<span class="r-in"><span>  skipCodeStateCheck <span class="op">=</span> <span class="cn">TRUE</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span></span></span>
 </code></pre></div>
     </div>
@@ -123,7 +158,7 @@ connection to each config block before execution begins.</p></dd>
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Developed by Martin Lavallee.</p>
+  <p>Developed by Martin Lavallee, Katy Sadowski.</p>
 </div>
 
 <div class="pkgdown-footer-right">

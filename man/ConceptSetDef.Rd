@@ -32,6 +32,7 @@ creates a hash to uniquely identify the generated JSON, and stores domain and so
 \itemize{
 \item \href{#method-ConceptSetDef-new}{\code{ConceptSetDef$new()}}
 \item \href{#method-ConceptSetDef-getFilePath}{\code{ConceptSetDef$getFilePath()}}
+\item \href{#method-ConceptSetDef-getDisplayPath}{\code{ConceptSetDef$getDisplayPath()}}
 \item \href{#method-ConceptSetDef-getJson}{\code{ConceptSetDef$getJson()}}
 \item \href{#method-ConceptSetDef-getHash}{\code{ConceptSetDef$getHash()}}
 \item \href{#method-ConceptSetDef-getId}{\code{ConceptSetDef$getId()}}
@@ -73,7 +74,30 @@ Get the file path}
 }
 
 \subsection{Returns}{
-Character. Relative path to the concept set file.
+Character. Absolute path to the concept set file — safe to read
+regardless of the current working directory.
+Get the file path for display
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetDef-getDisplayPath"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetDef-getDisplayPath}{}}}
+\subsection{Method \code{getDisplayPath()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetDef$getDisplayPath(root = NULL)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{root}}{Character or NULL. Study repository root. When supplied, the
+path is returned relative to it (the form stored in the manifest);
+otherwise the absolute path is returned.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Character. A human-facing path.
 Get the concept set JSON
 }
 }

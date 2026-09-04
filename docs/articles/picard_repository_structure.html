@@ -26,7 +26,7 @@
     
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.6</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.7</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -126,24 +126,29 @@ real-world evidence study:</p>
 │    (Define phenotypes, cohorts, covariates)                    │
 │         ↓                                                        │
 │ 3. ANALYSIS                                                     │
-│    analysis/tasks/ + analysis/src/ + analysis/migrations/     │
+│    analysis/tasks/ + analysis/src/                              │
 │    (Execute analyses, generate statistics)                      │
 │         ↓                                                        │
 │ 4. EXECUTION OUTPUT                                             │
 │    exec/results/[database]/[version]/[task]/                  │
 │    (Raw results by task, database, version)                     │
 │         ↓                                                        │
-│ 5. DISSEMINATION                                                │
-│    dissemination/export/ + dissemination/quarto/               │
-│    (Format results, create Study Hub website)                   │
+│ 5. POST-PROCESSING &amp; DISSEMINATION                              │
+│    dissemination/export/merge/ + dissemination/pretty/ +       │
+│    dissemination/quarto/                                        │
+│    (Merge results, format for release, build Study Hub website) │
 └─────────────────────────────────────────────────────────────────┘</code></pre>
 <p><strong>Workflow sequence:</strong> 1. Initialize with metadata
 (config.yml defines databases and credentials) 2. Load or create inputs
 (cohorts and concept sets) 3. Execute analysis tasks (code in
 analysis/tasks runs using inputs) 4. Raw results written to exec/results
-organized by database and version 5. Post-processing (migrations) and
-formatting (excel, CSV) 6. Dissemination via Study Hub (quarto website)
-and formatted exports</p>
+organized by database and version 5. Post-processing:
+<code><a href="../reference/runPostProcessing.html">runPostProcessing()</a></code> merges raw results across databases
+into <code>dissemination/export/merge/</code>, with reference files and
+QC reports 6. Dissemination: numbered scripts in
+<code>dissemination/pretty/R/</code> format merged results via
+<code><a href="../reference/sourceDisseminationScripts.html">sourceDisseminationScripts()</a></code>; the Study Hub (quarto
+website) renders narrative and results together</p>
 </div>
 <div class="section level2">
 <h2 id="ulysses-repository-outline">Ulysses Repository Outline<a class="anchor" aria-label="anchor" href="#ulysses-repository-outline"></a>
@@ -556,54 +561,20 @@ task execution more transparent and reproducible.</p>
 <div class="section level4">
 <h4 id="analysismigrations">analysis/migrations/<a class="anchor" aria-label="anchor" href="#analysismigrations"></a>
 </h4>
-<p>Post-processing scripts that clean and reshape pipeline results for
-dissemination. Migrations are numbered to correspond with their source
-analysis tasks (e.g., <code>02_migrate_surveillance.R</code> cleans
-output from task <code>02_surveillance.R</code>).</p>
-<p><strong>Purpose:</strong></p>
-<p>After <code>orchestratePipelineExport()</code> binds raw results with
-metadata, migrations handle data wrangling tasks that weren’t necessary
-during execution:</p>
-<ul>
-<li>
-<strong>Aggregating:</strong> Combine results across subgroups or
-time periods</li>
-<li>
-<strong>Standardizing:</strong> Apply demographic weighting or
-statistical adjustments</li>
-<li>
-<strong>Pivoting:</strong> Reshape long format to wide for
-publication tables</li>
-<li>
-<strong>Deriving:</strong> Calculate new metrics (confidence
-intervals, effect size categories, standardized rates)</li>
-<li>
-<strong>Filtering:</strong> Remove rows below minimum cell counts or
-meeting exclusion criteria</li>
-</ul>
-<p><strong>Workflow:</strong></p>
-<pre><code>Task 02: Pipeline Execution
-    ↓
-orchestratePipelineExport() → raw results to dissemination/export/merge/
-    ↓
-Migration 02: Data Wrangling (02_migrate_surveillance.R)
-    ↓
-dissemination/export/pretty/ → finalized, publication-ready results</code></pre>
-<p><strong>Example Structure:</strong></p>
-<pre><code>analysis/migrations/
-├── 02_migrate_surveillance.R
-│   # Aggregate surveillance counts by age/sex strata
-│   # Apply census weighting for standardization
-│   # Generate crude and standardized prevalence/incidence rates
-├── 03_migrate_comparative.R
-│   # Pivot comparative analysis results wide
-│   # Calculate confidence intervals and p-values
-└── 05_migrate_sensitivity.R
-    # Combine sensitivity analysis variants into summary table</code></pre>
-<p>Each migration reads from <code>dissemination/export/merge/</code>
-(raw exported results), performs transformations, and writes cleaned
-data to <code>dissemination/export/pretty/</code> for final
-dissemination.</p>
+<p>There is no <code>analysis/migrations/</code> folder in current
+Picard studies — post-processing and formatting now happen entirely
+under <code>dissemination/</code>, outside the versioned
+<code>analysis/</code> code. After <code><a href="../reference/execStudyPipeline.html">execStudyPipeline()</a></code>
+finishes, <code><a href="../reference/runPostProcessing.html">runPostProcessing()</a></code> merges raw per-database
+results into <code>dissemination/export/merge/v{version}/</code>, and
+numbered scripts in <code>dissemination/pretty/R/</code> (created with
+<code><a href="../reference/makeDisseminationScript.html">makeDisseminationScript()</a></code>, run with
+<code><a href="../reference/sourceDisseminationScripts.html">sourceDisseminationScripts()</a></code>) handle the data wrangling and
+formatting that used to live in migration scripts — aggregating,
+standardizing, pivoting, deriving, and filtering results for
+dissemination. See <a href="post_processing.html">Post-Processing and
+Dissemination</a> and the <a href="#dissemination-folder">Dissemination
+Folder</a> section below for the full workflow.</p>
 </div>
 </div>
 <div class="section level3">
@@ -898,7 +869,9 @@ concept set manifests.</p>
 <h3 id="dissemination-folder">Dissemination Folder<a class="anchor" aria-label="anchor" href="#dissemination-folder"></a>
 </h3>
 <p>This folder organizes results, evidence outputs, and documentation
-for sharing with stakeholders. Contains three main subdirectories.</p>
+for sharing with stakeholders. Contains four main subdirectories:
+<code>documents/</code>, <code>quarto/</code>, <code>export/</code>, and
+<code>pretty/</code>.</p>
 <div class="section level4">
 <h4 id="disseminationdocuments">dissemination/documents/<a class="anchor" aria-label="anchor" href="#disseminationdocuments"></a>
 </h4>
@@ -949,60 +922,69 @@ website.</p>
 <div class="section level4">
 <h4 id="disseminationexport">dissemination/export/<a class="anchor" aria-label="anchor" href="#disseminationexport"></a>
 </h4>
-<p>Results exported from the pipeline via
-<code>orchestratePipelineExport()</code> and processed into various
-formats for dissemination:</p>
+<p>Raw results merged across databases via
+<code><a href="../reference/runPostProcessing.html">runPostProcessing()</a></code>, one subfolder per pipeline
+version:</p>
 <pre><code>dissemination/export/
-├── merge/                 # Raw merged results from orchestratePipelineExport()
-│   ├── cohortKey.csv      # Cohort definitions (generated)
-│   ├── databaseInfo.csv   # Database metadata (generated)
-│   ├── schema_review.csv  # Schema validation (generated)
-│   ├── task_01_results.csv
-│   ├── task_02_results.csv
-│   └── task_03_results.csv
-├── pretty/                # Formatted results from migration scripts (Excel, CSV, etc.)
-│   ├── mainResults.xlsx
-│   ├── sensitivity_analyses.xlsx
-│   └── suppTable1_demographics.xlsx
-└── studyHubOutput/        # Files sourced by the Study Hub for dynamic rendering
-    ├── table1_demographics.csv
-    ├── figure1_incidence.csv
-    └── results_summary.json</code></pre>
+└── merge/
+    └── v1.0.0/                     # One folder per pipeline version
+        ├── cohort_counts.csv       # Task results merged across databases
+        ├── characterization.csv    # Task results merged across databases
+        ├── cohortManifestSnapshot.csv  # Reference: cohort metadata at execution
+        ├── databaseInfo.csv        # Reference: database details
+        ├── schema_review.csv       # Schema inspection results
+        ├── qc_cohortValidation.csv # QC: cohort completeness validation
+        └── qc_processMeta.csv      # QC: execution metadata</code></pre>
+<p><code>runPostProcessing(pipelineVersion, dbIds, ...)</code> reads raw
+results from <code>exec/results/</code> across all databases and tasks
+for a given version, merges each task’s results via
+<code><a href="../reference/importAndBind.html">importAndBind()</a></code>, adds a <code>databaseId</code> column,
+writes the reference/QC files above, and reviews schema with
+<code><a href="../reference/reviewExportSchema.html">reviewExportSchema()</a></code>. This folder holds durable, versioned
+raw exports — it is not touched by formatting scripts.</p>
+</div>
+<div class="section level4">
+<h4 id="disseminationpretty">dissemination/pretty/<a class="anchor" aria-label="anchor" href="#disseminationpretty"></a>
+</h4>
+<p>Where merged results get formatted for final release. Dissemination
+scripts live in <code>pretty/R/</code>, numbered like tasks, and their
+output is written alongside them by convention:</p>
+<pre><code>dissemination/pretty/
+├── R/                          # Dissemination/formatting scripts
+│   ├── 01_format_results.R     # Created via makeDisseminationScript()
+│   └── 02_studyHubTables.R
+├── mainResults.xlsx            # Formatted output written by a script
+└── table1_demographics.csv     # Formatted output written by a script</code></pre>
 <p><strong>Workflow:</strong></p>
 <ol style="list-style-type: decimal">
-<li><p><strong>Merge phase:</strong>
-<code>orchestratePipelineExport(pipelineVersion, dbIds)</code> reads raw
-results from <code>exec/results/</code> across all databases and tasks
-for a given version. It combines results into long-format CSV files in
-<code>dissemination/export/merge/</code>, along with reference files
-(cohortKey, databaseInfo, schema_review).</p></li>
 <li>
-<p><strong>Format phase:</strong> Migration scripts (e.g.,
-<code>02_migrate_surveillance.R</code>) read from
-<code>dissemination/export/merge/</code> and perform data wrangling,
-reshaping, and formatting. Output depends on use case:</p>
-<ul>
+<strong>Merge phase:</strong> <code><a href="../reference/runPostProcessing.html">runPostProcessing()</a></code>
+produces the versioned raw results in
+<code>dissemination/export/merge/v{version}/</code> described
+above.</li>
 <li>
-<strong>For publication/reports:</strong> Write formatted Excel/CSV
-files to <code>dissemination/export/pretty/</code>
-</li>
+<strong>Author phase:</strong>
+<code>makeDisseminationScript(name = "format_results")</code> creates a
+numbered template in <code>dissemination/pretty/R/</code>.</li>
 <li>
-<strong>For Study Hub:</strong> Write data tables and figures to
-<code>dissemination/export/studyHubOutput/</code>
-</li>
-</ul>
-</li>
-<li>
-<p><strong>Dissemination:</strong></p>
-<ul>
-<li>Files in <code>pretty/</code> are copied directly to publications or
-referenced by static Quarto reports</li>
-<li>Files in <code>studyHubOutput/</code> are sourced dynamically by
-Quarto files in <code>dissemination/quarto/</code> to create interactive
-tables and figures in the Study Hub website</li>
-</ul>
-</li>
+<strong>Format phase:</strong>
+<code><a href="../reference/sourceDisseminationScripts.html">sourceDisseminationScripts()</a></code> sources every script in
+<code>dissemination/pretty/R/</code> in alphabetical order, injecting a
+<code>disseminationEnv</code> object (<code>pipelineVersion</code>,
+<code>databaseIds</code>, <code>outputPath</code>,
+<code>resultsPath</code>) so each script can read from
+<code>dissemination/export/merge/</code> and write formatted
+Excel/CSV/JSON output to <code>dissemination/pretty/</code> (or wherever
+<code>outputPath</code> points) — for publication tables, Study Hub
+data, or both. While authoring a script, call
+<code><a href="../reference/createDisseminationEnv.html">createDisseminationEnv()</a></code> directly to build the same object
+at the console and run the script line by line before wiring it into the
+full pipeline.</li>
 </ol>
+<p>See <a href="post_processing.html">Post-Processing and
+Dissemination</a> for the full walkthrough, including QC reports and
+advanced usage of
+<code><a href="../reference/importAndBind.html">importAndBind()</a></code>/<code><a href="../reference/reviewExportSchema.html">reviewExportSchema()</a></code>/<code><a href="../reference/validateCohortResults.html">validateCohortResults()</a></code>.</p>
 </div>
 </div>
 <div class="section level3">
@@ -1058,7 +1040,7 @@ task created by <code><a href="../reference/setOutputFolder.html">setOutputFolde
 </ul>
 <p><strong>Task file execution:</strong> Each task script in
 <code>analysis/tasks/</code> creates an output folder via:</p>
-<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">outputFolder</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/setOutputFolder.html">setOutputFolder</a></span><span class="op">(</span></span>
 <span>  executionSettings <span class="op">=</span> <span class="va">executionSettings</span>,</span>
 <span>  pipelineVersion <span class="op">=</span> <span class="va">pipelineVersion</span>,</span>
@@ -1148,7 +1130,7 @@ exporting results.</p></li>
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Developed by Martin Lavallee.</p>
+  <p>Developed by Martin Lavallee, Katy Sadowski.</p>
 </div>
 
 <div class="pkgdown-footer-right">

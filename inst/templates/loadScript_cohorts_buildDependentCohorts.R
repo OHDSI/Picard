@@ -2,9 +2,9 @@
 # File: buildDependentCohorts.R
 # ================================================================================
 #
-# Study: {studyName}
-# Author: {author}
-# Purpose: {description}
+# Study: <<studyName>>
+# Author: <<author>>
+# Purpose: <<description>>
 #
 # This script builds dependent/derived cohorts that are defined by their
 # relationship to other cohorts already in the manifest.
@@ -181,26 +181,45 @@ cohortManifest$tabulateManifest()
 # Register a dependency-aware custom SQL cohort that references existing cohorts
 # via SqlRender parameters in the SQL file.
 
+# incEntry <- cohortManifest$queryCohortsByLabel("Inclusion cohort")
+# excEntry <- cohortManifest$queryCohortsByLabel("Exclusion cohort")
+#
 # cohortManifest$addDependentCustomCohort(
 #   filePath = here::here("inputs/cohorts/sql/my_custom_dependent.sql"),
 #   label = "Eligible_With_Exclusions",
 #   category = "Derived Cohorts",
 #   dependentCohortIdList = list(
-#     inc_cohort_id = 1001L,
-#     exc_cohort_id = 1002L
+#     # Preferred: manifest entries (data.frame/tibble with an id column) -
+#     # same pattern as baseCohortEntry/cohortEntries on the builders above.
+#     # Backward compatible: raw integer IDs also still work.
+#     inc_cohort_id = incEntry,
+#     exc_cohort_id = excEntry
+#   ),
+#   # sqlParameters: optional extra values (not cohort IDs) to render into the SQL
+#   sqlParameters = list(
+#     min_days = 30L
 #   ),
 #   tags = list(owner = "epi_team", source = "custom_sql")
 # )
 
 # SQL contract reminder for my_custom_dependent.sql:
-#   - Use @inc_cohort_id and @exc_cohort_id placeholders (or your own named keys)
+#   - Use @inc_cohort_id, @exc_cohort_id, @min_days, etc. placeholders (or your own named keys)
 #   - DELETE from @target_database_schema.@target_cohort_table by @target_cohort_id
 #   - INSERT into @target_database_schema.@target_cohort_table
 #       (cohort_definition_id, subject_id, cohort_start_date, cohort_end_date)
+#
+# dependentCohortIdList/sqlParameters values are rendered into the SQL immediately,
+# and the rendered file is written to inputs/cohorts/derived/<label>.sql (the file
+# actually registered in the manifest) - just like the built-in derived cohort
+# builders above. Only @target_cohort_id and the other connection/schema
+# placeholders are left for generateCohorts() to fill in at execution time.
+# When dependentCohortIdList entries carry a label (i.e. manifest entries, not
+# raw IDs), that label is written into a "Dependent cohorts" comment header at
+# the top of the generated file, for QC.
 
 # Note that users can build dependent sql cohorts with templates via R functions. Any
 # code should be saved in inputs/cohorts/R/src. add another folder called /sql in here
-# for the templates! 
+# for the templates!
 
 
 # ================================================================================

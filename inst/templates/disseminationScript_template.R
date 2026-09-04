@@ -1,5 +1,5 @@
 # ============================================================================
-# Dissemination Script Template - {study_name}
+# Dissemination Script Template - <<study_name>>
 # ============================================================================
 #
 # Purpose: Format and prepare merged study results for dissemination
@@ -27,6 +27,13 @@ library(picard)
 #   - databaseIds: Vector of database IDs processed
 #   - outputPath: Base output directory for results
 #   - resultsPath: Merged results directory (dissemination/export/merge/v{version}/)
+
+# To test this script interactively (line by line) before running it via
+# sourceDisseminationScripts(), build the same object yourself:
+# disseminationEnv <- createDisseminationEnv(
+#   pipelineVersion = "1.0.0",
+#   databaseIds = c("database_1", "database_2")
+# )
 
 cat("Dissemination Metadata:\n")
 cat("  Pipeline Version:", disseminationEnv$pipelineVersion, "\n")
@@ -73,8 +80,8 @@ if (length(result_files) > 0) {
   cat("Dimensions:", nrow(results_df), "rows ×", ncol(results_df), "columns\n")
   
   # Show which databases are in this result
-  if ("database_id" %in% names(results_df)) {
-    cat("Databases in this result:", paste(unique(results_df$database_id), collapse = ", "), "\n")
+  if ("databaseId" %in% names(results_df)) {
+    cat("Databases in this result:", paste(unique(results_df$databaseId), collapse = ", "), "\n")
   }
   cat("\n")
   
@@ -99,17 +106,17 @@ if (length(result_files) > 0) {
 # 3. Example: Pivot Results for Cross-Database Comparison
 # ============================================================================
 
-# If your results have a 'databaseId' column, you can create a wide pivot
-# for easy comparison across databases
+# Merged results carry a 'databaseId' column added by the postprocessing step.
+# prepareDisseminationData(clean_names = TRUE) renames it to 'database_id', so
+# use the snake_case name on formatted_df.
 
 # Uncomment and modify to use:
 # 
-# # Assuming 'databaseId' column exists for grouping
 # comparison_df <- picard::pivotForComparison(
 #   data = formatted_df,
-#   pivotColumns = c("metric_name", "stratum"),  # Columns to pivot
-#   valueColumn = "estimate",                     # Column with values
-#   databaseId = "databaseId"                     # Grouping column
+#   id_cols = c("metric_name", "stratum"),  # Columns identifying each row
+#   names_from = "database_id",             # Column pivoted into new columns
+#   values_from = "estimate"                # Column with values
 # )
 # 
 # output_comparison <- file.path(outputPath, "comparison_wide.csv")

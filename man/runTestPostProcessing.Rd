@@ -9,7 +9,8 @@ runTestPostProcessing(
   pipelineVersion = "dev",
   resultsPath = here::here("exec/results"),
   exportPath = here::here("dissemination/export/merge"),
-  cohortsFolderPath = here::here("inputs/cohorts")
+  cohortsFolderPath = here::here("inputs/cohorts"),
+  compress = FALSE
 )
 }
 \arguments{
@@ -24,6 +25,9 @@ Defaults to "dissemination/export/merge".}
 
 \item{cohortsFolderPath}{Character. Path to cohorts folder for the CohortManifest.
 Defaults to "inputs/cohorts".}
+
+\item{compress}{Logical. If TRUE, merged per-task result files are written as
+gzip-compressed \code{.csv.gz}. See \code{\link{runPostProcessing}}. Default: FALSE.}
 }
 \value{
 Invisibly returns the merge summary data frame from runPostProcessing().

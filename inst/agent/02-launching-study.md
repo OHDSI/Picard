@@ -134,7 +134,8 @@ sm <- makeStudyMeta(
       role = "qc"
     )
   ),
-  studyTags = c("OMOP", "OHDSI", "Characterization")
+  studyTags = c("OMOP", "OHDSI", "Characterization"),
+  studyDescription = "This study characterizes diabetes populations in an OMOP CDM."
 )
 ```
 
@@ -147,10 +148,11 @@ sm <- makeStudyMeta(
   - `email`: Contact email
   - `role`: Role type (e.g., "developer", "qc", "principal investigator")
 - `studyTags`: Character vector of study tags for organization
+- `studyDescription`: Optional character string used in the generated README study description. If omitted or `NULL`, the README contains the placeholder text `Add a short description about the study!`.
 
 ## Step 2: Configure Database Connection
 
-If analyzing a database (toolType = "dbms"), create a database configuration block using `setDbConfigBlock()`:
+If analyzing a database, create a database configuration block using `setDbConfigBlock()`:
 
 ```{r eval = FALSE}
 db <- setDbConfigBlock(
@@ -428,7 +430,8 @@ sm <- makeStudyMeta(
       role = "qc"
     )
   ),
-  studyTags = c("OMOP", "OHDSI", "Characterization")
+  studyTags = c("OMOP", "OHDSI", "Characterization"),
+  studyDescription = "This study characterizes diabetes populations in an OMOP CDM."
 )
 
 # 2. Configure database connection

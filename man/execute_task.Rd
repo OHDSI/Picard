@@ -10,7 +10,10 @@ execute_task(
   pipelineVersion = "dev",
   checkStatus = FALSE,
   env = rlang::caller_env(),
-  cohortTableSuffix = NULL
+  cohortTableSuffix = NULL,
+  codeState = NULL,
+  logFilePath = NULL,
+  cohortManifestHash = NULL
 )
 }
 \arguments{
@@ -26,6 +29,23 @@ based on file changes, dependencies, cohort changes, and previous errors. Automa
 Default: FALSE}
 
 \item{env}{the execution environment}
+
+\item{codeState}{List or NULL. Working-tree provenance from
+\code{runPreflightChecks()} (\code{sha} and \code{status}). Recorded in
+\code{exec/logs/task_run_history.csv} alongside each run. NULL — the
+default, used when a task is run outside the pipeline — records the code
+state as \code{"unrecorded"} rather than implying a clean tree.}
+
+\item{logFilePath}{Character or NULL. Path to the pipeline log file for
+recording high-level milestones and full error detail. NULL (default)
+when run outside a pipeline (e.g. via \code{testStudyTask()}) — no file
+is written.}
+
+\item{cohortManifestHash}{Character or NULL. Pre-computed cohort manifest
+hash (see \code{.getCohortManifestHash()}). NULL (default) computes it once
+here; \code{execute_pipeline()} computes it once and passes it in so the
+manifest is not re-loaded for every task. Recorded with the run and used
+for the rerun check.}
 }
 \description{
 Function to execute a study task in Ulysses

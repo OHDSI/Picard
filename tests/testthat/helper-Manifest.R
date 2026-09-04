@@ -1,14 +1,25 @@
+# Purpose: Write the structural marker files/dirs that findStudyProjectRoot() looks
+# for, so an isolated temp tree resolves as a real Picard study repository root.
+cm_test_write_project_markers <- function(root) {
+  fs::dir_create(root)
+  fs::file_create(fs::path(root, "config.yml"))
+  fs::file_create(fs::path(root, "README.md"))
+  fs::dir_create(fs::path(root, "analysis"))
+  fs::dir_create(fs::path(root, "inputs"))
+  fs::dir_create(fs::path(root, "dissemination"))
+  invisible(root)
+}
+
 # Purpose: Create an isolated temporary inputs/cohorts directory tree and sqlite path for a test run.
 cm_test_make_manifest_paths <- function(test_name = "cohortmanifest") {
   root <- fs::file_temp(pattern = paste0("picard-", test_name, "-"))
-  fs::dir_create(root)
+  cm_test_write_project_markers(root)
 
   inputs_dir <- fs::path(root, "inputs")
   cohorts_dir <- fs::path(inputs_dir, "cohorts")
   sql_dir <- fs::path(cohorts_dir, "sql")
   json_dir <- fs::path(cohorts_dir, "json")
 
-  fs::dir_create(inputs_dir)
   fs::dir_create(cohorts_dir)
   fs::dir_create(sql_dir)
   fs::dir_create(json_dir)
@@ -22,6 +33,38 @@ cm_test_make_manifest_paths <- function(test_name = "cohortmanifest") {
     db_path = fs::path(cohorts_dir, "cohortManifest.sqlite")
   )
   return(ll)
+}
+
+# Purpose: Fetch the raw sqlite manifest row(s) for a label (any status).
+cm_test_get_manifest_row <- function(manifest, label) {
+  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
+  on.exit(DBI::dbDisconnect(conn))
+  DBI::dbGetQuery(
+    conn,
+    "SELECT * FROM cohort_manifest WHERE label = ?",
+    list(label)
+  )
+}
+
+# Purpose: Overwrite a manifest row's stored file_path directly in sqlite, to
+# simulate a row written under a legacy path convention (absolute,
+# manifest-folder-relative, working-directory-relative).
+cm_test_set_stored_path <- function(manifest, id, path) {
+  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
+  on.exit(DBI::dbDisconnect(conn))
+  DBI::dbExecute(
+    conn,
+    "UPDATE cohort_manifest SET file_path = ? WHERE id = ?",
+    list(as.character(path), as.integer(id))
+  )
+  invisible(path)
+}
+
+# Purpose: Return the raw sqlite rows for a manifest as a data.frame.
+cm_test_all_rows <- function(manifest) {
+  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
+  on.exit(DBI::dbDisconnect(conn))
+  DBI::dbGetQuery(conn, "SELECT * FROM cohort_manifest ORDER BY id")
 }
 
 # Purpose: Instantiate a fresh CohortManifest bound to the temporary sqlite path.
@@ -65,6 +108,8 @@ cm_test_add_sql_cohort <- function(manifest, paths, label, category = "Test", ta
 }
 
 # Purpose: Add a CIRCE cohort to the manifest using a fixture JSON file.
+# Copies the fixture into the manifest's temp json/ dir first, mirroring the
+# real workflow (JSON lives under inputs/cohorts/json/ inside the study repo).
 cm_test_add_circe_cohort <- function(manifest, paths, label, category = "Test", tags = list(), fixture_name = "ckd.json") {
   circe_path <- testthat::test_path("test_files", fixture_name)
   testthat::skip_if_not(
@@ -72,8 +117,11 @@ cm_test_add_circe_cohort <- function(manifest, paths, label, category = "Test", 
     message = paste("Missing CIRCE test fixture:", fixture_name)
   )
 
+  local_json <- fs::path(paths$json_dir, fixture_name)
+  fs::file_copy(circe_path, local_json, overwrite = TRUE)
+
   manifest$addCirceCohort(
-    filePath = circe_path,
+    filePath = local_json,
     label = label,
     category = category,
     tags = tags
@@ -131,6 +179,20 @@ cm_test_add_capr_cohort <- function(manifest, label, category = "Test", tags = l
   )
 }
 
+# Purpose: Resolve a manifest-stored (repo-root-relative) file_path to an absolute
+# path, for test code that reads or stats the file directly. The test working
+# directory is tests/testthat, not the temp study repo, so raw stored paths do
+# not resolve on their own.
+cm_test_resolve_path <- function(manifest, stored_path) {
+  as.character(fs::path(manifest$getProjectRoot(), stored_path))
+}
+
+# Purpose: Express an absolute path the way the manifest stores it (relative to
+# the study repo root), for equality assertions against a stored file_path.
+cm_test_rel_path <- function(manifest, path) {
+  as.character(fs::path_rel(fs::path_abs(path), start = manifest$getProjectRoot()))
+}
+
 # Purpose: Assert that a cohort exists in the manifest with optional source/cohort type checks.
 cm_test_assert_cohort_registered <- function(manifest, label, expected_source_type = NULL, expected_cohort_type = NULL) {
   rows <- manifest$queryCohortsByLabel(labels = label, matchType = "exact")
@@ -146,7 +208,11 @@ cm_test_assert_cohort_registered <- function(manifest, label, expected_source_ty
     testthat::expect_equal(rows$cohort_type[[1]], expected_cohort_type)
   }
 
-  testthat::expect_true(fs::file_exists(rows$file_path[[1]]))
+  # Stored paths are repo-root-relative; resolve against the manifest's project
+  # root before checking disk (the test working directory is tests/testthat).
+  testthat::expect_true(
+    fs::file_exists(fs::path(manifest$getProjectRoot(), rows$file_path[[1]]))
+  )
 }
 
 # Purpose: Seed a baseline manifest for query/retrieval tests with fixture cohorts.

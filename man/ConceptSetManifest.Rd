@@ -16,11 +16,12 @@ The ConceptSetManifest class manages multiple concept set definitions and stores
 metadata in a SQLite database located at inputs/conceptSets/conceptSetManifest.sqlite.
 Each ConceptSetDef is assigned a sequential ID based on its position in the manifest.
 
-The load file is a transient, one-time import mechanism: rows whose
-atlasId or label are already registered in the manifest are an error, not
-an update. To sync registered concept sets with ATLAS, run
-\code{updateAtlasConceptSets()}; to update a single concept set, use
-\code{addAtlasConceptSet(stopIfExists = FALSE)}.
+By default, the load file is treated as a transient, one-time import
+mechanism: rows whose atlasId is already registered in the manifest are
+an error, not an update. Set \code{stopIfExists = FALSE} to instead update
+those rows in place, which supports iterating on the load file across
+repeated runs. To sync registered concept sets with ATLAS without a
+load file, use \code{updateAtlasConceptSets()}.
 
 \strong{Processing Steps:}
 \enumerate{
@@ -69,7 +70,8 @@ this method to apply updates.
 
 \strong{Processing:}
 \enumerate{
-\item Retrieves the concept set definition (CIRCE JSON) by ID
+\item Resolves the concept set by manifest ID or exact label
+\item Retrieves the concept set definition (CIRCE JSON)
 \item Builds SQL query using \code{CirceR::buildConceptSetQuery()}
 \item Executes query against the OMOP vocabulary schema
 \item Returns results with concept_id and concept_name columns
@@ -165,7 +167,9 @@ by finding the reverse mapping relationship. For each concept set:
 \item \href{#method-ConceptSetManifest-new}{\code{ConceptSetManifest$new()}}
 \item \href{#method-ConceptSetManifest-getManifest}{\code{ConceptSetManifest$getManifest()}}
 \item \href{#method-ConceptSetManifest-tabulateManifest}{\code{ConceptSetManifest$tabulateManifest()}}
+\item \href{#method-ConceptSetManifest-viewManifest}{\code{ConceptSetManifest$viewManifest()}}
 \item \href{#method-ConceptSetManifest-getDbPath}{\code{ConceptSetManifest$getDbPath()}}
+\item \href{#method-ConceptSetManifest-getProjectRoot}{\code{ConceptSetManifest$getProjectRoot()}}
 \item \href{#method-ConceptSetManifest-getExecutionSettings}{\code{ConceptSetManifest$getExecutionSettings()}}
 \item \href{#method-ConceptSetManifest-setExecutionSettings}{\code{ConceptSetManifest$setExecutionSettings()}}
 \item \href{#method-ConceptSetManifest-getAtlasConnection}{\code{ConceptSetManifest$getAtlasConnection()}}
@@ -177,6 +181,7 @@ by finding the reverse mapping relationship. For each concept set:
 \item \href{#method-ConceptSetManifest-importAtlasConceptSets}{\code{ConceptSetManifest$importAtlasConceptSets()}}
 \item \href{#method-ConceptSetManifest-queryConceptSetsByIds}{\code{ConceptSetManifest$queryConceptSetsByIds()}}
 \item \href{#method-ConceptSetManifest-queryConceptSetsByTag}{\code{ConceptSetManifest$queryConceptSetsByTag()}}
+\item \href{#method-ConceptSetManifest-queryConceptSetsByCategory}{\code{ConceptSetManifest$queryConceptSetsByCategory()}}
 \item \href{#method-ConceptSetManifest-queryConceptSetsByTagName}{\code{ConceptSetManifest$queryConceptSetsByTagName()}}
 \item \href{#method-ConceptSetManifest-queryConceptSetsMissingTag}{\code{ConceptSetManifest$queryConceptSetsMissingTag()}}
 \item \href{#method-ConceptSetManifest-queryConceptSetsWithTagValues}{\code{ConceptSetManifest$queryConceptSetsWithTagValues()}}
@@ -218,7 +223,10 @@ by finding the reverse mapping relationship. For each concept set:
 \subsection{Method \code{new()}}{
 Initialize a new ConceptSetManifest
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$new(dbPath = "inputs/conceptSets/conceptSetManifest.sqlite")}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$new(
+  dbPath = "inputs/conceptSets/conceptSetManifest.sqlite",
+  projectRoot = NULL
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -226,7 +234,13 @@ Initialize a new ConceptSetManifest
 \describe{
 \item{\code{dbPath}}{Character. Path to the SQLite database. Defaults to
 "inputs/conceptSets/conceptSetManifest.sqlite". The directory is created
-automatically if it does not exist.
+automatically if it does not exist.}
+
+\item{\code{projectRoot}}{Character or NULL. Study repository root against which
+stored file paths are resolved. When \code{NULL} (default) the root is
+discovered once via \code{\link[=findStudyProjectRoot]{findStudyProjectRoot()}} from the manifest's
+directory and cached for the life of the object. Supply an explicit
+path for tests or unusual layouts.
 Get the manifest as a list of ConceptSetDef objects}
 }
 \if{html}{\out{</div>}}
@@ -248,22 +262,66 @@ List. A list of ConceptSetDef objects in the manifest.
 \if{html}{\out{<a id="method-ConceptSetManifest-tabulateManifest"></a>}}
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-tabulateManifest}{}}}
 \subsection{Method \code{tabulateManifest()}}{
-Tabulate the manifest as a tibble
+Tabulate the concept set manifest
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$tabulateManifest(filter = c("active", "deleted", "all"))}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$tabulateManifest(
+  filter = c("active", "deleted", "all"),
+  tags_format = c("nested", "json", "wide")
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{filter}}{Character. Controls which rows are returned. One of
-\code{"active"} (default), \code{"deleted"}, or \code{"all"}.}
+\item{\code{filter}}{Character. One of "active", "deleted", or "all".
+Defaults to "active".}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested" (default): Parse JSON tags into a nested tibble with tag_name/tag_value columns
+\item "json": Keep tags as raw JSON string
+\item "wide": Expand tags into individual columns (one per unique tag key)
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-A tibble with columns: id, label, category, tags, file_path, hash,
-source_type, cohort_type, status, created_at, deleted_at
+Tibble with concept set manifest data. Tags format depends on tags_format parameter.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-viewManifest"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-viewManifest}{}}}
+\subsection{Method \code{viewManifest()}}{
+View the concept set manifest in RStudio viewer
+
+Opens an interactive RStudio viewer showing key concept set metadata:
+id, label, category, tags, and file_path. This is a convenience function
+for exploring manifest contents without console clutter.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$viewManifest(
+  filter = c("active", "deleted", "all"),
+  tags_format = c("nested", "json", "wide")
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{filter}}{Character. One of "active", "deleted", or "all".
+Defaults to "active".}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested" (default): Tags as structured nested tibble
+\item "json": Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Invisibly returns the tibble displayed in the viewer.
 Get the manifest path
 }
 }
@@ -277,6 +335,20 @@ Get the manifest path
 
 \subsection{Returns}{
 Character. The path to the SQLite database.
+Get the study repository root
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-getProjectRoot"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-getProjectRoot}{}}}
+\subsection{Method \code{getProjectRoot()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$getProjectRoot()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Character. The cached study repository root used to resolve
+stored file paths.
 Get the execution settings
 }
 }
@@ -503,7 +575,8 @@ a \code{tryCatch} so a single failure does not abort the entire batch.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$importAtlasConceptSets(
   conceptSetsLoad,
-  atlasConnection = NULL
+  atlasConnection = NULL,
+  stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -515,6 +588,12 @@ a \code{tryCatch} so a single failure does not abort the entire batch.
 \item{\code{atlasConnection}}{An ATLAS connection object with a
 \code{getConceptSetDefinition(conceptSetId)} method.
 If \code{NULL}, falls back to the connection stored via \verb{$setAtlasConnection()}.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when any
+load row's atlasId is already registered in the manifest. If FALSE,
+those rows are updated in place instead (same ID/file path, hash
+refreshed, category/tags replaced) via \code{addAtlasConceptSet(stopIfExists = FALSE)}.
+Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
@@ -528,18 +607,29 @@ Query concept sets by IDs
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-queryConceptSetsByIds}{}}}
 \subsection{Method \code{queryConceptSetsByIds()}}{
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsByIds(ids)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsByIds(
+  ids,
+  tags_format = c("nested", "json", "wide")
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
 \item{\code{ids}}{Integer vector. One or more concept set IDs.}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+\item "json": Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Tibble with columns: id, label, category, tags, file_path, hash, created_at.
+Tibble with matching concept sets. Tag columns depend on
+\code{tags_format}. Returns NULL if no matches are found.
 Query concept sets by tag
 }
 }
@@ -548,7 +638,11 @@ Query concept sets by tag
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-queryConceptSetsByTag}{}}}
 \subsection{Method \code{queryConceptSetsByTag()}}{
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsByTag(tagStrings, match = c("any", "all"))}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsByTag(
+  tagStrings,
+  match = c("any", "all"),
+  tags_format = c("nested", "json", "wide")
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -560,12 +654,56 @@ argument controls whether a concept set must satisfy any or all of them.}
 
 \item{\code{match}}{Character. "any" (default) returns concept sets matching at least one tag;
 "all" returns only concept sets matching every tag.}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+\item "json": Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Tibble with columns: id, label, category, tags, file_path, hash, created_at.
-Query cohorts by category
+Tibble with matching concept sets. Tag columns depend on
+\code{tags_format}. Returns NULL if no matches are found.
+Query concept sets by category
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-queryConceptSetsByCategory"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-queryConceptSetsByCategory}{}}}
+\subsection{Method \code{queryConceptSetsByCategory()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsByCategory(
+  category,
+  matchType = c("exact", "pattern"),
+  tags_format = c("nested", "json", "wide")
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{category}}{Character vector. One or more category to search for.
+A concept set is included when it matches at least one of the supplied category (OR logic).}
+
+\item{\code{matchType}}{Character. Either "exact" for exact match or "pattern" for pattern matching.
+Defaults to "exact".}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+\item "json": Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Tibble with matching concept sets. Tag columns depend on
+\code{tags_format}. Returns NULL if no matches are found.
+Query concept sets by tag name
 }
 }
 \if{html}{\out{<hr>}}
@@ -573,18 +711,29 @@ Query cohorts by category
 \if{latex}{\out{\hypertarget{method-ConceptSetManifest-queryConceptSetsByTagName}{}}}
 \subsection{Method \code{queryConceptSetsByTagName()}}{
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsByTagName(tagName)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsByTagName(
+  tagName,
+  tags_format = c("nested", "json", "wide")
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{tagName}}{Character vector. The name of tags to query}
+\item{\code{tagName}}{Character vector. The name of tags to query.}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+\item "json": Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Tibble with columns: id, label, category, tags, file_path, hash, source_type, created_at.
+Tibble with matching concept sets. Tag columns depend on
+\code{tags_format}. Returns NULL if no matches are found.
 }
 }
 \if{html}{\out{<hr>}}
@@ -593,19 +742,29 @@ Tibble with columns: id, label, category, tags, file_path, hash, source_type, cr
 \subsection{Method \code{queryConceptSetsMissingTag()}}{
 Query concept sets missing a specific tag
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsMissingTag(tagName)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsMissingTag(
+  tagName,
+  tags_format = c("nested", "json", "wide")
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
 \item{\code{tagName}}{Character. The name of the tag to check for absence.}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+\item "json": Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Tibble with columns: id, label, category, tags, file_path, hash, created_at.
-Returns NULL if all concept sets have the tag.
+Tibble with matching concept sets. Tag columns depend on
+\code{tags_format}. Returns NULL if all concept sets have the tag.
 }
 }
 \if{html}{\out{<hr>}}
@@ -614,7 +773,10 @@ Returns NULL if all concept sets have the tag.
 \subsection{Method \code{queryConceptSetsWithTagValues()}}{
 Query concept sets by tag value mapping
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsWithTagValues(tagValueMapping)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsWithTagValues(
+  tagValueMapping,
+  tags_format = c("nested", "json", "wide")
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -622,12 +784,19 @@ Query concept sets by tag value mapping
 \describe{
 \item{\code{tagValueMapping}}{Named list. Keys are tag names, values are tag values to match.
 Example: \code{list(status = "approved", type = "primary")} requires both conditions (AND logic).}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+\item "json": Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Tibble with columns: id, label, category, tags, file_path, hash, created_at.
-Returns NULL if no concept sets match all tag conditions.
+Tibble with matching concept sets. Tag columns depend on
+\code{tags_format}. Returns NULL if no concept sets match all tag conditions.
 }
 }
 \if{html}{\out{<hr>}}
@@ -659,7 +828,8 @@ Query concept sets by label
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$queryConceptSetsByLabel(
   labels,
-  matchType = c("exact", "pattern")
+  matchType = c("exact", "pattern"),
+  tags_format = c("nested", "json", "wide")
 )}\if{html}{\out{</div>}}
 }
 
@@ -671,11 +841,19 @@ A concept set is included when it matches at least one of the supplied labels (O
 
 \item{\code{matchType}}{Character. Either "exact" for exact match or "pattern" for pattern matching.
 Defaults to "exact".}
+
+\item{\code{tags_format}}{Character. One of "nested", "json", or "wide".
+\itemize{
+\item "nested" (default): Tags as nested tibble with tag_name/tag_value columns
+\item "json": Tags as raw JSON string
+\item "wide": Tags expanded into individual columns
+}}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Tibble with columns: id, label, category, tags, file_path, hash, created_at.
+Tibble with matching concept sets. Tag columns depend on
+\code{tags_format}. Returns NULL if no matches are found.
 }
 }
 \if{html}{\out{<hr>}}
@@ -826,7 +1004,8 @@ exclude+descendants), exports the result as JSON, and registers it in the manife
   conceptSetIds,
   combinedLabel,
   combinedCategory = "combined",
-  combinedTags = list()
+  combinedTags = list(),
+  stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -843,11 +1022,17 @@ Defaults to \code{"combined"}.}
 \item{\code{combinedTags}}{Named list. Optional metadata tags for the combined set.
 Defaults to \code{list()}. A tag \code{sourceConceptSetIds} is automatically added
 with comma-separated source IDs.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
+active concept set with \code{combinedLabel} is already registered. If FALSE,
+updates the existing concept set in place via \code{addCaprConceptSet()}'s
+upsert path — it keeps its ID and file path, and \code{combinedCategory}/
+\code{combinedTags} replace the registered metadata. Default: TRUE (fail-safe).}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Invisible integer. The ID of the newly created combined concept set.
+Invisible integer. The ID of the newly created (or updated) combined concept set.
 }
 }
 \if{html}{\out{<hr>}}
@@ -1207,6 +1392,13 @@ the SQLite manifest, and updates both the database and the in-memory list:
 \item Existing files whose JSON hash has changed are updated in the manifest.
 \item Orphaned files on disk not in manifest are automatically deleted.
 }
+
+Stored file paths are resolved against the study repository root before any
+disk comparison, and hashes are computed from file contents only, so a row
+is reported as \code{"hash_updated"} only when the file's contents actually
+changed — never because its stored path used an older convention. To
+rewrite legacy stored paths to the current repo-root-relative form, run
+\code{normalizeConceptSetManifestPaths()} once.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$syncManifest(strict_mode = TRUE)}\if{html}{\out{</div>}}
 }
@@ -1236,13 +1428,15 @@ The concept set definition (stored as CIRCE JSON) is used to build a query that 
 all concept IDs and names matching the set definition. Results are returned as a tibble
 with concept identifiers and display names.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$grabConceptInfoFromSet(conceptSetId)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$grabConceptInfoFromSet(conceptSetRef)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{conceptSetId}}{Integer. The concept set ID in the manifest.}
+\item{\code{conceptSetRef}}{Integer or Character. Concept set reference in the
+manifest. Pass either the manifest ID or the exact concept set label.
+Use \code{tabulateManifest()} to inspect available IDs and labels.}
 }
 \if{html}{\out{</div>}}
 }

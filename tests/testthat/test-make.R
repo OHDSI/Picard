@@ -19,6 +19,34 @@ testthat::test_that("setContributor and makeStudyMeta create expected R6 objects
   testthat::expect_true(grepl("Example Contributor", study_meta$listContributors(), fixed = TRUE))
 })
 
+testthat::test_that("StudyMeta supports an optional study description", {
+  contributor <- setContributor(
+    name = "Example Contributor",
+    email = "contributor@example.org",
+    role = "developer"
+  )
+
+  described_meta <- makeStudyMeta(
+    studyTitle = "Described Study",
+    therapeuticArea = "Cardiology",
+    studyType = "Characterization",
+    contributors = list(contributor),
+    studyDescription = "A study description for the generated README."
+  )
+  default_meta <- makeStudyMeta(
+    studyTitle = "Default Description Study",
+    therapeuticArea = "Cardiology",
+    studyType = "Characterization",
+    contributors = list(contributor)
+  )
+
+  testthat::expect_equal(
+    described_meta$studyDescription,
+    "A study description for the generated README."
+  )
+  testthat::expect_null(default_meta$studyDescription)
+})
+
 testthat::test_that("makeBlock builds DbConfigBlock with sanitized placeholders", {
   db_block <- makeBlock(
     configBlockName = "db_placeholder",
@@ -339,7 +367,7 @@ testthat::test_that("makePrintFriendlyFile generates Rmd output from cohort JSON
   json_target_dir <- fs::path(repo_ctx$repo_path, "inputs/cohorts/json/target")
   fs::dir_create(json_target_dir, recurse = TRUE)
 
-  source_json <- fs::path("tests", "testthat", "test_files", "death.json")
+  source_json <- testthat::test_path("test_files", "death.json")
   testthat::expect_true(fs::file_exists(source_json))
   fs::file_copy(source_json, fs::path(json_target_dir, "death.json"), overwrite = TRUE)
 

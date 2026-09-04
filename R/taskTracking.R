@@ -3,7 +3,11 @@
 #' @description Determines whether a task needs to be rerun by checking:
 #'   1. Task file modifications (file hash comparison)
 #'   2. Dependency file modifications (extracted from source() calls)
-#'   3. Cohort manifest changes (hash comparison)
+#'   3. Cohort manifest changes — compares
+#'      [CohortManifest$getManifestHash()][CohortManifest] against the hash
+#'      recorded on the previous run. A rerun is forced when the hash differs,
+#'      when no hash was recorded (first run, or a legacy history row), or when
+#'      the current hash cannot be computed at all.
 #'   4. Previous run errors (checked in logs and history)
 #'   5. Version changes
 #'
@@ -12,6 +16,10 @@
 #' @param executionSettings ExecutionSettings object
 #' @param pipelineVersion Character. Current pipeline version (e.g., "1.0.0")
 #' @param tasksFolderPath Character. Path to tasks folder (default: here::here("analysis/tasks"))
+#' @param cohortManifestHash Character or NULL. A pre-computed cohort manifest
+#'   hash (see [.getCohortManifestHash()]). When NULL (default) it is computed
+#'   here; callers that check many tasks in one run pass it in to avoid
+#'   re-loading the manifest per task.
 #'
 #' @return List with elements:
 #'   - should_rerun: Logical. TRUE if task should be rerun
@@ -31,7 +39,8 @@ shouldRerunTask <- function(
     configBlock,
     executionSettings,
     pipelineVersion,
-    tasksFolderPath = here::here("analysis/tasks")) {
+    tasksFolderPath = here::here("analysis/tasks"),
+    cohortManifestHash = NULL) {
 
   # Initialize result structure
   reasons <- character()
@@ -95,17 +104,26 @@ shouldRerunTask <- function(
   }
 
   # Check 3: Cohort manifest has changed
-  currentCohortManifestHash <- .getCohortManifestHash()
-  if (!is.null(currentCohortManifestHash)) {
-    if (!is.null(lastRunInfo) && !is.na(lastRunInfo$cohort_manifest_hash)) {
-      if (lastRunInfo$cohort_manifest_hash != currentCohortManifestHash) {
-        reasons <- c(reasons, "Cohort manifest has changed")
-        rerunNeeded <- TRUE
-      }
-    } else {
-      reasons <- c(reasons, "No previous cohort manifest hash recorded")
-      rerunNeeded <- TRUE
-    }
+  currentCohortManifestHash <- cohortManifestHash %||% .getCohortManifestHash()
+  previousCohortManifestHash <- if (!is.null(lastRunInfo)) {
+    lastRunInfo$cohort_manifest_hash
+  } else {
+    NA_character_
+  }
+
+  if (is.null(currentCohortManifestHash) || is.na(currentCohortManifestHash)) {
+    # Fail safe: a missing manifest hash means we cannot prove the cohort
+    # definitions are unchanged, so force the rerun rather than skip the check.
+    reasons <- c(reasons, "Cohort manifest hash unavailable - forcing rerun")
+    rerunNeeded <- TRUE
+  } else if (is.na(previousCohortManifestHash) || !nzchar(previousCohortManifestHash)) {
+    # First run for this task+config, or a run recorded before the hash was
+    # persisted (legacy history rows store ""). Rerun so a hash gets recorded.
+    reasons <- c(reasons, "No previous cohort manifest hash recorded")
+    rerunNeeded <- TRUE
+  } else if (previousCohortManifestHash != currentCohortManifestHash) {
+    reasons <- c(reasons, "Cohort manifest has changed")
+    rerunNeeded <- TRUE
   }
 
   # Check 4: Previous run had errors
@@ -160,6 +178,14 @@ shouldRerunTask <- function(
 #' @param cohortManifestHash Character. Hash of cohort manifest at time of execution (optional)
 #' @param errorMessage Character. Error message if status is "failed" (optional)
 #' @param tasksFolderPath Character. Path to tasks folder (optional)
+#' @param commitSha Character. HEAD commit SHA at execution time, from the
+#'   pre-flight code-state check (optional).
+#' @param codeState Character. Provenance of the working tree at execution time:
+#'   \code{"clean"}, \code{"dirty-ignored"} (uncommitted changes were tolerated
+#'   under configured ignore paths), \code{"unverified-skipped"} (the code-state
+#'   check was skipped), \code{"unverified-test-mode"}, or \code{"unrecorded"}
+#'   for calls outside a pipeline run. Recorded so the audit trail never implies
+#'   a clean tree when the tree was not clean.
 #'
 #' @return Invisibly TRUE if successful
 #' @export
@@ -170,7 +196,12 @@ recordTaskExecution <- function(
     status,
     cohortManifestHash = NA_character_,
     errorMessage = NA_character_,
-    tasksFolderPath = here::here("analysis/tasks")) {
+    tasksFolderPath = here::here("analysis/tasks"),
+    commitSha = NA_character_,
+    codeState = "unrecorded") {
+
+  # Tolerate NULL as "no hash" so the data.frame row below always has length 1.
+  cohortManifestHash <- cohortManifestHash %||% NA_character_
 
   if (!file.exists(taskFile)) {
     taskFile <- fs::path(tasksFolderPath, taskFile)
@@ -206,6 +237,8 @@ recordTaskExecution <- function(
     cohort_manifest_hash = ifelse(is.na(cohortManifestHash), "", cohortManifestHash),
     status = status,
     error_message = ifelse(is.na(errorMessage), "", errorMessage),
+    commit_sha = ifelse(is.na(commitSha), "", as.character(commitSha)),
+    code_state = ifelse(is.na(codeState), "unrecorded", as.character(codeState)),
     stringsAsFactors = FALSE
   )
 
@@ -233,29 +266,70 @@ recordTaskExecution <- function(
 #' @return Data frame with history records
 #' @keywords internal
 .initializeTaskHistory <- function(historyFile) {
-  if (file.exists(historyFile)) {
-    tryCatch({
-      readr::read_csv(
-        historyFile,
-        show_col_types = FALSE,
-        col_types = readr::cols(
-          task_name = readr::col_character(),
-          config_block = readr::col_character(),
-          last_run_time = readr::col_character(),
-          pipeline_version = readr::col_character(),
-          task_file_hash = readr::col_character(),
-          cohort_manifest_hash = readr::col_character(),
-          status = readr::col_character(),
-          error_message = readr::col_character()
-        )
-      )
-    }, error = function(e) {
+  if (!file.exists(historyFile)) {
+    return(.createEmptyHistory())
+  }
+
+  historyDf <- tryCatch(
+    .readTaskHistory(historyFile),
+    error = function(e) {
       cli::cli_alert_warning("Could not read task history file, creating new one")
       .createEmptyHistory()
-    })
-  } else {
-    .createEmptyHistory()
+    }
+  )
+
+  .ensureHistoryColumns(historyDf)
+}
+
+
+#' @title Read Task Run History
+#' @description Reads task_run_history.csv as all-character columns. Every column
+#'   is read permissively so that history files written by older picard versions
+#'   — which lack the \code{commit_sha} and \code{code_state} provenance columns
+#'   — still load; missing columns are back-filled by [.ensureHistoryColumns()].
+#' @param historyFile Character. Path to history file
+#' @return Data frame with history records
+#' @keywords internal
+.readTaskHistory <- function(historyFile) {
+  readr::read_csv(
+    historyFile,
+    show_col_types = FALSE,
+    col_types = readr::cols(.default = readr::col_character())
+  )
+}
+
+
+#' @title Back-fill Task History Columns
+#' @description Adds any columns missing from a history data frame and orders
+#'   them to match [.createEmptyHistory()]. Rows written before the provenance
+#'   columns existed are marked \code{"unrecorded"} rather than \code{"clean"},
+#'   so an old row is never mistaken for a verified-clean run.
+#' @param historyDf Data frame of history records
+#' @return Data frame with the full column set
+#' @keywords internal
+.ensureHistoryColumns <- function(historyDf) {
+  template <- .createEmptyHistory()
+
+  if (is.null(historyDf) || !is.data.frame(historyDf)) {
+    return(template)
   }
+
+  historyDf <- as.data.frame(historyDf, stringsAsFactors = FALSE)
+
+  for (column in names(template)) {
+    if (!column %in% names(historyDf)) {
+      historyDf[[column]] <- if (identical(column, "code_state")) {
+        "unrecorded"
+      } else {
+        ""
+      }
+    } else {
+      historyDf[[column]] <- as.character(historyDf[[column]])
+      historyDf[[column]][is.na(historyDf[[column]])] <- ""
+    }
+  }
+
+  historyDf[, names(template), drop = FALSE]
 }
 
 
@@ -272,6 +346,8 @@ recordTaskExecution <- function(
     cohort_manifest_hash = character(),
     status = character(),
     error_message = character(),
+    commit_sha = character(),
+    code_state = character(),
     stringsAsFactors = FALSE
   )
 }
@@ -323,25 +399,28 @@ recordTaskExecution <- function(
 
 
 #' @title Get Cohort Manifest Hash
-#' @description Loads the cohort manifest and computes a SHA256 hash of the entire manifest.
-#'   This hash is used to detect changes in cohort definitions that would require task reruns.
-#' @return Character. SHA256 hash of the cohort manifest, or NA_character_ if error occurs
+#' @description Loads the cohort manifest and returns
+#'   [CohortManifest$getManifestHash()][CohortManifest], a SHA256 digest over
+#'   every registered (`active`/`stale`) cohort's definition. Used by
+#'   [shouldRerunTask()] to detect cohort changes that require a task rerun.
+#' @details A thin wrapper around the manifest method, which is the single
+#'   source of truth for what "the cohort definitions changed" means. The load
+#'   is read-only (`autoSync = FALSE`), so this has no side effects. Any failure
+#'   to load or hash the manifest returns `NA_character_`; [shouldRerunTask()]
+#'   treats that as "cannot prove unchanged" and forces the rerun.
+#' @param projectPath Character. A path inside the study repository. Defaults to
+#'   the current project (`here::here()`).
+#' @return Character. SHA256 hex digest, or `NA_character_` if the manifest
+#'   cannot be read.
 #' @keywords internal
-.getCohortManifestHash <- function() {
+.getCohortManifestHash <- function(projectPath = here::here()) {
   tryCatch({
-    # Load manifest
-    cohortManifest <- loadCohortManifest(
-      cohortsFolderPath = here::here("inputs/cohorts"),
+    cm <- loadCohortManifest(
+      cohortsFolderPath = projectPath,
+      autoSync = FALSE,
       verbose = FALSE
     )
-    # pull all manifest entries and compute hash
-    cm <- cohortManifest$getManifest()
-    cmHashes <- purrr::map_chr(cm, ~.x$getHash())
-    
-    # Combine all hashes into a single string and hash that
-    manifestHash <- digest::digest(cmHashes, algo = "sha256")
-    
-    return(manifestHash)
+    cm$getManifestHash()
   }, error = function(e) {
     cli::cli_alert_warning("Could not compute cohort manifest hash: {e$message}")
     return(NA_character_)
@@ -365,20 +444,7 @@ getTaskRunSummary <- function(configBlock = NULL, taskName = NULL) {
   }
 
   historyDf <- tryCatch({
-    readr::read_csv(
-      historyFile,
-      show_col_types = FALSE,
-      col_types = readr::cols(
-        task_name = readr::col_character(),
-        config_block = readr::col_character(),
-        last_run_time = readr::col_character(),
-        pipeline_version = readr::col_character(),
-        task_file_hash = readr::col_character(),
-        cohort_manifest_hash = readr::col_character(),
-        status = readr::col_character(),
-        error_message = readr::col_character()
-      )
-    )
+    .ensureHistoryColumns(.readTaskHistory(historyFile))
   }, error = function(e) {
     cli::cli_alert_danger("Failed to read task history: {e$message}")
     return(data.frame())
@@ -412,20 +478,7 @@ displayTaskStatusReport <- function(limit = 20) {
   }
 
   historyDf <- tryCatch({
-    readr::read_csv(
-      historyFile,
-      show_col_types = FALSE,
-      col_types = readr::cols(
-        task_name = readr::col_character(),
-        config_block = readr::col_character(),
-        last_run_time = readr::col_character(),
-        pipeline_version = readr::col_character(),
-        task_file_hash = readr::col_character(),
-        cohort_manifest_hash = readr::col_character(),
-        status = readr::col_character(),
-        error_message = readr::col_character()
-      )
-    )
+    .ensureHistoryColumns(.readTaskHistory(historyFile))
   }, error = function(e) {
     cli::cli_alert_danger("Failed to read task history: {e$message}")
     return(NULL)
@@ -477,10 +530,16 @@ displayTaskStatusReport <- function(limit = 20) {
         ""
       }
 
+      codeMsg <- if (!is.na(row$code_state) && !row$code_state %in% c("", "clean")) {
+        paste0(" [code state: ", row$code_state, "]")
+      } else {
+        ""
+      }
+
       cat(sprintf(
-        "  [%s] %s (%s v%s) at %s%s\n",
+        "  [%s] %s (%s v%s) at %s%s%s\n",
         statusIcon, row$task_name, row$config_block,
-        row$pipeline_version, row$last_run_time, errMsg
+        row$pipeline_version, row$last_run_time, codeMsg, errMsg
       ))
     }
   }

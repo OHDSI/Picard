@@ -29,6 +29,16 @@
 #   cohortTable: study_cohorts
 
 
+# Production runs require a clean working tree. If files under inputs/ churn
+# without a deliberate edit (manifest sqlite files rewritten on re-import,
+# ATLAS-sourced JSON refetched), list the paths whose uncommitted changes should
+# not fail the code-state pre-flight check. Changes anywhere else - notably
+# analysis/ - still fail it. Omit the setting to ignore nothing (the default).
+#
+# default:
+#   ignoreUncommittedPaths:
+#     - inputs
+
 default:
   projectName: {repoName}
   version: 0.0.1

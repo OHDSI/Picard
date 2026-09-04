@@ -91,10 +91,21 @@ testthat::test_that("getCohortsByLabel supports exact and pattern", {
 
   exact <- manifest$getCohortsByLabel("Type 2 Diabetes", matchType = "exact")
   pattern <- manifest$getCohortsByLabel("Outcome", matchType = "pattern")
+  multi <- manifest$getCohortsByLabel("^C", matchType = "pattern")
 
   testthat::expect_equal(length(exact), 1)
   testthat::expect_equal(exact[[1]]$label, "Type 2 Diabetes")
-  testthat::expect_true(length(pattern) >= 2)
+
+  # Matches labels, not categories: three seeded cohorts are in the "Outcome"
+  # category but only one carries it in its label.
+  testthat::expect_equal(length(pattern), 1)
+  testthat::expect_equal(pattern[[1]]$label, "Major Bleeding Outcome")
+
+  # Patterns are regular expressions, so one can match several labels.
+  testthat::expect_setequal(
+    vapply(multi, function(cohort) cohort$label, character(1)),
+    c("Chronic Kidney Disease", "Custom SQL Cohort")
+  )
 })
 
 # Testing: nCohorts reflects seeded active cohorts in manifest.
@@ -103,4 +114,58 @@ testthat::test_that("nCohorts returns seeded cohort count", {
   manifest <- setup$manifest
 
   testthat::expect_equal(manifest$nCohorts(), 5)
+})
+
+# Testing: read-only manifest access leaves the sqlite file byte-identical, so a
+# pipeline pre-flight check does not turn the manifest into an uncommitted
+# change (issue #84).
+testthat::test_that("read-only manifest operations do not rewrite the sqlite file", {
+  setup <- cm_test_seed_manifest_for_queries("query-readonly-bytes")
+  manifest <- setup$manifest
+  db_path <- manifest$getDbPath()
+
+  before <- unname(tools::md5sum(db_path))
+
+  invisible(manifest$getManifest())
+  invisible(manifest$nCohorts())
+  invisible(manifest$tabulateManifest(filter = "active"))
+  invisible(manifest$queryCohortsByLabel("Chronic Kidney Disease", matchType = "exact"))
+  invisible(manifest$validateManifest())
+  invisible(CohortManifest$new(dbPath = db_path))
+
+  testthat::expect_equal(unname(tools::md5sum(db_path)), before)
+})
+
+# Testing: syncManifest against unchanged files on disk is a pure read.
+testthat::test_that("syncManifest with no changes does not rewrite the sqlite file", {
+  setup <- cm_test_seed_manifest_for_queries("query-sync-bytes")
+  manifest <- setup$manifest
+  db_path <- manifest$getDbPath()
+
+  before <- unname(tools::md5sum(db_path))
+
+  out <- manifest$syncManifest(strict_mode = FALSE)
+
+  testthat::expect_true(all(out$action == "unchanged"))
+  testthat::expect_equal(unname(tools::md5sum(db_path)), before)
+})
+
+# Testing: queries work when the manifest is opened from a working directory
+# unrelated to the study repository, and the read stays byte-stable (step 3).
+testthat::test_that("queries work from an unrelated working directory", {
+  setup <- cm_test_seed_manifest_for_queries("query-unrelated-cwd")
+  db_path <- setup$manifest$getDbPath()
+  labels_expected <- sort(setup$manifest$tabulateManifest(filter = "active")$label)
+
+  withr::with_dir(withr::local_tempdir(), {
+    before <- unname(tools::md5sum(db_path))
+    reopened <- CohortManifest$new(dbPath = db_path)
+
+    testthat::expect_equal(sort(reopened$tabulateManifest(filter = "active")$label), labels_expected)
+    hit <- reopened$getCohortsByLabel("Chronic Kidney Disease", matchType = "exact")
+    testthat::expect_length(hit, 1L)
+    testthat::expect_true(nchar(hit[[1]]$getSql()) > 0)
+
+    testthat::expect_equal(unname(tools::md5sum(db_path)), before)
+  })
 })

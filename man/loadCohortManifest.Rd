@@ -12,11 +12,18 @@ loadCohortManifest(
 )
 }
 \arguments{
-\item{cohortsFolderPath}{Character. Path to the cohorts folder containing the manifest
-database. Defaults to \code{here::here("inputs/cohorts")}.}
+\item{cohortsFolderPath}{Character. Path to the cohorts folder, or anywhere
+inside the study repository. Defaults to \code{here::here("inputs/cohorts")}. The
+repository root is discovered with \code{\link[=findStudyProjectRoot]{findStudyProjectRoot()}} and the manifest
+is always read from \verb{<root>/inputs/cohorts/cohortManifest.sqlite}.}
 
 \item{executionSettings}{An ExecutionSettings object containing database configuration
 for cohort generation. Optional; can be added later using \verb{$setExecutionSettings()}.}
+
+\item{autoSync}{Logical. If TRUE (default), reconcile the manifest against the
+files on disk after loading (see \verb{$syncManifest()}). This only affects
+file/row reconciliation — it is \strong{not} related to path resolution, and
+setting it to FALSE is not a workaround for a manifest that fails to load.}
 
 \item{verbose}{Logical. If TRUE, prints informative messages. Defaults to TRUE.}
 }
@@ -36,4 +43,20 @@ error directing the user to \code{initCohortManifest()}.
 After loading, the function checks for new files in \verb{json/}, \verb{sql/}, and \verb{derived/}
 directories that are not tracked in the manifest. These are reported as warnings
 but NOT auto-added (because \code{category} is required and cannot be guessed).
+\subsection{File paths}{
+
+Cohort file paths are stored \strong{relative to the study repository root} (e.g.
+\code{inputs/cohorts/json/mycohort.json}). Loading resolves them against that root,
+so a manifest loads identically on any machine and from any working
+directory — you do not need to \code{setwd()} into the study repo first.
+
+Manifests created before this convention may hold working-directory-relative,
+manifest-folder-relative, or absolute paths. Those still resolve through a
+compatibility fallback, but you can rewrite them to the current convention
+once with \code{\link[=normalizeCohortManifestPaths]{normalizeCohortManifestPaths()}}. Ordinary loads never modify the
+SQLite file.
+}
+}
+\seealso{
+\code{\link[=normalizeCohortManifestPaths]{normalizeCohortManifestPaths()}}, \code{\link[=findStudyProjectRoot]{findStudyProjectRoot()}}
 }

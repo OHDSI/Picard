@@ -26,7 +26,7 @@
     
     <a class="navbar-brand me-2" href="../index.html">picard</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.6</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.0.7</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -693,20 +693,31 @@ previously defined cohorts (for example inclusion/exclusion cohorts).
 This registers the cohort as a dependency-aware derived type
 (<code>custom_derived</code>) so execution order, stale detection, and
 dependency hashing are handled automatically.</p>
+<p>Like the built-in derived cohort builders (subset, union, etc.), the
+values you supply are rendered into the SQL immediately and the rendered
+file is written to <code>inputs/cohorts/derived/&lt;label&gt;.sql</code>
+— that generated file, not your source file, is what’s registered in the
+manifest. Only the connection/schema placeholders
+(<code>@target_cohort_id</code> and friends) are left unrendered, for
+<code><a href="../reference/generateCohorts.html">generateCohorts()</a></code> to fill in at execution time.</p>
 <div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">cohortManifest</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loadCohortManifest.html">loadCohortManifest</a></span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># Example dependencies already in the manifest:</span></span>
-<span><span class="co"># - 1001 = Inclusion cohort</span></span>
-<span><span class="co"># - 1002 = Exclusion cohort</span></span>
+<span><span class="co"># Preferred: entries from manifest query results</span></span>
+<span><span class="va">inclusionEntry</span> <span class="op">&lt;-</span> <span class="va">cohortManifest</span><span class="op">$</span><span class="fu">queryCohortsByLabel</span><span class="op">(</span><span class="st">"Inclusion cohort"</span><span class="op">)</span></span>
+<span><span class="va">exclusionEntry</span> <span class="op">&lt;-</span> <span class="va">cohortManifest</span><span class="op">$</span><span class="fu">queryCohortsByLabel</span><span class="op">(</span><span class="st">"Exclusion cohort"</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">addDependentCustomCohort</span><span class="op">(</span></span>
 <span>  filePath <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts/sql/my_custom_dependent.sql"</span><span class="op">)</span>,</span>
 <span>  label <span class="op">=</span> <span class="st">"Eligible_With_Exclusions"</span>,</span>
 <span>  category <span class="op">=</span> <span class="st">"Derived Cohorts"</span>,</span>
 <span>  dependentCohortIdList <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
-<span>    inc_cohort_id <span class="op">=</span> <span class="fl">1001L</span>,</span>
-<span>    exc_cohort_id <span class="op">=</span> <span class="fl">1002L</span></span>
+<span>    inc_cohort_id <span class="op">=</span> <span class="va">inclusionEntry</span>,</span>
+<span>    exc_cohort_id <span class="op">=</span> <span class="va">exclusionEntry</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  <span class="co"># Optional: any other values (not cohort IDs) to render into the SQL too</span></span>
+<span>  sqlParameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>    min_days <span class="op">=</span> <span class="fl">30L</span></span>
 <span>  <span class="op">)</span>,</span>
 <span>  tags <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>owner <span class="op">=</span> <span class="st">"epi_team"</span>, source <span class="op">=</span> <span class="st">"custom_sql"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -714,11 +725,37 @@ dependency hashing are handled automatically.</p>
 <ul>
 <li>
 <code>dependentCohortIdList</code> is a <strong>named
-mapping</strong> of SqlRender parameter name to cohort ID.</li>
-<li>Parameter names are flexible (for example
-<code>inc_cohort_id</code>, <code>exc_cohort_id</code>,
-<code>baseline_cohort_id</code>) and are injected at runtime.</li>
-<li>All mapped cohort IDs must already exist in the manifest.</li>
+mapping</strong> of SqlRender parameter name to a dependent cohort.
+Parameter names are flexible (for example <code>inc_cohort_id</code>,
+<code>exc_cohort_id</code>, <code>baseline_cohort_id</code>).
+<ul>
+<li>Preferred: a manifest entry (a data.frame/tibble with an
+<code>id</code> column, as returned by
+<code>queryCohortsByLabel()</code> and similar query methods) — a single
+row bakes in one ID, a multi-row table bakes in a comma-separated vector
+of IDs, for <code>IN (@param)</code> clauses. Same pattern as
+<code>baseCohortEntry</code>/ <code>cohortEntries</code> on the built-in
+derived builders.</li>
+<li>Backward compatible: a raw integer cohort ID (or integer
+vector).</li>
+<li>All referenced cohort IDs must already exist in the manifest, and
+they become this cohort’s <code>depends_on</code> parents for staleness
+tracking.</li>
+</ul>
+</li>
+<li>
+<code>sqlParameters</code> is an optional <strong>named
+mapping</strong> of SqlRender parameter name to any other value
+(thresholds, dates, strings, etc.) you want baked into the SQL. These
+are not treated as cohort dependencies.</li>
+<li>Both are rendered into the SQL at registration time — not at
+runtime.</li>
+<li>When <code>dependentCohortIdList</code> entries are manifest entries
+with a <code>label</code> column, those labels (purely for QC) are
+written into a generated comment header at the top of the derived SQL
+file — e.g. <code>inc_cohort_id: id 1001, label Inclusion cohort</code>
+— so anyone reading the generated file can see at a glance which cohorts
+were baked in, without cross-referencing the manifest.</li>
 </ul>
 <p>Your SQL file should reference the mapped placeholders:</p>
 <div class="sourceCode" id="cb22"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb22-1"><a href="#cb22-1" tabindex="-1"></a><span class="kw">DELETE</span> <span class="kw">FROM</span> @target_database_schema.@target_cohort_table</span>
@@ -832,60 +869,63 @@ folder.</p>
 <span id="cb23-62"><a href="#cb23-62" tabindex="-1"></a>  cohort_start_date,</span>
 <span id="cb23-63"><a href="#cb23-63" tabindex="-1"></a>  cohort_end_date</span>
 <span id="cb23-64"><a href="#cb23-64" tabindex="-1"></a><span class="kw">FROM</span> T1;</span></code></pre></div>
-<p>Notice that in this template I am using cohort I have already created
-but building a custom derivation to analyze. I want to do this for
-several cohorts in my manifest. I apply this sql template in an R
-function to create each custom derived cohort and add it to the
-manifest.</p>
+<p>Notice that in this template I am using cohorts I have already
+created but building a custom derivation to analyze. I want to do this
+for several inclusion/exclusion pairs in my manifest.</p>
+<p>Because <code>addDependentCustomCohort()</code> renders
+<code>dependentCohortIdList</code>/<code>sqlParameters</code> into the
+SQL and writes the result to
+<code>inputs/cohorts/derived/&lt;label&gt;.sql</code> itself, the
+template file in <code>inputs/cohorts/R/src/sql</code> can be reused
+as-is, unmodified, for every pair — there’s no need to hand-copy or
+pre-render it first. I apply this sql template in an R function to build
+each custom derived cohort from the manifest:</p>
 <div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span></span>
 <span><span class="va">buildCensoredComplement</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span></span>
 <span>  <span class="va">cohortManifest</span>,</span>
-<span>  <span class="va">inclusionCohortId</span>,</span>
-<span>  <span class="va">inclusionCohortLabel</span>,</span>
-<span>  <span class="va">exclusionCohortId</span>,</span>
-<span>  <span class="va">exclusionCohortLabel</span>,</span>
-<span>  <span class="va">inputsDir</span> <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts/R"</span><span class="op">)</span>,</span>
-<span>  <span class="va">outputPath</span> <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts/sql"</span><span class="op">)</span></span>
+<span>  <span class="va">inclusionEntry</span>,</span>
+<span>  <span class="va">exclusionEntry</span>,</span>
+<span>  <span class="va">inputsDir</span> <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"inputs/cohorts/R"</span><span class="op">)</span></span>
 <span><span class="op">)</span> <span class="op">{</span></span>
 <span></span>
 <span>  <span class="va">sqlTemplatePath</span> <span class="op">&lt;-</span> <span class="fu">fs</span><span class="fu">::</span><span class="fu"><a href="https://fs.r-lib.org/reference/path.html" class="external-link">path</a></span><span class="op">(</span><span class="va">inputsDir</span>, <span class="st">"src/sql/censored_complement.sql"</span><span class="op">)</span></span>
-<span>  <span class="va">sqlTemplate</span> <span class="op">&lt;-</span> <span class="fu">SqlRender</span><span class="fu">::</span><span class="fu"><a href="https://ohdsi.github.io/SqlRender/reference/readSql.html" class="external-link">readSql</a></span><span class="op">(</span><span class="va">sqlTemplatePath</span><span class="op">)</span></span>
 <span></span>
-<span>  <span class="co"># make the save label</span></span>
-<span>  <span class="va">cohortLabel</span> <span class="op">&lt;-</span> <span class="fu">glue</span><span class="fu">::</span><span class="fu"><a href="https://glue.tidyverse.org/reference/glue.html" class="external-link">glue</a></span><span class="op">(</span><span class="st">"{inclusionCohortLabel} - {exclusionCohortLabel} exclusion"</span><span class="op">)</span></span>
-<span>  <span class="va">outputLabel</span> <span class="op">&lt;-</span> <span class="fu">snakecase</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/snakecase/man/caseconverter.html" class="external-link">to_snake_case</a></span><span class="op">(</span><span class="va">cohortLabel</span><span class="op">)</span></span>
-<span></span>
-<span>  <span class="va">sqlOutputPath</span> <span class="op">&lt;-</span> <span class="fu">fs</span><span class="fu">::</span><span class="fu"><a href="https://fs.r-lib.org/reference/path.html" class="external-link">path</a></span><span class="op">(</span><span class="va">outputPath</span>, <span class="va">outputLabel</span>, ext <span class="op">=</span> <span class="st">"sql"</span><span class="op">)</span></span>
-<span>  <span class="fu">SqlRender</span><span class="fu">::</span><span class="fu"><a href="https://ohdsi.github.io/SqlRender/reference/writeSql.html" class="external-link">writeSql</a></span><span class="op">(</span><span class="va">sqlTemplate</span>, <span class="va">sqlOutputPath</span><span class="op">)</span></span>
+<span>  <span class="va">cohortLabel</span> <span class="op">&lt;-</span> <span class="fu">glue</span><span class="fu">::</span><span class="fu"><a href="https://glue.tidyverse.org/reference/glue.html" class="external-link">glue</a></span><span class="op">(</span><span class="st">"{inclusionEntry$label[1]} - {exclusionEntry$label[1]} exclusion"</span><span class="op">)</span></span>
 <span></span>
 <span>  <span class="va">check_if_there</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">cohortManifest</span><span class="op">$</span><span class="fu">queryCohortsByLabel</span><span class="op">(</span><span class="va">cohortLabel</span><span class="op">)</span><span class="op">)</span></span>
 <span>  <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="va">check_if_there</span><span class="op">)</span> <span class="op">{</span></span>
 <span>    <span class="fu">cli</span><span class="fu">::</span><span class="fu"><a href="https://cli.r-lib.org/reference/cli_alert.html" class="external-link">cli_alert_warning</a></span><span class="op">(</span><span class="st">"Censored Complement {.val {cohortLabel}} already exists. Skipped!"</span><span class="op">)</span></span>
 <span>  <span class="op">}</span> <span class="kw">else</span> <span class="op">{</span></span>
 <span>    <span class="fu">cli</span><span class="fu">::</span><span class="fu"><a href="https://cli.r-lib.org/reference/cli_alert.html" class="external-link">cli_alert_info</a></span><span class="op">(</span><span class="st">"Create Censored Complement for {.val {cohortLabel}}"</span><span class="op">)</span></span>
-<span>    <span class="fu">cli</span><span class="fu">::</span><span class="fu"><a href="https://cli.r-lib.org/reference/cli_alert.html" class="external-link">cli_alert_success</a></span><span class="op">(</span><span class="st">"Save Censored Complement to {.file {sqlOutputPath}}"</span><span class="op">)</span></span>
 <span>    <span class="va">cohortManifest</span><span class="op">$</span><span class="fu">addDependentCustomCohort</span><span class="op">(</span></span>
-<span>      filePath <span class="op">=</span> <span class="va">sqlOutputPath</span>,</span>
+<span>      filePath <span class="op">=</span> <span class="va">sqlTemplatePath</span>,</span>
 <span>      label <span class="op">=</span> <span class="va">cohortLabel</span>,</span>
 <span>      category <span class="op">=</span> <span class="st">"Target Sub Pop"</span>,</span>
 <span>      dependentCohortIdList <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
-<span>        inc_cohort_id <span class="op">=</span> <span class="va">inclusionCohortId</span>,</span>
-<span>        exc_cohort_id <span class="op">=</span> <span class="va">exclusionCohortId</span></span>
+<span>        inc_cohort_id <span class="op">=</span> <span class="va">inclusionEntry</span>,</span>
+<span>        exc_cohort_id <span class="op">=</span> <span class="va">exclusionEntry</span></span>
 <span>      <span class="op">)</span></span>
 <span>    <span class="op">)</span></span>
 <span>  <span class="op">}</span></span>
 <span></span>
-<span>  <span class="fu"><a href="https://rdrr.io/r/base/invisible.html" class="external-link">invisible</a></span><span class="op">(</span><span class="va">sqlOutputPath</span><span class="op">)</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/invisible.html" class="external-link">invisible</a></span><span class="op">(</span><span class="va">cohortLabel</span><span class="op">)</span></span>
 <span><span class="op">}</span></span></code></pre></div>
-<p>In the derived cohort template, I do not replace the
-<code>@inc_cohort_id</code> or <code>@exc_cohort_id</code>. The
-<code>$addDependentCustomCohort</code> keeps track of these labels and
-renders them at execution time.</p>
-<p>These same templating strategies can be applied to
-<code>$addSqlCohort</code>. Ensure that the template is in the
-<code>inputs/cohorts/R/src/sql</code> folder and the R script to render
-the template is in <code>inputs/cohorts/R/src</code>.</p>
+<p><code>addDependentCustomCohort()</code> reads
+<code>sqlTemplatePath</code>, renders <code>@inc_cohort_id</code>/
+<code>@exc_cohort_id</code> with the literal cohort IDs, and writes the
+result to its own generated file under
+<code>inputs/cohorts/derived/</code> — so the same template is safely
+reused across calls, since each call produces its own uniquely named
+output (named after <code>label</code>), never overwriting the template
+or another cohort’s file.</p>
+<p>This templating strategy can also be applied to
+<code>$addSqlCohort</code>, which does <em>not</em> render or bake
+parameters into the file — keep the template in
+<code>inputs/cohorts/R/src/sql</code> and pre-render it yourself (for
+example with <code><a href="https://ohdsi.github.io/SqlRender/reference/render.html" class="external-link">SqlRender::render()</a></code>) before registering, since
+<code>addSqlCohort()</code> registers whatever file it’s given
+as-is.</p>
 <hr>
 </div>
 </div>
@@ -949,7 +989,7 @@ Pipeline</a></td>
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Developed by Martin Lavallee.</p>
+  <p>Developed by Martin Lavallee, Katy Sadowski.</p>
 </div>
 
 <div class="pkgdown-footer-right">

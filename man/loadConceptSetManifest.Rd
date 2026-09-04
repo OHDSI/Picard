@@ -18,7 +18,10 @@ Defaults to \code{here::here("inputs/conceptSets")}.}
 \item{executionSettings}{ExecutionSettings object. Optional.}
 
 \item{autoSync}{Logical. If TRUE (default), syncs the manifest to reconcile
-files on disk with the SQLite database (removes orphaned files, flags missing).}
+files on disk with the SQLite database (removes orphaned files, flags
+missing). This affects file/row reconciliation only — it is not related to
+path resolution, and FALSE is not a workaround for a manifest that fails
+to load.}
 
 \item{verbose}{Logical. If TRUE (default), prints informative messages.}
 }
@@ -29,4 +32,16 @@ ConceptSetManifest object.
 Loads a ConceptSetManifest R6 object from an existing SQLite database.
 By default, automatically syncs the manifest to ensure 1:1 correspondence
 between SQLite and the file system.
+}
+\details{
+Concept-set file paths are stored \strong{relative to the study repository root},
+so a manifest loads identically on any machine and from any working
+directory. Manifests created before this convention may hold
+working-directory-relative, manifest-folder-relative, or absolute paths;
+those still resolve through a compatibility fallback, and
+\code{\link[=normalizeConceptSetManifestPaths]{normalizeConceptSetManifestPaths()}} rewrites them to the current convention
+in one explicit pass. Ordinary loads never modify the SQLite file.
+}
+\seealso{
+\code{\link[=normalizeConceptSetManifestPaths]{normalizeConceptSetManifestPaths()}}, \code{\link[=findStudyProjectRoot]{findStudyProjectRoot()}}
 }

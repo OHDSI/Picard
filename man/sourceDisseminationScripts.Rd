@@ -47,8 +47,11 @@ Invisibly returns a list with:
 Dissemination scripts are sourced from \code{dissemination/pretty/R/} in
 alphabetical order. Each script is sourced in the global environment, so
 any variables, functions, or file outputs are available at the console level.
-A \code{disseminationEnv} object is automatically created and injected into
-the global environment for use by dissemination scripts.
+A \code{disseminationEnv} object is automatically created (via
+\code{\link{createDisseminationEnv}}) and injected into the global
+environment for use by dissemination scripts. Call
+\code{\link{createDisseminationEnv}} directly to build the same object at the
+console while authoring a dissemination script.
 }
 \details{
 A convenience function that sources all R scripts from the dissemination

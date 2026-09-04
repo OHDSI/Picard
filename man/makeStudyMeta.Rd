@@ -10,7 +10,8 @@ makeStudyMeta(
   studyType,
   contributors,
   studyLinks = NULL,
-  studyTags = NULL
+  studyTags = NULL,
+  studyDescription = NULL
 )
 }
 \arguments{
@@ -23,6 +24,8 @@ makeStudyMeta(
 \item{studyLinks}{a list of study links}
 
 \item{studyTags}{a list of study tags}
+
+\item{studyDescription}{a character string describing the study, or NULL}
 }
 \value{
 A StudyMeta R6 class with the study meta

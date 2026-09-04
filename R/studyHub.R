@@ -123,3 +123,74 @@ buildStudyHub <- function(projectPath = here::here(), previewHub = TRUE) {
   invisible(docsPath)
 
 }
+
+#' @title Publish Study Hub to Posit Connect
+#' @description Builds a Study Hub and publishes it to Posit Connect through
+#'   Quarto's public publishing API.
+#' @param projectPath Character. Path to the Ulysses study repository. Defaults to
+#'   the active project.
+#' @param server Character. Posit Connect server hostname.
+#' @param account Character or NULL. Optional Posit Connect account. If NULL,
+#'   the destination resolver selects the configured account.
+#' @param appName Character or NULL. Optional application name passed to Quarto
+#'   as `name`. When NULL, Quarto derives the name from the project directory.
+#' @param appTitle Character or NULL. Optional display title on Posit Connect,
+#'   passed to Quarto as `title`.
+#' @param render Character. Quarto render mode: `"local"`, `"server"`, or
+#'   `"none"`. Defaults to `"local"`.
+#' @param metadata Named list. Optional metadata passed to the Posit Connect
+#'   deployment.
+#' @param noBrowser Logical. If TRUE, prevents Quarto from opening a browser
+#'   after publishing. Defaults to TRUE.
+#' @return Invisibly returns the Study Hub project path.
+#' @export
+publishStudyHubPosit <- function(projectPath = here::here(),
+                            server,
+                            account = NULL,
+                            appName = NULL,
+                            appTitle = NULL,
+                            render = "local",
+                            metadata = list(),
+                            noBrowser = TRUE) {
+  if (!requireNamespace("quarto", quietly = TRUE)) {
+    cli::cli_abort(c(
+      "Package {.pkg quarto} is required to publish a Study Hub.",
+      i = "Install it with {.code install.packages('quarto')}."
+    ))
+  }
+
+  checkmate::assert_string(projectPath, min.chars = 1)
+  checkmate::assert_string(server, min.chars = 1)
+  checkmate::assert_string(account, min.chars = 1, null.ok = TRUE)
+  checkmate::assert_string(appName, min.chars = 1, null.ok = TRUE)
+  checkmate::assert_string(appTitle, min.chars = 1, null.ok = TRUE)
+  checkmate::assert_choice(render, choices = c("local", "server", "none"))
+  checkmate::assert_list(metadata, names = "named")
+  checkmate::assert_flag(noBrowser)
+
+  projectPath <- fs::path_expand(projectPath)
+  docsPath <- fs::path(projectPath, "dissemination/quarto")
+  if (!fs::dir_exists(docsPath)) {
+    cli::cli_abort("Study Hub directory not found: {.path {docsPath}}")
+  }
+
+  cli::cli_rule("Publish Study Hub")
+  knitIndexAndNews(projectPath)
+  cli::cli_alert_info("Publishing Study Hub from {.path {fs::path_rel(docsPath)}}")
+
+  publish_args <- list(
+    input = docsPath,
+    name = appName,
+    title = appTitle,
+    server = server,
+    account = account,
+    render = render,
+    metadata = metadata,
+    launch.browser = !noBrowser
+  )
+
+  do.call(quarto::quarto_publish_site, publish_args)
+
+  cli::cli_alert_success("Study Hub published to {.val {server}}")
+  invisible(docsPath)
+}

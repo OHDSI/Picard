@@ -8,6 +8,15 @@
 #' @param resultsPath Character. Path to results root folder. Defaults to "exec/results"
 #' @param exportPath Character. Path where combined results will be saved. 
 #'   Defaults to "dissemination/export/merge"
+#' @param compress Logical. If TRUE, writes merged files as gzip-compressed CSV
+#'   (\code{.csv.gz}) instead of plain \code{.csv}. Merged results can get large once
+#'   every database's rows for a task are combined; \code{readr::write_csv()} gzips
+#'   automatically when the filename ends in \code{.csv.gz}, and \code{readr::read_csv()}
+#'   (and \code{spec_csv()}) decompress \code{.gz} files transparently on read — no
+#'   special handling needed to consume them. Reference/QC files written by
+#'   \code{\link{runPostProcessing}} (databaseInfo.csv, schema_review.csv, etc.) are
+#'   always plain \code{.csv}, since only the merged per-task results tend to be large.
+#'   Default: FALSE.
 #' @return Invisibly returns data frame of export summary with columns: fileName, rowCount, databaseCount
 #' @details
 #' Folder structure expected:
@@ -26,9 +35,18 @@
 #' ```
 #'
 #' All files with the same name from each database are combined with databaseId added and saved to exportPath.
+#' Exported filenames are prefixed with the task sequence from `taskName` (e.g., `01_results.csv`) to avoid collisions across tasks.
 #' @export
 importAndBind <- function(version, taskName, dbIds, resultsPath = here::here("exec/results"),
-                          exportPath = here::here("dissemination/export/merge")) {
+                          exportPath = here::here("dissemination/export/merge"),
+                          compress = FALSE) {
+
+  # Prefix merged files with the task sequence to avoid filename collisions
+  taskPrefix <- sub("_.*$", "", taskName)
+  if (!grepl("^[0-9]+$", taskPrefix)) {
+    taskPrefix <- gsub("[^A-Za-z0-9]+", "-", taskName)
+    taskPrefix <- gsub("(^-+|-+$)", "", taskPrefix)
+  }
   
   # Get database names from config
   databaseNames <- purrr::map_chr(dbIds, ~config::get("databaseName", config = .x))
@@ -144,10 +162,14 @@ importAndBind <- function(version, taskName, dbIds, resultsPath = here::here("ex
         
         # Save to export path
         fs::dir_create(exportPath, recurse = TRUE)
-        exportFile <- fs::path(exportPath, fileName)
+        exportFileName <- paste0(taskPrefix, "_", fileName)
+        if (compress) {
+          exportFileName <- paste0(exportFileName, ".gz")
+        }
+        exportFile <- fs::path(exportPath, exportFileName)
         readr::write_csv(combined, exportFile)
         
-        labelName <- tools::file_path_sans_ext(fileName)
+        labelName <- tools::file_path_sans_ext(exportFileName)
         combinedResults[[labelName]] <- combined
         
         cli::cli_alert_success("Combined {fileName}: {nrow(combined)} rows from {successCount} database(s)")
@@ -157,7 +179,7 @@ importAndBind <- function(version, taskName, dbIds, resultsPath = here::here("ex
         exportSummary <- rbind(
           exportSummary,
           data.frame(
-            fileName = fileName,
+              fileName = exportFileName,
             rowCount = nrow(combined),
             databaseCount = successCount,
             stringsAsFactors = FALSE
@@ -245,8 +267,9 @@ reviewExportSchema <- function(exportPath = here::here("dissemination/export/mer
     stop("Export folder not found")
   }
   
-  # Get all CSV files except schema_review files
-  csvFiles <- fs::dir_ls(exportPath, glob = "*.csv", type = "file")
+  # Get all CSV files except schema_review files (also matches compressed
+  # .csv.gz merged results written when runPostProcessing(compress = TRUE) ran)
+  csvFiles <- fs::dir_ls(exportPath, glob = "*.csv*", type = "file")
   # exclude any files that are schema reviews (to avoid self-inclusion)
   csvFiles <- csvFiles[!grepl("schema_review", basename(csvFiles))]
   
@@ -378,8 +401,8 @@ validateCohortResults <- function(exportPath = here::here("dissemination/export/
     stop(e$message)
   })
   
-  # Find cohort results file
-  csvFiles <- fs::dir_ls(exportPath, glob = "*.csv", type = "file")
+  # Find cohort results file (glob also matches compressed .csv.gz merged results)
+  csvFiles <- fs::dir_ls(exportPath, glob = "*.csv*", type = "file")
   # Exclude reference files
   csvFiles <- csvFiles[!basename(csvFiles) %in% c("cohortManifestSnapshot.csv", "databaseInfo.csv", "schema_review.csv")]
   
@@ -390,6 +413,9 @@ validateCohortResults <- function(exportPath = here::here("dissemination/export/
     candidate <- fs::path(exportPath, resultsFileName)
     if (file.exists(candidate)) {
       resultsFile <- candidate
+    } else if (file.exists(paste0(candidate, ".gz"))) {
+      # resultsFileName was written with compress = TRUE
+      resultsFile <- paste0(candidate, ".gz")
     }
   } else {
     # Search for file with cohort_id column
@@ -526,6 +552,14 @@ validateCohortResults <- function(exportPath = here::here("dissemination/export/
 #'   warnings) and qcStatus is set to "DevMode". When NULL (default), testMode is
 #'   automatically set to TRUE for non-semver pipeline versions (e.g. "dev", "test")
 #'   and FALSE for semantic versions (e.g. "1.0.0").
+#' @param compress Logical. If TRUE, merged per-task result files are written as
+#'   gzip-compressed \code{.csv.gz} instead of plain \code{.csv} (passed through to
+#'   \code{\link{importAndBind}}). Reference/QC files (databaseInfo.csv,
+#'   cohortManifestSnapshot.csv, schema_review.csv, qc_*.csv) are always plain
+#'   \code{.csv} regardless of this setting, since only merged results tend to get
+#'   large. \code{readr::read_csv()}/\code{spec_csv()} read \code{.csv.gz} files
+#'   transparently, so downstream code only needs to know a file may end in
+#'   \code{.gz} when \code{compress = TRUE} was used to produce it. Default: FALSE.
 #' @return Data frame summarizing all merged tasks with columns:
 #'   - taskName: Name of the task
 #'   - fileCount: Number of result files found for that task
@@ -571,7 +605,8 @@ validateCohortResults <- function(exportPath = here::here("dissemination/export/
 runPostProcessing <- function(pipelineVersion, dbIds, resultsPath = here::here("exec/results"),
                                     exportPath = here::here("dissemination/export/merge"),
                                     cohortsFolderPath = here::here("inputs/cohorts"),
-                                    testMode = NULL) {
+                                    testMode = NULL,
+                                    compress = FALSE) {
   
   cli::cli_rule("Run Post-Processing Pipeline for Version {pipelineVersion}")
   
@@ -597,12 +632,14 @@ runPostProcessing <- function(pipelineVersion, dbIds, resultsPath = here::here("
     NA_character_
   })
   
-  # Snapshot environment only for production (semver) versions
+  # Record the environment only for production (semver) versions. This archives
+  # renv.lock as it stands; refreshing it is the analyst's call, via
+  # snapshotEnvironment().
   if (!testMode) {
-    lockfileHash <- snapshotEnvironment(versionLabel = pipelineVersion, savePath = NULL)
+    lockfileHash <- captureLockfile(versionLabel = pipelineVersion, savePath = NULL)
   } else {
     lockfileHash <- "dev-skip"
-    cli::cli_alert_info("Skipping environment snapshot for non-production version")
+    cli::cli_alert_info("Skipping environment capture for non-production version")
   }
   
   # Get database names and labels from config
@@ -670,7 +707,8 @@ runPostProcessing <- function(pipelineVersion, dbIds, resultsPath = here::here("
         taskName = taskName,
         dbIds = dbIds,
         resultsPath = resultsPath,
-        exportPath = versionExportPath
+        exportPath = versionExportPath,
+        compress = compress
       )
       
       if (nrow(exportSummary) > 0) {
@@ -858,12 +896,15 @@ runPostProcessing <- function(pipelineVersion, dbIds, resultsPath = here::here("
 #'   Defaults to "dissemination/export/merge".
 #' @param cohortsFolderPath Character. Path to cohorts folder for the CohortManifest.
 #'   Defaults to "inputs/cohorts".
+#' @param compress Logical. If TRUE, merged per-task result files are written as
+#'   gzip-compressed \code{.csv.gz}. See \code{\link{runPostProcessing}}. Default: FALSE.
 #' @return Invisibly returns the merge summary data frame from runPostProcessing().
 #' @export
 runTestPostProcessing <- function(dbIds, pipelineVersion = "dev", 
                                           resultsPath = here::here("exec/results"),
                                           exportPath = here::here("dissemination/export/merge"),
-                                          cohortsFolderPath = here::here("inputs/cohorts")) {
+                                          cohortsFolderPath = here::here("inputs/cohorts"),
+                                          compress = FALSE) {
   checkmate::assert_character(dbIds, min.len = 1, any.missing = FALSE)
 
   branch <- tryCatch(gert::git_branch(), error = function(e) NA_character_)
@@ -884,6 +925,7 @@ runTestPostProcessing <- function(dbIds, pipelineVersion = "dev",
     resultsPath = resultsPath,
     exportPath = exportPath,
     cohortsFolderPath = cohortsFolderPath,
-    testMode = TRUE
+    testMode = TRUE,
+    compress = compress
   )
 }
