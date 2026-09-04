@@ -74,10 +74,14 @@ ConceptSetDef <- R6::R6Class(
       private$.label <- label
       private$.category <- category
       private$.tags <- tags
-      private$.filePath <- filePath
+      # Store an absolute path so every downstream file read (hashing, JSON
+      # validation, Capr round-trips) is independent of the caller's working
+      # directory. Callers that need a repo-relative path for display use
+      # getDisplayPath(root).
+      private$.filePath <- as.character(fs::path_norm(fs::path_abs(filePath)))
 
       # Load JSON and generate hash
-      private$load_json_from_file(filePath)
+      private$load_json_from_file(private$.filePath)
 
       # Concept set ID will be assigned later when listed within the ConceptSetManifest
       private$.id <- NA_integer_
@@ -85,9 +89,25 @@ ConceptSetDef <- R6::R6Class(
 
     #' Get the file path
     #'
-    #' @return Character. Relative path to the concept set file.
+    #' @return Character. Absolute path to the concept set file — safe to read
+    #'   regardless of the current working directory.
     getFilePath = function() {
-      fs::path_rel(private$.filePath)
+      private$.filePath
+    },
+
+    #' Get the file path for display
+    #'
+    #' @param root Character or NULL. Study repository root. When supplied, the
+    #'   path is returned relative to it (the form stored in the manifest);
+    #'   otherwise the absolute path is returned.
+    #'
+    #' @return Character. A human-facing path.
+    getDisplayPath = function(root = NULL) {
+      if (is.null(root)) {
+        return(private$.filePath)
+      }
+      checkmate::assert_string(root, min.chars = 1)
+      as.character(fs::path_rel(private$.filePath, start = fs::path_abs(root)))
     },
 
     #' Get the concept set JSON

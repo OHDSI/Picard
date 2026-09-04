@@ -11,7 +11,7 @@
 #' Read a secrets YAML file
 #'
 #' Reads a secrets.yml file using `yaml::read_yaml` with `eval.expr = FALSE`,
-#' so `!expr` tags are preserved as raw strings for [resolveSecretValue()] to
+#' so `!expr` tags are preserved as raw strings for to
 #' evaluate later. Returns a named list keyed by dbServer names (plus optional
 #' `atlas` key).
 #'

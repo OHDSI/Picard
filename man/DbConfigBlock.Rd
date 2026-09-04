@@ -29,41 +29,42 @@ Used to manage multiple database connections within a study.
 }
 }
 \section{Active bindings}{
-\if{html}{\out{<div class="r6-active-bindings">}}
-\describe{
-\item{\code{configBlockName}}{Unique identifier for this configuration block. Can be read or set with validation.}
+  \if{html}{\out{<div class="r6-active-bindings">}}
+  \describe{
+    \item{\code{configBlockName}}{Unique identifier for this configuration block. Can be read or set with validation.}
 
-\item{\code{cdmDatabaseSchema}}{Schema name containing the CDM data. Can be read or set with validation.}
+    \item{\code{cdmDatabaseSchema}}{Schema name containing the CDM data. Can be read or set with validation.}
 
-\item{\code{cohortTable}}{Table name for study cohorts. Can be read or set with validation.}
+    \item{\code{cohortTable}}{Table name for study cohorts. Can be read or set with validation.}
 
-\item{\code{databaseName}}{Database identifier. Can be read or set with validation. Defaults to configBlockName.}
+    \item{\code{databaseName}}{Database identifier. Can be read or set with validation. Defaults to configBlockName.}
 
-\item{\code{databaseLabel}}{Human-readable database label for display. Can be read or set with validation.}
+    \item{\code{databaseLabel}}{Human-readable database label for display. Can be read or set with validation.}
 
-\item{\code{dbServer}}{Database server name for secrets.yml lookup. Can be read or set with validation. Defaults to configBlockName.}
+    \item{\code{dbServer}}{Database server name for secrets.yml lookup. Can be read or set with validation. Defaults to configBlockName.}
 
-\item{\code{workDatabaseSchema}}{Working schema for writing temporary tables. Per-block setting (not study-level).}
+    \item{\code{workDatabaseSchema}}{Working schema for writing temporary tables. Per-block setting (not study-level).}
 
-\item{\code{tempEmulationSchema}}{Schema for emulating temporary tables (Oracle/Snowflake). Per-block setting.}
-}
-\if{html}{\out{</div>}}
+    \item{\code{tempEmulationSchema}}{Schema for emulating temporary tables (Oracle/Snowflake). Per-block setting.}
+  }
+  \if{html}{\out{</div>}}
 }
 \section{Methods}{
 \subsection{Public methods}{
-\itemize{
-\item \href{#method-DbConfigBlock-new}{\code{DbConfigBlock$new()}}
-\item \href{#method-DbConfigBlock-writeBlockSection}{\code{DbConfigBlock$writeBlockSection()}}
-\item \href{#method-DbConfigBlock-clone}{\code{DbConfigBlock$clone()}}
-}
+  \itemize{
+    \item \href{#method-DbConfigBlock-initialize}{\code{DbConfigBlock$new()}}
+    \item \href{#method-DbConfigBlock-writeBlockSection}{\code{DbConfigBlock$writeBlockSection()}}
+    \item \href{#method-DbConfigBlock-clone}{\code{DbConfigBlock$clone()}}
+  }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-DbConfigBlock-new"></a>}}
-\if{latex}{\out{\hypertarget{method-DbConfigBlock-new}{}}}
-\subsection{Method \code{new()}}{
-Initialize a new DbConfigBlock instance with database configuration.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{DbConfigBlock$new(
+\if{html}{\out{<a id="method-DbConfigBlock-initialize"></a>}}
+\if{latex}{\out{\hypertarget{method-DbConfigBlock-initialize}{}}}
+\subsection{\code{DbConfigBlock$new()}}{
+  Initialize a new DbConfigBlock instance with database configuration.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{DbConfigBlock$new(
   configBlockName,
   cdmDatabaseSchema,
   cohortTable,
@@ -72,68 +73,65 @@ Initialize a new DbConfigBlock instance with database configuration.
   dbServer = NULL,
   workDatabaseSchema = NULL,
   tempEmulationSchema = NULL
-)}\if{html}{\out{</div>}}
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{configBlockName}}{Character string. Unique identifier for this configuration block.}
+      \item{\code{cdmDatabaseSchema}}{Character string. Schema containing CDM data.}
+      \item{\code{cohortTable}}{Character string. Table name for study cohorts.}
+      \item{\code{databaseName}}{Character string. Optional database identifier (defaults to configBlockName).}
+      \item{\code{databaseLabel}}{Character string. Optional human-readable database label (defaults to databaseName).}
+      \item{\code{dbServer}}{Character string. Optional database server name for secrets.yml lookup (defaults to configBlockName).}
+      \item{\code{workDatabaseSchema}}{Character string. Optional working schema for temp tables (per-block).}
+      \item{\code{tempEmulationSchema}}{Character string. Optional temp table emulation schema (per-block).}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Invisibly returns self.
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{configBlockName}}{Character string. Unique identifier for this configuration block.}
-
-\item{\code{cdmDatabaseSchema}}{Character string. Schema containing CDM data.}
-
-\item{\code{cohortTable}}{Character string. Table name for study cohorts.}
-
-\item{\code{databaseName}}{Character string. Optional database identifier (defaults to configBlockName).}
-
-\item{\code{databaseLabel}}{Character string. Optional human-readable database label (defaults to databaseName).}
-
-\item{\code{dbServer}}{Character string. Optional database server name for secrets.yml lookup (defaults to configBlockName).}
-
-\item{\code{workDatabaseSchema}}{Character string. Optional working schema for temp tables (per-block).}
-
-\item{\code{tempEmulationSchema}}{Character string. Optional temp table emulation schema (per-block).}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Invisibly returns self.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-DbConfigBlock-writeBlockSection"></a>}}
 \if{latex}{\out{\hypertarget{method-DbConfigBlock-writeBlockSection}{}}}
-\subsection{Method \code{writeBlockSection()}}{
-Generate a formatted configuration block section for the config file.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{DbConfigBlock$writeBlockSection()}\if{html}{\out{</div>}}
-}
-
-\subsection{Details}{
-Extracts all fields from the block's own private data,
+\subsection{\code{DbConfigBlock$writeBlockSection()}}{
+  Generate a formatted configuration block section for the config file.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{DbConfigBlock$writeBlockSection()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Details}{
+    Extracts all fields from the block's own private data,
 including workDatabaseSchema and tempEmulationSchema which are
 set per-block (not at the study level).
+  }
+  \subsection{Returns}{
+    Character string with formatted configuration block.
+  }
 }
 
-\subsection{Returns}{
-Character string with formatted configuration block.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-DbConfigBlock-clone"></a>}}
 \if{latex}{\out{\hypertarget{method-DbConfigBlock-clone}{}}}
-\subsection{Method \code{clone()}}{
-The objects of this class are cloneable with this method.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{DbConfigBlock$clone(deep = FALSE)}\if{html}{\out{</div>}}
+\subsection{\code{DbConfigBlock$clone()}}{
+  The objects of this class are cloneable with this method.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{DbConfigBlock$clone(deep = FALSE)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{deep}}{Whether to make a deep clone.}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{deep}}{Whether to make a deep clone.}
-}
-\if{html}{\out{</div>}}
-}
-}
 }

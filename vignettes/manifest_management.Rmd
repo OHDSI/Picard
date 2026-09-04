@@ -57,8 +57,8 @@ from SQLite at startup.
 | `category` | User classification (e.g., "Disease Populations") |
 | `cohort_type` | `circe`, `custom`, `custom_derived`, `union`, `subset`, `complement`, `composite`, `oprior`, `tprior`, `censor` |
 | `source_type` | `circe`, `sql`, `derived` |
-| `file_path` | Relative path to the SQL/JSON file on disk |
-| `hash` | MD5 of the file — used by `generateCohorts()` to skip unchanged cohorts |
+| `file_path` | Path to the SQL/JSON file, stored relative to the study repository root (e.g. `inputs/cohorts/json/mycohort.json`) |
+| `hash` | MD5 of the file **contents** — used by `generateCohorts()` to skip unchanged cohorts |
 | `depends_on` | JSON array of parent cohort IDs (derived cohorts only) |
 | `dependency_rule` | JSON object of build parameters (derived cohorts only) |
 | `status` | `active`, `stale`, `deleted`, or `purged` |
@@ -95,6 +95,43 @@ parent hashes plus the `dependency_rule` is used.
 **Stale cohorts** (`status = 'stale'`) bypass the hash check and are always
 re-executed. They are reset to `'active'` automatically after successful
 execution. See [Section 4](#mid-cycle-changes) for how cohorts become stale.
+
+### File paths and portability
+
+Cohort and concept-set file paths are stored **relative to the study repository
+root** — the directory that contains `config.yml`, `README.md`, `analysis/`,
+`inputs/` and `dissemination/`. `loadCohortManifest()` (and
+`loadConceptSetManifest()`) find that root with `findStudyProjectRoot()` and
+resolve every stored path against it, so:
+
+- a manifest loads the same way on any machine and for any collaborator,
+  regardless of the working directory they run R from — you do **not** need to
+  `setwd()` into the study repo first;
+- the `hash` column is always a hash of the file's **contents**, never of its
+  path, so moving between path conventions never changes a hash or marks a
+  cohort as changed.
+
+Manifests created with older picard versions may hold working-directory-relative
+or absolute paths. Those still load — a compatibility resolver tries the
+repo-root-relative location, then the manifest-folder-relative location, then the
+absolute path. To rewrite them to the current convention in one explicit pass:
+
+```r
+# Preview what would change
+normalizeCohortManifestPaths(dryRun = TRUE)
+
+# Apply — rewrites file_path only; hashes, status and timestamps are untouched
+normalizeCohortManifestPaths()
+
+# Concept-set equivalent
+normalizeConceptSetManifestPaths()
+```
+
+Rows whose file cannot be found are reported as `broken` and left unchanged.
+Ordinary `loadCohortManifest()` / `syncManifest()` calls never rewrite stored
+paths — normalization is always something you run deliberately. Note that
+`autoSync = FALSE` only turns off file/row reconciliation; it is unrelated to
+path resolution and is not a fix for a manifest that will not load.
 
 ---
 
@@ -160,6 +197,11 @@ When a base cohort's SQL/JSON file changes, `syncManifest()` will:
 1. Detect the hash difference and update the stored hash
 2. Walk the dependency graph and mark every downstream derived cohort as `'stale'`
 3. Report each staled cohort by name
+
+`syncManifest()` compares **file contents**, not paths. A row is only reported as
+`hash_updated` when the file itself changed — a manifest whose stored paths use
+an older convention (see [File paths and portability](#file-paths-and-portability))
+syncs cleanly with no spurious updates.
 
 Stale derived cohorts still have valid SQL — their parent data has changed but
 their build logic has not. They will be **re-executed automatically** the next

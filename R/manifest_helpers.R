@@ -3,6 +3,163 @@
 # Wraps the R6 class methods with convenient top-level functions and provides
 # visualization / review utilities.
 
+#' Find the root of a Picard study repository
+#'
+#' Walks upward from a file or directory until it finds the structural markers
+#' that identify a Picard study repository, and returns that directory. This is
+#' how the cohort and concept-set manifests locate the root against which their
+#' stored `file_path` values are resolved, so a manifest loads the same way
+#' regardless of the caller's working directory.
+#'
+#' The markers are the files `config.yml` and `README.md` together with the
+#' directories `analysis/`, `inputs/` and `dissemination/`, all present in the
+#' same directory. The search stops with an error if it reaches the filesystem
+#' root without finding them.
+#'
+#' @param path Character. A file or directory inside the study repository.
+#'   Defaults to the current project detected by `here::here()`.
+#'
+#' @return Character. The normalized absolute path to the study repository root.
+#'
+#' @seealso [normalizeCohortManifestPaths()],
+#'   [normalizeConceptSetManifestPaths()]
+#' @export
+findStudyProjectRoot <- function(path = here::here()) {
+  checkmate::assert_string(path, min.chars = 1)
+
+  candidate <- fs::path_abs(path)
+  if (!fs::dir_exists(candidate) && fs::file_exists(candidate)) {
+    candidate <- fs::path_dir(candidate)
+  }
+
+  required_files <- c("config.yml", "README.md")
+  required_directories <- c("analysis", "inputs", "dissemination")
+
+  repeat {
+    has_required_files <- all(
+      fs::file_exists(fs::path(candidate, required_files))
+    )
+    has_required_directories <- all(
+      fs::dir_exists(fs::path(candidate, required_directories))
+    )
+
+    if (has_required_files && has_required_directories) {
+      return(fs::path_norm(candidate))
+    }
+
+    parent <- fs::path_dir(candidate)
+    if (identical(parent, candidate)) {
+      cli::cli_abort(c(
+        "Could not find a Picard study repository root from {.path {path}}.",
+        i = "Expected a parent directory containing {.file config.yml}, {.file README.md}, and the {.file analysis/}, {.file inputs/}, and {.file dissemination/} directories."
+      ))
+    }
+    candidate <- parent
+  }
+}
+
+# Express `path` relative to the study repository root. This is the form written
+# into a manifest `file_path` column for newly registered files, so that loading
+# is independent of the caller's working directory.
+#
+# @param path Character. A file path (absolute or relative to the current
+#   working directory).
+# @param project_root Character. Absolute path to the study repository root
+#   (typically a manifest object's cached `private$.projectRoot`).
+# @return Character. `path` expressed relative to `project_root`.
+manifest_path_relative <- function(path, project_root) {
+  checkmate::assert_string(path, min.chars = 1)
+  checkmate::assert_string(project_root, min.chars = 1)
+
+  fs::path_rel(
+    path = fs::path_abs(path),
+    start = fs::path_abs(project_root)
+  )
+}
+
+# Resolve a stored manifest `file_path` to an absolute path on disk, tolerating
+# the several path conventions that manifests have used over time:
+#
+#   * absolute paths (older manifests / `ConceptSetManifest$resolve_file_path()`);
+#   * repo-root-relative (the current convention, e.g. `inputs/cohorts/json/x.json`);
+#   * manifest-folder-relative (legacy, e.g. `json/x.json`, `sql/x.sql`, written
+#     when the caller's working directory was the manifest folder).
+#
+# Each candidate is tried in turn; the first that exists on disk wins. When none
+# exist the repo-root-relative candidate is returned so callers surface a
+# stable, meaningful path in "file not found" errors rather than a raw fragment.
+#
+# Path normalization here never touches file contents, so it never affects a
+# content hash.
+#
+# @param stored_path Character. The path exactly as stored in the manifest row.
+# @param project_root Character. Absolute path to the study repository root.
+# @param manifest_dir Character. Absolute path to the folder that holds the
+#   manifest SQLite file (e.g. `<root>/inputs/cohorts`). Legacy
+#   manifest-folder-relative paths are resolved against this.
+# @return Character. A normalized absolute path.
+resolve_manifest_path <- function(stored_path, project_root, manifest_dir) {
+  checkmate::assert_string(project_root, min.chars = 1)
+  checkmate::assert_string(manifest_dir, min.chars = 1)
+
+  # A missing / empty stored path has nothing to resolve — pass it through so
+  # callers keep their existing NA / "" handling.
+  if (length(stored_path) != 1 || is.na(stored_path) || !nzchar(stored_path)) {
+    return(stored_path)
+  }
+
+  # 1. Absolute path — use as-is.
+  if (fs::is_absolute_path(stored_path)) {
+    return(fs::path_norm(stored_path))
+  }
+
+  project_root <- fs::path_abs(project_root)
+  manifest_dir <- fs::path_abs(manifest_dir)
+
+  # 2. Repo-root-relative (current convention). Also the fallback return value.
+  root_relative <- fs::path_norm(fs::path(project_root, stored_path))
+
+  # 3. Manifest-folder-relative (legacy). When `manifest_dir` sits at its
+  #    standard location under the repo this also covers the plan's
+  #    "<root>/inputs/<manifest>/<stored>" tier.
+  manifest_relative <- fs::path_norm(fs::path(manifest_dir, stored_path))
+
+  for (candidate in unique(c(root_relative, manifest_relative))) {
+    if (fs::file_exists(candidate)) {
+      return(candidate)
+    }
+  }
+
+  root_relative
+}
+
+# Re-serialize a JSON string into a canonical form so that two equivalent
+# values (differing only in whitespace or key order) produce the same string.
+# Used when folding manifest columns such as `depends_on` / `dependency_rule`
+# into a content hash, so a cosmetic reformat does not look like a change.
+#
+# A missing / empty value returns "". A value that does not parse as JSON is
+# returned unchanged rather than dropped, so the caller still hashes something
+# stable.
+#
+# @param x Character(1). The JSON string as stored in the manifest.
+# @return Character(1). The canonicalized JSON, "" or the original string.
+manifest_canonical_json <- function(x) {
+  if (length(x) != 1 || is.na(x) || !nzchar(x)) {
+    return("")
+  }
+
+  parsed <- tryCatch(
+    jsonlite::fromJSON(x, simplifyVector = FALSE),
+    error = function(e) NULL
+  )
+  if (is.null(parsed)) {
+    return(as.character(x))
+  }
+
+  as.character(jsonlite::toJSON(parsed, auto_unbox = TRUE))
+}
+
 # ============================================================
 # COHORT MANIFEST HELPERS
 # ============================================================
@@ -20,7 +177,9 @@
 #'
 #' @export
 initCohortManifest <- function(path = "inputs/cohorts") {
-  dbPath <- fs::path(path, "cohortManifest.sqlite")
+  project_root <- findStudyProjectRoot(path)
+  cohorts_folder <- fs::path(project_root, "inputs", "cohorts")
+  dbPath <- fs::path(cohorts_folder, "cohortManifest.sqlite")
 
   if (file.exists(dbPath)) {
     cli::cli_alert_warning("Manifest already exists at {fs::path_rel(dbPath)}.")
@@ -29,11 +188,11 @@ initCohortManifest <- function(path = "inputs/cohorts") {
     return(invisible(NULL))
   }
 
-  if (!dir.exists(path)) {
-    dir.create(path, recursive = TRUE, showWarnings = FALSE)
+  if (!dir.exists(cohorts_folder)) {
+    dir.create(cohorts_folder, recursive = TRUE, showWarnings = FALSE)
   }
 
-  cm <- CohortManifest$new(dbPath = dbPath)
+  cm <- CohortManifest$new(dbPath = dbPath, projectRoot = project_root)
   cli::cli_alert_success("Initialized empty cohort manifest at {fs::path_rel(dbPath)}")
   cli::cli_alert_info("Add cohorts with $addAtlasCohort(), $addCaprCohort(), $addCirceCohort(), $addSqlCohort(), or $importAtlasCohorts()")
 
@@ -48,10 +207,16 @@ initCohortManifest <- function(path = "inputs/cohorts") {
 #' If new files exist on disk that aren't in the manifest, a warning is printed
 #' suggesting the appropriate `$add*()` method.
 #'
-#' @param cohortsFolderPath Character. Path to the cohorts folder containing the manifest
-#'   database. Defaults to `here::here("inputs/cohorts")`.
+#' @param cohortsFolderPath Character. Path to the cohorts folder, or anywhere
+#'   inside the study repository. Defaults to `here::here("inputs/cohorts")`. The
+#'   repository root is discovered with [findStudyProjectRoot()] and the manifest
+#'   is always read from `<root>/inputs/cohorts/cohortManifest.sqlite`.
 #' @param executionSettings An ExecutionSettings object containing database configuration
 #'   for cohort generation. Optional; can be added later using `$setExecutionSettings()`.
+#' @param autoSync Logical. If TRUE (default), reconcile the manifest against the
+#'   files on disk after loading (see `$syncManifest()`). This only affects
+#'   file/row reconciliation — it is **not** related to path resolution, and
+#'   setting it to FALSE is not a workaround for a manifest that fails to load.
 #' @param verbose Logical. If TRUE, prints informative messages. Defaults to TRUE.
 #'
 #' @return A CohortManifest R6 object.
@@ -64,11 +229,27 @@ initCohortManifest <- function(path = "inputs/cohorts") {
 #' directories that are not tracked in the manifest. These are reported as warnings
 #' but NOT auto-added (because `category` is required and cannot be guessed).
 #'
+#' ## File paths
+#'
+#' Cohort file paths are stored **relative to the study repository root** (e.g.
+#' `inputs/cohorts/json/mycohort.json`). Loading resolves them against that root,
+#' so a manifest loads identically on any machine and from any working
+#' directory — you do not need to `setwd()` into the study repo first.
+#'
+#' Manifests created before this convention may hold working-directory-relative,
+#' manifest-folder-relative, or absolute paths. Those still resolve through a
+#' compatibility fallback, but you can rewrite them to the current convention
+#' once with [normalizeCohortManifestPaths()]. Ordinary loads never modify the
+#' SQLite file.
+#'
+#' @seealso [normalizeCohortManifestPaths()], [findStudyProjectRoot()]
 #' @export
 loadCohortManifest <- function(cohortsFolderPath = here::here("inputs/cohorts"),
                                executionSettings = NULL,
                                autoSync = TRUE,
                                verbose = TRUE) {
+  project_root <- findStudyProjectRoot(cohortsFolderPath)
+  cohortsFolderPath <- fs::path(project_root, "inputs", "cohorts")
   dbPath <- fs::path(cohortsFolderPath, "cohortManifest.sqlite")
 
   if (!file.exists(dbPath)) {
@@ -79,7 +260,7 @@ loadCohortManifest <- function(cohortsFolderPath = here::here("inputs/cohorts"),
     ))
   }
 
-  cm <- CohortManifest$new(dbPath = dbPath)
+  cm <- CohortManifest$new(dbPath = dbPath, projectRoot = project_root)
 
   if (!is.null(executionSettings)) {
     cm$setExecutionSettings(executionSettings)
@@ -390,6 +571,171 @@ resetCohortManifest <- function(manifest = NULL,
 }
 
 
+# Shared worker for normalizeCohortManifestPaths() / normalizeConceptSetManifestPaths().
+# Rewrites legacy `file_path` values in place so they are stored relative to the
+# study repository root. Only `file_path` is touched — `hash`, `status`,
+# `created_at` and the change-detection `updated_at` are left alone, so path
+# normalization is never mistaken for a definition change.
+normalize_manifest_paths <- function(folder_path,
+                                     manifest_kind = c("cohort", "conceptSet"),
+                                     dry_run = FALSE) {
+  manifest_kind <- match.arg(manifest_kind)
+  checkmate::assert_string(folder_path, min.chars = 1)
+  checkmate::assert_flag(dry_run)
+
+  spec <- switch(
+    manifest_kind,
+    cohort = list(
+      leaf = "cohorts",
+      db_file = "cohortManifest.sqlite",
+      table = "cohort_manifest",
+      statuses = c("active", "stale"),
+      loader = "loadCohortManifest()"
+    ),
+    conceptSet = list(
+      leaf = "conceptSets",
+      db_file = "conceptSetManifest.sqlite",
+      table = "concept_set_manifest",
+      statuses = "active",
+      loader = "loadConceptSetManifest()"
+    )
+  )
+
+  project_root <- findStudyProjectRoot(folder_path)
+  manifest_dir <- fs::path(project_root, "inputs", spec$leaf)
+  db_path <- fs::path(manifest_dir, spec$db_file)
+
+  if (!file.exists(db_path)) {
+    cli::cli_abort(c(
+      "Manifest database not found at {.path {fs::path_rel(db_path)}}.",
+      i = "Nothing to normalize."
+    ))
+  }
+
+  conn <- DBI::dbConnect(RSQLite::SQLite(), db_path)
+  on.exit(DBI::dbDisconnect(conn))
+
+  placeholders <- paste(rep("?", length(spec$statuses)), collapse = ", ")
+  rows <- DBI::dbGetQuery(
+    conn,
+    sprintf(
+      "SELECT id, file_path, status FROM %s WHERE status IN (%s) ORDER BY id",
+      spec$table, placeholders
+    ),
+    as.list(spec$statuses)
+  )
+
+  report <- data.frame(
+    id = integer(),
+    old_path = character(),
+    new_path = character(),
+    status = character(),
+    stringsAsFactors = FALSE
+  )
+  add_row <- function(id, old_path, new_path, status) {
+    report <<- rbind(report, data.frame(
+      id = as.integer(id),
+      old_path = as.character(old_path),
+      new_path = as.character(new_path),
+      status = status,
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  for (i in seq_len(nrow(rows))) {
+    id <- rows$id[i]
+    old_path <- rows$file_path[i]
+
+    if (is.na(old_path) || !nzchar(old_path)) {
+      add_row(id, NA_character_, NA_character_, "no_path")
+      next
+    }
+
+    resolved <- resolve_manifest_path(old_path, project_root, manifest_dir)
+    if (!file.exists(resolved)) {
+      add_row(id, old_path, NA_character_, "broken")
+      next
+    }
+
+    new_path <- as.character(manifest_path_relative(resolved, project_root))
+    if (identical(as.character(old_path), new_path)) {
+      add_row(id, old_path, new_path, "unchanged")
+      next
+    }
+
+    if (!dry_run) {
+      DBI::dbExecute(
+        conn,
+        sprintf("UPDATE %s SET file_path = ? WHERE id = ?", spec$table),
+        list(new_path, id)
+      )
+    }
+    add_row(id, old_path, new_path, if (dry_run) "would_rewrite" else "rewritten")
+  }
+
+  n_rewrite <- sum(report$status %in% c("rewritten", "would_rewrite"))
+  n_broken <- sum(report$status == "broken")
+
+  if (nrow(report) == 0) {
+    cli::cli_alert_info("No active manifest rows to check.")
+  } else if (n_rewrite == 0 && n_broken == 0) {
+    cli::cli_alert_success("All {nrow(report)} path(s) already stored repo-root-relative.")
+  } else {
+    if (n_rewrite > 0) {
+      verb <- if (dry_run) "would rewrite" else "rewrote"
+      cli::cli_alert_success("{verb} {n_rewrite} path(s) to repo-root-relative form.")
+      for (j in which(report$status %in% c("rewritten", "would_rewrite"))) {
+        cli::cli_bullets(c(">" = "[{report$id[j]}] {report$old_path[j]} -> {report$new_path[j]}"))
+      }
+    }
+    if (n_broken > 0) {
+      cli::cli_alert_warning("{n_broken} row(s) point at a file that could not be found - left untouched:")
+      for (j in which(report$status == "broken")) {
+        cli::cli_bullets(c("!" = "[{report$id[j]}] {report$old_path[j]}"))
+      }
+    }
+  }
+  if (dry_run && n_rewrite > 0) {
+    cli::cli_alert_info("Dry run - nothing was written. Re-run with {.code dryRun = FALSE} to apply.")
+  }
+
+  invisible(tibble::as_tibble(report))
+}
+
+
+#' Normalize Legacy Cohort Manifest File Paths
+#'
+#' A one-time cleanup that rewrites the `file_path` of every active/stale row in
+#' `cohortManifest.sqlite` so it is stored **relative to the study repository
+#' root** (the current convention). Manifests created before this convention may
+#' hold working-directory-relative, manifest-folder-relative, or absolute paths;
+#' those still load through a compatibility resolver, but normalizing makes the
+#' stored values stable and portable across machines and working directories.
+#'
+#' Only `file_path` is changed. Content hashes, `status`, timestamps and the
+#' change-detection metadata are left untouched, so running this never marks a
+#' cohort stale or shows up as a definition change in syncManifest.
+#'
+#' Ordinary loads never mutate the SQLite file — this is the *only* operation
+#' that rewrites stored paths, and you run it explicitly.
+#'
+#' @param cohortsFolderPath Character. Path to the cohorts folder (or anywhere
+#'   inside the study repository). Defaults to `here::here("inputs/cohorts")`.
+#' @param dryRun Logical. When `TRUE`, report what would change without writing.
+#'   Defaults to `FALSE`.
+#'
+#' @return Invisibly, a tibble with columns `id`, `old_path`, `new_path`,
+#'   `status` (one of `"rewritten"`, `"would_rewrite"`, `"unchanged"`,
+#'   `"broken"`, `"no_path"`).
+#'
+#' @seealso [findStudyProjectRoot()], [loadCohortManifest()]
+#' @export
+normalizeCohortManifestPaths <- function(cohortsFolderPath = here::here("inputs/cohorts"),
+                                         dryRun = FALSE) {
+  normalize_manifest_paths(cohortsFolderPath, manifest_kind = "cohort", dry_run = dryRun)
+}
+
+
 #' Create Blank Cohorts Load File
 #'
 #' Creates a blank cohortsLoad.csv template file in the specified folder
@@ -647,11 +993,24 @@ initConceptSetManifest <- function(path = "inputs/conceptSets") {
 #'   Defaults to `here::here("inputs/conceptSets")`.
 #' @param executionSettings ExecutionSettings object. Optional.
 #' @param autoSync Logical. If TRUE (default), syncs the manifest to reconcile
-#'   files on disk with the SQLite database (removes orphaned files, flags missing).
+#'   files on disk with the SQLite database (removes orphaned files, flags
+#'   missing). This affects file/row reconciliation only — it is not related to
+#'   path resolution, and FALSE is not a workaround for a manifest that fails
+#'   to load.
 #' @param verbose Logical. If TRUE (default), prints informative messages.
 #'
 #' @return ConceptSetManifest object.
 #'
+#' @details
+#' Concept-set file paths are stored **relative to the study repository root**,
+#' so a manifest loads identically on any machine and from any working
+#' directory. Manifests created before this convention may hold
+#' working-directory-relative, manifest-folder-relative, or absolute paths;
+#' those still resolve through a compatibility fallback, and
+#' [normalizeConceptSetManifestPaths()] rewrites them to the current convention
+#' in one explicit pass. Ordinary loads never modify the SQLite file.
+#'
+#' @seealso [normalizeConceptSetManifestPaths()], [findStudyProjectRoot()]
 #' @export
 loadConceptSetManifest <- function(conceptSetsFolderPath = here::here("inputs/conceptSets"),
                                    executionSettings = NULL,
@@ -843,6 +1202,32 @@ resetConceptSetManifest <- function(manifest = NULL,
   }
 
   invisible(NULL)
+}
+
+
+#' Normalize Legacy Concept Set Manifest File Paths
+#'
+#' The concept-set counterpart of [normalizeCohortManifestPaths()]. Rewrites the
+#' `file_path` of every active row in `conceptSetManifest.sqlite` so it is stored
+#' relative to the study repository root. Only `file_path` changes — hashes,
+#' `status` and timestamps are untouched, so this never registers as a
+#' definition change.
+#'
+#' @param conceptSetsFolderPath Character. Path to the conceptSets folder (or
+#'   anywhere inside the study repository). Defaults to
+#'   `here::here("inputs/conceptSets")`.
+#' @param dryRun Logical. When `TRUE`, report what would change without writing.
+#'   Defaults to `FALSE`.
+#'
+#' @return Invisibly, a tibble with columns `id`, `old_path`, `new_path`,
+#'   `status` (one of `"rewritten"`, `"would_rewrite"`, `"unchanged"`,
+#'   `"broken"`, `"no_path"`).
+#'
+#' @seealso [findStudyProjectRoot()], [loadConceptSetManifest()]
+#' @export
+normalizeConceptSetManifestPaths <- function(conceptSetsFolderPath = here::here("inputs/conceptSets"),
+                                             dryRun = FALSE) {
+  normalize_manifest_paths(conceptSetsFolderPath, manifest_kind = "conceptSet", dry_run = dryRun)
 }
 
 

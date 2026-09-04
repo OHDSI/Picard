@@ -149,3 +149,23 @@ testthat::test_that("syncManifest with no changes does not rewrite the sqlite fi
   testthat::expect_true(all(out$action == "unchanged"))
   testthat::expect_equal(unname(tools::md5sum(db_path)), before)
 })
+
+# Testing: queries work when the manifest is opened from a working directory
+# unrelated to the study repository, and the read stays byte-stable (step 3).
+testthat::test_that("queries work from an unrelated working directory", {
+  setup <- cm_test_seed_manifest_for_queries("query-unrelated-cwd")
+  db_path <- setup$manifest$getDbPath()
+  labels_expected <- sort(setup$manifest$tabulateManifest(filter = "active")$label)
+
+  withr::with_dir(withr::local_tempdir(), {
+    before <- unname(tools::md5sum(db_path))
+    reopened <- CohortManifest$new(dbPath = db_path)
+
+    testthat::expect_equal(sort(reopened$tabulateManifest(filter = "active")$label), labels_expected)
+    hit <- reopened$getCohortsByLabel("Chronic Kidney Disease", matchType = "exact")
+    testthat::expect_length(hit, 1L)
+    testthat::expect_true(nchar(hit[[1]]$getSql()) > 0)
+
+    testthat::expect_equal(unname(tools::md5sum(db_path)), before)
+  })
+})

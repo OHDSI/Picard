@@ -3,7 +3,11 @@
 #' @description Determines whether a task needs to be rerun by checking:
 #'   1. Task file modifications (file hash comparison)
 #'   2. Dependency file modifications (extracted from source() calls)
-#'   3. Cohort manifest changes (hash comparison)
+#'   3. Cohort manifest changes — compares
+#'      [CohortManifest$getManifestHash()][CohortManifest] against the hash
+#'      recorded on the previous run. A rerun is forced when the hash differs,
+#'      when no hash was recorded (first run, or a legacy history row), or when
+#'      the current hash cannot be computed at all.
 #'   4. Previous run errors (checked in logs and history)
 #'   5. Version changes
 #'
@@ -12,6 +16,10 @@
 #' @param executionSettings ExecutionSettings object
 #' @param pipelineVersion Character. Current pipeline version (e.g., "1.0.0")
 #' @param tasksFolderPath Character. Path to tasks folder (default: here::here("analysis/tasks"))
+#' @param cohortManifestHash Character or NULL. A pre-computed cohort manifest
+#'   hash (see [.getCohortManifestHash()]). When NULL (default) it is computed
+#'   here; callers that check many tasks in one run pass it in to avoid
+#'   re-loading the manifest per task.
 #'
 #' @return List with elements:
 #'   - should_rerun: Logical. TRUE if task should be rerun
@@ -31,7 +39,8 @@ shouldRerunTask <- function(
     configBlock,
     executionSettings,
     pipelineVersion,
-    tasksFolderPath = here::here("analysis/tasks")) {
+    tasksFolderPath = here::here("analysis/tasks"),
+    cohortManifestHash = NULL) {
 
   # Initialize result structure
   reasons <- character()
@@ -95,19 +104,26 @@ shouldRerunTask <- function(
   }
 
   # Check 3: Cohort manifest has changed
-  currentCohortManifestHash <- .getCohortManifestHash()
-  # .getCohortManifestHash() returns NA_character_ (not NULL) on failure; skip
-  # this check rather than comparing against a missing value
-  if (!is.null(currentCohortManifestHash) && !is.na(currentCohortManifestHash)) {
-    if (!is.null(lastRunInfo) && !is.na(lastRunInfo$cohort_manifest_hash)) {
-      if (lastRunInfo$cohort_manifest_hash != currentCohortManifestHash) {
-        reasons <- c(reasons, "Cohort manifest has changed")
-        rerunNeeded <- TRUE
-      }
-    } else {
-      reasons <- c(reasons, "No previous cohort manifest hash recorded")
-      rerunNeeded <- TRUE
-    }
+  currentCohortManifestHash <- cohortManifestHash %||% .getCohortManifestHash()
+  previousCohortManifestHash <- if (!is.null(lastRunInfo)) {
+    lastRunInfo$cohort_manifest_hash
+  } else {
+    NA_character_
+  }
+
+  if (is.null(currentCohortManifestHash) || is.na(currentCohortManifestHash)) {
+    # Fail safe: a missing manifest hash means we cannot prove the cohort
+    # definitions are unchanged, so force the rerun rather than skip the check.
+    reasons <- c(reasons, "Cohort manifest hash unavailable - forcing rerun")
+    rerunNeeded <- TRUE
+  } else if (is.na(previousCohortManifestHash) || !nzchar(previousCohortManifestHash)) {
+    # First run for this task+config, or a run recorded before the hash was
+    # persisted (legacy history rows store ""). Rerun so a hash gets recorded.
+    reasons <- c(reasons, "No previous cohort manifest hash recorded")
+    rerunNeeded <- TRUE
+  } else if (previousCohortManifestHash != currentCohortManifestHash) {
+    reasons <- c(reasons, "Cohort manifest has changed")
+    rerunNeeded <- TRUE
   }
 
   # Check 4: Previous run had errors
@@ -183,6 +199,9 @@ recordTaskExecution <- function(
     tasksFolderPath = here::here("analysis/tasks"),
     commitSha = NA_character_,
     codeState = "unrecorded") {
+
+  # Tolerate NULL as "no hash" so the data.frame row below always has length 1.
+  cohortManifestHash <- cohortManifestHash %||% NA_character_
 
   if (!file.exists(taskFile)) {
     taskFile <- fs::path(tasksFolderPath, taskFile)
@@ -380,25 +399,28 @@ recordTaskExecution <- function(
 
 
 #' @title Get Cohort Manifest Hash
-#' @description Loads the cohort manifest and computes a SHA256 hash of the entire manifest.
-#'   This hash is used to detect changes in cohort definitions that would require task reruns.
-#' @return Character. SHA256 hash of the cohort manifest, or NA_character_ if error occurs
+#' @description Loads the cohort manifest and returns
+#'   [CohortManifest$getManifestHash()][CohortManifest], a SHA256 digest over
+#'   every registered (`active`/`stale`) cohort's definition. Used by
+#'   [shouldRerunTask()] to detect cohort changes that require a task rerun.
+#' @details A thin wrapper around the manifest method, which is the single
+#'   source of truth for what "the cohort definitions changed" means. The load
+#'   is read-only (`autoSync = FALSE`), so this has no side effects. Any failure
+#'   to load or hash the manifest returns `NA_character_`; [shouldRerunTask()]
+#'   treats that as "cannot prove unchanged" and forces the rerun.
+#' @param projectPath Character. A path inside the study repository. Defaults to
+#'   the current project (`here::here()`).
+#' @return Character. SHA256 hex digest, or `NA_character_` if the manifest
+#'   cannot be read.
 #' @keywords internal
-.getCohortManifestHash <- function() {
+.getCohortManifestHash <- function(projectPath = here::here()) {
   tryCatch({
-    # Load manifest
-    cohortManifest <- loadCohortManifest(
-      cohortsFolderPath = here::here("inputs/cohorts"),
+    cm <- loadCohortManifest(
+      cohortsFolderPath = projectPath,
+      autoSync = FALSE,
       verbose = FALSE
     )
-    # pull all manifest entries and compute hash
-    cm <- cohortManifest$getManifest()
-    cmHashes <- purrr::map_chr(cm, ~.x$getHash())
-    
-    # Combine all hashes into a single string and hash that
-    manifestHash <- digest::digest(cmHashes, algo = "sha256")
-    
-    return(manifestHash)
+    cm$getManifestHash()
   }, error = function(e) {
     cli::cli_alert_warning("Could not compute cohort manifest hash: {e$message}")
     return(NA_character_)

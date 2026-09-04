@@ -23,7 +23,22 @@
 - Added the optional `studyDescription` field to `makeStudyMeta()`. When supplied, it is inserted into the generated README; when omitted, the existing description placeholder is retained.
 - Added `publishStudyHubPosit()` to render and publish a Study Hub through Quarto's public Posit Connect publishing API.
 
+### Portable Manifest File Paths
+
+- Cohort and concept-set `file_path` values are now stored **relative to the study repository root** instead of the caller's working directory, so `loadCohortManifest()` / `loadConceptSetManifest()` resolve them identically on any machine and from any working directory. A file registered by one collaborator now loads for everyone else.
+- Added `findStudyProjectRoot()` (exported): walks upward from a path until it finds the study-repo markers (`config.yml`, `README.md`, `analysis/`, `inputs/`, `dissemination/`). Each manifest object resolves and caches its root once.
+- Legacy manifests keep working: a compatibility resolver tries the repo-root-relative location, then the manifest-folder-relative location, then the stored absolute path.
+- Added `normalizeCohortManifestPaths()` and `normalizeConceptSetManifestPaths()` (exported) to rewrite legacy stored paths to the repo-root-relative convention in one explicit pass. They rewrite `file_path` only — hashes, `status`, and timestamps are untouched — support `dryRun = TRUE`, and report unresolvable rows as `broken`. Ordinary loads and `syncManifest()` never rewrite stored paths.
+- `syncManifest()` compares file **contents**, not paths: a manifest whose stored paths use an older convention now syncs with no spurious `hash_updated` results.
+- `CohortDef$getFilePath()` / `ConceptSetDef$getFilePath()` now return an absolute path (safe to read regardless of `getwd()`); the new `$getDisplayPath(root = NULL)` gives a repo-root-relative path for display.
+
 ## Bug Fixes
+
+- Fixed cohort-manifest change detection for task reruns (`shouldRerunTask()`), which was broken three ways at once, so editing a cohort definition never re-ran the tasks that used it:
+  - The hash helper called `CohortDef$getHash()`, a method renamed to `getSqlHash()` months earlier, so it always errored and returned `NA`.
+  - An `NA` hash *disabled* the manifest check instead of forcing a rerun (masking the first bug once a study had any cohorts).
+  - The computed hash was never written to `exec/logs/task_run_history.csv`, so even a working hash had nothing to compare against.
+  - Now `CohortManifest$getManifestHash()` is the single source of truth: a deterministic SHA256 over every active/stale cohort's **rendered SQL** plus its id, type, and dependency structure. Cohort labels, categories, and tags are excluded (renaming or retagging is not a definition change), and the digest is independent of file paths (path normalization does not force spurious reruns). `shouldRerunTask()` compares this against the hash recorded on the previous run and **forces a rerun whenever the hash is unavailable or was never recorded** (existing history rows self-heal on the next run). `execStudyPipeline()` / `testStudyPipeline()` compute it once per run rather than once per task.
 
 - Fixed several problems with the `'stale'` cohort status (see Issue #74). `'stale'` now consistently means "registered, but needs regenerating", rather than removing a cohort from the study:
   - Re-running a derived cohort builder (e.g. `addDependentCustomCohort()`, `buildUnionCohort()`) with `stopIfExists = FALSE` and unchanged inputs no longer marks the cohort — and everything downstream of it — stale. Staleness is now cascaded only on a real definition change (content hash, file path, parents, or build rule), and a metadata-only edit no longer forces regeneration.

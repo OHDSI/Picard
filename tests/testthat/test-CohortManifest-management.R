@@ -134,17 +134,6 @@ testthat::test_that("cleanupMissing processes missing active cohorts", {
   testthat::expect_invisible(manifest$cleanupMissing(keep_trace = TRUE))
 })
 
-# Purpose: Fetch the raw sqlite manifest row for a label (any status).
-cm_test_get_manifest_row <- function(manifest, label) {
-  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
-  on.exit(DBI::dbDisconnect(conn))
-  DBI::dbGetQuery(
-    conn,
-    "SELECT * FROM cohort_manifest WHERE label = ?",
-    list(label)
-  )
-}
-
 # Purpose: Stamp every manifest row with a fixed updated_at so a later
 # CURRENT_TIMESTAMP write is detectable regardless of clock resolution.
 cm_test_stamp_updated_at <- function(manifest, stamp = "2000-01-01 00:00:00") {
@@ -172,7 +161,7 @@ testthat::test_that("updateCaprCohort updates definition keeping id and file pat
   testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
 
   # Hash recorded in the manifest matches the file now on disk
-  disk_hash <- rlang::hash(readr::read_file(after$file_path[[1]]))
+  disk_hash <- rlang::hash(readr::read_file(cm_test_resolve_path(manifest, after$file_path[[1]])))
   testthat::expect_equal(after$hash[[1]], disk_hash)
 })
 
@@ -299,7 +288,7 @@ testthat::test_that("syncManifest cascades deletion of dependents of missing par
   manifest <- setup$manifest
 
   parent <- manifest$queryCohortsByLabel("Capr T2D", matchType = "exact")
-  unlink(parent$file_path[[1]])
+  unlink(cm_test_resolve_path(manifest, parent$file_path[[1]]))
 
   out <- manifest$syncManifest(strict_mode = TRUE)
 
@@ -345,7 +334,7 @@ testthat::test_that("buildUnionCohort stopIfExists FALSE updates parent list in 
   testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
 
   # The re-rendered SQL file matches the recorded hash
-  disk_hash <- rlang::hash(readr::read_file(after$file_path[[1]]))
+  disk_hash <- rlang::hash(readr::read_file(cm_test_resolve_path(manifest, after$file_path[[1]])))
   testthat::expect_equal(after$hash[[1]], disk_hash)
 })
 
@@ -518,7 +507,7 @@ testthat::test_that("addDependentCustomCohort accepts vectors of dependent IDs",
   # (like the other derived cohort types) - the vector renders comma-separated
   # and the original @inc_cohort_id/@exc_cohort_id placeholders are gone.
   testthat::expect_true(grepl("inputs/cohorts/derived", row$file_path[[1]], fixed = TRUE))
-  rendered_sql <- readr::read_file(row$file_path[[1]])
+  rendered_sql <- readr::read_file(cm_test_resolve_path(manifest, row$file_path[[1]]))
   testthat::expect_false(grepl("@inc_cohort_id", rendered_sql, fixed = TRUE))
   testthat::expect_false(grepl("@exc_cohort_id", rendered_sql, fixed = TRUE))
   testthat::expect_true(grepl(as.character(t2d_id), rendered_sql, fixed = TRUE))
@@ -566,7 +555,7 @@ testthat::test_that("addDependentCustomCohort accepts manifest entries and rende
     sort(c(as.integer(ckd_entry$id[1]), t2d_id, death_id))
   )
 
-  rendered_sql <- readr::read_file(row$file_path[[1]])
+  rendered_sql <- readr::read_file(cm_test_resolve_path(manifest, row$file_path[[1]]))
   testthat::expect_true(grepl("Dependent cohorts", rendered_sql, fixed = TRUE))
   testthat::expect_true(grepl("Chronic Kidney Disease", rendered_sql, fixed = TRUE))
   testthat::expect_true(grepl("Type 2 Diabetes", rendered_sql, fixed = TRUE))
@@ -645,7 +634,7 @@ testthat::test_that("addDependentCustomCohort renders sqlParameters into the gen
   )
 
   row <- cm_test_get_manifest_row(manifest, "Dep Params")
-  rendered_sql <- readr::read_file(row$file_path[[1]])
+  rendered_sql <- readr::read_file(cm_test_resolve_path(manifest, row$file_path[[1]]))
   testthat::expect_true(grepl("DATEADD(day, 30,", rendered_sql, fixed = TRUE))
   testthat::expect_false(grepl("@min_days", rendered_sql, fixed = TRUE))
   testthat::expect_false(grepl("@inc_cohort_id", rendered_sql, fixed = TRUE))
@@ -766,7 +755,7 @@ testthat::test_that("addSqlCohort stopIfExists FALSE updates existing cohort in 
 
   # Revised SQL registered from a new file path
   revised_sql <- fs::path(setup$paths$sql_dir, "my_custom_cohort_v2.sql")
-  writeLines(c(readr::read_file(before$file_path[[1]]), "-- revised"), revised_sql)
+  writeLines(c(readr::read_file(cm_test_resolve_path(manifest, before$file_path[[1]])), "-- revised"), revised_sql)
   returned_id <- manifest$addSqlCohort(
     filePath = revised_sql,
     label = "Custom SQL Cohort",
@@ -778,7 +767,7 @@ testthat::test_that("addSqlCohort stopIfExists FALSE updates existing cohort in 
   testthat::expect_equal(nrow(after), 1)
   testthat::expect_equal(as.integer(returned_id), as.integer(before$id[[1]]))
   testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
-  testthat::expect_equal(after$file_path[[1]], as.character(fs::path_rel(revised_sql)))
+  testthat::expect_equal(after$file_path[[1]], cm_test_rel_path(manifest, revised_sql))
   testthat::expect_equal(after$category[[1]], "Comparator")
   testthat::expect_true(is.na(after$tags[[1]]))
 })
@@ -1264,4 +1253,117 @@ testthat::test_that("stale cohorts remain valid parents and keep their label", {
     cohortEntries = new_parents
   )
   testthat::expect_equal(cm_test_get_manifest_row(manifest, "Built_On_Stale")$status[[1]], "active")
+})
+
+# ── Path portability: normalization + sync hash semantics ─────────────────────
+
+# Testing: normalizeCohortManifestPaths rewrites legacy stored paths to the
+# repo-root-relative form and leaves content hashes untouched (step 6/7).
+testthat::test_that("normalizeCohortManifestPaths rewrites legacy paths and preserves hashes", {
+  setup <- cm_test_seed_manifest_for_queries("mgmt-normalize")
+  manifest <- setup$manifest
+  root <- manifest$getProjectRoot()
+
+  before <- cm_test_all_rows(manifest)
+  circe_id <- before$id[before$cohort_type == "circe"][1]
+  sql_id   <- before$id[before$cohort_type == "custom"][1]
+  canonical_circe <- before$file_path[before$id == circe_id]
+
+  # legacy: manifest-folder-relative and absolute
+  cm_test_set_stored_path(manifest, circe_id, sub("^inputs/cohorts/", "", canonical_circe))
+  cm_test_set_stored_path(manifest, sql_id, fs::path(root, before$file_path[before$id == sql_id]))
+
+  cm_test_stamp_updated_at(manifest, "2000-01-01 00:00:00")
+
+  report <- normalizeCohortManifestPaths(cohortsFolderPath = fs::path(root, "inputs", "cohorts"))
+
+  after <- cm_test_all_rows(manifest)
+  # every active path now repo-root-relative and resolvable
+  testthat::expect_true(all(!fs::is_absolute_path(after$file_path)))
+  testthat::expect_true(all(fs::file_exists(fs::path(root, after$file_path))))
+  # hashes and change-detection timestamps untouched
+  testthat::expect_equal(after$hash, before$hash)
+  testthat::expect_true(all(after$updated_at == "2000-01-01 00:00:00"))
+  # report shape
+  testthat::expect_setequal(colnames(report), c("id", "old_path", "new_path", "status"))
+  testthat::expect_true(all(report$status[report$id %in% c(circe_id, sql_id)] == "rewritten"))
+})
+
+# Testing: normalizeCohortManifestPaths dryRun reports changes without writing (step 6).
+testthat::test_that("normalizeCohortManifestPaths dryRun writes nothing", {
+  setup <- cm_test_seed_manifest_for_queries("mgmt-normalize-dry")
+  manifest <- setup$manifest
+  root <- manifest$getProjectRoot()
+
+  rows <- cm_test_all_rows(manifest)
+  circe_id <- rows$id[rows$cohort_type == "circe"][1]
+  cm_test_set_stored_path(manifest, circe_id, sub("^inputs/cohorts/", "", rows$file_path[rows$id == circe_id]))
+  before <- cm_test_all_rows(manifest)
+
+  report <- normalizeCohortManifestPaths(
+    cohortsFolderPath = fs::path(root, "inputs", "cohorts"), dryRun = TRUE
+  )
+
+  testthat::expect_identical(cm_test_all_rows(manifest)$file_path, before$file_path)
+  testthat::expect_true(any(report$status == "would_rewrite"))
+})
+
+# Testing: normalizeCohortManifestPaths flags rows whose file is missing and
+# leaves them untouched (step 6).
+testthat::test_that("normalizeCohortManifestPaths reports broken rows", {
+  setup <- cm_test_seed_manifest_for_queries("mgmt-normalize-broken")
+  manifest <- setup$manifest
+  root <- manifest$getProjectRoot()
+
+  rows <- cm_test_all_rows(manifest)
+  broken_id <- rows$id[rows$cohort_type == "circe"][1]
+  cm_test_set_stored_path(manifest, broken_id, "inputs/cohorts/json/gone.json")
+
+  report <- normalizeCohortManifestPaths(cohortsFolderPath = fs::path(root, "inputs", "cohorts"))
+
+  testthat::expect_equal(report$status[report$id == broken_id], "broken")
+  testthat::expect_equal(
+    cm_test_all_rows(manifest)$file_path[cm_test_all_rows(manifest)$id == broken_id],
+    "inputs/cohorts/json/gone.json"
+  )
+})
+
+# Testing: syncManifest does not report hash_updated when only the stored path
+# convention differs from the current one (step 7).
+testthat::test_that("syncManifest ignores a path-convention-only difference", {
+  setup <- cm_test_seed_manifest_for_queries("mgmt-sync-pathonly")
+  manifest <- setup$manifest
+
+  rows <- cm_test_all_rows(manifest)
+  circe_id <- rows$id[rows$cohort_type == "circe"][1]
+  original_hash <- rows$hash[rows$id == circe_id]
+
+  # rewrite to manifest-folder-relative, then sync from an unrelated directory
+  cm_test_set_stored_path(manifest, circe_id, sub("^inputs/cohorts/", "", rows$file_path[rows$id == circe_id]))
+
+  withr::with_dir(withr::local_tempdir(), {
+    reopened <- CohortManifest$new(dbPath = manifest$getDbPath())
+    out <- reopened$syncManifest(strict_mode = TRUE)
+    testthat::expect_false("hash_updated" %in% out$action[out$id == circe_id])
+  })
+
+  testthat::expect_equal(
+    cm_test_all_rows(manifest)$hash[cm_test_all_rows(manifest)$id == circe_id],
+    original_hash
+  )
+})
+
+# Testing: a real content change still surfaces as hash_updated (step 7).
+testthat::test_that("syncManifest still reports hash_updated on a real content change", {
+  setup <- cm_test_seed_manifest_for_queries("mgmt-sync-realchange")
+  manifest <- setup$manifest
+  root <- manifest$getProjectRoot()
+
+  rows <- cm_test_all_rows(manifest)
+  circe_id <- rows$id[rows$cohort_type == "circe"][1]
+  disk_path <- fs::path(root, rows$file_path[rows$id == circe_id])
+  cat("\n// touched\n", file = disk_path, append = TRUE)
+
+  out <- manifest$syncManifest(strict_mode = TRUE)
+  testthat::expect_true("hash_updated" %in% out$action[out$id == circe_id])
 })
