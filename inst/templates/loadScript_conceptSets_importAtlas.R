@@ -1,5 +1,5 @@
 # ================================================================================
-# File: importAtlas.R
+# File: import_atlas_concept_set.R
 # ================================================================================
 #
 # Study: <<studyName>>
@@ -14,9 +14,6 @@
 #   2. Set up ATLAS connection (if not already done)
 #   3. Run this script to import definitions from ATLAS
 #   4. Review the imported concept sets in the manifest
-#
-# Note: After import, concept sets auto-register any new JSON files discovered
-# in inputs/conceptSets/json/ on subsequent loadConceptSetManifest() calls.
 
 library(picard)
 
@@ -33,9 +30,8 @@ library(picard)
 # Now open inputs/conceptSets/conceptSetsLoad.csv in Excel and fill in your entries:
 #   - atlasId: ATLAS concept set definition IDs (required)
 #   - label: Display name for your concept set (required)
-#   - domain: OMOP domain like drug_exposure, condition_occurrence (required)
-#   - sourceCode: TRUE/FALSE whether it represents source codes (optional)
-#   Any additional columns are treated as tags
+#   - category: Broad category like "Cardiovascular" (required)
+#   Any additional columns (e.g. subCategory, sourceCode, domain) are treated as tags
 #
 # Imported definitions are saved as json/<atlasId>_<ATLAS concept set name>.json
 # in snake_case (e.g. json/5678_metformin.json).
@@ -88,7 +84,9 @@ library(picard)
 # import only adds new concept sets: uncomment it when you add rows, and comment
 # it out again once the import succeeds. Alternatively, pass
 # stopIfExists = FALSE to leave it uncommented and update registered rows in
-# place (definition, label, category, tags) on every run.
+# place (definition, category, tags) on every run. Rows are matched to
+# registered concept sets by label: to rename one, call
+# $updateConceptSetLabel() and then edit the label in the csv to match.
 # conceptSetManifest$importAtlasConceptSets(
 #   conceptSetsLoad = readr::read_csv(
 #     here::here("inputs/conceptSets/conceptSetsLoad.csv"),
@@ -110,13 +108,10 @@ library(picard)
 
 
 # ================================================================================
-# G. AUTO-DISCOVERY NOTE
+# G. REGISTERING CONCEPT SETS
 # ================================================================================
 #
-# When you call loadConceptSetManifest() in subsequent sessions:
-#   - It automatically discovers new .json files in inputs/conceptSets/json/
-#   - Files not yet in the SQLite database are auto-registered with a temporary label
-#   - This is helpful if you manually download concept set definitions
-#
-# If you download JSON files from elsewhere, just place them in
-# inputs/conceptSets/json/ and re-run loadConceptSetManifest()
+# Register concept sets through the manifest (load csv, $addAtlasConceptSet(),
+# $addConceptSetFile(), ...). JSON files placed directly in
+# inputs/conceptSets/json/ without registration are removed as orphans the next
+# time loadConceptSetManifest() is called.

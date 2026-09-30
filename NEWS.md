@@ -8,6 +8,12 @@
   the same meaning (a test-mode namespace) and the same normalization, so only
   the argument name changes. There is no compatibility shim — a stray
   `testLabel =` now raises `unused argument`.
+- `$buildCompositeCohort()` — `minEventCount` now defaults to the number of
+  criteria cohorts, so a composite built without it requires membership in all
+  of them (intersection). Previously the default was `1L`, which kept subjects in
+  any criteria cohort. Pass `minEventCount = 1L` to keep the old behavior;
+  re-running an existing build call with `stopIfExists = FALSE` and no
+  `minEventCount` marks the cohort stale under the new default (#126).
 
 - `sourceInputBuilderScripts()` now requires all six builder scripts and aborts
   before sourcing anything if one is missing or if `inputs/cohorts/R/` or
@@ -144,6 +150,9 @@
 - Improved cohort-generation reporting (see Issue #77): failures now use prominent danger-level messages with the failed cohort, label, and underlying error, remaining cohorts are reported as not generated, and the final summary says generation failed when appropriate. The cohort lookup now checks for missing manifest entries before accessing their fields, and cancellation guidance points to builder scripts and manifest methods instead of only `cohortsLoad.csv`.
 - `generateCohorts()` now delegates table creation to `executeCohortGeneration(confirm = FALSE)`, avoiding duplicate table checks and connection cycles while still creating missing tables automatically. The full cohort-count table is no longer printed to the console; a compact count summary and the saved `cohortCounts.csv` path are reported instead.
 - `initUlyssesRepo()` now aborts when its target repository directory already exists, preventing initialization from overwriting an existing repository.
+- The ATLAS import builder templates (`import_atlas_concept_set.R`, `import_atlas_cohort.R`) now follow the recommended workflow: the load csv is kept in the repo and imported with `stopIfExists = FALSE`, so re-runs update registered entries in place instead of requiring the csv to be deleted. Sections are reordered (manifest, connection, import, sync, review), `createBlank*LoadFile()` is commented out so `main.R` no longer prompts to overwrite the csv, the manifest is initialized only when missing, and outdated notes (`.Renviron` credentials, auto-registration of dropped-in JSON, wrong column list) are corrected (#112).
+- The generated `main.R` now runs `renv::restore()` by default (#113).
+- Fixed the generated `main.R` (#115): `execStudyPipeline()` is passed its required `updateType`, `runPostProcessing()` is called with `pipelineVersion`/`dbIds` instead of nonexistent arguments, `sourceDisseminationScripts()` uses the new pipeline version, and the builder script names in the comments match the generated files. `test_main.R` gets the same `runPostProcessing()` fix.
 
 # picard 0.0.6
 

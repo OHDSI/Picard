@@ -16,8 +16,8 @@
 
 # B. Setup & Dependencies ────────────────────────────────────────────────────
 
-# Restore environment (uncomment if first run in this session)
-# renv::restore()
+# Restore the study's package environment from renv.lock
+renv::restore()
 
 library(picard) # pipeline orchestration and execution framework
 library(DatabaseConnector) # database connectivity and operations
@@ -65,29 +65,33 @@ cli::cli_h2("Engaging primary systems...")
 
 taskResults <- execStudyPipeline(
   configBlock = dbIds,
+  updateType = "patch", # "major", "minor", or "patch" version increment
   skipRenv = FALSE  # Set to TRUE only if environment is pre-verified
 )
+
+# execStudyPipeline() writes the new version to config.yml
+pipelineVersion <- config::get("version")
 
 cli::cli_h2("Pipeline Execution Complete")
 cli::cli_alert_success("Task results saved to exec/logs/")
 
-# F. Post-Processing merge ──────────────────
+# F. Post-Processing merge ──────────────────────────────────────────────────
 
 # Modify your pull request with post-processing results and notes as needed before final review.
 
 ## Export results for further analysis
 cli::cli_alert_info("Initiating data export sequence...")
 results <- runPostProcessing(
-  executionSettings = eo,
-  reviewSchema = TRUE
+  pipelineVersion = pipelineVersion,
+  dbIds = dbIds
 )
 
-# G. Post-Processing prett ──────────────────
+# G. Post-Processing pretty ─────────────────────────────────────────────────
 
 ## Prepare dataset for dissemination
 # cli::cli_alert_info("Preparing dissemination package...")
 # sourceDisseminationScripts(
-#   pipelineVersion = "1.0.0",
+#   pipelineVersion = pipelineVersion,
 #   databaseIds = dbIds,
 #   outputPath = here::here("dissemination/pretty")
 # )

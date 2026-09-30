@@ -1,5 +1,5 @@
 # ================================================================================
-# File: importAtlas.R
+# File: import_atlas_cohort.R
 # ================================================================================
 #
 # Study: <<studyName>>
@@ -86,7 +86,9 @@ library(picard)
 # import only adds new cohorts: uncomment it when you add rows, and comment it
 # out again once the import succeeds. Alternatively, pass stopIfExists = FALSE
 # to leave it uncommented and update registered rows in place (definition,
-# label, category, tags) on every run.
+# category, tags) on every run. Rows are matched to registered cohorts by
+# label: to rename one, call $updateCohortLabel() and then edit the label in
+# the csv to match.
 # cohortManifest$importAtlasCohorts(
 #   cohortsLoad = readr::read_csv(
 #     here::here("inputs/cohorts/cohortsLoad.csv"),
