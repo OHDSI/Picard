@@ -1301,12 +1301,25 @@ clearPendingPR <- function() {
 #' Use \code{\link{makeInputBuilderScript}} to create scripts with the correct naming convention.
 #' Missing scripts are silently skipped, allowing flexible configurations.
 #'
+#' Before sourcing, an \code{inputBuilderEnv} object (see
+#' \code{\link{createInputBuilderEnv}}) is assigned into the global environment
+#' so builder scripts can build execution settings without hard-coding the
+#' config block or pipeline version, e.g.
+#' \code{createExecutionSettingsFromConfig(configBlock = inputBuilderEnv$configBlock[1],
+#' pipelineVersion = inputBuilderEnv$pipelineVersion)}.
+#'
 #' Errors inside builder scripts are collected across all scripts (so they can
 #' be fixed in one pass) and then raised as a single error: input building is a
 #' hard precondition of pipeline execution, so a failed script stops the run
 #' before \code{execStudyPipeline()} can be reached.
 #'
 #' @param projectPath Character. Path to the project root. Defaults to current project.
+#' @param configBlock Character vector. Config block name(s) from \code{config.yml}
+#'   made available to builder scripts as \code{inputBuilderEnv$configBlock}.
+#'   Defaults to NULL.
+#' @param pipelineVersion Character. Pipeline version made available to builder
+#'   scripts as \code{inputBuilderEnv$pipelineVersion}. Defaults to NULL, which
+#'   uses the version recorded in \code{config.yml}.
 #' @param verbose Logical. If TRUE (default), displays which scripts are being sourced.
 #' @param warnMissing Logical. If TRUE (default), warns when directories don't exist.
 #' @return Invisibly returns a list with:
@@ -1314,10 +1327,13 @@ clearPendingPR <- function() {
 #'   - `directories_checked`: Character vector of directories checked
 #'   - `error_summary`: List of any errors encountered (always empty on
 #'     successful return; a non-empty list raises an error instead)
+#'   - `inputBuilderEnv`: The metadata list made available to builder scripts
 #'
 #' @export 
 sourceInputBuilderScripts <- function(
     projectPath = here::here(),
+    configBlock = NULL,
+    pipelineVersion = NULL,
     verbose = TRUE,
     warnMissing = TRUE) {
 
@@ -1325,6 +1341,14 @@ sourceInputBuilderScripts <- function(
   sourced_files <- character(0)
   directories_checked <- character(0)
   errors <- list()
+
+  inputBuilderEnv <- createInputBuilderEnv(
+    projectPath = projectPath,
+    configBlock = configBlock,
+    pipelineVersion = pipelineVersion,
+    verbose = FALSE
+  )
+  assign("inputBuilderEnv", inputBuilderEnv, envir = globalenv())
 
   # Define the MANDATORY SOURCE ORDER
   # Based on the fixed filenames created by makeInputBuilderScript()
@@ -1409,9 +1433,71 @@ sourceInputBuilderScripts <- function(
   ll <- list(
     sourced_files = sourced_files,
     directories_checked = directories_checked,
-    error_summary = errors
+    error_summary = errors,
+    inputBuilderEnv = inputBuilderEnv
   )
   invisible(ll)
+}
+
+#' Create an Input Builder Environment Object
+#'
+#' @description
+#' Builds the \code{inputBuilderEnv} object that input builder scripts in
+#' \code{inputs/cohorts/R/} and \code{inputs/conceptSets/R/} can use to build
+#' execution settings without hard-coding a config block or pipeline version.
+#' \code{\link{sourceInputBuilderScripts}} creates this object automatically
+#' before sourcing those scripts; call this function to build it standalone
+#' while running a builder script interactively.
+#'
+#' @param projectPath Character. Path to the project root directory.
+#' @param configBlock Character vector. Config block name(s) from \code{config.yml}.
+#'   Defaults to NULL.
+#' @param pipelineVersion Character. Pipeline version. Defaults to NULL, which
+#'   uses the version recorded in \code{config.yml}.
+#' @param verbose Logical. If TRUE (default), prints the resolved metadata.
+#' @return A list with \code{configBlock} and \code{pipelineVersion}.
+#'
+#' @examples
+#' \dontrun{
+#' inputBuilderEnv <- createInputBuilderEnv(configBlock = "my_database")
+#'
+#' executionSettings <- createExecutionSettingsFromConfig(
+#'   configBlock = inputBuilderEnv$configBlock[1],
+#'   pipelineVersion = inputBuilderEnv$pipelineVersion
+#' )
+#' }
+#'
+#' @export
+createInputBuilderEnv <- function(
+    projectPath = here::here(),
+    configBlock = NULL,
+    pipelineVersion = NULL,
+    verbose = TRUE) {
+
+  checkmate::assert_string(projectPath)
+  checkmate::assert_character(
+    configBlock,
+    min.len = 1, any.missing = FALSE, null.ok = TRUE
+  )
+  checkmate::assert_string(pipelineVersion, min.chars = 1, null.ok = TRUE)
+  checkmate::assert_logical(verbose, len = 1, any.missing = FALSE)
+
+  if (is.null(pipelineVersion)) {
+    pipelineVersion <- detect_pipeline_version(projectPath)
+  }
+
+  inputBuilderEnv <- list(
+    configBlock = configBlock,
+    pipelineVersion = pipelineVersion
+  )
+
+  if (verbose) {
+    cli::cli_alert_info(
+      "Input builder metadata: configBlock = {.val {configBlock %||% 'NULL'}}, pipelineVersion = {.val {pipelineVersion %||% 'NULL'}}"
+    )
+  }
+
+  inputBuilderEnv
 }
 
 #' Detect the pipeline version recorded in a study's config.yml

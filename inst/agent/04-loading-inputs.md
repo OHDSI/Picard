@@ -92,6 +92,32 @@ inputs/cohorts/R/
 
 When `main.R` runs, only `import_atlas_concept_set.R` and `import_capr_cohort.R` source (in order: concept sets first, then cohorts).
 
+### Using a Database Connection in Builder Scripts
+
+Some builders need a database connection, for example to resolve concept sets
+for custom SQL cohorts. Rather than hard-coding a config block or pipeline
+version, pass them to `sourceInputBuilderScripts()`:
+
+```r
+sourceInputBuilderScripts(configBlock = dbIds, pipelineVersion = "dev")
+```
+
+Before sourcing, this assigns an `inputBuilderEnv` object to the global
+environment with `configBlock` and `pipelineVersion` fields (`pipelineVersion`
+defaults to the version in `config.yml`). Builder scripts can use it to create
+execution settings:
+
+```r
+executionSettings <- createExecutionSettingsFromConfig(
+  configBlock = inputBuilderEnv$configBlock[1],
+  pipelineVersion = inputBuilderEnv$pipelineVersion
+)
+cohortManifest$setExecutionSettings(executionSettings)
+```
+
+To run a builder script interactively, create the object first with
+`inputBuilderEnv <- createInputBuilderEnv(configBlock = "my_database")`.
+
 ---
 
 ## Concept Set Import

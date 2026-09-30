@@ -23,7 +23,12 @@ library(picard) # pipeline orchestration and execution framework
 library(DatabaseConnector) # database connectivity and operations
 library(SqlRender) # SQL translation and rendering
 
-# C. Pre-Pipeline: Load & Build Manifest ─────────────────────────────────────
+# C. Database Configuration ──────────────────────────────────────────────────
+
+# Database identifiers to process (from config.yml)
+dbIds <- c("{configBlocks}")
+
+# D. Pre-Pipeline: Load & Build Manifest ─────────────────────────────────────
 #
 # WORKFLOW:
 #   Edit scripts in inputs/cohorts/R/ and inputs/conceptSets/R/ to:
@@ -36,15 +41,14 @@ library(SqlRender) # SQL translation and rendering
 # Scripts are sourced in alphabetical order, with concept sets first.
 # Concept set scripts run first so cohorts can reference them if needed.
 #
+# Builder scripts can read inputBuilderEnv$configBlock and
+# inputBuilderEnv$pipelineVersion to build execution settings (e.g. when SQL
+# cohorts need a database connection to resolve concept sets).
+#
 # WARNING: Do NOT add builder scripts to analysis/tasks/ folder!
 #          Use the dedicated R/ folders in inputs/cohorts/ and inputs/conceptSets/
 
-sourceInputBuilderScripts(verbose = TRUE)
-
-# D. Database Configuration ──────────────────────────────────────────────────
-
-# Database identifiers to process (from config.yml)
-dbIds <- c("{configBlocks}")
+sourceInputBuilderScripts(configBlock = dbIds, verbose = TRUE)
 
 # E. Execute Production Pipeline ─────────────────────────────────────────────────
 

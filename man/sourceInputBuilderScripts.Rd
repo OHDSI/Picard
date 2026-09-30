@@ -6,12 +6,22 @@
 \usage{
 sourceInputBuilderScripts(
   projectPath = here::here(),
+  configBlock = NULL,
+  pipelineVersion = NULL,
   verbose = TRUE,
   warnMissing = TRUE
 )
 }
 \arguments{
 \item{projectPath}{Character. Path to the project root. Defaults to current project.}
+
+\item{configBlock}{Character vector. Config block name(s) from \code{config.yml}
+made available to builder scripts as \code{inputBuilderEnv$configBlock}.
+Defaults to NULL.}
+
+\item{pipelineVersion}{Character. Pipeline version made available to builder
+scripts as \code{inputBuilderEnv$pipelineVersion}. Defaults to NULL, which
+uses the version recorded in \code{config.yml}.}
 
 \item{verbose}{Logical. If TRUE (default), displays which scripts are being sourced.}
 
@@ -24,6 +34,7 @@ Invisibly returns a list with:
 \item \code{directories_checked}: Character vector of directories checked
 \item \code{error_summary}: List of any errors encountered (always empty on
 successful return; a non-empty list raises an error instead)
+\item \code{inputBuilderEnv}: The metadata list made available to builder scripts
 }
 }
 \description{
@@ -52,6 +63,13 @@ This order is enforced to guarantee dependencies are satisfied:
 
 Use \code{\link{makeInputBuilderScript}} to create scripts with the correct naming convention.
 Missing scripts are silently skipped, allowing flexible configurations.
+
+Before sourcing, an \code{inputBuilderEnv} object (see
+\code{\link{createInputBuilderEnv}}) is assigned into the global environment
+so builder scripts can build execution settings without hard-coding the
+config block or pipeline version, e.g.
+\code{createExecutionSettingsFromConfig(configBlock = inputBuilderEnv$configBlock[1],
+pipelineVersion = inputBuilderEnv$pipelineVersion)}.
 
 Errors inside builder scripts are collected across all scripts (so they can
 be fixed in one pass) and then raised as a single error: input building is a

@@ -48,6 +48,14 @@
 ### Building a disseminationEnv Interactively
 
 
+### Parameterized Input Builder Scripts
+
+- `sourceInputBuilderScripts()` gains `configBlock` and `pipelineVersion`
+  arguments, exposed to builder scripts as an `inputBuilderEnv` object so they
+  can build execution settings (e.g. to resolve concept sets for SQL cohorts)
+  without hard-coding either value. The generated `main.R` passes `dbIds`.
+  `createInputBuilderEnv()` builds the same object for interactive use (#109).
+
 ### Study Metadata and Publishing
 
 - Added the optional `studyDescription` field to `makeStudyMeta()`. When supplied, it is inserted into the generated README; when omitted, the existing description placeholder is retained.

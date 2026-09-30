@@ -30,6 +30,18 @@ library(picard)
 # Subsequent times: Load from existing SQLite database
 cohortManifest <- loadCohortManifest()
 
+# Optional: attach execution settings when a database connection is needed
+# (e.g. to resolve concept sets for your SQL cohorts). When sourced via
+# sourceInputBuilderScripts(), inputBuilderEnv supplies the config block(s) and
+# pipeline version from main.R. To run this script interactively, first create
+# it with: inputBuilderEnv <- createInputBuilderEnv(configBlock = "my_database")
+#
+# executionSettings <- createExecutionSettingsFromConfig(
+#   configBlock = inputBuilderEnv$configBlock[1],
+#   pipelineVersion = inputBuilderEnv$pipelineVersion
+# )
+# cohortManifest$setExecutionSettings(executionSettings)
+
 
 # ================================================================================
 # B. SQL TEMPLATE & PARAMETERS
