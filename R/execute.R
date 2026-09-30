@@ -1288,7 +1288,7 @@ clearPendingPR <- function() {
 #'   and dependent cohorts can reference already-loaded cohort definitions.
 #'
 #' @details
-#' Scripts are sourced in the following FIXED order (skipping any that don't exist):
+#' All six scripts are required and are sourced in the following FIXED order:
 #'   1. \code{inputs/conceptSets/R/import_atlas_concept_set.R}
 #'   2. \code{inputs/conceptSets/R/import_capr_concept_set.R}
 #'   3. \code{inputs/cohorts/R/import_atlas_cohort.R}
@@ -1304,7 +1304,12 @@ clearPendingPR <- function() {
 #'   }
 #'
 #' Use \code{\link{makeInputBuilderScript}} to create scripts with the correct naming convention.
-#' Missing scripts are silently skipped, allowing flexible configurations.
+#' The function aborts before sourcing anything if a required script is missing
+#' or if \code{inputs/conceptSets/R/} or \code{inputs/cohorts/R/} contain any
+#' other \code{.R} file, since such a file would otherwise never run. Unused
+#' builders should be left in place: the templates run without error when they
+#' have not been populated. Put helper code in a subfolder (e.g.
+#' \code{inputs/cohorts/R/src/}), which is not checked.
 #'
 #' When \code{configBlock} is supplied, the full set of scripts is sourced once
 #' per config block, in order, the same way \code{execStudyPipeline()} runs
@@ -1330,7 +1335,6 @@ clearPendingPR <- function() {
 #'   scripts as \code{inputBuilderEnv$pipelineVersion}. Defaults to NULL, which
 #'   uses the version recorded in \code{config.yml}.
 #' @param verbose Logical. If TRUE (default), displays which scripts are being sourced.
-#' @param warnMissing Logical. If TRUE (default), warns when directories don't exist.
 #' @return Invisibly returns a list with:
 #'   - `sourced_files`: Character vector of sourced files (absolute paths)
 #'   - `config_blocks`: Character vector of config blocks processed (NULL when
@@ -1344,8 +1348,7 @@ sourceInputBuilderScripts <- function(
     projectPath = here::here(),
     configBlock = NULL,
     pipelineVersion = NULL,
-    verbose = TRUE,
-    warnMissing = TRUE) {
+    verbose = TRUE) {
 
   checkmate::assert_character(
     configBlock,
@@ -1357,39 +1360,65 @@ sourceInputBuilderScripts <- function(
   directories_checked <- character(0)
   errors <- list()
 
-  # Define the MANDATORY SOURCE ORDER
-  # Based on the fixed filenames created by makeInputBuilderScript()
-  # Missing files are skipped silently
-  source_order <- c(
+  # MANDATORY SOURCE ORDER, using the fixed filenames created by
+  # makeInputBuilderScript(). Names map each file to the arguments that
+  # recreate it.
+  required_scripts <- c(
     # Concept Sets (first)
-    fs::path(projectPath, "inputs/conceptSets/R/import_atlas_concept_set.R"),
-    fs::path(projectPath, "inputs/conceptSets/R/import_capr_concept_set.R"),
+    'type = "importAtlas", category = "conceptSets"' = "inputs/conceptSets/R/import_atlas_concept_set.R",
+    'type = "importCapr", category = "conceptSets"' = "inputs/conceptSets/R/import_capr_concept_set.R",
     # Cohorts (second)
-    fs::path(projectPath, "inputs/cohorts/R/import_atlas_cohort.R"),
-    fs::path(projectPath, "inputs/cohorts/R/import_capr_cohort.R"),
-    fs::path(projectPath, "inputs/cohorts/R/import_sql_cohort.R"),
+    'type = "importAtlas", category = "cohorts"' = "inputs/cohorts/R/import_atlas_cohort.R",
+    'type = "importCapr", category = "cohorts"' = "inputs/cohorts/R/import_capr_cohort.R",
+    'type = "importSql", category = "cohorts"' = "inputs/cohorts/R/import_sql_cohort.R",
     # Dependent Cohorts (last)
-    fs::path(projectPath, "inputs/cohorts/R/build_dependent_cohorts.R")
+    'type = "buildDependentCohorts", category = "cohorts"' = "inputs/cohorts/R/build_dependent_cohorts.R"
   )
-  source_order <- source_order[fs::file_exists(source_order)]
+  source_order <- fs::path(projectPath, required_scripts)
 
-  # Older versions of makeInputBuilderScript() wrote this name, which is never
-  # sourced
-  legacy_dependent_script <- fs::path(
-    projectPath, "inputs/cohorts/R/build_dependent_cohorts_cohort.R"
-  )
-  if (fs::file_exists(legacy_dependent_script)) {
-    cli::cli_warn(c(
-      "Found {.file build_dependent_cohorts_cohort.R}, which is not sourced.",
-      i = "Rename it to {.file inputs/cohorts/R/build_dependent_cohorts.R} so dependent cohorts are built."
-    ))
-  }
-
-  # Track directories checked
   directories_checked <- c(
     fs::path(projectPath, "inputs/conceptSets/R"),
     fs::path(projectPath, "inputs/cohorts/R")
   )
+
+  # A misnamed or missing builder script would otherwise be skipped without
+  # anyone noticing, so check the folders before sourcing anything
+  missing_scripts <- required_scripts[!fs::file_exists(source_order)]
+  present_scripts <- fs::dir_ls(
+    directories_checked[fs::dir_exists(directories_checked)],
+    regexp = "[.][Rr]$",
+    type = "file"
+  )
+  unexpected_scripts <- fs::path_rel(present_scripts, projectPath)
+  unexpected_scripts <- setdiff(unexpected_scripts, required_scripts)
+
+  if (length(missing_scripts) > 0 || length(unexpected_scripts) > 0) {
+    problems <- c(
+      stats::setNames(
+        paste0(
+          "Missing {.file ", missing_scripts, "}. Recreate it with ",
+          "{.code makeInputBuilderScript(", names(missing_scripts), ")}."
+        ),
+        rep("x", length(missing_scripts))
+      ),
+      stats::setNames(
+        paste0("Unrecognized builder script {.file ", unexpected_scripts, "} would never be sourced."),
+        rep("x", length(unexpected_scripts))
+      )
+    )
+    if ("inputs/cohorts/R/build_dependent_cohorts_cohort.R" %in% unexpected_scripts) {
+      problems <- c(
+        problems,
+        i = "Rename {.file build_dependent_cohorts_cohort.R} (written by older versions of picard) to {.file build_dependent_cohorts.R}."
+      )
+    }
+    cli::cli_abort(c(
+      "Input builder scripts are missing or misnamed.",
+      problems,
+      i = "Keep all six builder scripts, even unused ones: unpopulated templates run without error.",
+      i = "Move helper code into a subfolder such as {.file inputs/cohorts/R/src/}."
+    ))
+  }
 
   # A NULL configBlock still gets a single pass
   blocks <- if (is.null(configBlock)) list(NULL) else as.list(configBlock)
@@ -1438,10 +1467,6 @@ sourceInputBuilderScripts <- function(
       cli::cli_alert_success(
         "Successfully sourced {length(sourced_files)} input builder script(s)"
       )
-    } else {
-      if (warnMissing) {
-        cli::cli_alert_info("No input builder scripts found")
-      }
     }
 
   }, error = function(e) {

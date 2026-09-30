@@ -25,7 +25,7 @@ library(picard)
 # ================================================================================
 
 # Uncomment to create a blank template CSV file:
-createBlankConceptSetsLoadFile()
+# createBlankConceptSetsLoadFile()
 
 # Now open inputs/conceptSets/conceptSetsLoad.csv in Excel and fill in your entries:
 #   - atlasId: ATLAS concept set definition IDs (required)
@@ -39,10 +39,10 @@ createBlankConceptSetsLoadFile()
 # B. LOAD MANIFEST (First Time Setup) or Reload (Subsequent Times)
 # ================================================================================
 
-# First time only: Initialize a new manifest (comment out after first run)
-conceptSetManifest <- initConceptSetManifest()
-
-# Subsequent times: Load from existing SQLite database
+# The manifest is created on the first run and loaded on every run after that
+if (!fs::file_exists(here::here("inputs/conceptSets/conceptSetManifest.sqlite"))) {
+  initConceptSetManifest(here::here("inputs/conceptSets"))
+}
 conceptSetManifest <- loadConceptSetManifest()
 
 
@@ -50,12 +50,20 @@ conceptSetManifest <- loadConceptSetManifest()
 # C. SET UP ATLAS CONNECTION
 # ================================================================================
 
-# ATLAS credentials must be configured in your .Renviron file before connecting.
-# Typical env vars: ATLAS_BASE_URL, ATLAS_API_TOKEN, ATLAS_SOURCE_ID, etc.
-# See ?getAtlasConnection for details on required environment variables
+# ATLAS credentials are read from your user-level secrets.yml.
+# See ?getAtlasConnection for details.
+#
+# The connection is only opened when there is ATLAS work to do: registered
+# ATLAS concept sets to sync, or a conceptSetsLoad.csv to import.
+conceptSetsLoadPath <- here::here("inputs/conceptSets/conceptSetsLoad.csv")
+hasAtlasConceptSets <- nrow(conceptSetManifest$queryConceptSetsByTagName("atlasId", tags_format = "json")) > 0
 
-atlasConnection <- getAtlasConnection()
-conceptSetManifest$setAtlasConnection(atlasConnection)
+if (hasAtlasConceptSets || fs::file_exists(conceptSetsLoadPath)) {
+  atlasConnection <- getAtlasConnection()
+  conceptSetManifest$setAtlasConnection(atlasConnection)
+} else {
+  cli::cli_alert_info("No ATLAS concept sets registered and no conceptSetsLoad.csv found - skipping ATLAS")
+}
 
 
 # ================================================================================
@@ -66,7 +74,9 @@ conceptSetManifest$setAtlasConnection(atlasConnection)
 # against ATLAS and updates changed definitions in place (same ID). This is
 # the step that propagates ATLAS edits, and running it before the import means
 # even a stale load csv cannot prevent the manifest from syncing.
-conceptSetManifest$updateAtlasConceptSets()
+if (hasAtlasConceptSets) {
+  conceptSetManifest$updateAtlasConceptSets()
+}
 
 # To update a single concept set on demand instead, use:
 # conceptSetManifest$addAtlasConceptSet(atlasId = ..., label = "...",
@@ -83,16 +93,13 @@ conceptSetManifest$updateAtlasConceptSets()
 # The load csv is for one-time imports only: rows already registered in the
 # manifest cause an error (delete the csv after a successful import). The
 # import is skipped when the csv is absent, so re-running main.R stays safe.
-# NOTE: no curly braces in this template (it is populated via glue).
-conceptSetsLoadPath <- here::here("inputs/conceptSets/conceptSetsLoad.csv")
-
-if (fs::file_exists(conceptSetsLoadPath))
+if (fs::file_exists(conceptSetsLoadPath)) {
   conceptSetManifest$importAtlasConceptSets(
     conceptSetsLoad = readr::read_csv(conceptSetsLoadPath, show_col_types = FALSE)
   )
-
-if (!fs::file_exists(conceptSetsLoadPath))
+} else {
   cli::cli_alert_info("No conceptSetsLoad.csv found - skipping one-time import")
+}
 
 
 # ================================================================================

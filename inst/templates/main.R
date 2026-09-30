@@ -32,14 +32,14 @@ dbIds <- c("{configBlocks}")
 #
 # WORKFLOW:
 #   Edit scripts in inputs/cohorts/R/ and inputs/conceptSets/R/ to:
-#   - Load concept sets from ATLAS (importAtlas.R)
-#   - Build concepts programmatically with Capr (importCapr.R)
-#   - Load custom SQL cohorts (importSql.R) [cohorts only]
-#   - Build derived cohorts (buildDependentCohorts.R) [cohorts only]
+#   - Load from ATLAS (import_atlas_*.R)
+#   - Build definitions programmatically with Capr (import_capr_*.R)
+#   - Load custom SQL cohorts (import_sql_cohort.R)
+#   - Build derived cohorts (build_dependent_cohorts.R)
 #
-# Delete unused builder scripts - only the ones you need will be sourced.
-# Scripts are sourced in alphabetical order, with concept sets first.
-# Concept set scripts run first so cohorts can reference them if needed.
+# All 6 builder scripts are required - leave unused ones as generated, since
+# unpopulated builders run without error. Scripts run in a fixed order with
+# concept sets first, so cohorts can reference them if needed.
 #
 # Builder scripts run once per database in dbIds. Each pass can read
 # inputBuilderEnv$configBlock and inputBuilderEnv$pipelineVersion to build

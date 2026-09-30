@@ -22,7 +22,7 @@ library(picard)
 # ================================================================================
 
 # Uncomment to create a blank template CSV file:
-createBlankCohortsLoadFile()
+# createBlankCohortsLoadFile()
 
 # Now open inputs/cohorts/cohortsLoad.csv in Excel and fill in your entries:
 #   - atlasId: ATLAS cohort definition IDs (required)
@@ -37,10 +37,10 @@ createBlankCohortsLoadFile()
 # B. LOAD MANIFEST (First Time Setup) or Reload (Subsequent Times)
 # ================================================================================
 
-# First time only: Initialize a new manifest (comment out after first run)
-cohortManifest <- initCohortManifest()
-
-# Subsequent times: Load from existing SQLite database
+# The manifest is created on the first run and loaded on every run after that
+if (!fs::file_exists(here::here("inputs/cohorts/cohortManifest.sqlite"))) {
+  initCohortManifest(here::here("inputs/cohorts"))
+}
 cohortManifest <- loadCohortManifest()
 
 
@@ -48,12 +48,20 @@ cohortManifest <- loadCohortManifest()
 # C. SET UP ATLAS CONNECTION
 # ================================================================================
 
-# ATLAS credentials must be configured in your .Renviron file before connecting.
-# Typical env vars: ATLAS_BASE_URL, ATLAS_API_TOKEN, ATLAS_SOURCE_ID, etc.
-# See ?getAtlasConnection for details on required environment variables
+# ATLAS credentials are read from your user-level secrets.yml.
+# See ?getAtlasConnection for details.
+#
+# The connection is only opened when there is ATLAS work to do: registered
+# ATLAS cohorts to sync, or a cohortsLoad.csv to import.
+cohortsLoadPath <- here::here("inputs/cohorts/cohortsLoad.csv")
+hasAtlasCohorts <- nrow(cohortManifest$queryCohortsByTagName("atlasId", tags_format = "json")) > 0
 
-atlasConnection <- getAtlasConnection()
-cohortManifest$setAtlasConnection(atlasConnection)
+if (hasAtlasCohorts || fs::file_exists(cohortsLoadPath)) {
+  atlasConnection <- getAtlasConnection()
+  cohortManifest$setAtlasConnection(atlasConnection)
+} else {
+  cli::cli_alert_info("No ATLAS cohorts registered and no cohortsLoad.csv found - skipping ATLAS")
+}
 
 
 # ================================================================================
@@ -65,7 +73,9 @@ cohortManifest$setAtlasConnection(atlasConnection)
 # cohorts marked stale so the pipeline regenerates them). This is the step
 # that propagates ATLAS edits, and running it before the import means even a
 # stale load csv cannot prevent the manifest from syncing.
-cohortManifest$updateAtlasCohorts()
+if (hasAtlasCohorts) {
+  cohortManifest$updateAtlasCohorts()
+}
 
 # To update a single cohort on demand instead, use:
 # cohortManifest$addAtlasCohort(atlasId = ..., label = "...", category = "...",
@@ -82,9 +92,6 @@ cohortManifest$updateAtlasCohorts()
 # The load csv is for one-time imports only: rows already registered in the
 # manifest cause an error (delete the csv after a successful import). The
 # import is skipped when the csv is absent, so re-running main.R stays safe.
-# NOTE: no curly braces in this template (it is populated via glue).
-cohortsLoadPath <- here::here("inputs/cohorts/cohortsLoad.csv")
-
 if (fs::file_exists(cohortsLoadPath)) {
   cohortManifest$importAtlasCohorts(
       cohortsLoad = readr::read_csv(cohortsLoadPath, show_col_types = FALSE)

@@ -9,6 +9,16 @@
   the argument name changes. There is no compatibility shim — a stray
   `testLabel =` now raises `unused argument`.
 
+- `sourceInputBuilderScripts()` now requires all six builder scripts and aborts
+  before sourcing anything if one is missing or if `inputs/cohorts/R/` or
+  `inputs/conceptSets/R/` contains any other `.R` file (previously these were
+  skipped silently). Studies that deleted unused builders should recreate them
+  with `makeInputBuilderScript()`, and studies with
+  `build_dependent_cohorts_cohort.R` should rename it to
+  `build_dependent_cohorts.R`. Helper code belongs in a subfolder such as
+  `inputs/cohorts/R/src/`. The now-meaningless `warnMissing` argument is
+  removed (#116).
+
 ## New Features
 
 ### Unified Test-Mode Namespaces
@@ -80,8 +90,13 @@
 
 - `makeInputBuilderScript(type = "buildDependentCohorts")` now writes
   `build_dependent_cohorts.R` instead of `build_dependent_cohorts_cohort.R`, which
-  `sourceInputBuilderScripts()` never sourced. `sourceInputBuilderScripts()` warns
-  when it finds a file with the old name so existing studies can rename it.
+  `sourceInputBuilderScripts()` never sourced.
+- The input builder templates now run without error when unpopulated: each
+  creates its manifest on first run, the ATLAS builders only connect to ATLAS
+  when there are registered ATLAS entries or a load csv to import, and the Capr
+  builders no longer require Capr until Capr code is added (#116).
+- `$updateAtlasCohorts()` / `$updateAtlasConceptSets()` no longer error when the
+  manifest has no ATLAS entries.
 
 - `createExecutionSettingsFromConfig()` now honors its documented default: `pipelineVersion = "prod"` (or a `MAJOR.MINOR.PATCH` version) uses the configured cohort table unchanged. Previously `"prod"` was treated as a non-semver test namespace and produced a `_prod`-suffixed table.
 - Fixed cohort-manifest change detection for task reruns (`shouldRerunTask()`), which was broken three ways at once, so editing a cohort definition never re-ran the tasks that used it:

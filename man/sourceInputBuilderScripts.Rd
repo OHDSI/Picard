@@ -8,8 +8,7 @@ sourceInputBuilderScripts(
   projectPath = here::here(),
   configBlock = NULL,
   pipelineVersion = NULL,
-  verbose = TRUE,
-  warnMissing = TRUE
+  verbose = TRUE
 )
 }
 \arguments{
@@ -24,8 +23,6 @@ scripts as \code{inputBuilderEnv$pipelineVersion}. Defaults to NULL, which
 uses the version recorded in \code{config.yml}.}
 
 \item{verbose}{Logical. If TRUE (default), displays which scripts are being sourced.}
-
-\item{warnMissing}{Logical. If TRUE (default), warns when directories don't exist.}
 }
 \value{
 Invisibly returns a list with:
@@ -45,7 +42,7 @@ production pipeline. This ensures concept sets are available before cohorts,
 and dependent cohorts can reference already-loaded cohort definitions.
 }
 \details{
-Scripts are sourced in the following FIXED order (skipping any that don't exist):
+All six scripts are required and are sourced in the following FIXED order:
 \enumerate{
 \item \code{inputs/conceptSets/R/import_atlas_concept_set.R}
 \item \code{inputs/conceptSets/R/import_capr_concept_set.R}
@@ -63,7 +60,12 @@ This order is enforced to guarantee dependencies are satisfied:
 }
 
 Use \code{\link{makeInputBuilderScript}} to create scripts with the correct naming convention.
-Missing scripts are silently skipped, allowing flexible configurations.
+The function aborts before sourcing anything if a required script is missing
+or if \code{inputs/conceptSets/R/} or \code{inputs/cohorts/R/} contain any
+other \code{.R} file, since such a file would otherwise never run. Unused
+builders should be left in place: the templates run without error when they
+have not been populated. Put helper code in a subfolder (e.g.
+\code{inputs/cohorts/R/src/}), which is not checked.
 
 When \code{configBlock} is supplied, the full set of scripts is sourced once
 per config block, in order, the same way \code{execStudyPipeline()} runs

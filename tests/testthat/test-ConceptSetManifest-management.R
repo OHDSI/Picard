@@ -548,3 +548,13 @@ testthat::test_that("concept-set syncManifest ignores a path-convention-only dif
   })
   testthat::expect_equal(csm_test_all_rows(manifest)$hash[1], original_hash)
 })
+
+# Testing: syncing ATLAS concept sets is a no-op, not an error, when none are registered.
+testthat::test_that("updateAtlasConceptSets returns NULL when no ATLAS concept sets are registered", {
+  setup <- csm_test_new_manifest("conceptsetmanifest-atlas-empty")
+
+  res <- testthat::expect_no_error(suppressMessages(
+    setup$manifest$updateAtlasConceptSets(atlasConnection = list())
+  ))
+  testthat::expect_null(res)
+})

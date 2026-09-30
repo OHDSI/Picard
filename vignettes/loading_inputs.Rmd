@@ -77,25 +77,15 @@ remaining builder scripts in a **mandatory dependency order**. This ensures conc
 
 1. **Project initializes** with all 6 builder scripts pre-created
 2. **Edit the builders you need** - Each script has clear guidance comments
-3. **Delete unused builders** - Remove scripts you do not need
-4. **Run `main.R`** - `sourceInputBuilderScripts()` auto-discovers and runs remaining scripts in mandatory order
+3. **Leave unused builders as they are** - An unpopulated builder runs without error, creating the manifest on first run and skipping ATLAS when there is nothing to import
+4. **Run `main.R`** - `sourceInputBuilderScripts()` runs all 6 scripts in mandatory order
 5. **Manifests load** - Your cohorts and concept sets are ready for the pipeline
 
-Example: If you only use ATLAS for concept sets and Capr for cohorts:
-
-```
-inputs/conceptSets/R/
-  ✓ import_atlas_concept_set.R
-  ✗ import_capr_concept_set.R (deleted)
-
-inputs/cohorts/R/
-  ✗ import_atlas_cohort.R (deleted)
-  ✓ import_capr_cohort.R
-  ✗ import_sql_cohort.R (deleted)
-  ✗ build_dependent_cohorts.R (deleted)
-```
-
-When `main.R` runs, only `import_atlas_concept_set.R` and `import_capr_cohort.R` source (in order: concept sets first, then cohorts).
+All 6 builder scripts are required. `sourceInputBuilderScripts()` stops with an
+error before sourcing anything if one is missing, or if `inputs/cohorts/R/` or
+`inputs/conceptSets/R/` contains any other `.R` file, because such a file would
+never run. Recreate a deleted builder with `makeInputBuilderScript()`, and put
+helper code in a subfolder such as `inputs/cohorts/R/src/`.
 
 ### Using a Database Connection in Builder Scripts
 

@@ -2442,9 +2442,11 @@ ConceptSetManifest <- R6::R6Class(
         ))
       }
 
-      # Check for changes
-      check_atlas_changes <- self$checkAtlasConceptSets(atlasConnection) |>
-        dplyr::filter(hasChanged)
+      # Check for changes; NULL means no ATLAS concept sets are registered
+      check_atlas_changes <- self$checkAtlasConceptSets(atlasConnection)
+      if (!is.null(check_atlas_changes)) {
+        check_atlas_changes <- dplyr::filter(check_atlas_changes, hasChanged)
+      }
 
       if (is.null(check_atlas_changes) || nrow(check_atlas_changes) == 0) {
         cli::cli_alert_info("No changed ATLAS concept sets found. All concept sets are current.")

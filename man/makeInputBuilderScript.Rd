@@ -46,8 +46,10 @@ Available script types:
 \item buildDependentCohorts: Build derived cohorts (cohorts only)
 }
 
-All scripts are sourced in sequence by main.R before the production pipeline executes.
-Users can delete unused scripts (e.g., if they only need ATLAS imports).
+All six scripts are required and are sourced in sequence by main.R before the
+production pipeline executes (see \code{\link{sourceInputBuilderScripts}}).
+Unused scripts can be left as generated: the templates run without error when
+they have not been populated. Use this function to recreate a deleted script.
 }
 \examples{
 \dontrun{

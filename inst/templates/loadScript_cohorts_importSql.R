@@ -24,10 +24,10 @@ library(picard)
 # A. LOAD OR INITIALIZE MANIFEST
 # ================================================================================
 
-# First time only: Initialize a new manifest (comment out after first run)
-# cohortManifest <- initCohortManifest()
-
-# Subsequent times: Load from existing SQLite database
+# The manifest is created on the first run and loaded on every run after that
+if (!fs::file_exists(here::here("inputs/cohorts/cohortManifest.sqlite"))) {
+  initCohortManifest(here::here("inputs/cohorts"))
+}
 cohortManifest <- loadCohortManifest()
 
 # Optional: attach execution settings when a database connection is needed

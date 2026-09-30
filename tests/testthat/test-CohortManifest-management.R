@@ -1367,3 +1367,13 @@ testthat::test_that("syncManifest still reports hash_updated on a real content c
   out <- manifest$syncManifest(strict_mode = TRUE)
   testthat::expect_true("hash_updated" %in% out$action[out$id == circe_id])
 })
+
+# Testing: syncing ATLAS cohorts is a no-op, not an error, when none are registered.
+testthat::test_that("updateAtlasCohorts returns NULL when no ATLAS cohorts are registered", {
+  setup <- cm_test_new_manifest("cohortmanifest-atlas-empty")
+
+  res <- testthat::expect_no_error(suppressMessages(
+    setup$manifest$updateAtlasCohorts(atlasConnection = list())
+  ))
+  testthat::expect_null(res)
+})
