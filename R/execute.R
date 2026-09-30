@@ -745,20 +745,6 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
     })
   }
   
-  # Create execution settings from first configBlock. The ExecutionContext owns
-  # namespace derivation (cohort-table suffix, results folder, task history).
-  tryCatch({
-    executionSettings <- createExecutionSettingsFromConfig(
-      configBlock = configBlock[1],
-      pipelineVersion = pipelineVersion,
-      executionContext = executionContext
-    )
-    cli::cli_alert_success("Execution settings created for config: {configBlock[1]}")
-  }, error = function(e) {
-    cli::cli_alert_danger("Failed to create execution settings: {e$message}")
-    stop("Cannot initialize execution settings")
-  })
-  
   # Setup logging before generating cohorts
   logFilePath <- NULL
   tryCatch({
@@ -810,20 +796,39 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
   # Cohort manifest status and missing-cohort interactive prompt are handled
   # in runPreflightChecks() before pipeline execution begins.
   
-  # Generate cohorts before running pipeline
+  # Generate cohorts in every config block before running pipeline tasks. The
+  # ExecutionContext owns namespace derivation (cohort-table suffix, results
+  # folder, task history).
   cli::cli_alert_info("Generating cohorts for pipeline...")
-  
-  tryCatch({
-    generateCohorts(
-      executionSettings = executionSettings,
-      pipelineVersion = pipelineVersion,
-      executionContext = executionContext,
-      override = TRUE
-    )
-  }, error = function(e) {
-    cli::cli_alert_danger("Cohort generation failed: {e$message}")
-    stop("Pipeline cannot proceed without cohorts")
-  })
+
+  for (db in seq_along(configBlock)) {
+    appendLogLine(logFilePath, glue::glue("[{format(Sys.time(), '%H:%M:%S')}] Generating cohorts for config block: {configBlock[db]}"))
+    cli::cli_alert_info("Generating cohorts for config block: {configBlock[db]}")
+
+    tryCatch({
+      executionSettings <- createExecutionSettingsFromConfig(
+        configBlock = configBlock[db],
+        pipelineVersion = pipelineVersion,
+        executionContext = executionContext
+      )
+      cli::cli_alert_success("Execution settings created for config: {configBlock[db]}")
+    }, error = function(e) {
+      cli::cli_alert_danger("Failed to create execution settings for {configBlock[db]}: {e$message}")
+      stop(glue::glue("Cannot initialize execution settings for config block: {configBlock[db]}"), call. = FALSE)
+    })
+
+    tryCatch({
+      generateCohorts(
+        executionSettings = executionSettings,
+        pipelineVersion = pipelineVersion,
+        executionContext = executionContext,
+        override = TRUE
+      )
+    }, error = function(e) {
+      cli::cli_alert_danger("Cohort generation failed for {configBlock[db]}: {e$message}")
+      stop(glue::glue("Pipeline cannot proceed without cohorts for config block: {configBlock[db]}"), call. = FALSE)
+    })
+  }
 
   # Snapshot the cohort manifest once, after generation has reconciled it, and
   # reuse it for every task's rerun check / run record below.

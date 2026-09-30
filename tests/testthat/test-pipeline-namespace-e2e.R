@@ -174,3 +174,40 @@ testthat::test_that("separate test namespaces stay isolated in results and task 
   testthat::expect_equal(sum(history$pipeline_version == "develop_ml"), 1L)
   testthat::expect_equal(sum(history$pipeline_version == "develop_ks"), 1L)
 })
+
+
+testthat::test_that("testStudyPipeline generates cohorts in every config block", {
+  repo <- pne_setup_repo()
+  task <- pne_write_task(repo)
+  readr::write_lines(
+    c(
+      "",
+      "db_second:",
+      "  dbServer: server_placeholder",
+      "  databaseName: db_second_name",
+      "  databaseLabel: Second DB",
+      "  cdmDatabaseSchema: cdm_second",
+      "  vocabDatabaseSchema: cdm_second",
+      "  workDatabaseSchema: work_second",
+      "  tempEmulationSchema: work_second",
+      "  cohortTable: cohort_second"
+    ),
+    fs::path(repo, "config.yml"),
+    append = TRUE
+  )
+
+  pne_mock_boundaries(task)
+  generated_in <- character(0)
+  testthat::local_mocked_bindings(
+    generateCohorts = function(executionSettings, ...) {
+      generated_in <<- c(generated_in, executionSettings$databaseName)
+      invisible(data.frame())
+    }
+  )
+
+  suppressMessages(
+    testStudyPipeline(configBlock = c("db_placeholder", "db_second"), pipelineVersion = "dev")
+  )
+
+  testthat::expect_equal(generated_in, c("db_name_placeholder", "db_second_name"))
+})

@@ -73,6 +73,11 @@
 
 ## Bug Fixes
 
+- `execStudyPipeline()` / `testStudyPipeline()` now generate cohorts in every
+  config block passed to `configBlock`. Previously cohorts were only generated
+  in the first block, so tasks for the other databases ran against cohort
+  tables that had not been built for that run.
+
 - `makeInputBuilderScript(type = "buildDependentCohorts")` now writes
   `build_dependent_cohorts.R` instead of `build_dependent_cohorts_cohort.R`, which
   `sourceInputBuilderScripts()` never sourced. `sourceInputBuilderScripts()` warns
