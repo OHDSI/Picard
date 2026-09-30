@@ -402,6 +402,12 @@ formatErrorDetail <- function(e) {
 #'   here; \code{execute_pipeline()} computes it once and passes it in so the
 #'   manifest is not re-loaded for every task. Recorded with the run and used
 #'   for the rerun check.
+#' @param conceptSetManifestHash Character or NULL. Pre-computed concept set
+#'   manifest hash (see \code{.getConceptSetManifestHash()}). Handled the same
+#'   way as \code{cohortManifestHash}.
+#' @param renvLockHash Character or NULL. Pre-computed renv lockfile hash (see
+#'   \code{.getRenvLockHash()}). Handled the same way as
+#'   \code{cohortManifestHash}.
 #' @param executionContext An optional `ExecutionContext` for the current run.
 #'   When supplied it owns namespace derivation (cohort-table suffix, results
 #'   folder) and `pipelineVersion` is taken from it.
@@ -412,6 +418,8 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
                          codeState = NULL,
                          logFilePath = NULL,
                          cohortManifestHash = NULL,
+                         conceptSetManifestHash = NULL,
+                         renvLockHash = NULL,
                          executionContext = NULL) {
 
   checkmate::assert_class(executionContext, "ExecutionContext", null.ok = TRUE)
@@ -422,10 +430,19 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
   commitSha <- codeState$sha %||% NA_character_
   codeStateLabel <- codeState$status %||% "unrecorded"
 
-  # Snapshot the cohort manifest once so the rerun check and every
-  # recordTaskExecution() call below agree on the same value.
-  if (is.null(cohortManifestHash)) {
-    cohortManifestHash <- .getCohortManifestHash()
+  # Snapshot the input hashes once so the rerun check and every
+  # recordTaskExecution() call below agree on the same values.
+  cohortManifestHash <- cohortManifestHash %||% .getCohortManifestHash()
+  conceptSetManifestHash <- conceptSetManifestHash %||% .getConceptSetManifestHash()
+  renvLockHash <- renvLockHash %||% .getRenvLockHash()
+
+  record <- function(status, errorMessage = NA_character_) {
+    recordTaskExecution(taskFile, configBlock, pipelineVersion, status,
+                        errorMessage = errorMessage,
+                        commitSha = commitSha, codeState = codeStateLabel,
+                        cohortManifestHash = cohortManifestHash,
+                        conceptSetManifestHash = conceptSetManifestHash,
+                        renvLockHash = renvLockHash)
   }
 
   cli::cat_rule(glue::glue_col("Run Task: {yellow {taskFile}}"))
@@ -442,10 +459,7 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
   # Verify task file exists
   if (!file.exists(fullTaskFilePath)) {
     cli::cli_alert_danger("Task file not found: {fs::path_rel(fullTaskFilePath)}")
-    recordTaskExecution(taskFile, configBlock, pipelineVersion, "failed",
-                        errorMessage = "Task file does not exist",
-                        commitSha = commitSha, codeState = codeStateLabel,
-                        cohortManifestHash = cohortManifestHash)
+    record("failed", "Task file does not exist")
     stop("Task file does not exist")
   }
 
@@ -471,14 +485,14 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
         configBlock = configBlock,
         executionSettings = executionSettings,
         pipelineVersion = pipelineVersion,
-        cohortManifestHash = cohortManifestHash
+        cohortManifestHash = cohortManifestHash,
+        conceptSetManifestHash = conceptSetManifestHash,
+        renvLockHash = renvLockHash
       )
 
       if (!statusCheck$should_rerun) {
         cli::cli_alert_success("Task is up to date - skipping execution")
-        recordTaskExecution(taskFile, configBlock, pipelineVersion, "skipped",
-                            commitSha = commitSha, codeState = codeStateLabel,
-                            cohortManifestHash = cohortManifestHash)
+        record("skipped")
         return(invisible(NULL))
       }
     }
@@ -489,10 +503,7 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
     validateStudyTask(fullTaskFilePath)
   }, error = function(e) {
     cli::cli_alert_danger("Task validation failed: {e$message}")
-    recordTaskExecution(taskFile, configBlock, pipelineVersion, "failed",
-                        errorMessage = paste("Validation failed:", e$message),
-                        commitSha = commitSha, codeState = codeStateLabel,
-                        cohortManifestHash = cohortManifestHash)
+    record("failed", paste("Validation failed:", e$message))
     stop("Invalid task structure - cannot execute")
   })
 
@@ -504,10 +515,7 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
       glue::glue(.open = "!||", .close = "||!")
   }, error = function(e) {
     cli::cli_alert_danger("Failed to read task file: {e$message}")
-    recordTaskExecution(taskFile, configBlock, pipelineVersion, "failed",
-                        errorMessage = paste("Read error:", e$message),
-                        commitSha = commitSha, codeState = codeStateLabel,
-                        cohortManifestHash = cohortManifestHash)
+    record("failed", paste("Read error:", e$message))
     stop("Error reading task file")
   })
 
@@ -516,10 +524,7 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
     exprs <- rlang::parse_exprs(rLines)
   }, error = function(e) {
     cli::cli_alert_danger("Failed to parse task file: {e$message}")
-    recordTaskExecution(taskFile, configBlock, pipelineVersion, "failed",
-                        errorMessage = paste("Parse error:", e$message),
-                        commitSha = commitSha, codeState = codeStateLabel,
-                        cohortManifestHash = cohortManifestHash)
+    record("failed", paste("Parse error:", e$message))
     stop("Error parsing task expressions")
   })
 
@@ -545,15 +550,10 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
 
   # Record success or failure
   if (!is.null(executionError)) {
-    recordTaskExecution(taskFile, configBlock, pipelineVersion, "failed",
-                        errorMessage = executionError,
-                        commitSha = commitSha, codeState = codeStateLabel,
-                        cohortManifestHash = cohortManifestHash)
+    record("failed", executionError)
     stop(executionError, call. = FALSE)
   } else {
-    recordTaskExecution(taskFile, configBlock, pipelineVersion, "success",
-                        commitSha = commitSha, codeState = codeStateLabel,
-                        cohortManifestHash = cohortManifestHash)
+    record("success")
     cli::cli_alert_success("Task {taskFile} completed successfully")
   }
 
@@ -849,9 +849,12 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
       stop(glue::glue("Pipeline cannot proceed without cohorts for config block: {block}"), call. = FALSE)
     })
 
-    # Snapshot this block's manifest once, after its builders and generation
-    # have reconciled it, and reuse it for every task's rerun check / run record
+    # Snapshot this block's input hashes once, after its builders and generation
+    # have reconciled the manifests, and reuse them for every task's rerun check /
+    # run record
     cohortManifestHash <- .getCohortManifestHash()
+    conceptSetManifestHash <- .getConceptSetManifestHash()
+    renvLockHash <- .getRenvLockHash()
 
     for (task in seq_along(taskFilesToRun)) {
       taskName <- taskFilesToRun[task]
@@ -871,6 +874,8 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
           codeState = codeState,
           logFilePath = logFilePath,
           cohortManifestHash = cohortManifestHash,
+          conceptSetManifestHash = conceptSetManifestHash,
+          renvLockHash = renvLockHash,
           executionContext = executionContext
         )
         

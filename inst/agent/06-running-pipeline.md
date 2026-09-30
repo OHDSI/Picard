@@ -260,12 +260,25 @@ from that record:
 - the **cohort manifest** — any change to a registered cohort's *definition*:
   the rendered SQL of a cohort, a cohort added or removed, or a derived
   cohort's build rule. Renaming a cohort or editing its tags does not count;
+- the **concept set manifest** — a concept set added or removed, its expression
+  edited, or its label, category, or tags changed. Unlike cohorts, concept set
+  metadata counts, because tasks often group or name their output by it (for
+  example, merging two medication categories into one);
+- the **renv lockfile** (`renv.lock`) — the R version or any package's version
+  changed;
 - the pipeline version;
 - a previous run that ended in failure.
 
 So after you edit a cohort's JSON or SQL and regenerate, the next pipeline run
-re-executes every task that had run against the old definition. If the manifest
-hash cannot be computed for any reason, tasks are re-run rather than skipped.
+re-executes every task that had run against the old definition. If a manifest
+or lockfile hash cannot be computed for any reason, tasks are re-run rather than
+skipped.
+
+The pipeline does **not** track data files that a task reads itself. A task
+must never read another task's output: `validateStudyTask()` fails any task
+that reads a file (e.g. with `read_csv()` or `readRDS()`) from `exec/results`
+or an `outputFolder`, and warns about other data-file reads, since editing those
+files will not trigger a rerun.
 
 ## Handling Errors and Failures
 

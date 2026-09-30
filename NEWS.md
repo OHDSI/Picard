@@ -8,6 +8,12 @@
   the same meaning (a test-mode namespace) and the same normalization, so only
   the argument name changes. There is no compatibility shim — a stray
   `testLabel =` now raises `unused argument`.
+- `validateStudyTask()` now fails a task that reads a data file (`read_csv()`,
+  `readRDS()`, `fread()`, ...) from a pipeline results location
+  (`exec/results`, `outputFolder`, `setOutputFolder()`, `resolveResultsPath()`,
+  `dissemination/export`). The pipeline cannot detect changes to such files, so
+  a task consuming another task's output could be skipped and silently reuse
+  stale results. Other data-file reads are allowed but produce a warning (#118).
 
 - `sourceInputBuilderScripts()` now requires all six builder scripts and aborts
   before sourcing anything if one is missing or if `inputs/cohorts/R/` or
@@ -49,6 +55,21 @@
   - `execStudyPipeline(skipCodeStateCheck = TRUE)` skips the check entirely as a last resort. Deliberately not settable from `config.yml`.
   - Neither hatch is silent: `Code state` is reported as a **warning** rather than a pass, a banner names every ignored file, and the pipeline log records the code state and commit SHA.
   - `exec/logs/task_run_history.csv` gains `commit_sha` and `code_state` columns (`clean`, `dirty-ignored`, `unverified-skipped`, `unverified-test-mode`, `unrecorded`) so the audit trail never implies a clean tree when the tree was not clean. Existing history files are read and back-filled as `unrecorded`.
+
+### Task Change Detection
+
+- `shouldRerunTask()` now reruns a task when the **concept set manifest**
+  changes — a concept set added or removed, its expression edited, or its
+  label, category, or tags changed (#125). Unlike cohorts, concept set
+  metadata is included because tasks commonly group or name output by it.
+  Backed by the new `ConceptSetManifest$getManifestHash()`.
+- `shouldRerunTask()` now reruns a task when **`renv.lock`** changes — the R
+  version or any package's version, source, or remote SHA (#118).
+- `exec/logs/task_run_history.csv` gains `concept_set_manifest_hash` and
+  `renv_lock_hash` columns. Existing history rows have no recorded value, so
+  every task reruns once after upgrading. Studies without a concept set
+  manifest or `renv.lock` hash to a stable sentinel and are not rerun on every
+  run.
 
 ### Tabulate and View Manifest
 

@@ -167,6 +167,7 @@ by finding the reverse mapping relationship. For each concept set:
 \itemize{
 \item \href{#method-ConceptSetManifest-new}{\code{ConceptSetManifest$new()}}
 \item \href{#method-ConceptSetManifest-getManifest}{\code{ConceptSetManifest$getManifest()}}
+\item \href{#method-ConceptSetManifest-getManifestHash}{\code{ConceptSetManifest$getManifestHash()}}
 \item \href{#method-ConceptSetManifest-tabulateManifest}{\code{ConceptSetManifest$tabulateManifest()}}
 \item \href{#method-ConceptSetManifest-viewManifest}{\code{ConceptSetManifest$viewManifest()}}
 \item \href{#method-ConceptSetManifest-getDbPath}{\code{ConceptSetManifest$getDbPath()}}
@@ -257,6 +258,37 @@ Get the manifest as a list of ConceptSetDef objects}
 
 \subsection{Returns}{
 List. A list of ConceptSetDef objects in the manifest.
+Compute a deterministic hash of every concept set in the manifest
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-getManifestHash"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-getManifestHash}{}}}
+\subsection{Method \code{getManifestHash()}}{
+Produces a single SHA256 string over every active concept set, used by
+the study pipeline (via \code{\link[=shouldRerunTask]{shouldRerunTask()}}) to decide whether concept
+set changes force tasks to rerun.
+
+For each concept set, ordered by id, the hash combines:
+\itemize{
+\item \code{id}, \code{label}, \code{category}
+\item \code{tags} (normalized JSON)
+\item the concept set expression read from disk (normalized JSON),
+or the sentinel \code{"<missing>"} when the file is absent
+}
+
+Unlike \link[=CohortManifest]{CohortManifest$getManifestHash()}, label,
+category, and tags are included: tasks commonly group or name their
+output by these fields (e.g. medication categories), so changing them
+changes the analysis output. The stored file path is excluded, so path
+normalization does not force spurious reruns.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$getManifestHash()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Character. A SHA256 hash string. An empty manifest hashes to a
+stable constant.
 }
 }
 \if{html}{\out{<hr>}}

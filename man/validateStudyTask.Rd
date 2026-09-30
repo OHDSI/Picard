@@ -25,5 +25,10 @@ A valid study task must contain:
 \item ExecutionSettings creation (assignment to executionSettings object)
 \item Output folder creation (assignment to outputFolder object)
 \item Non-empty E. Script section (more than just the template comment)
+\item No data-file reads (e.g. \code{read_csv()}, \code{readRDS()}) from pipeline results
+locations such as \code{exec/results} or an \code{outputFolder}. The pipeline cannot
+detect changes to files a task reads, so consuming another task's output
+could silently reuse stale results. Other data-file reads are allowed but
+produce a warning, since changes to them also do not trigger a rerun.
 }
 }

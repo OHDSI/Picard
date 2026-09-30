@@ -13,6 +13,8 @@ execute_task(
   codeState = NULL,
   logFilePath = NULL,
   cohortManifestHash = NULL,
+  conceptSetManifestHash = NULL,
+  renvLockHash = NULL,
   executionContext = NULL
 )
 }
@@ -46,6 +48,14 @@ hash (see \code{.getCohortManifestHash()}). NULL (default) computes it once
 here; \code{execute_pipeline()} computes it once and passes it in so the
 manifest is not re-loaded for every task. Recorded with the run and used
 for the rerun check.}
+
+\item{conceptSetManifestHash}{Character or NULL. Pre-computed concept set
+manifest hash (see \code{.getConceptSetManifestHash()}). Handled the same
+way as \code{cohortManifestHash}.}
+
+\item{renvLockHash}{Character or NULL. Pre-computed renv lockfile hash (see
+\code{.getRenvLockHash()}). Handled the same way as
+\code{cohortManifestHash}.}
 
 \item{executionContext}{An optional \code{ExecutionContext} for the current run.
 When supplied it owns namespace derivation (cohort-table suffix, results

@@ -13,7 +13,9 @@ recordTaskExecution(
   errorMessage = NA_character_,
   tasksFolderPath = here::here("analysis/tasks"),
   commitSha = NA_character_,
-  codeState = "unrecorded"
+  codeState = "unrecorded",
+  conceptSetManifestHash = NA_character_,
+  renvLockHash = NA_character_
 )
 }
 \arguments{
@@ -40,6 +42,11 @@ under configured ignore paths), \code{"unverified-skipped"} (the code-state
 check was skipped), \code{"unverified-test-mode"}, or \code{"unrecorded"}
 for calls outside a pipeline run. Recorded so the audit trail never implies
 a clean tree when the tree was not clean.}
+
+\item{conceptSetManifestHash}{Character. Hash of concept set manifest at time
+of execution (optional)}
+
+\item{renvLockHash}{Character. Hash of renv.lock at time of execution (optional)}
 }
 \value{
 Invisibly TRUE if successful

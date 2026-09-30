@@ -510,6 +510,69 @@ ConceptSetManifest <- R6::R6Class(
       return(private$.manifest)
     },
 
+    #' Compute a deterministic hash of every concept set in the manifest
+    #'
+    #' @description
+    #' Produces a single SHA256 string over every active concept set, used by
+    #' the study pipeline (via [shouldRerunTask()]) to decide whether concept
+    #' set changes force tasks to rerun.
+    #'
+    #' For each concept set, ordered by id, the hash combines:
+    #'   \itemize{
+    #'     \item \code{id}, \code{label}, \code{category}
+    #'     \item \code{tags} (normalized JSON)
+    #'     \item the concept set expression read from disk (normalized JSON),
+    #'       or the sentinel \code{"<missing>"} when the file is absent
+    #'   }
+    #'
+    #' Unlike [CohortManifest$getManifestHash()][CohortManifest], label,
+    #' category, and tags are included: tasks commonly group or name their
+    #' output by these fields (e.g. medication categories), so changing them
+    #' changes the analysis output. The stored file path is excluded, so path
+    #' normalization does not force spurious reruns.
+    #'
+    #' @return Character. A SHA256 hash string. An empty manifest hashes to a
+    #'   stable constant.
+    getManifestHash = function() {
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      rows <- DBI::dbGetQuery(
+        conn,
+        "SELECT id, label, category, tags, file_path
+           FROM concept_set_manifest
+          WHERE status = 'active'
+          ORDER BY id"
+      )
+
+      expression_hashes <- vapply(
+        rows$file_path,
+        function(stored_path) {
+          file_path <- private$resolve_file_path(stored_path)
+          if (!file.exists(file_path)) {
+            return("<missing>")
+          }
+          digest::digest(
+            manifest_canonical_json(readr::read_file(file_path)),
+            algo = "sha256"
+          )
+        },
+        character(1),
+        USE.NAMES = FALSE
+      )
+
+      entries <- paste(
+        as.character(rows$id),
+        rows$label,
+        rows$category,
+        vapply(rows$tags, manifest_canonical_json, character(1), USE.NAMES = FALSE),
+        expression_hashes,
+        sep = "|"
+      )
+
+      digest::digest(paste(entries, collapse = "\n"), algo = "sha256")
+    },
+
     #' @description Tabulate the concept set manifest
     #'
     #' @param filter Character. One of "active", "deleted", or "all".
