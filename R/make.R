@@ -1179,8 +1179,11 @@ makeInputBuilderScript <- function(type,
     conceptSets = "concept_set"
   )
   
-  # Combine type and category for filename
-  fileName <- paste0(fileName, "_", categorySuffix)
+  # Combine type and category for filename; buildDependentCohorts already
+  # names its category
+  if (type != "buildDependentCohorts") {
+    fileName <- paste0(fileName, "_", categorySuffix)
+  }
   filePath <- fs::path(builderFolderPath, fileName, ext = "R")
   
   # Read template

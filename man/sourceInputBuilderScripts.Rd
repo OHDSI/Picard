@@ -15,9 +15,9 @@ sourceInputBuilderScripts(
 \arguments{
 \item{projectPath}{Character. Path to the project root. Defaults to current project.}
 
-\item{configBlock}{Character vector. Config block name(s) from \code{config.yml}
-made available to builder scripts as \code{inputBuilderEnv$configBlock}.
-Defaults to NULL.}
+\item{configBlock}{Character vector. Config block name(s) from \code{config.yml}.
+Scripts are sourced once per block, with the current block available as
+\code{inputBuilderEnv$configBlock}. Defaults to NULL (source once).}
 
 \item{pipelineVersion}{Character. Pipeline version made available to builder
 scripts as \code{inputBuilderEnv$pipelineVersion}. Defaults to NULL, which
@@ -31,10 +31,11 @@ uses the version recorded in \code{config.yml}.}
 Invisibly returns a list with:
 \itemize{
 \item \code{sourced_files}: Character vector of sourced files (absolute paths)
+\item \code{config_blocks}: Character vector of config blocks processed (NULL when
+\code{configBlock} is NULL)
 \item \code{directories_checked}: Character vector of directories checked
 \item \code{error_summary}: List of any errors encountered (always empty on
 successful return; a non-empty list raises an error instead)
-\item \code{inputBuilderEnv}: The metadata list made available to builder scripts
 }
 }
 \description{
@@ -64,15 +65,19 @@ This order is enforced to guarantee dependencies are satisfied:
 Use \code{\link{makeInputBuilderScript}} to create scripts with the correct naming convention.
 Missing scripts are silently skipped, allowing flexible configurations.
 
-Before sourcing, an \code{inputBuilderEnv} object (see
-\code{\link{createInputBuilderEnv}}) is assigned into the global environment
-so builder scripts can build execution settings without hard-coding the
-config block or pipeline version, e.g.
-\code{createExecutionSettingsFromConfig(configBlock = inputBuilderEnv$configBlock[1],
-pipelineVersion = inputBuilderEnv$pipelineVersion)}.
+When \code{configBlock} is supplied, the full set of scripts is sourced once
+per config block, in order, the same way \code{execStudyPipeline()} runs
+tasks once per database. Before each pass, an \code{inputBuilderEnv} object
+(see \code{\link{createInputBuilderEnv}}) holding the current config block
+and the pipeline version is assigned into the global environment, so builder
+scripts can build execution settings without hard-coding either value, e.g.
+\code{createExecutionSettingsFromConfig(configBlock = inputBuilderEnv$configBlock,
+pipelineVersion = inputBuilderEnv$pipelineVersion)}. When \code{configBlock}
+is NULL, scripts are sourced once with \code{inputBuilderEnv$configBlock}
+set to NULL.
 
-Errors inside builder scripts are collected across all scripts (so they can
-be fixed in one pass) and then raised as a single error: input building is a
-hard precondition of pipeline execution, so a failed script stops the run
-before \code{execStudyPipeline()} can be reached.
+Errors inside builder scripts are collected across all scripts and config
+blocks (so they can be fixed in one pass) and then raised as a single error:
+input building is a hard precondition of pipeline execution, so a failed
+script stops the run before \code{execStudyPipeline()} can be reached.
 }

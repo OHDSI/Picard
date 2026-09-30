@@ -107,14 +107,15 @@ version, pass them to `sourceInputBuilderScripts()`:
 sourceInputBuilderScripts(configBlock = dbIds, pipelineVersion = "dev")
 ```
 
-Before sourcing, this assigns an `inputBuilderEnv` object to the global
-environment with `configBlock` and `pipelineVersion` fields (`pipelineVersion`
-defaults to the version in `config.yml`). Builder scripts can use it to create
-execution settings:
+Like `execStudyPipeline()`, this runs the builder scripts once per config
+block. Before each pass it assigns an `inputBuilderEnv` object to the global
+environment with the current `configBlock` and the `pipelineVersion`
+(`pipelineVersion` defaults to the version in `config.yml`). Builder scripts
+can use it to create execution settings:
 
 ```r
 executionSettings <- createExecutionSettingsFromConfig(
-  configBlock = inputBuilderEnv$configBlock[1],
+  configBlock = inputBuilderEnv$configBlock,
   pipelineVersion = inputBuilderEnv$pipelineVersion
 )
 cohortManifest$setExecutionSettings(executionSettings)

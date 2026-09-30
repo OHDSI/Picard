@@ -46,15 +46,15 @@ testthat::test_that("sourceInputBuilderScripts aborts when a builder script fail
   testthat::expect_true(grepl("cohort boom", msg, fixed = TRUE))
 })
 
-# Testing: configBlock and pipelineVersion are exposed to builder scripts via
-# inputBuilderEnv so they do not need to be hard-coded.
-testthat::test_that("sourceInputBuilderScripts exposes configBlock and pipelineVersion", {
+# Testing: builder scripts run once per config block, each seeing its own block
+# and the pipeline version via inputBuilderEnv.
+testthat::test_that("sourceInputBuilderScripts runs scripts once per config block", {
   root <- sibs_test_project("sibs-env")
   writeLines(
-    "sibs_test_env <- inputBuilderEnv",
+    "sibs_test_seen <- c(get0('sibs_test_seen', envir = globalenv()), paste(inputBuilderEnv$configBlock, inputBuilderEnv$pipelineVersion))",
     fs::path(root, "inputs", "cohorts", "R", "import_sql_cohort.R")
   )
-  withr::defer(rm(list = c("sibs_test_env", "inputBuilderEnv"), envir = globalenv()))
+  withr::defer(rm(list = c("sibs_test_seen", "inputBuilderEnv"), envir = globalenv()))
 
   res <- sourceInputBuilderScripts(
     projectPath = root,
@@ -64,10 +64,42 @@ testthat::test_that("sourceInputBuilderScripts exposes configBlock and pipelineV
     warnMissing = FALSE
   )
 
-  env <- get("sibs_test_env", envir = globalenv())
-  testthat::expect_equal(env$configBlock, c("db_a", "db_b"))
-  testthat::expect_equal(env$pipelineVersion, "dev")
-  testthat::expect_identical(res$inputBuilderEnv, env)
+  testthat::expect_equal(get("sibs_test_seen", envir = globalenv()), c("db_a dev", "db_b dev"))
+  testthat::expect_length(res$sourced_files, 1)
+  testthat::expect_equal(res$config_blocks, c("db_a", "db_b"))
+})
+
+# Testing: failures are reported per config block.
+testthat::test_that("sourceInputBuilderScripts reports failures per config block", {
+  root <- sibs_test_project("sibs-env-fail")
+  writeLines(
+    "if (inputBuilderEnv$configBlock == 'db_b') stop('db_b boom')",
+    fs::path(root, "inputs", "cohorts", "R", "import_sql_cohort.R")
+  )
+  withr::defer(rm("inputBuilderEnv", envir = globalenv()))
+
+  err <- testthat::expect_error(
+    sourceInputBuilderScripts(
+      projectPath = root,
+      configBlock = c("db_a", "db_b"),
+      verbose = FALSE,
+      warnMissing = FALSE
+    ),
+    regexp = "1 input builder script"
+  )
+  testthat::expect_true(grepl("[db_b]", conditionMessage(err), fixed = TRUE))
+})
+
+# Testing: a builder script saved under the old dependent-cohorts name is flagged.
+testthat::test_that("sourceInputBuilderScripts warns about the legacy dependent cohorts file name", {
+  root <- sibs_test_project("sibs-legacy")
+  writeLines("NULL", fs::path(root, "inputs", "cohorts", "R", "build_dependent_cohorts_cohort.R"))
+  withr::defer(rm("inputBuilderEnv", envir = globalenv()))
+
+  testthat::expect_warning(
+    sourceInputBuilderScripts(projectPath = root, verbose = FALSE, warnMissing = FALSE),
+    regexp = "build_dependent_cohorts"
+  )
 })
 
 # Testing: pipelineVersion falls back to the version recorded in config.yml.

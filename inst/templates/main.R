@@ -41,9 +41,10 @@ dbIds <- c("{configBlocks}")
 # Scripts are sourced in alphabetical order, with concept sets first.
 # Concept set scripts run first so cohorts can reference them if needed.
 #
-# Builder scripts can read inputBuilderEnv$configBlock and
-# inputBuilderEnv$pipelineVersion to build execution settings (e.g. when SQL
-# cohorts need a database connection to resolve concept sets).
+# Builder scripts run once per database in dbIds. Each pass can read
+# inputBuilderEnv$configBlock and inputBuilderEnv$pipelineVersion to build
+# execution settings (e.g. when SQL cohorts need a database connection to
+# resolve concept sets).
 #
 # WARNING: Do NOT add builder scripts to analysis/tasks/ folder!
 #          Use the dedicated R/ folders in inputs/cohorts/ and inputs/conceptSets/

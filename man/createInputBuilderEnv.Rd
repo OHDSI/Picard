@@ -14,7 +14,7 @@ createInputBuilderEnv(
 \arguments{
 \item{projectPath}{Character. Path to the project root directory.}
 
-\item{configBlock}{Character vector. Config block name(s) from \code{config.yml}.
+\item{configBlock}{Character. A single config block name from \code{config.yml}.
 Defaults to NULL.}
 
 \item{pipelineVersion}{Character. Pipeline version. Defaults to NULL, which
@@ -38,7 +38,7 @@ while running a builder script interactively.
 inputBuilderEnv <- createInputBuilderEnv(configBlock = "my_database")
 
 executionSettings <- createExecutionSettingsFromConfig(
-  configBlock = inputBuilderEnv$configBlock[1],
+  configBlock = inputBuilderEnv$configBlock,
   pipelineVersion = inputBuilderEnv$pipelineVersion
 )
 }

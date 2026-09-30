@@ -32,12 +32,12 @@ cohortManifest <- loadCohortManifest()
 
 # Optional: attach execution settings when a database connection is needed
 # (e.g. to resolve concept sets for your SQL cohorts). When sourced via
-# sourceInputBuilderScripts(), inputBuilderEnv supplies the config block(s) and
-# pipeline version from main.R. To run this script interactively, first create
+# sourceInputBuilderScripts(), this script runs once per config block in main.R
+# and inputBuilderEnv supplies the current config block and pipeline version. To run this script interactively, first create
 # it with: inputBuilderEnv <- createInputBuilderEnv(configBlock = "my_database")
 #
 # executionSettings <- createExecutionSettingsFromConfig(
-#   configBlock = inputBuilderEnv$configBlock[1],
+#   configBlock = inputBuilderEnv$configBlock,
 #   pipelineVersion = inputBuilderEnv$pipelineVersion
 # )
 # cohortManifest$setExecutionSettings(executionSettings)

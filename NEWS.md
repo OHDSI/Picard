@@ -51,8 +51,9 @@
 ### Parameterized Input Builder Scripts
 
 - `sourceInputBuilderScripts()` gains `configBlock` and `pipelineVersion`
-  arguments, exposed to builder scripts as an `inputBuilderEnv` object so they
-  can build execution settings (e.g. to resolve concept sets for SQL cohorts)
+  arguments. Builder scripts run once per config block, with the current block
+  and pipeline version exposed as an `inputBuilderEnv` object so scripts can
+  build execution settings (e.g. to resolve concept sets for SQL cohorts)
   without hard-coding either value. The generated `main.R` passes `dbIds`.
   `createInputBuilderEnv()` builds the same object for interactive use (#109).
 
@@ -71,6 +72,11 @@
 - `CohortDef$getFilePath()` / `ConceptSetDef$getFilePath()` now return an absolute path (safe to read regardless of `getwd()`); the new `$getDisplayPath(root = NULL)` gives a repo-root-relative path for display.
 
 ## Bug Fixes
+
+- `makeInputBuilderScript(type = "buildDependentCohorts")` now writes
+  `build_dependent_cohorts.R` instead of `build_dependent_cohorts_cohort.R`, which
+  `sourceInputBuilderScripts()` never sourced. `sourceInputBuilderScripts()` warns
+  when it finds a file with the old name so existing studies can rename it.
 
 - `createExecutionSettingsFromConfig()` now honors its documented default: `pipelineVersion = "prod"` (or a `MAJOR.MINOR.PATCH` version) uses the configured cohort table unchanged. Previously `"prod"` was treated as a non-semver test namespace and produced a `_prod`-suffixed table.
 - Fixed cohort-manifest change detection for task reruns (`shouldRerunTask()`), which was broken three ways at once, so editing a cohort definition never re-ran the tasks that used it:
