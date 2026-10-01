@@ -55,13 +55,13 @@ Determines whether a task needs to be rerun by checking:
 \item Task file modifications (file hash comparison)
 \item Dependency file modifications (extracted from source() calls)
 \item Cohort manifest changes — compares
-\link[=CohortManifest]{CohortManifest$getTaskRerunHash()} (definitions plus
+\link[=CohortManifest]{CohortManifest$getManifestHash()} (definitions plus
 label, category, and tags) against the hash recorded on the previous
 run. A rerun is forced when the hash differs,
 when no hash was recorded (first run, or a legacy history row), or when
 the current hash cannot be computed at all.
 \item Concept set manifest changes — compares
-\link[=ConceptSetManifest]{ConceptSetManifest$getTaskRerunHash()}
+\link[=ConceptSetManifest]{ConceptSetManifest$getManifestHash()}
 (definitions plus label, category, and tags) against the hash recorded
 on the previous run, with the same fail-safe rules as the cohort
 manifest check.

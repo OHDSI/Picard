@@ -1102,7 +1102,7 @@ CohortManifest <- R6::R6Class(
       return(private$.manifest)
     },
 
-    #' Compute the hash used to decide whether pipeline tasks must rerun
+    #' Compute a deterministic hash of the manifest for task-rerun detection
     #'
     #' @description
     #' Produces a single SHA256 string over everything about the active or
@@ -1131,7 +1131,7 @@ CohortManifest <- R6::R6Class(
     #'
     #' @return Character. A SHA256 hash string. An empty manifest hashes to a
     #'   stable constant.
-    getTaskRerunHash = function() {
+    getManifestHash = function() {
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
       on.exit(DBI::dbDisconnect(conn))
 
@@ -1176,20 +1176,6 @@ CohortManifest <- R6::R6Class(
       )
 
       digest::digest(paste(entries, collapse = "\n"), algo = "sha256")
-    },
-
-    #' @description Deprecated alias for getTaskRerunHash
-    #'
-    #' @details
-    #' Use `getTaskRerunHash()` instead. The hash now also covers cohort label,
-    #' category, and tags.
-    #'
-    #' @return Character. A SHA256 hash string.
-    getManifestHash = function() {
-      cli::cli_alert_warning(
-        "`getManifestHash()` is deprecated. Use `getTaskRerunHash()` instead."
-      )
-      self$getTaskRerunHash()
     },
 
     #' Review dependent cohorts and their dependency metadata

@@ -16,9 +16,6 @@ The CohortManifest class manages multiple cohort definitions and stores their
 metadata in a SQLite database located at inputs/cohorts/cohortManifest.sqlite.
 Each CohortDef is assigned a sequential ID based on its position in the manifest.
 
-Use \code{getTaskRerunHash()} instead. The hash now also covers cohort label,
-category, and tags.
-
 This is the detection phase of the ATLAS maintenance workflow. Use this to identify
 which ATLAS cohorts have changed, then optionally call \code{updateAtlasCohorts()} to
 apply updates. Changes are detected by comparing expression JSON hashes.
@@ -91,7 +88,6 @@ Requires that executionSettings has been set and includes:
 \itemize{
 \item \href{#method-CohortManifest-new}{\code{CohortManifest$new()}}
 \item \href{#method-CohortManifest-getManifest}{\code{CohortManifest$getManifest()}}
-\item \href{#method-CohortManifest-getTaskRerunHash}{\code{CohortManifest$getTaskRerunHash()}}
 \item \href{#method-CohortManifest-getManifestHash}{\code{CohortManifest$getManifestHash()}}
 \item \href{#method-CohortManifest-reviewDependentCohorts}{\code{CohortManifest$reviewDependentCohorts()}}
 \item \href{#method-CohortManifest-tabulateManifest}{\code{CohortManifest$tabulateManifest()}}
@@ -202,13 +198,13 @@ Get the manifest as a list of CohortDef objects}
 
 \subsection{Returns}{
 List. A list of CohortDef objects in the manifest, indexed by cohort ID.
-Compute the hash used to decide whether pipeline tasks must rerun
+Compute a deterministic hash of the manifest for task-rerun detection
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-CohortManifest-getTaskRerunHash"></a>}}
-\if{latex}{\out{\hypertarget{method-CohortManifest-getTaskRerunHash}{}}}
-\subsection{Method \code{getTaskRerunHash()}}{
+\if{html}{\out{<a id="method-CohortManifest-getManifestHash"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-getManifestHash}{}}}
+\subsection{Method \code{getManifestHash()}}{
 Produces a single SHA256 string over everything about the active or
 stale cohorts that a task can depend on. Used by the study pipeline (via
 \code{\link[=shouldRerunTask]{shouldRerunTask()}}): when it changes, tasks rerun.
@@ -233,25 +229,12 @@ reformat of a cohort's JSON that renders to identical SQL does not move
 the hash. The stored file path is excluded, so path normalization does
 not force spurious reruns.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$getTaskRerunHash()}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$getManifestHash()}\if{html}{\out{</div>}}
 }
 
 \subsection{Returns}{
 Character. A SHA256 hash string. An empty manifest hashes to a
 stable constant.
-}
-}
-\if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-CohortManifest-getManifestHash"></a>}}
-\if{latex}{\out{\hypertarget{method-CohortManifest-getManifestHash}{}}}
-\subsection{Method \code{getManifestHash()}}{
-Deprecated alias for getTaskRerunHash
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$getManifestHash()}\if{html}{\out{</div>}}
-}
-
-\subsection{Returns}{
-Character. A SHA256 hash string.
 Review dependent cohorts and their dependency metadata
 }
 }

@@ -1,5 +1,5 @@
 # Testing: .getCohortManifestHash() summarises the cohort manifest for task-rerun
-# detection. It delegates to CohortManifest$getTaskRerunHash() (a digest over each
+# detection. It delegates to CohortManifest$getManifestHash() (a digest over each
 # cohort's definition hash plus its metadata, identity, and dependency
 # structure). It must be a pure read, deterministic, and independent of where
 # cohort files are stored on disk.
@@ -74,7 +74,7 @@ testthat::test_that(".getCohortManifestHash changes when a cohort's definition c
   testthat::expect_false(identical(.getCohortManifestHash(projectPath = root), before))
 })
 
-testthat::test_that("cohort metadata changes move the task rerun hash but not the definition hash", {
+testthat::test_that("cohort metadata changes move the manifest hash but not the definition hash", {
   setup <- cm_test_seed_manifest_for_queries("tt-hash-meta")
   manifest <- setup$manifest
   root <- manifest$getProjectRoot()
@@ -96,13 +96,6 @@ testthat::test_that("cohort metadata changes move the task rerun hash but not th
 
   testthat::expect_length(unique(hashes), 4)
   testthat::expect_identical(definition_hash(), before_definition)
-})
-
-testthat::test_that("CohortManifest$getManifestHash is a deprecated alias for getTaskRerunHash", {
-  setup <- cm_test_seed_manifest_for_queries("tt-hash-alias")
-
-  testthat::expect_message(alias <- setup$manifest$getManifestHash(), "deprecated")
-  testthat::expect_identical(alias, setup$manifest$getTaskRerunHash())
 })
 
 testthat::test_that("legacy task history gets an empty pipeline version", {
@@ -197,7 +190,7 @@ testthat::test_that(".getConceptSetManifestHash is deterministic and changes whe
   testthat::expect_identical(h, .getConceptSetManifestHash(projectPath = setup$root))
 })
 
-testthat::test_that("concept set metadata changes move the task rerun hash but not the definition hash", {
+testthat::test_that("concept set metadata changes move the manifest hash but not the definition hash", {
   setup <- tt_test_concept_set_setup("tt-cs-meta")
   tt_test_add_concept_set(setup, "Prednisone", category = "UC Corticosteroids")
   id <- setup$manifest$getManifest()[[1]]$getId()
@@ -220,10 +213,13 @@ testthat::test_that("concept set metadata changes move the task rerun hash but n
   testthat::expect_identical(definition_hash(), before_definition)
 })
 
-testthat::test_that(".getConceptSetManifestHash changes when the expression changes or goes missing", {
+testthat::test_that(".getConceptSetManifestHash changes with the expression but not its formatting", {
   setup <- tt_test_concept_set_setup("tt-cs-content")
   json_path <- tt_test_add_concept_set(setup, "Statins", json = '{"items":[{"concept":{"CONCEPT_ID":1}}]}')
   before <- .getConceptSetManifestHash(projectPath = setup$root)
+
+  writeLines('{\n  "items": [ { "concept": { "CONCEPT_ID": 1 } } ]\n}', json_path)
+  testthat::expect_identical(.getConceptSetManifestHash(projectPath = setup$root), before)
 
   writeLines('{"items":[{"concept":{"CONCEPT_ID":2}}]}', json_path)
   testthat::expect_false(identical(.getConceptSetManifestHash(projectPath = setup$root), before))

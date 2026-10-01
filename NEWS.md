@@ -2,19 +2,17 @@
 
 ## Task Change Detection
 
-- Separated the two kinds of manifest hash. A **definition hash**
-  (`CohortDef$getSqlHash()`, `ConceptSetDef$getHash()`) covers only the
-  SQL/JSON definition. A **task rerun hash** (`getTaskRerunHash()` on both
-  `CohortManifest` and `ConceptSetManifest`) covers each item's definition hash
-  plus its label, category, and tags, because tasks often select cohorts and
-  concept sets by that metadata. `shouldRerunTask()` uses the task rerun hash,
-  so renaming, recategorizing, or retagging a cohort or concept set now reruns
-  tasks.
-- `CohortManifest$getManifestHash()` is deprecated in favor of
-  `getTaskRerunHash()`, which now also covers label, category, and tags.
+- `CohortManifest$getManifestHash()` now also covers each cohort's label,
+  category, and tags, so renaming, recategorizing, or retagging a cohort reruns
+  tasks — tasks often select cohorts by that metadata. A cohort's definition
+  hash (`CohortDef$getSqlHash()`) still covers only its SQL.
+- New `ConceptSetManifest$getManifestHash()`, consistent with the cohort
+  version: each concept set's normalized expression JSON plus its label,
+  category, and tags.
 - `shouldRerunTask()` now reruns a task when the **concept set manifest**
-  changes (#125) or when **`renv.lock`** changes — the R version or any
-  package's version, source, or remote SHA (#118).
+  changes (#125), e.g. merging two categories, or when **`renv.lock`**
+  changes — the R version or any package's version, source, or remote SHA
+  (#118).
 - `testStudyPipeline()`, `execStudyPipeline()`, and `testStudyTask()` gain a
   `forceRerun` argument (default `FALSE`) that bypasses change detection:
   `TRUE` reruns every task, and a vector of task file names reruns only those.

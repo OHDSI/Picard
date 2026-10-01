@@ -167,7 +167,7 @@ by finding the reverse mapping relationship. For each concept set:
 \itemize{
 \item \href{#method-ConceptSetManifest-new}{\code{ConceptSetManifest$new()}}
 \item \href{#method-ConceptSetManifest-getManifest}{\code{ConceptSetManifest$getManifest()}}
-\item \href{#method-ConceptSetManifest-getTaskRerunHash}{\code{ConceptSetManifest$getTaskRerunHash()}}
+\item \href{#method-ConceptSetManifest-getManifestHash}{\code{ConceptSetManifest$getManifestHash()}}
 \item \href{#method-ConceptSetManifest-tabulateManifest}{\code{ConceptSetManifest$tabulateManifest()}}
 \item \href{#method-ConceptSetManifest-viewManifest}{\code{ConceptSetManifest$viewManifest()}}
 \item \href{#method-ConceptSetManifest-getDbPath}{\code{ConceptSetManifest$getDbPath()}}
@@ -258,13 +258,13 @@ Get the manifest as a list of ConceptSetDef objects}
 
 \subsection{Returns}{
 List. A list of ConceptSetDef objects in the manifest.
-Compute the hash used to decide whether pipeline tasks must rerun
+Compute a deterministic hash of the manifest for task-rerun detection
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-ConceptSetManifest-getTaskRerunHash"></a>}}
-\if{latex}{\out{\hypertarget{method-ConceptSetManifest-getTaskRerunHash}{}}}
-\subsection{Method \code{getTaskRerunHash()}}{
+\if{html}{\out{<a id="method-ConceptSetManifest-getManifestHash"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-getManifestHash}{}}}
+\subsection{Method \code{getManifestHash()}}{
 Produces a single SHA256 string over everything about the active
 concept sets that a task can depend on. Used by the study pipeline (via
 \code{\link[=shouldRerunTask]{shouldRerunTask()}}): when it changes, tasks rerun.
@@ -278,15 +278,15 @@ changed.
 For each concept set, ordered by id, the hash combines:
 \itemize{
 \item \code{id}, \code{label}, \code{category}, \code{tags}
-\item the definition hash (\code{ConceptSetDef$getHash()}) of the
-loaded concept set, or the sentinel \code{"<missing>"} when the
-file is absent from disk
+\item a hash of the loaded concept set's expression JSON
+(normalized, so a cosmetic reformat does not move the hash), or
+the sentinel \code{"<missing>"} when the file is absent from disk
 }
 
 The stored file path is excluded, so path normalization does not force
 spurious reruns.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$getTaskRerunHash()}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$getManifestHash()}\if{html}{\out{</div>}}
 }
 
 \subsection{Returns}{

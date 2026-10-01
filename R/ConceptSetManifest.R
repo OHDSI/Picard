@@ -510,7 +510,7 @@ ConceptSetManifest <- R6::R6Class(
       return(private$.manifest)
     },
 
-    #' Compute the hash used to decide whether pipeline tasks must rerun
+    #' Compute a deterministic hash of the manifest for task-rerun detection
     #'
     #' @description
     #' Produces a single SHA256 string over everything about the active
@@ -526,9 +526,9 @@ ConceptSetManifest <- R6::R6Class(
     #' For each concept set, ordered by id, the hash combines:
     #'   \itemize{
     #'     \item \code{id}, \code{label}, \code{category}, \code{tags}
-    #'     \item the definition hash (\code{ConceptSetDef$getHash()}) of the
-    #'       loaded concept set, or the sentinel \code{"<missing>"} when the
-    #'       file is absent from disk
+    #'     \item a hash of the loaded concept set's expression JSON
+    #'       (normalized, so a cosmetic reformat does not move the hash), or
+    #'       the sentinel \code{"<missing>"} when the file is absent from disk
     #'   }
     #'
     #' The stored file path is excluded, so path normalization does not force
@@ -536,7 +536,7 @@ ConceptSetManifest <- R6::R6Class(
     #'
     #' @return Character. A SHA256 hash string. An empty manifest hashes to a
     #'   stable constant.
-    getTaskRerunHash = function() {
+    getManifestHash = function() {
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
       on.exit(DBI::dbDisconnect(conn))
 
@@ -548,12 +548,15 @@ ConceptSetManifest <- R6::R6Class(
           ORDER BY id"
       )
 
-      # id -> definition hash for concept sets currently loaded in memory. A
-      # concept set whose file is missing was skipped by load_manifest_from_db()
-      # and falls back to the "<missing>" sentinel below.
+      # id -> normalized expression hash for concept sets currently loaded in
+      # memory. A concept set whose file is missing was skipped by
+      # load_manifest_from_db() and falls back to the "<missing>" sentinel below.
       definition_hash_by_id <- list()
       for (cs in private$.manifest) {
-        definition_hash_by_id[[as.character(cs$getId())]] <- cs$getHash()
+        definition_hash_by_id[[as.character(cs$getId())]] <- digest::digest(
+          manifest_canonical_json(cs$getJson()),
+          algo = "sha256"
+        )
       }
 
       id_chr <- as.character(rows$id)

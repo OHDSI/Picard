@@ -16,7 +16,7 @@ Character. SHA256 hex digest, \code{"<no-concept-set-manifest>"}, or
 }
 \description{
 Returns
-\link[=ConceptSetManifest]{ConceptSetManifest$getTaskRerunHash()} for the study's
+\link[=ConceptSetManifest]{ConceptSetManifest$getManifestHash()} for the study's
 concept set manifest. Used by \code{\link[=shouldRerunTask]{shouldRerunTask()}} to detect concept set
 changes (including label/category/tag changes) that require a task rerun.
 }

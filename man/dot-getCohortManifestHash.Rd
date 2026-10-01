@@ -16,7 +16,7 @@ cannot be read.
 }
 \description{
 Loads the cohort manifest and returns
-\link[=CohortManifest]{CohortManifest$getTaskRerunHash()}, a SHA256 digest over
+\link[=CohortManifest]{CohortManifest$getManifestHash()}, a SHA256 digest over
 every registered (\code{active}/\code{stale}) cohort's definition and metadata
 (label, category, tags). Used by \code{\link[=shouldRerunTask]{shouldRerunTask()}} to detect cohort
 changes that require a task rerun.
