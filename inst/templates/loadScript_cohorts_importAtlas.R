@@ -58,24 +58,7 @@ library(picard)
 
 
 # ================================================================================
-# D. SYNC REGISTERED ATLAS COHORTS
-# ================================================================================
-
-# Uncomment once the manifest has ATLAS cohorts, and leave it uncommented: it
-# re-checks every registered ATLAS cohort against ATLAS and updates changed
-# definitions in place (same ID; derived cohorts marked stale so the pipeline
-# regenerates them). This is the step that propagates ATLAS edits. If a cohort
-# cannot be fetched the sync stops; pass stopOnError = FALSE to skip it with a
-# warning instead.
-# cohortManifest$updateAtlasCohorts()
-
-# To update a single cohort on demand instead, use:
-# cohortManifest$addAtlasCohort(atlasId = ..., label = "...", category = "...",
-#                               stopIfExists = FALSE)
-
-
-# ================================================================================
-# E. IMPORT NEW COHORTS FROM ATLAS
+# D. IMPORT NEW COHORTS FROM ATLAS
 # ================================================================================
 
 # Reads inputs/cohorts/cohortsLoad.csv and downloads CIRCE JSON definitions from
@@ -98,6 +81,23 @@ library(picard)
 
 
 # ================================================================================
+# E. SYNC REGISTERED ATLAS COHORTS
+# ================================================================================
+
+# Uncomment once the manifest has ATLAS cohorts, and leave it uncommented: it
+# re-checks every registered ATLAS cohort against ATLAS and updates changed
+# definitions in place (same ID; derived cohorts marked stale so the pipeline
+# regenerates them). This is the step that propagates ATLAS edits. If a cohort
+# cannot be fetched the sync stops; pass stopOnError = FALSE to skip it with a
+# warning instead.
+# cohortManifest$updateAtlasCohorts()
+
+# To update a single cohort on demand instead, use:
+# cohortManifest$addAtlasCohort(atlasId = ..., label = "...", category = "...",
+#                               stopIfExists = FALSE)
+
+
+# ================================================================================
 # F. REVIEW IMPORTED COHORTS
 # ================================================================================
 
@@ -107,3 +107,13 @@ library(picard)
 # Optionally, export and inspect specific cohorts:
 # cohortDef <- cohortManifest$getCohortDefinition(cohortId = 1L)
 # print(cohortDef)
+
+
+# ================================================================================
+# G. REGISTERING COHORTS
+# ================================================================================
+#
+# Register cohorts through the manifest (load csv, $addAtlasCohort(),
+# $addCirceCohort(), ...). JSON files placed directly in inputs/cohorts/json/
+# without registration are removed as orphans the next time
+# loadCohortManifest() is called.

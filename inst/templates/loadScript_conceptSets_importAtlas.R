@@ -57,23 +57,7 @@ library(picard)
 
 
 # ================================================================================
-# D. SYNC REGISTERED ATLAS CONCEPT SETS
-# ================================================================================
-
-# Uncomment once the manifest has ATLAS concept sets, and leave it uncommented:
-# it re-checks every registered ATLAS concept set against ATLAS and updates
-# changed definitions in place (same ID). This is the step that propagates
-# ATLAS edits. If a concept set cannot be fetched the sync stops; pass
-# stopOnError = FALSE to skip it with a warning instead.
-# conceptSetManifest$updateAtlasConceptSets()
-
-# To update a single concept set on demand instead, use:
-# conceptSetManifest$addAtlasConceptSet(atlasId = ..., label = "...",
-#                                       stopIfExists = FALSE)
-
-
-# ================================================================================
-# E. IMPORT NEW CONCEPT SETS FROM ATLAS
+# D. IMPORT NEW CONCEPT SETS FROM ATLAS
 # ================================================================================
 
 # Reads inputs/conceptSets/conceptSetsLoad.csv and downloads CIRCE JSON
@@ -93,6 +77,22 @@ library(picard)
 #     show_col_types = FALSE
 #   )
 # )
+
+
+# ================================================================================
+# E. SYNC REGISTERED ATLAS CONCEPT SETS
+# ================================================================================
+
+# Uncomment once the manifest has ATLAS concept sets, and leave it uncommented:
+# it re-checks every registered ATLAS concept set against ATLAS and updates
+# changed definitions in place (same ID). This is the step that propagates
+# ATLAS edits. If a concept set cannot be fetched the sync stops; pass
+# stopOnError = FALSE to skip it with a warning instead.
+# conceptSetManifest$updateAtlasConceptSets()
+
+# To update a single concept set on demand instead, use:
+# conceptSetManifest$addAtlasConceptSet(atlasId = ..., label = "...",
+#                                       stopIfExists = FALSE)
 
 
 # ================================================================================
