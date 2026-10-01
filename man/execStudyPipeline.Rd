@@ -56,6 +56,13 @@ Executes the full study pipeline in production mode with full validation,
 version management, and reproducibility tracking. Creates a release branch, runs
 the complete pipeline, provides PR instructions, and saves reference to PENDING_PR.md.
 }
+\details{
+For each config block in turn, the pipeline sources the input
+builder scripts (see \code{\link{sourceInputBuilderScripts}}), generates
+that block's cohorts, and runs its tasks, before moving to the next block.
+Builders can therefore make database-specific changes (e.g. concept ids in
+custom SQL) without the next block's builders overwriting them.
+}
 \examples{
 \dontrun{
 # Run production pipeline with patch version increment

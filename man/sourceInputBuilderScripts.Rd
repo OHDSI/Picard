@@ -42,8 +42,11 @@ non-empty when \code{stopOnError = FALSE})
 }
 \description{
 Auto-discovers and sources builder scripts from pre-pipeline directories
-in a MANDATORY dependency order. Designed to be called from main.R before the
-production pipeline. This ensures concept sets are available before cohorts,
+in a MANDATORY dependency order. \code{\link{execStudyPipeline}} and
+\code{\link{testStudyPipeline}} call this for each config block, right
+before generating that block's cohorts, so builders can make
+database-specific changes; call it directly to build inputs while
+developing. The order ensures concept sets are available before cohorts,
 and dependent cohorts can reference already-loaded cohort definitions.
 }
 \details{

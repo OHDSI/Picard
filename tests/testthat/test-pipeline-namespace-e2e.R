@@ -176,7 +176,7 @@ testthat::test_that("separate test namespaces stay isolated in results and task 
 })
 
 
-testthat::test_that("testStudyPipeline generates cohorts in every config block", {
+testthat::test_that("testStudyPipeline runs builders, cohorts and tasks per config block in order", {
   repo <- pne_setup_repo()
   task <- pne_write_task(repo)
   readr::write_lines(
@@ -196,11 +196,27 @@ testthat::test_that("testStudyPipeline generates cohorts in every config block",
     append = TRUE
   )
 
+  # The task records itself in the same event log as the mocked builders and
+  # cohort generation, so the test sees the true interleaving.
+  events_file <- fs::path(repo, "events.txt")
+  task_path <- fs::path(repo, "analysis/tasks", task)
+  readr::write_lines(
+    c(
+      readr::read_lines(task_path),
+      sprintf('cat("task ", executionSettings$databaseName, "\\n", sep = "", file = "%s", append = TRUE)', events_file)
+    ),
+    task_path
+  )
+  log_event <- function(...) cat(..., "\n", sep = "", file = events_file, append = TRUE)
+
   pne_mock_boundaries(task)
-  generated_in <- character(0)
   testthat::local_mocked_bindings(
+    sourceInputBuilderScripts = function(configBlock, pipelineVersion, ...) {
+      log_event("build ", configBlock, " ", pipelineVersion)
+      invisible(NULL)
+    },
     generateCohorts = function(executionSettings, ...) {
-      generated_in <<- c(generated_in, executionSettings$databaseName)
+      log_event("generate ", executionSettings$databaseName)
       invisible(data.frame())
     }
   )
@@ -209,5 +225,39 @@ testthat::test_that("testStudyPipeline generates cohorts in every config block",
     testStudyPipeline(configBlock = c("db_placeholder", "db_second"), pipelineVersion = "dev")
   )
 
-  testthat::expect_equal(generated_in, c("db_name_placeholder", "db_second_name"))
+  testthat::expect_equal(
+    readr::read_lines(events_file),
+    c(
+      "build db_placeholder dev", "generate db_name_placeholder", "task db_name_placeholder",
+      "build db_second dev", "generate db_second_name", "task db_second_name"
+    )
+  )
+})
+
+
+testthat::test_that("pre-flight warns rather than fails when the cohort manifest does not exist yet", {
+  repo <- pne_setup_repo()
+  pne_write_task(repo)
+  secrets_path <- fs::path(Sys.getenv("HOME"), ".picard", "secrets.yml")
+  readr::write_lines(
+    c(readr::read_lines(secrets_path), "  port: 0", "  user: tester", "  password: secret"),
+    secrets_path
+  )
+  testthat::local_mocked_bindings(get_current_branch = function() "develop")
+  testthat::expect_false(fs::file_exists(fs::path(repo, "inputs/cohorts/cohortManifest.sqlite")))
+
+  msgs <- character(0)
+  testthat::expect_no_error(withCallingHandlers(
+    runPreflightChecks(
+      configBlock = "db_placeholder",
+      pipelineVersion = "dev",
+      testMode = TRUE,
+      skipRenv = TRUE
+    ),
+    message = function(m) {
+      msgs <<- c(msgs, conditionMessage(m))
+      invokeRestart("muffleMessage")
+    }
+  ))
+  testthat::expect_true(any(grepl("~ Cohort manifest +No manifest yet", msgs)))
 })

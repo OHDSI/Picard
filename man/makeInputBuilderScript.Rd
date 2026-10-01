@@ -46,8 +46,9 @@ Available script types:
 \item buildDependentCohorts: Build derived cohorts (cohorts only)
 }
 
-All six scripts are required and are sourced in sequence by main.R before the
-production pipeline executes (see \code{\link{sourceInputBuilderScripts}}).
+All six scripts are required and are sourced in sequence by the pipeline for
+each config block, before that block's cohorts are generated (see
+\code{\link{sourceInputBuilderScripts}}).
 Unused scripts can be left as generated: the templates run without error when
 they have not been populated. Use this function to recreate a deleted script.
 }

@@ -69,8 +69,7 @@ Excel export, StudyHub submission, or other dissemination targets.
 
 Typical workflow:
 \enumerate{
-\item Run \code{\link{sourceInputBuilderScripts}} to load input definitions
-\item Run \code{\link{execStudyPipeline}} to execute the analysis
+\item Run \code{\link{execStudyPipeline}} to build inputs and execute the analysis
 \item Run \code{\link{runPostProcessing}} to merge results across databases
 \item Use \code{\link{makeDisseminationScript}} to create a template for formatting
 \item Edit the template script with your custom formatting/export logic

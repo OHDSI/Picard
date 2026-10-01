@@ -51,6 +51,7 @@ cli::cli_alert_info("Setting course for database sectors: {{paste(dbIds, collaps
 # ════════════════════════════════════════════════════════════════════════════════
 
 # TEST MODE CAPABILITIES:
+#   • For each database: source input builders, generate cohorts, run tasks
 #   • Execute full pipeline validation and task processing
 #   • Skip environment validation (assumes development setup)
 #   • Skip production git state checks (main-branch guard remains active)

@@ -31,10 +31,11 @@ if (!fs::file_exists(here::here("inputs/cohorts/cohortManifest.sqlite"))) {
 cohortManifest <- loadCohortManifest()
 
 # Optional: attach execution settings when a database connection is needed
-# (e.g. to resolve concept sets for your SQL cohorts). When sourced via
-# sourceInputBuilderScripts(), this script runs once per config block in main.R
-# and inputBuilderEnv supplies the current config block and pipeline version. To run this script interactively, first create
-# it with: inputBuilderEnv <- createInputBuilderEnv(configBlock = "my_database")
+# (e.g. to resolve concept sets for your SQL cohorts). The pipeline runs this
+# script once per config block, right before generating that block's cohorts,
+# and inputBuilderEnv supplies the current config block and pipeline version.
+# To run this script interactively, first create it with:
+# inputBuilderEnv <- createInputBuilderEnv(configBlock = "my_database")
 #
 # executionSettings <- createExecutionSettingsFromConfig(
 #   configBlock = inputBuilderEnv$configBlock,

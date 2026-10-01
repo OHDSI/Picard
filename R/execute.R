@@ -745,7 +745,7 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
     })
   }
   
-  # Setup logging before generating cohorts
+  # Setup logging before running input builders, cohorts and tasks
   logFilePath <- NULL
   tryCatch({
     logDir <- fs::path(here::here("exec/logs"))
@@ -785,9 +785,6 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
     
     writeLines(logHeader, con = logFilePath)
 
-    # Log to file that we're starting cohort generation (file only — console
-    # already gets this via cli below, streamed live and not redirected)
-    appendLogLine(logFilePath, glue::glue("[{format(Sys.time(), '%H:%M:%S')}] Starting cohort generation..."))
 
   }, error = function(e) {
     cli::cli_alert_warning("Failed to setup logging: {e$message}")
@@ -795,26 +792,48 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
   
   # Cohort manifest status and missing-cohort interactive prompt are handled
   # in runPreflightChecks() before pipeline execution begins.
-  
-  # Generate cohorts in every config block before running pipeline tasks. The
-  # ExecutionContext owns namespace derivation (cohort-table suffix, results
-  # folder, task history).
-  cli::cli_alert_info("Generating cohorts for pipeline...")
+
+  # Each config block runs input builders -> cohort generation -> tasks before
+  # the next block starts. Builder scripts can make database-specific changes
+  # to the manifest (e.g. concept ids in custom SQL), which the next block's
+  # builders would overwrite. The ExecutionContext owns namespace derivation
+  # (cohort-table suffix, results folder, task history).
+  taskResults <- list()
 
   for (db in seq_along(configBlock)) {
-    appendLogLine(logFilePath, glue::glue("[{format(Sys.time(), '%H:%M:%S')}] Generating cohorts for config block: {configBlock[db]}"))
-    cli::cli_alert_info("Generating cohorts for config block: {configBlock[db]}")
+    block <- configBlock[db]
+    cli::cli_rule("Config block: {block}")
+    appendLogLine(logFilePath, glue::glue("[{format(Sys.time(), '%H:%M:%S')}] Processing config block: {block}"))
+
+    appendLogLine(logFilePath, glue::glue("[{format(Sys.time(), '%H:%M:%S')}] Sourcing input builder scripts for config block: {block}"))
+    tryCatch({
+      sourceInputBuilderScripts(
+        projectPath = here::here(),
+        configBlock = block,
+        pipelineVersion = pipelineVersion
+      )
+    }, error = function(e) {
+      appendLogLine(logFilePath, formatErrorDetail(e))
+      cli::cli_abort(
+        "Input building failed for config block {.val {block}}; pipeline halted.",
+        parent = e,
+        call = NULL
+      )
+    })
+
+    appendLogLine(logFilePath, glue::glue("[{format(Sys.time(), '%H:%M:%S')}] Generating cohorts for config block: {block}"))
+    cli::cli_alert_info("Generating cohorts for config block: {block}")
 
     tryCatch({
       executionSettings <- createExecutionSettingsFromConfig(
-        configBlock = configBlock[db],
+        configBlock = block,
         pipelineVersion = pipelineVersion,
         executionContext = executionContext
       )
-      cli::cli_alert_success("Execution settings created for config: {configBlock[db]}")
+      cli::cli_alert_success("Execution settings created for config: {block}")
     }, error = function(e) {
-      cli::cli_alert_danger("Failed to create execution settings for {configBlock[db]}: {e$message}")
-      stop(glue::glue("Cannot initialize execution settings for config block: {configBlock[db]}"), call. = FALSE)
+      cli::cli_alert_danger("Failed to create execution settings for {block}: {e$message}")
+      stop(glue::glue("Cannot initialize execution settings for config block: {block}"), call. = FALSE)
     })
 
     tryCatch({
@@ -825,27 +844,17 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
         override = TRUE
       )
     }, error = function(e) {
-      cli::cli_alert_danger("Cohort generation failed for {configBlock[db]}: {e$message}")
-      stop(glue::glue("Pipeline cannot proceed without cohorts for config block: {configBlock[db]}"), call. = FALSE)
+      cli::cli_alert_danger("Cohort generation failed for {block}: {e$message}")
+      stop(glue::glue("Pipeline cannot proceed without cohorts for config block: {block}"), call. = FALSE)
     })
-  }
 
-  # Snapshot the cohort manifest once, after generation has reconciled it, and
-  # reuse it for every task's rerun check / run record below.
-  cohortManifestHash <- .getCohortManifestHash()
-
-  # Run all tasks across all config blocks
-  cli::cli_rule("Running Pipeline Tasks")
-  taskResults <- list()
-  
-  for (db in seq_along(configBlock)) {
-    appendLogLine(logFilePath, glue::glue("[{format(Sys.time(), '%H:%M:%S')}] Processing config block: {configBlock[db]}"))
-
-    cli::cli_alert_info("Processing config block: {configBlock[db]}")
+    # Snapshot this block's manifest once, after its builders and generation
+    # have reconciled it, and reuse it for every task's rerun check / run record
+    cohortManifestHash <- .getCohortManifestHash()
 
     for (task in seq_along(taskFilesToRun)) {
       taskName <- taskFilesToRun[task]
-      taskKey <- glue::glue("{configBlock[db]}_{taskName}")
+      taskKey <- glue::glue("{block}_{taskName}")
 
       appendLogLine(logFilePath, glue::glue("  [{format(Sys.time(), '%H:%M:%S')}] Executing task {task}/{length(taskFilesToRun)}: {taskName}"))
 
@@ -854,7 +863,7 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
         
         result <- execute_task(
           taskFile = taskName,
-          configBlock = configBlock[db],
+          configBlock = block,
           pipelineVersion = pipelineVersion,
           checkStatus = TRUE,
           env = env,
@@ -928,6 +937,11 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
 #'   pipelineVersion value is interpreted as the test namespace and is
 #'   used for test cohort tables and output folders. Test runs are allowed on
 #'   development branches but rejected on the main branch.
+#' @details For each config block in turn, the pipeline sources the input
+#'   builder scripts (see \code{\link{sourceInputBuilderScripts}}), generates
+#'   that block's cohorts, and runs its tasks, before moving to the next block.
+#'   Builders can therefore make database-specific changes (e.g. concept ids in
+#'   custom SQL) without the next block's builders overwriting them.
 #' @param configBlock Character or character vector. Name(s) of config block(s) to use.
 #' @param pipelineVersion Character. Test namespace used for output folders and
 #'   cohort table suffix. Defaults to \code{"dev"}. The value is normalized to
@@ -975,6 +989,11 @@ testStudyPipeline <- function(configBlock, pipelineVersion = "dev", env = rlang:
 #' @description Executes the full study pipeline in production mode with full validation,
 #'   version management, and reproducibility tracking. Creates a release branch, runs
 #'   the complete pipeline, provides PR instructions, and saves reference to PENDING_PR.md.
+#' @details For each config block in turn, the pipeline sources the input
+#'   builder scripts (see \code{\link{sourceInputBuilderScripts}}), generates
+#'   that block's cohorts, and runs its tasks, before moving to the next block.
+#'   Builders can therefore make database-specific changes (e.g. concept ids in
+#'   custom SQL) without the next block's builders overwriting them.
 #' @param configBlock Character or character vector. Name(s) of config block(s) to use.
 #' @param updateType Character. Type of version increment: 'major', 'minor', or 'patch'.
 #'   - MAJOR: Breaking changes
@@ -1283,8 +1302,11 @@ clearPendingPR <- function() {
 
 #' @title Source Pre-Pipeline Input Builder Scripts
 #' @description Auto-discovers and sources builder scripts from pre-pipeline directories
-#'   in a MANDATORY dependency order. Designed to be called from main.R before the 
-#'   production pipeline. This ensures concept sets are available before cohorts,
+#'   in a MANDATORY dependency order. \code{\link{execStudyPipeline}} and
+#'   \code{\link{testStudyPipeline}} call this for each config block, right
+#'   before generating that block's cohorts, so builders can make
+#'   database-specific changes; call it directly to build inputs while
+#'   developing. The order ensures concept sets are available before cohorts,
 #'   and dependent cohorts can reference already-loaded cohort definitions.
 #'
 #' @details
@@ -1721,8 +1743,7 @@ createDisseminationEnv <- function(
 #' @details
 #' Typical workflow:
 #' \enumerate{
-#'   \item Run \code{\link{sourceInputBuilderScripts}} to load input definitions
-#'   \item Run \code{\link{execStudyPipeline}} to execute the analysis
+#'   \item Run \code{\link{execStudyPipeline}} to build inputs and execute the analysis
 #'   \item Run \code{\link{runPostProcessing}} to merge results across databases
 #'   \item Use \code{\link{makeDisseminationScript}} to create a template for formatting
 #'   \item Edit the template script with your custom formatting/export logic

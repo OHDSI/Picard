@@ -73,7 +73,7 @@ remaining builder scripts in a **mandatory dependency order**. This ensures conc
 1. **Project initializes** with all 6 builder scripts pre-created
 2. **Edit the builders you need** - Each script has clear guidance comments
 3. **Leave unused builders as they are** - An unpopulated builder runs without error. The ATLAS builders are fully commented out until you uncomment the steps you need; the Capr, SQL and dependent-cohort builders create the manifest on first run
-4. **Run `main.R`** - `sourceInputBuilderScripts()` runs all 6 scripts in mandatory order
+4. **Run `main.R`** - For each database, `execStudyPipeline()` runs all 6 scripts in mandatory order, then generates that database's cohorts and runs its tasks
 5. **Manifests load** - Your cohorts and concept sets are ready for the pipeline
 
 All 6 builder scripts are required. `sourceInputBuilderScripts()` stops with an
@@ -87,22 +87,19 @@ later builders and the pipeline never run on a partially built manifest. Pass
 `stopOnError = FALSE` to warn and continue with the remaining scripts instead;
 the errors are returned in `error_summary`.
 
-### Using a Database Connection in Builder Scripts
+### Database-Specific Builders
 
-Some builders need a database connection, for example to resolve concept sets
-for custom SQL cohorts. Rather than hard-coding a config block or pipeline
-version, pass them to `sourceInputBuilderScripts()`:
+`execStudyPipeline()` and `testStudyPipeline()` source the builder scripts
+separately for each config block, immediately before generating that block's
+cohorts and running its tasks. This lets builders make database-specific
+changes, such as resolving the concept ids used in custom SQL against each
+database, without the next database's builders overwriting them before they
+are used.
 
-```r
-sourceInputBuilderScripts(configBlock = dbIds, pipelineVersion = "dev")
-```
-
-Like `execStudyPipeline()`, this runs the builder scripts once per config
-block. Before each pass it assigns an `inputBuilderEnv` object to the global
-environment with the current `configBlock` and the `pipelineVersion`.
-`pipelineVersion` defaults to `"prod"`, like `createExecutionSettingsFromConfig()`,
-so pass your test namespace (e.g. `"dev"`) when building inputs for a test run.
-Builder scripts can use it to create execution settings:
+Before each pass, an `inputBuilderEnv` object is assigned to the global
+environment with the current `configBlock` and the run's `pipelineVersion`
+(the test namespace in `testStudyPipeline()`). Builder scripts can use it to
+create execution settings without hard-coding either value:
 
 ```r
 executionSettings <- createExecutionSettingsFromConfig(
@@ -112,7 +109,10 @@ executionSettings <- createExecutionSettingsFromConfig(
 cohortManifest$setExecutionSettings(executionSettings)
 ```
 
-To run a builder script interactively, create the object first with
+To run the builders on their own while developing, call
+`sourceInputBuilderScripts(configBlock = "my_database", pipelineVersion = "dev")`;
+`pipelineVersion` defaults to `"prod"`, like `createExecutionSettingsFromConfig()`.
+To run a single builder script interactively, create the object first with
 `inputBuilderEnv <- createInputBuilderEnv(configBlock = "my_database")`.
 
 ---
@@ -824,8 +824,8 @@ cohortManifest     <- loadCohortManifest()
 Both functions read from SQLite and rebuild the in-memory R6 objects. No
 network connection or CSV file is required.
 
-These calls are included in the default builder scripts and will run automatically
-when `main.R` executes `sourceInputBuilderScripts()`.
+These calls are included in the default builder scripts and run automatically
+when the pipeline sources the builder scripts for each database.
 
 ---
 
