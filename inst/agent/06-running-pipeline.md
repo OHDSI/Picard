@@ -257,17 +257,19 @@ from that record:
 
 - the task file's own contents;
 - a file the task `source()`s;
-- the **cohort manifest** — any change to a registered cohort's *definition*:
-  the rendered SQL of a cohort, a cohort added or removed, or a derived
-  cohort's build rule. Renaming a cohort or editing its tags does not count;
+- the **cohort manifest** — a cohort added or removed, its definition changed
+  (the rendered SQL, or a derived cohort's build rule), or its label, category,
+  or tags changed;
 - the **concept set manifest** — a concept set added or removed, its expression
-  edited, or its label, category, or tags changed. Unlike cohorts, concept set
-  metadata counts, because tasks often group or name their output by it (for
-  example, merging two medication categories into one);
+  edited, or its label, category, or tags changed;
 - the **renv lockfile** (`renv.lock`) — the R version or any package's version
   changed;
 - the pipeline version;
 - a previous run that ended in failure.
+
+Metadata counts as well as definitions because tasks often select cohorts and
+concept sets by label, category, or tag (for example, merging two medication
+categories into one changes a task's output without changing any definition).
 
 So after you edit a cohort's JSON or SQL and regenerate, the next pipeline run
 re-executes every task that had run against the old definition. If a manifest

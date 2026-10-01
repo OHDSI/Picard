@@ -1,3 +1,31 @@
+# picard (development version)
+
+## Task Change Detection
+
+- Separated the two kinds of manifest hash. A **definition hash**
+  (`CohortDef$getSqlHash()`, `ConceptSetDef$getHash()`) covers only the
+  SQL/JSON definition. A **task rerun hash** (`getTaskRerunHash()` on both
+  `CohortManifest` and `ConceptSetManifest`) covers each item's definition hash
+  plus its label, category, and tags, because tasks often select cohorts and
+  concept sets by that metadata. `shouldRerunTask()` uses the task rerun hash,
+  so renaming, recategorizing, or retagging a cohort or concept set now reruns
+  tasks.
+- `CohortManifest$getManifestHash()` is deprecated in favor of
+  `getTaskRerunHash()`, which now also covers label, category, and tags.
+- `shouldRerunTask()` now reruns a task when the **concept set manifest**
+  changes (#125) or when **`renv.lock`** changes — the R version or any
+  package's version, source, or remote SHA (#118).
+- `testStudyPipeline()`, `execStudyPipeline()`, and `testStudyTask()` gain a
+  `forceRerun` argument (default `FALSE`) that bypasses change detection:
+  `TRUE` reruns every task, and a vector of task file names reruns only those.
+  Forced runs are still recorded in `task_run_history.csv` and noted in the
+  pipeline log.
+- `exec/logs/task_run_history.csv` gains `concept_set_manifest_hash` and
+  `renv_lock_hash` columns. Existing history rows have no recorded value for
+  them, and the cohort hash now includes metadata, so every task reruns once
+  after upgrading. Studies without a concept set manifest or `renv.lock` hash
+  to a stable sentinel and are not rerun on every run.
+
 # picard 0.0.7
 
 ## Breaking Changes
@@ -49,26 +77,6 @@
   - `execStudyPipeline(skipCodeStateCheck = TRUE)` skips the check entirely as a last resort. Deliberately not settable from `config.yml`.
   - Neither hatch is silent: `Code state` is reported as a **warning** rather than a pass, a banner names every ignored file, and the pipeline log records the code state and commit SHA.
   - `exec/logs/task_run_history.csv` gains `commit_sha` and `code_state` columns (`clean`, `dirty-ignored`, `unverified-skipped`, `unverified-test-mode`, `unrecorded`) so the audit trail never implies a clean tree when the tree was not clean. Existing history files are read and back-filled as `unrecorded`.
-
-### Task Change Detection
-
-- `shouldRerunTask()` now reruns a task when the **concept set manifest**
-  changes — a concept set added or removed, its expression edited, or its
-  label, category, or tags changed (#125). Unlike cohorts, concept set
-  metadata is included because tasks commonly group or name output by it.
-  Backed by the new `ConceptSetManifest$getManifestHash()`.
-- `shouldRerunTask()` now reruns a task when **`renv.lock`** changes — the R
-  version or any package's version, source, or remote SHA (#118).
-- `testStudyPipeline()`, `execStudyPipeline()`, and `testStudyTask()` gain a
-  `forceRerun` argument (default `FALSE`) that bypasses change detection:
-  `TRUE` reruns every task, and a vector of task file names reruns only those.
-  Forced runs are still recorded in `task_run_history.csv` and noted in the
-  pipeline log.
-- `exec/logs/task_run_history.csv` gains `concept_set_manifest_hash` and
-  `renv_lock_hash` columns. Existing history rows have no recorded value, so
-  every task reruns once after upgrading. Studies without a concept set
-  manifest or `renv.lock` hash to a stable sentinel and are not rerun on every
-  run.
 
 ### Tabulate and View Manifest
 

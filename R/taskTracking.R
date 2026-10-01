@@ -4,14 +4,16 @@
 #'   1. Task file modifications (file hash comparison)
 #'   2. Dependency file modifications (extracted from source() calls)
 #'   3. Cohort manifest changes — compares
-#'      [CohortManifest$getManifestHash()][CohortManifest] against the hash
-#'      recorded on the previous run. A rerun is forced when the hash differs,
+#'      [CohortManifest$getTaskRerunHash()][CohortManifest] (definitions plus
+#'      label, category, and tags) against the hash recorded on the previous
+#'      run. A rerun is forced when the hash differs,
 #'      when no hash was recorded (first run, or a legacy history row), or when
 #'      the current hash cannot be computed at all.
 #'   4. Concept set manifest changes — compares
-#'      [ConceptSetManifest$getManifestHash()][ConceptSetManifest] against the
-#'      hash recorded on the previous run, with the same fail-safe rules as the
-#'      cohort manifest check.
+#'      [ConceptSetManifest$getTaskRerunHash()][ConceptSetManifest]
+#'      (definitions plus label, category, and tags) against the hash recorded
+#'      on the previous run, with the same fail-safe rules as the cohort
+#'      manifest check.
 #'   5. renv lockfile changes — any change to the R version or to a package
 #'      recorded in `renv.lock` forces a rerun (see [.getRenvLockHash()]).
 #'   6. Previous run errors (checked in logs and history)
@@ -417,11 +419,12 @@ recordTaskExecution <- function(
 
 #' @title Get Cohort Manifest Hash
 #' @description Loads the cohort manifest and returns
-#'   [CohortManifest$getManifestHash()][CohortManifest], a SHA256 digest over
-#'   every registered (`active`/`stale`) cohort's definition. Used by
-#'   [shouldRerunTask()] to detect cohort changes that require a task rerun.
+#'   [CohortManifest$getTaskRerunHash()][CohortManifest], a SHA256 digest over
+#'   every registered (`active`/`stale`) cohort's definition and metadata
+#'   (label, category, tags). Used by [shouldRerunTask()] to detect cohort
+#'   changes that require a task rerun.
 #' @details A thin wrapper around the manifest method, which is the single
-#'   source of truth for what "the cohort definitions changed" means. The load
+#'   source of truth for what "the cohorts changed" means. The load
 #'   is read-only (`autoSync = FALSE`), so this has no side effects. Any failure
 #'   to load or hash the manifest returns `NA_character_`; [shouldRerunTask()]
 #'   treats that as "cannot prove unchanged" and forces the rerun.
@@ -437,7 +440,7 @@ recordTaskExecution <- function(
       autoSync = FALSE,
       verbose = FALSE
     )
-    cm$getManifestHash()
+    cm$getTaskRerunHash()
   }, error = function(e) {
     cli::cli_alert_warning("Could not compute cohort manifest hash: {e$message}")
     return(NA_character_)
@@ -447,7 +450,7 @@ recordTaskExecution <- function(
 
 #' @title Get Concept Set Manifest Hash
 #' @description Returns
-#'   [ConceptSetManifest$getManifestHash()][ConceptSetManifest] for the study's
+#'   [ConceptSetManifest$getTaskRerunHash()][ConceptSetManifest] for the study's
 #'   concept set manifest. Used by [shouldRerunTask()] to detect concept set
 #'   changes (including label/category/tag changes) that require a task rerun.
 #' @details Concept sets are optional, so a study without a concept set
@@ -470,7 +473,7 @@ recordTaskExecution <- function(
     csm <- suppressMessages(
       ConceptSetManifest$new(dbPath = dbPath, projectRoot = projectRoot)
     )
-    csm$getManifestHash()
+    csm$getTaskRerunHash()
   }, error = function(e) {
     cli::cli_alert_warning("Could not compute concept set manifest hash: {e$message}")
     return(NA_character_)

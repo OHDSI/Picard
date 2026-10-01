@@ -55,14 +55,16 @@ Determines whether a task needs to be rerun by checking:
 \item Task file modifications (file hash comparison)
 \item Dependency file modifications (extracted from source() calls)
 \item Cohort manifest changes — compares
-\link[=CohortManifest]{CohortManifest$getManifestHash()} against the hash
-recorded on the previous run. A rerun is forced when the hash differs,
+\link[=CohortManifest]{CohortManifest$getTaskRerunHash()} (definitions plus
+label, category, and tags) against the hash recorded on the previous
+run. A rerun is forced when the hash differs,
 when no hash was recorded (first run, or a legacy history row), or when
 the current hash cannot be computed at all.
 \item Concept set manifest changes — compares
-\link[=ConceptSetManifest]{ConceptSetManifest$getManifestHash()} against the
-hash recorded on the previous run, with the same fail-safe rules as the
-cohort manifest check.
+\link[=ConceptSetManifest]{ConceptSetManifest$getTaskRerunHash()}
+(definitions plus label, category, and tags) against the hash recorded
+on the previous run, with the same fail-safe rules as the cohort
+manifest check.
 \item renv lockfile changes — any change to the R version or to a package
 recorded in \code{renv.lock} forces a rerun (see \code{\link[=.getRenvLockHash]{.getRenvLockHash()}}).
 \item Previous run errors (checked in logs and history)
