@@ -402,6 +402,12 @@ formatErrorDetail <- function(e) {
 #'   here; \code{execute_pipeline()} computes it once and passes it in so the
 #'   manifest is not re-loaded for every task. Recorded with the run and used
 #'   for the rerun check.
+#' @param conceptSetManifestHash Character or NULL. Pre-computed concept set
+#'   manifest hash (see \code{.getConceptSetManifestHash()}). Handled the same
+#'   way as \code{cohortManifestHash}.
+#' @param renvLockHash Character or NULL. Pre-computed renv lockfile hash (see
+#'   \code{.getRenvLockHash()}). Handled the same way as
+#'   \code{cohortManifestHash}.
 #' @param executionContext An optional `ExecutionContext` for the current run.
 #'   When supplied it owns namespace derivation (cohort-table suffix, results
 #'   folder) and `pipelineVersion` is taken from it.
@@ -412,6 +418,8 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
                          codeState = NULL,
                          logFilePath = NULL,
                          cohortManifestHash = NULL,
+                         conceptSetManifestHash = NULL,
+                         renvLockHash = NULL,
                          executionContext = NULL) {
 
   checkmate::assert_class(executionContext, "ExecutionContext", null.ok = TRUE)
@@ -422,10 +430,19 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
   commitSha <- codeState$sha %||% NA_character_
   codeStateLabel <- codeState$status %||% "unrecorded"
 
-  # Snapshot the cohort manifest once so the rerun check and every
-  # recordTaskExecution() call below agree on the same value.
-  if (is.null(cohortManifestHash)) {
-    cohortManifestHash <- .getCohortManifestHash()
+  # Snapshot the input hashes once so the rerun check and every
+  # recordTaskExecution() call below agree on the same values.
+  cohortManifestHash <- cohortManifestHash %||% .getCohortManifestHash()
+  conceptSetManifestHash <- conceptSetManifestHash %||% .getConceptSetManifestHash()
+  renvLockHash <- renvLockHash %||% .getRenvLockHash()
+
+  record <- function(status, errorMessage = NA_character_) {
+    recordTaskExecution(taskFile, configBlock, pipelineVersion, status,
+                        errorMessage = errorMessage,
+                        commitSha = commitSha, codeState = codeStateLabel,
+                        cohortManifestHash = cohortManifestHash,
+                        conceptSetManifestHash = conceptSetManifestHash,
+                        renvLockHash = renvLockHash)
   }
 
   cli::cat_rule(glue::glue_col("Run Task: {yellow {taskFile}}"))
@@ -442,10 +459,7 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
   # Verify task file exists
   if (!file.exists(fullTaskFilePath)) {
     cli::cli_alert_danger("Task file not found: {fs::path_rel(fullTaskFilePath)}")
-    recordTaskExecution(taskFile, configBlock, pipelineVersion, "failed",
-                        errorMessage = "Task file does not exist",
-                        commitSha = commitSha, codeState = codeStateLabel,
-                        cohortManifestHash = cohortManifestHash)
+    record("failed", "Task file does not exist")
     stop("Task file does not exist")
   }
 
@@ -471,14 +485,14 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
         configBlock = configBlock,
         executionSettings = executionSettings,
         pipelineVersion = pipelineVersion,
-        cohortManifestHash = cohortManifestHash
+        cohortManifestHash = cohortManifestHash,
+        conceptSetManifestHash = conceptSetManifestHash,
+        renvLockHash = renvLockHash
       )
 
       if (!statusCheck$should_rerun) {
         cli::cli_alert_success("Task is up to date - skipping execution")
-        recordTaskExecution(taskFile, configBlock, pipelineVersion, "skipped",
-                            commitSha = commitSha, codeState = codeStateLabel,
-                            cohortManifestHash = cohortManifestHash)
+        record("skipped")
         return(invisible(NULL))
       }
     }
@@ -489,10 +503,7 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
     validateStudyTask(fullTaskFilePath)
   }, error = function(e) {
     cli::cli_alert_danger("Task validation failed: {e$message}")
-    recordTaskExecution(taskFile, configBlock, pipelineVersion, "failed",
-                        errorMessage = paste("Validation failed:", e$message),
-                        commitSha = commitSha, codeState = codeStateLabel,
-                        cohortManifestHash = cohortManifestHash)
+    record("failed", paste("Validation failed:", e$message))
     stop("Invalid task structure - cannot execute")
   })
 
@@ -504,10 +515,7 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
       glue::glue(.open = "!||", .close = "||!")
   }, error = function(e) {
     cli::cli_alert_danger("Failed to read task file: {e$message}")
-    recordTaskExecution(taskFile, configBlock, pipelineVersion, "failed",
-                        errorMessage = paste("Read error:", e$message),
-                        commitSha = commitSha, codeState = codeStateLabel,
-                        cohortManifestHash = cohortManifestHash)
+    record("failed", paste("Read error:", e$message))
     stop("Error reading task file")
   })
 
@@ -516,10 +524,7 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
     exprs <- rlang::parse_exprs(rLines)
   }, error = function(e) {
     cli::cli_alert_danger("Failed to parse task file: {e$message}")
-    recordTaskExecution(taskFile, configBlock, pipelineVersion, "failed",
-                        errorMessage = paste("Parse error:", e$message),
-                        commitSha = commitSha, codeState = codeStateLabel,
-                        cohortManifestHash = cohortManifestHash)
+    record("failed", paste("Parse error:", e$message))
     stop("Error parsing task expressions")
   })
 
@@ -545,15 +550,10 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
 
   # Record success or failure
   if (!is.null(executionError)) {
-    recordTaskExecution(taskFile, configBlock, pipelineVersion, "failed",
-                        errorMessage = executionError,
-                        commitSha = commitSha, codeState = codeStateLabel,
-                        cohortManifestHash = cohortManifestHash)
+    record("failed", executionError)
     stop(executionError, call. = FALSE)
   } else {
-    recordTaskExecution(taskFile, configBlock, pipelineVersion, "success",
-                        commitSha = commitSha, codeState = codeStateLabel,
-                        cohortManifestHash = cohortManifestHash)
+    record("success")
     cli::cli_alert_success("Task {taskFile} completed successfully")
   }
 
@@ -572,6 +572,8 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
 #'   namespace. Defaults to \code{"dev"}. Normalized to lowercase snake_case; an
 #'   over-long namespace is rejected rather than truncated. Use the same value
 #'   here and in \code{testStudyPipeline()}.
+#' @param forceRerun Logical. If \code{TRUE}, runs the task even when
+#'   [shouldRerunTask()] finds nothing has changed. Default: \code{FALSE}
 #' @param env The execution environment. Defaults to caller environment.
 #' @return Invisibly returns the task result
 #' @export
@@ -584,11 +586,13 @@ testStudyTask <- function(
   taskFile, 
   configBlock, 
   pipelineVersion = "dev",
-  env = rlang::caller_env()
+  env = rlang::caller_env(),
+  forceRerun = FALSE
 ) {
   checkmate::assert_string(taskFile, min.chars = 1)
   checkmate::assert_string(configBlock, min.chars = 1)
   checkmate::assert_string(pipelineVersion, min.chars = 1)
+  checkmate::assert_flag(forceRerun)
 
   pipelineVersion <- normalizePipelineVersion(pipelineVersion)
 
@@ -609,7 +613,7 @@ testStudyTask <- function(
     taskFile = taskFile,
     configBlock = configBlock,
     pipelineVersion = pipelineVersion,
-    checkStatus = TRUE,
+    checkStatus = !forceRerun,
     env = env
   )
 }
@@ -633,6 +637,11 @@ testStudyTask <- function(
 #'   reads the list from config.yml, which itself defaults to ignoring nothing.
 #' @param skipCodeStateCheck Logical. If TRUE, skips the code-state check
 #'   entirely. Default: FALSE
+#' @param forceRerun Logical or character. \code{TRUE} reruns every task,
+#'   bypassing change detection ([shouldRerunTask()]); a character vector of
+#'   task file names (e.g. \code{"05_baseline_medicines.R"}) reruns only those.
+#'   Forced runs are still recorded in \code{exec/logs/task_run_history.csv}.
+#'   Default: \code{FALSE}
 #' @param env the execution environment
 #' @param pipelineVersionOverride Character. Optional test-mode override for the
 #'   pipeline version (the test namespace). Drives the cohort-table suffix, the
@@ -645,7 +654,8 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
                              ignoreUncommittedPaths = NULL,
                              skipCodeStateCheck = FALSE,
                              env = rlang::caller_env(),
-                             pipelineVersionOverride = NULL) {
+                             pipelineVersionOverride = NULL,
+                             forceRerun = FALSE) {
   
   # Compute prospective pipeline version (needed for pre-flight checks)
   if (testMode) {
@@ -733,6 +743,13 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
 
   cli::cli_alert_info("Found {length(taskFilesToRun)} task(s) to execute")
 
+  forcedTasks <- .resolveForcedTasks(forceRerun, taskFilesToRun)
+  if (length(forcedTasks) > 0) {
+    cli::cli_alert_warning(
+      "Forcing rerun (change detection bypassed) for: {.file {forcedTasks}}"
+    )
+  }
+
   # Apply version increment to files (production only, after pre-flight passes)
   if (!testMode) {
     cli::cli_rule("Version Increment")
@@ -772,6 +789,7 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
       glue::glue("Update Type: {updateType}"),
       glue::glue("Tasks: {length(taskFilesToRun)}"),
       glue::glue("Test Mode: {testMode}"),
+      glue::glue("Forced Reruns: {if (length(forcedTasks) > 0) paste(forcedTasks, collapse = ', ') else 'none'}"),
       glue::glue("Code State: {codeState$status %||% 'unrecorded'}"),
       glue::glue("Commit SHA: {codeState$sha %||% 'unrecorded'}"),
       if (length(codeState$ignoredFiles %||% character(0)) > 0) {
@@ -849,9 +867,12 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
       stop(glue::glue("Pipeline cannot proceed without cohorts for config block: {block}"), call. = FALSE)
     })
 
-    # Snapshot this block's manifest once, after its builders and generation
-    # have reconciled it, and reuse it for every task's rerun check / run record
+    # Snapshot this block's input hashes once, after its builders and generation
+    # have reconciled the manifests, and reuse them for every task's rerun check /
+    # run record
     cohortManifestHash <- .getCohortManifestHash()
+    conceptSetManifestHash <- .getConceptSetManifestHash()
+    renvLockHash <- .getRenvLockHash()
 
     for (task in seq_along(taskFilesToRun)) {
       taskName <- taskFilesToRun[task]
@@ -866,11 +887,13 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
           taskFile = taskName,
           configBlock = block,
           pipelineVersion = pipelineVersion,
-          checkStatus = TRUE,
+          checkStatus = !taskName %in% forcedTasks,
           env = env,
           codeState = codeState,
           logFilePath = logFilePath,
           cohortManifestHash = cohortManifestHash,
+          conceptSetManifestHash = conceptSetManifestHash,
+          renvLockHash = renvLockHash,
           executionContext = executionContext
         )
         
@@ -921,6 +944,7 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
       glue::glue("Total Tasks: {length(taskResults)}"),
       glue::glue("Log File: {fs::path_rel(logFilePath)}"),
       glue::glue("Test Mode: {testMode}"),
+      glue::glue("Forced Reruns: {if (length(forcedTasks) > 0) paste(forcedTasks, collapse = ', ') else 'none'}"),
       glue::glue("Code State: {codeState$status %||% 'unrecorded'}"),
       "================================================================================",
       ""
@@ -931,6 +955,29 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
   }
   
   invisible(taskResults)
+}
+
+#' @title Resolve Which Tasks to Force-Rerun
+#' @param forceRerun Logical flag or character vector of task file names.
+#' @param taskFiles Character. Task file names in this pipeline run.
+#' @return Character vector of task file names to run without the rerun check.
+#' @keywords internal
+.resolveForcedTasks <- function(forceRerun, taskFiles) {
+  if (isTRUE(forceRerun)) {
+    return(taskFiles)
+  }
+  if (isFALSE(forceRerun)) {
+    return(character(0))
+  }
+
+  unknown <- setdiff(forceRerun, taskFiles)
+  if (length(unknown) > 0) {
+    cli::cli_abort(c(
+      "{.arg forceRerun} names task{?s} not in this pipeline: {.file {unknown}}",
+      "i" = "Available tasks: {.file {taskFiles}}"
+    ))
+  }
+  forceRerun
 }
 
 #' @title Test Study Pipeline
@@ -948,6 +995,11 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
 #'   cohort table suffix. Defaults to \code{"dev"}. The value is normalized to
 #'   lowercase snake_case; an over-long namespace is rejected rather than
 #'   truncated.
+#' @param forceRerun Logical or character. \code{TRUE} reruns every task,
+#'   bypassing change detection ([shouldRerunTask()]); a character vector of
+#'   task file names (e.g. \code{"05_baseline_medicines.R"}) reruns only those.
+#'   Forced runs are still recorded in \code{exec/logs/task_run_history.csv}.
+#'   Default: \code{FALSE}
 #' @param env The execution environment. Defaults to caller environment.
 #' @return Invisibly returns task results list
 #' @export
@@ -955,12 +1007,19 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
 #' \dontrun{
 #' # Test full pipeline on develop branch
 #' testStudyPipeline(configBlock = "myConfig")
+#' # Rerun every task, ignoring change detection
+#' testStudyPipeline(configBlock = "myConfig", forceRerun = TRUE)
 #' # Test full pipeline with a custom namespace
 #' testStudyPipeline(configBlock = "myConfig", pipelineVersion = "feature_ml_test")
 #' }
-testStudyPipeline <- function(configBlock, pipelineVersion = "dev", env = rlang::caller_env()) {
+testStudyPipeline <- function(configBlock, pipelineVersion = "dev", env = rlang::caller_env(),
+                              forceRerun = FALSE) {
   checkmate::assert_character(configBlock, min.len = 1, any.missing = FALSE)
   checkmate::assert_string(pipelineVersion, min.chars = 1)
+  checkmate::assert(
+    checkmate::check_flag(forceRerun),
+    checkmate::check_character(forceRerun, min.len = 1, any.missing = FALSE)
+  )
 
   pipelineVersion <- normalizePipelineVersion(pipelineVersion)
 
@@ -982,7 +1041,8 @@ testStudyPipeline <- function(configBlock, pipelineVersion = "dev", env = rlang:
     testMode = TRUE,
     pipelineVersionOverride = pipelineVersion,
     skipRenv = TRUE,
-    env = env
+    env = env,
+    forceRerun = forceRerun
   )
 }
 
@@ -1018,6 +1078,11 @@ testStudyPipeline <- function(configBlock, pipelineVersion = "dev", env = rlang:
 #'   the run history records the tree as `"unverified-skipped"`. Defaults to
 #'   FALSE. Deliberately not settable from config.yml, so it cannot be baked
 #'   permanently into a study.
+#' @param forceRerun Logical or character. \code{TRUE} reruns every task,
+#'   bypassing change detection ([shouldRerunTask()]); a character vector of
+#'   task file names (e.g. \code{"05_baseline_medicines.R"}) reruns only those.
+#'   Forced runs are still recorded in \code{exec/logs/task_run_history.csv}.
+#'   Default: \code{FALSE}
 #' @param env The execution environment. Defaults to caller environment.
 #' @return Invisibly returns task results list
 #' @export
@@ -1044,9 +1109,14 @@ execStudyPipeline <- function(configBlock, updateType, skipRenv = FALSE,
                               skipConnectivityCheck = TRUE,
                               ignoreUncommittedPaths = NULL,
                               skipCodeStateCheck = FALSE,
-                              env = rlang::caller_env()) {
+                              env = rlang::caller_env(),
+                              forceRerun = FALSE) {
   checkmate::assert_character(configBlock, min.len = 1, any.missing = FALSE)
   checkmate::assert_string(updateType, min.chars = 1)
+  checkmate::assert(
+    checkmate::check_flag(forceRerun),
+    checkmate::check_character(forceRerun, min.len = 1, any.missing = FALSE)
+  )
   checkmate::assert_logical(skipRenv, len = 1)
   checkmate::assert_logical(skipConnectivityCheck, len = 1)
   checkmate::assert_character(ignoreUncommittedPaths, any.missing = FALSE, null.ok = TRUE)
@@ -1141,7 +1211,8 @@ execStudyPipeline <- function(configBlock, updateType, skipRenv = FALSE,
     skipConnectivityCheck = skipConnectivityCheck,
     ignoreUncommittedPaths = ignoreUncommittedPaths,
     skipCodeStateCheck = skipCodeStateCheck,
-    env = env
+    env = env,
+    forceRerun = forceRerun
   )
   
   # After successful execution, create PR metadata
