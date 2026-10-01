@@ -36,6 +36,9 @@ library(picard)
 #   - domain: OMOP domain like drug_exposure, condition_occurrence (required)
 #   - sourceCode: TRUE/FALSE whether it represents source codes (optional)
 #   Any additional columns are treated as tags
+#
+# Imported definitions are saved as json/<atlasId>_<ATLAS concept set name>.json
+# in snake_case (e.g. json/5678_metformin.json).
 
 
 # ================================================================================

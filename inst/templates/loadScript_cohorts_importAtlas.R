@@ -32,8 +32,10 @@ library(picard)
 #   - label: Display name for your cohort (required)
 #   - category: Broad category like "Disease Populations", "Treatment Groups" (required)
 #   - subCategory: Optional sub-grouping within category
-#   - file_name: Will be auto-populated as json/<label>.json
 #   Any additional columns are treated as tags
+#
+# Imported definitions are saved as json/<atlasId>_<ATLAS cohort name>.json in
+# snake_case (e.g. json/1234_type_2_diabetes.json).
 
 
 # ================================================================================
