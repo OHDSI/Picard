@@ -279,6 +279,20 @@ itself (e.g. with `read_csv()` or `readRDS()`), so a task that reads any data
 file is **always re-run**. Tasks should still avoid reading one another's
 output.
 
+To bypass change detection, pass `forceRerun`: `TRUE` re-runs every task, and
+a vector of task file names re-runs only those. Forced runs are still recorded
+in the task history.
+
+```r
+testStudyPipeline(configBlock = "myConfig", forceRerun = TRUE)
+testStudyPipeline(configBlock = "myConfig", forceRerun = "05_baseline_medicines.R")
+testStudyTask("05_baseline_medicines.R", configBlock = "myConfig", forceRerun = TRUE)
+```
+
+A production run (`execStudyPipeline()`) always increments the pipeline
+version, and run history is kept per version, so every task already re-runs in
+production.
+
 ## Handling Errors and Failures
 
 Production mode validates code state strictly. Common issues:

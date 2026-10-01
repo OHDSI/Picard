@@ -7,7 +7,8 @@
 testStudyPipeline(
   configBlock,
   pipelineVersion = "dev",
-  env = rlang::caller_env()
+  env = rlang::caller_env(),
+  forceRerun = FALSE
 )
 }
 \arguments{
@@ -19,6 +20,12 @@ lowercase snake_case; an over-long namespace is rejected rather than
 truncated.}
 
 \item{env}{The execution environment. Defaults to caller environment.}
+
+\item{forceRerun}{Logical or character. \code{TRUE} reruns every task,
+bypassing change detection (\code{\link[=shouldRerunTask]{shouldRerunTask()}}); a character vector of
+task file names (e.g. \code{"05_baseline_medicines.R"}) reruns only those.
+Forced runs are still recorded in \code{exec/logs/task_run_history.csv}.
+Default: \code{FALSE}}
 }
 \value{
 Invisibly returns task results list
@@ -40,6 +47,8 @@ custom SQL) without the next block's builders overwriting them.
 \dontrun{
 # Test full pipeline on develop branch
 testStudyPipeline(configBlock = "myConfig")
+# Rerun every task, ignoring change detection
+testStudyPipeline(configBlock = "myConfig", forceRerun = TRUE)
 # Test full pipeline with a custom namespace
 testStudyPipeline(configBlock = "myConfig", pipelineVersion = "feature_ml_test")
 }

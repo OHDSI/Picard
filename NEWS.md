@@ -64,6 +64,11 @@
   prevents a task that consumes another task's output from silently reusing
   stale results (#118). Tracking those files' hashes so such tasks can be
   skipped is left for later.
+- `testStudyPipeline()`, `execStudyPipeline()`, and `testStudyTask()` gain a
+  `forceRerun` argument (default `FALSE`) that bypasses change detection:
+  `TRUE` reruns every task, and a vector of task file names reruns only those.
+  Forced runs are still recorded in `task_run_history.csv` and noted in the
+  pipeline log.
 - `exec/logs/task_run_history.csv` gains `concept_set_manifest_hash` and
   `renv_lock_hash` columns. Existing history rows have no recorded value, so
   every task reruns once after upgrading. Studies without a concept set
