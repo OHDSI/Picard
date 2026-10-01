@@ -23,28 +23,34 @@ library(picard) # pipeline orchestration and execution framework
 library(DatabaseConnector) # database connectivity and operations
 library(SqlRender) # SQL translation and rendering
 
-# C. Pre-Pipeline: Load & Build Manifest ─────────────────────────────────────
-#
-# WORKFLOW:
-#   Edit scripts in inputs/cohorts/R/ and inputs/conceptSets/R/ to:
-#   - Load concept sets from ATLAS (importAtlas.R)
-#   - Build concepts programmatically with Capr (importCapr.R)
-#   - Load custom SQL cohorts (importSql.R) [cohorts only]
-#   - Build derived cohorts (buildDependentCohorts.R) [cohorts only]
-#
-# Delete unused builder scripts - only the ones you need will be sourced.
-# Scripts are sourced in alphabetical order, with concept sets first.
-# Concept set scripts run first so cohorts can reference them if needed.
-#
-# WARNING: Do NOT add builder scripts to analysis/tasks/ folder!
-#          Use the dedicated R/ folders in inputs/cohorts/ and inputs/conceptSets/
-
-sourceInputBuilderScripts(verbose = TRUE)
-
-# D. Database Configuration ──────────────────────────────────────────────────
+# C. Database Configuration ──────────────────────────────────────────────────
 
 # Database identifiers to process (from config.yml)
 dbIds <- c("{configBlocks}")
+
+# D. Pre-Pipeline: Load & Build Manifest ─────────────────────────────────────
+#
+# WORKFLOW:
+#   Edit scripts in inputs/cohorts/R/ and inputs/conceptSets/R/ to:
+#   - Load from ATLAS (import_atlas_*.R)
+#   - Build definitions programmatically with Capr (import_capr_*.R)
+#   - Load custom SQL cohorts (import_sql_cohort.R)
+#   - Build derived cohorts (build_dependent_cohorts.R)
+#
+# All 6 builder scripts are required - leave unused ones as generated, since
+# unpopulated builders run without error. Scripts run in a fixed order with
+# concept sets first, so cohorts can reference them if needed.
+#
+# You do not call the builder scripts here: execStudyPipeline() sources them
+# for each database in dbIds, right before generating that database's cohorts
+# and running its tasks, so database-specific changes (e.g. concept ids in
+# custom SQL) are not overwritten by the next database. Each pass can read
+# inputBuilderEnv$configBlock and inputBuilderEnv$pipelineVersion to build
+# execution settings. To run the builders on their own while developing, use
+# sourceInputBuilderScripts(configBlock = "<one of dbIds>").
+#
+# WARNING: Do NOT add builder scripts to analysis/tasks/ folder!
+#          Use the dedicated R/ folders in inputs/cohorts/ and inputs/conceptSets/
 
 # E. Execute Production Pipeline ─────────────────────────────────────────────────
 
@@ -52,6 +58,7 @@ dbIds <- c("{configBlocks}")
 # - Validates environment and git state before running
 # - Creates release branch automatically
 # - Increments semantic version
+# - For each database: sources input builders, generates cohorts, runs tasks
 # - Commits changes and saves PR reference to PENDING_PR.md
 
 cli::cli_h2("Engaging primary systems...")

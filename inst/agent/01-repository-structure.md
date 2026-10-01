@@ -370,13 +370,13 @@ inputs/cohorts/
 ├── sql/
 │   ├── 004_primarySubset.sql          # Subset of cohort 001
 │   └── 005_combinedPopulation.sql     # Union of cohorts 001 & 002
-├── cohortsLoad.csv                    # ATLAS cohorts to bulk-import
+├── cohortsLoad.csv                    # ATLAS cohorts the study uses
 └── cohortManifest.sqlite              # Provenance & metadata tracking database
 ```
 
 **cohortsLoad.csv:**
 
-A CSV file listing the ATLAS cohorts to bulk-import. `createBlankCohortsLoadFile()` scaffolds it; `importAtlasCohorts()` reads it, downloads each cohort's JSON to `json/`, and registers it in the manifest with the `label`/`category`/`subCategory` carried onto the cohort as tags.
+A CSV file listing the ATLAS cohorts to bulk-import. `createBlankCohortsLoadFile()` scaffolds it; `importAtlasCohorts()` reads it, downloads each cohort's JSON to `json/`, and registers it in the manifest with the `label`/`category`/`subCategory` carried onto the cohort as tags. The file is kept in the repo and maintained as the record of which ATLAS cohorts the study uses.
 
 Columns:
 - `atlasId`: ATLAS cohort definition ID (integer, e.g., `1`, `42`)
@@ -435,13 +435,13 @@ inputs/conceptSets/
 │   ├── exposure_antidiabetic.json        # Drug exposure concept set
 │   ├── outcome_mi.json                   # Condition outcome concept set
 │   └── covariate_hypertension.json       # Covariate measurement concept set
-├── conceptSetsLoad.csv                   # ATLAS concept sets to bulk-import
+├── conceptSetsLoad.csv                   # ATLAS concept sets the study uses
 └── conceptSetManifest.sqlite             # Provenance & metadata tracking database
 ```
 
 **conceptSetsLoad.csv:**
 
-Similar to cohortsLoad.csv, this CSV lists the ATLAS concept sets to bulk-import via `$importAtlasConceptSets()`. `createBlankConceptSetsLoadFile()` scaffolds it. Columns:
+Similar to cohortsLoad.csv, this CSV is kept in the repo and lists the ATLAS concept sets the study uses, imported via `$importAtlasConceptSets()`. `createBlankConceptSetsLoadFile()` scaffolds it. Columns:
 - `atlasId`: ATLAS concept set ID (integer, e.g., `456`, `789`)
 - `label`: Display name (character, e.g., `"Antidiabetic medications"`)
 - `category`: Broad grouping (character, e.g., `"Medications"` or `"Diagnoses"`)

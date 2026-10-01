@@ -6,34 +6,51 @@
 \usage{
 sourceInputBuilderScripts(
   projectPath = here::here(),
+  configBlock = NULL,
+  pipelineVersion = "prod",
   verbose = TRUE,
-  warnMissing = TRUE
+  stopOnError = TRUE
 )
 }
 \arguments{
 \item{projectPath}{Character. Path to the project root. Defaults to current project.}
 
+\item{configBlock}{Character vector. Config block name(s) from \code{config.yml}.
+Scripts are sourced once per block, with the current block available as
+\code{inputBuilderEnv$configBlock}. Defaults to NULL (source once).}
+
+\item{pipelineVersion}{Character. Pipeline version made available to builder
+scripts as \code{inputBuilderEnv$pipelineVersion}. Defaults to \code{"prod"},
+matching \code{\link{createExecutionSettingsFromConfig}}; pass the test
+namespace (e.g. \code{"dev"}) when building inputs for a test run.}
+
 \item{verbose}{Logical. If TRUE (default), displays which scripts are being sourced.}
 
-\item{warnMissing}{Logical. If TRUE (default), warns when directories don't exist.}
+\item{stopOnError}{Logical. If TRUE (default), stop at the first builder
+script that errors. If FALSE, warn and continue with the remaining scripts.}
 }
 \value{
 Invisibly returns a list with:
 \itemize{
 \item \code{sourced_files}: Character vector of sourced files (absolute paths)
+\item \code{config_blocks}: Character vector of config blocks processed (NULL when
+\code{configBlock} is NULL)
 \item \code{directories_checked}: Character vector of directories checked
-\item \code{error_summary}: List of any errors encountered (always empty on
-successful return; a non-empty list raises an error instead)
+\item \code{error_summary}: Named list of error messages from failed scripts (only
+non-empty when \code{stopOnError = FALSE})
 }
 }
 \description{
 Auto-discovers and sources builder scripts from pre-pipeline directories
-in a MANDATORY dependency order. Designed to be called from main.R before the
-production pipeline. This ensures concept sets are available before cohorts,
+in a MANDATORY dependency order. \code{\link{execStudyPipeline}} and
+\code{\link{testStudyPipeline}} call this for each config block, right
+before generating that block's cohorts, so builders can make
+database-specific changes; call it directly to build inputs while
+developing. The order ensures concept sets are available before cohorts,
 and dependent cohorts can reference already-loaded cohort definitions.
 }
 \details{
-Scripts are sourced in the following FIXED order (skipping any that don't exist):
+All six scripts are required and are sourced in the following FIXED order:
 \enumerate{
 \item \code{inputs/conceptSets/R/import_atlas_concept_set.R}
 \item \code{inputs/conceptSets/R/import_capr_concept_set.R}
@@ -51,10 +68,28 @@ This order is enforced to guarantee dependencies are satisfied:
 }
 
 Use \code{\link{makeInputBuilderScript}} to create scripts with the correct naming convention.
-Missing scripts are silently skipped, allowing flexible configurations.
+The function aborts before sourcing anything if a required script is missing
+or if \code{inputs/conceptSets/R/} or \code{inputs/cohorts/R/} contain any
+other \code{.R} file, since such a file would otherwise never run. Unused
+builders should be left in place: the templates run without error when they
+have not been populated. Put helper code in a subfolder (e.g.
+\code{inputs/cohorts/R/src/}), which is not checked.
 
-Errors inside builder scripts are collected across all scripts (so they can
-be fixed in one pass) and then raised as a single error: input building is a
-hard precondition of pipeline execution, so a failed script stops the run
-before \code{execStudyPipeline()} can be reached.
+When \code{configBlock} is supplied, the full set of scripts is sourced once
+per config block, in order, the same way \code{execStudyPipeline()} runs
+tasks once per database. Before each pass, an \code{inputBuilderEnv} object
+(see \code{\link{createInputBuilderEnv}}) holding the current config block
+and the pipeline version is assigned into the global environment, so builder
+scripts can build execution settings without hard-coding either value, e.g.
+\code{createExecutionSettingsFromConfig(configBlock = inputBuilderEnv$configBlock,
+pipelineVersion = inputBuilderEnv$pipelineVersion)}. When \code{configBlock}
+is NULL, scripts are sourced once with \code{inputBuilderEnv$configBlock}
+set to NULL.
+
+By default, an error inside a builder script stops the run immediately:
+input building is a hard precondition of pipeline execution, and later
+builders may depend on earlier ones, so a failed script must stop
+\code{main.R} before \code{execStudyPipeline()} can be reached. Set
+\code{stopOnError = FALSE} to instead warn and continue with the remaining
+scripts; the errors are then returned in \code{error_summary}.
 }

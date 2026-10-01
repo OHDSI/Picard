@@ -17,55 +17,57 @@
 
 library(picard)
 
+# Everything below is commented out so this script does nothing until you use
+# ATLAS. Uncomment each step as you need it.
+
 # ================================================================================
 # A. CREATE BLANK LOAD FILE (First Time Only)
 # ================================================================================
 
-# Uncomment to create a blank template CSV file:
-createBlankCohortsLoadFile()
+# Run once at the console (not from this script) to create a blank template CSV:
+# createBlankCohortsLoadFile()
 
 # Now open inputs/cohorts/cohortsLoad.csv in Excel and fill in your entries:
 #   - atlasId: ATLAS cohort definition IDs (required)
 #   - label: Display name for your cohort (required)
 #   - category: Broad category like "Disease Populations", "Treatment Groups" (required)
 #   - subCategory: Optional sub-grouping within category
-#   - file_name: Will be auto-populated as json/{{label}}.json
 #   Any additional columns are treated as tags
+#
+# Imported definitions are saved as json/<atlasId>_<ATLAS cohort name>.json in
+# snake_case (e.g. json/1234_type_2_diabetes.json).
 
 
 # ================================================================================
-# B. LOAD MANIFEST (First Time Setup) or Reload (Subsequent Times)
+# B. LOAD MANIFEST
 # ================================================================================
 
-# First time only: Initialize a new manifest (comment out after first run)
-cohortManifest <- initCohortManifest()
-
-# Subsequent times: Load from existing SQLite database
-cohortManifest <- loadCohortManifest()
+# Uncomment when you start using ATLAS. If the manifest does not exist yet,
+# run initCohortManifest() once at the console first.
+# cohortManifest <- loadCohortManifest()
 
 
 # ================================================================================
 # C. SET UP ATLAS CONNECTION
 # ================================================================================
 
-# ATLAS credentials must be configured in your .Renviron file before connecting.
-# Typical env vars: ATLAS_BASE_URL, ATLAS_API_TOKEN, ATLAS_SOURCE_ID, etc.
-# See ?getAtlasConnection for details on required environment variables
-
-atlasConnection <- getAtlasConnection()
-cohortManifest$setAtlasConnection(atlasConnection)
+# Uncomment when you start using ATLAS. Credentials are read from your
+# user-level secrets.yml; see ?getAtlasConnection for details.
+# atlasConnection <- getAtlasConnection()
+# cohortManifest$setAtlasConnection(atlasConnection)
 
 
 # ================================================================================
 # D. SYNC REGISTERED ATLAS COHORTS
 # ================================================================================
 
-# Runs first, before any import: re-checks every registered ATLAS cohort
-# against ATLAS and updates changed definitions in place (same ID; derived
-# cohorts marked stale so the pipeline regenerates them). This is the step
-# that propagates ATLAS edits, and running it before the import means even a
-# stale load csv cannot prevent the manifest from syncing.
-cohortManifest$updateAtlasCohorts()
+# Uncomment once the manifest has ATLAS cohorts, and leave it uncommented: it
+# re-checks every registered ATLAS cohort against ATLAS and updates changed
+# definitions in place (same ID; derived cohorts marked stale so the pipeline
+# regenerates them). This is the step that propagates ATLAS edits. If a cohort
+# cannot be fetched the sync stops; pass stopOnError = FALSE to skip it with a
+# warning instead.
+# cohortManifest$updateAtlasCohorts()
 
 # To update a single cohort on demand instead, use:
 # cohortManifest$addAtlasCohort(atlasId = ..., label = "...", category = "...",
@@ -76,33 +78,30 @@ cohortManifest$updateAtlasCohorts()
 # E. IMPORT NEW COHORTS FROM ATLAS
 # ================================================================================
 
-# Reads cohortsLoad.csv and downloads CIRCE JSON definitions from ATLAS
-# Place your cohortsLoad.csv in inputs/cohorts/ before running this
+# Reads inputs/cohorts/cohortsLoad.csv and downloads CIRCE JSON definitions from
+# ATLAS. Keep the load csv in the repo as the record of which ATLAS cohorts the
+# study uses, and add rows to it as the study grows.
+#
+# By default, rows already registered in the manifest cause an error, so the
+# import only adds new cohorts: uncomment it when you add rows, and comment it
+# out again once the import succeeds. Alternatively, pass stopIfExists = FALSE
+# to leave it uncommented and update registered rows in place (definition,
+# label, category, tags) on every run.
+# cohortManifest$importAtlasCohorts(
+#   cohortsLoad = readr::read_csv(
+#     here::here("inputs/cohorts/cohortsLoad.csv"),
+#     show_col_types = FALSE
+#   )
+# )
 
-# The load csv is for one-time imports only: rows already registered in the
-# manifest cause an error (delete the csv after a successful import). The
-# import is skipped when the csv is absent, so re-running main.R stays safe.
-# NOTE: no curly braces in this template (it is populated via glue).
-cohortsLoadPath <- here::here("inputs/cohorts/cohortsLoad.csv")
-
-if (fs::file_exists(cohortsLoadPath)) {
-  cohortManifest$importAtlasCohorts(
-      cohortsLoad = readr::read_csv(cohortsLoadPath, show_col_types = FALSE)
-    )
-} else{
-  cli::cli_alert_info("No cohortsLoad.csv found - skipping one-time import")
-}
-  
 
 # ================================================================================
 # F. REVIEW IMPORTED COHORTS
 # ================================================================================
 
 # Display a table of all cohorts in the manifest
-cohortManifest$tabulateManifest()
+# cohortManifest$tabulateManifest()
 
 # Optionally, export and inspect specific cohorts:
 # cohortDef <- cohortManifest$getCohortDefinition(cohortId = 1L)
 # print(cohortDef)
-
-cli::cli_alert_success("Cohorts imported successfully from ATLAS!")

@@ -244,7 +244,11 @@ sourceDisseminationScripts(
 )
 ```
 
-Scripts are numbered (01_, 02_, etc.) and sourced in alphabetical order.
+Scripts are numbered (01_, 02_, etc.) and sourced in alphabetical order. If a
+script errors, `sourceDisseminationScripts()` stops immediately so `main.R`
+cannot carry on with partial output. Pass `stopOnError = FALSE` to warn and
+continue with the remaining scripts instead; the errors are returned in
+`error_summary`.
 
 ## Integration into main.R
 

@@ -10,9 +10,9 @@
 #   3. Apply formatting functions (prepareDisseminationData, etc.)
 #   4. Generate formatted outputs for Excel, StudyHub, or other targets
 #
-# After the pipeline runs (sourceInputBuilderScripts -> execStudyPipeline ->
-# runPostProcessing), edit this script to customize your dissemination outputs,
-# then source it via sourceDisseminationScripts() in your main.R.
+# After the pipeline runs (execStudyPipeline -> runPostProcessing), edit this
+# script to customize your dissemination outputs, then source it via
+# sourceDisseminationScripts() in your main.R.
 #
 # ============================================================================
 

@@ -16,12 +16,13 @@ The ConceptSetManifest class manages multiple concept set definitions and stores
 metadata in a SQLite database located at inputs/conceptSets/conceptSetManifest.sqlite.
 Each ConceptSetDef is assigned a sequential ID based on its position in the manifest.
 
-By default, the load file is treated as a transient, one-time import
-mechanism: rows whose atlasId is already registered in the manifest are
-an error, not an update. Set \code{stopIfExists = FALSE} to instead update
-those rows in place, which supports iterating on the load file across
-repeated runs. To sync registered concept sets with ATLAS without a
-load file, use \code{updateAtlasConceptSets()}.
+The load file is kept in the study repository as the record of which
+ATLAS concept sets the study uses. By default, rows whose atlasId is
+already registered in the manifest are an error, not an update, so an
+import only adds new concept sets. Set \code{stopIfExists = FALSE} to instead
+update those rows in place, which lets the whole load file be
+re-imported on every run. To sync registered concept sets with ATLAS
+without re-importing, use \code{updateAtlasConceptSets()}.
 
 \strong{Processing Steps:}
 \enumerate{
@@ -1307,7 +1308,10 @@ fetches their current definitions from ATLAS, computes hashes, and compares agai
 the stored local hash. Provides a read-only summary of which concept sets have changed
 in ATLAS since import. No modifications are made.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$checkAtlasConceptSets(atlasConnection = NULL)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$checkAtlasConceptSets(
+  atlasConnection = NULL,
+  stopOnError = TRUE
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -1317,6 +1321,10 @@ in ATLAS since import. No modifications are made.
 that returns a list with an \code{expression} element (the CIRCE JSON as a string).
 If \code{NULL} (default), uses the connection stored via \verb{$setAtlasConnection()}.
 If no connection is available, raises an error.}
+
+\item{\code{stopOnError}}{Logical. If TRUE (default), a failed ATLAS fetch
+aborts the sync. If FALSE, the concept set is skipped with a warning and the
+remaining concept sets are still synced.}
 }
 \if{html}{\out{</div>}}
 }
@@ -1343,7 +1351,10 @@ Fetches current definitions from ATLAS for concept sets that have changed and up
 the stored JSON files and manifest entries. This is the modification phase that applies
 changes detected by checkAtlasConceptSets().
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$updateAtlasConceptSets(atlasConnection = NULL)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$updateAtlasConceptSets(
+  atlasConnection = NULL,
+  stopOnError = TRUE
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -1351,6 +1362,10 @@ changes detected by checkAtlasConceptSets().
 \describe{
 \item{\code{atlasConnection}}{An ATLAS connection object with a method \code{getConceptSetDefinition(conceptSetId)}.
 If \code{NULL} (default), uses the connection stored via \verb{$setAtlasConnection()}.}
+
+\item{\code{stopOnError}}{Logical. If TRUE (default), a failed ATLAS fetch
+aborts the sync. If FALSE, the concept set is skipped with a warning and the
+remaining concept sets are still synced.}
 }
 \if{html}{\out{</div>}}
 }

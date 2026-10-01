@@ -1058,12 +1058,13 @@ ConceptSetManifest <- R6::R6Class(
     #'   Default: TRUE (fail-safe).
     #'
     #' @details
-    #' By default, the load file is treated as a transient, one-time import
-    #' mechanism: rows whose atlasId is already registered in the manifest are
-    #' an error, not an update. Set `stopIfExists = FALSE` to instead update
-    #' those rows in place, which supports iterating on the load file across
-    #' repeated runs. To sync registered concept sets with ATLAS without a
-    #' load file, use `updateAtlasConceptSets()`.
+    #' The load file is kept in the study repository as the record of which
+    #' ATLAS concept sets the study uses. By default, rows whose atlasId is
+    #' already registered in the manifest are an error, not an update, so an
+    #' import only adds new concept sets. Set `stopIfExists = FALSE` to instead
+    #' update those rows in place, which lets the whole load file be
+    #' re-imported on every run. To sync registered concept sets with ATLAS
+    #' without re-importing, use `updateAtlasConceptSets()`.
     #'
     #' @return Invisible tibble imported concept sets.
     importAtlasConceptSets = function(conceptSetsLoad,
@@ -1108,8 +1109,7 @@ ConceptSetManifest <- R6::R6Class(
 
       assigned_ids <- rep(NA_integer_, nrow(concept_set_load_2))
 
-      # By default, the load csv is a transient, one-time import file —
-      # registered rows are an error, not an update mechanism. Fail fast
+      # By default registered rows are an error, not an update: fail fast
       # before importing anything, unless the caller opted into upserting.
       if (stopIfExists && nrow(existing_concept_sets) > 0) {
         offending <- paste0(
@@ -1119,7 +1119,8 @@ ConceptSetManifest <- R6::R6Class(
         cli::cli_abort(c(
           "{nrow(existing_concept_sets)} concept set(s) in the load file are already registered in the manifest:",
           stats::setNames(offending, rep("x", length(offending))),
-          i = "Remove them from the load csv, or re-run with {.code stopIfExists = FALSE} to update them in place.",
+          i = "To import only new rows, keep the import commented out until you add rows to the load csv.",
+          i = "To update registered rows in place on every run, re-run with {.code stopIfExists = FALSE}.",
           i = "To sync registered concept sets with ATLAS, run {.code updateAtlasConceptSets()}."
         ))
       }
@@ -2315,6 +2316,10 @@ ConceptSetManifest <- R6::R6Class(
     #'   If `NULL` (default), uses the connection stored via `$setAtlasConnection()`.
     #'   If no connection is available, raises an error.
     #'
+    #' @param stopOnError Logical. If TRUE (default), a failed ATLAS fetch
+    #'   aborts the sync. If FALSE, the concept set is skipped with a warning and the
+    #'   remaining concept sets are still synced.
+    #'
     #' @return Invisible tibble with columns:
     #'   - `id`: Concept set ID in the local manifest
     #'   - `label`: Concept set label
@@ -2323,7 +2328,8 @@ ConceptSetManifest <- R6::R6Class(
     #'   - `hasChanged`: Logical, TRUE if remote definition differs from local hash
     #'   - `localHash`: Hash of the stored JSON file
     #'   - `remoteHash`: Hash of the current ATLAS definition
-    checkAtlasConceptSets = function(atlasConnection = NULL) {
+    checkAtlasConceptSets = function(atlasConnection = NULL, stopOnError = TRUE) {
+      checkmate::assert_flag(stopOnError)
       if (is.null(atlasConnection)) {
         atlasConnection <- private$.atlasConnection
       }
@@ -2361,11 +2367,22 @@ ConceptSetManifest <- R6::R6Class(
         current_hash <- atlas_subset$hash[i]
         row_file_path <- atlas_subset$file_path[i]
 
-        # Fetch JSON from ATLAS and compare hashes
+        # Fetch JSON from ATLAS and compare hashes. By default a failed fetch stops
+        # the sync, since skipping the concept set would leave the manifest
+        # silently out of date
         cs_def <- tryCatch(
           atlasConnection$getConceptSetDefinition(conceptSetId = row_atlas_id),
           error = function(e) {
-            cli::cli_warn("Failed to fetch atlasId {row_atlas_id}: {e$message}")
+            if (stopOnError) {
+              cli::cli_abort(
+                "Failed to fetch ATLAS concept set {row_atlas_id} ({row_label}).",
+                parent = e
+              )
+            }
+            cli::cli_warn(c(
+              "Failed to fetch ATLAS concept set {row_atlas_id} ({row_label}); skipping it because {.code stopOnError = FALSE}.",
+              x = "{conditionMessage(e)}"
+            ))
             NULL
           }
         )
@@ -2428,9 +2445,14 @@ ConceptSetManifest <- R6::R6Class(
     #' @param atlasConnection An ATLAS connection object with a method `getConceptSetDefinition(conceptSetId)`.
     #'   If `NULL` (default), uses the connection stored via `$setAtlasConnection()`.
     #'
+    #' @param stopOnError Logical. If TRUE (default), a failed ATLAS fetch
+    #'   aborts the sync. If FALSE, the concept set is skipped with a warning and the
+    #'   remaining concept sets are still synced.
+    #'
     #' @return Invisible tibble of concept sets that were updated, with columns:
     #'   id, label, atlasId, filePath, hasChanged, localHash, remoteHash
-    updateAtlasConceptSets = function(atlasConnection = NULL) {
+    updateAtlasConceptSets = function(atlasConnection = NULL, stopOnError = TRUE) {
+      checkmate::assert_flag(stopOnError)
       if (is.null(atlasConnection)) {
         atlasConnection <- private$.atlasConnection
       }
@@ -2442,9 +2464,11 @@ ConceptSetManifest <- R6::R6Class(
         ))
       }
 
-      # Check for changes
-      check_atlas_changes <- self$checkAtlasConceptSets(atlasConnection) |>
-        dplyr::filter(hasChanged)
+      # Check for changes; NULL means no ATLAS concept sets are registered
+      check_atlas_changes <- self$checkAtlasConceptSets(atlasConnection, stopOnError = stopOnError)
+      if (!is.null(check_atlas_changes)) {
+        check_atlas_changes <- dplyr::filter(check_atlas_changes, hasChanged)
+      }
 
       if (is.null(check_atlas_changes) || nrow(check_atlas_changes) == 0) {
         cli::cli_alert_info("No changed ATLAS concept sets found. All concept sets are current.")
@@ -2467,11 +2491,22 @@ ConceptSetManifest <- R6::R6Class(
         existing_path <- check_atlas_changes$filePath[i]
         existing_id <- check_atlas_changes$id[i]
 
-        # Fetch JSON from ATLAS
+        # Fetch JSON from ATLAS. By default a failed fetch stops
+        # the sync, since skipping the concept set would leave the manifest
+        # silently out of date
         cs_def <- tryCatch(
           atlasConnection$getConceptSetDefinition(conceptSetId = row_atlas_id),
           error = function(e) {
-            cli::cli_warn("Failed to fetch atlasId {row_atlas_id}: {e$message}")
+            if (stopOnError) {
+              cli::cli_abort(
+                "Failed to fetch ATLAS concept set {row_atlas_id} ({row_label}).",
+                parent = e
+              )
+            }
+            cli::cli_warn(c(
+              "Failed to fetch ATLAS concept set {row_atlas_id} ({row_label}); skipping it because {.code stopOnError = FALSE}.",
+              x = "{conditionMessage(e)}"
+            ))
             NULL
           }
         )

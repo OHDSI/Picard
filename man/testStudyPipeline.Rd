@@ -29,6 +29,13 @@ pipelineVersion value is interpreted as the test namespace and is
 used for test cohort tables and output folders. Test runs are allowed on
 development branches but rejected on the main branch.
 }
+\details{
+For each config block in turn, the pipeline sources the input
+builder scripts (see \code{\link{sourceInputBuilderScripts}}), generates
+that block's cohorts, and runs its tasks, before moving to the next block.
+Builders can therefore make database-specific changes (e.g. concept ids in
+custom SQL) without the next block's builders overwriting them.
+}
 \examples{
 \dontrun{
 # Test full pipeline on develop branch
