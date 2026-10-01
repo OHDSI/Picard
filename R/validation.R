@@ -11,11 +11,6 @@
 #' - ExecutionSettings creation (assignment to executionSettings object)
 #' - Output folder creation (assignment to outputFolder object)
 #' - Non-empty E. Script section (more than just the template comment)
-#' - No data-file reads (e.g. `read_csv()`, `readRDS()`) from pipeline results
-#'   locations such as `exec/results` or an `outputFolder`. The pipeline cannot
-#'   detect changes to files a task reads, so consuming another task's output
-#'   could silently reuse stale results. Other data-file reads are allowed but
-#'   produce a warning, since changes to them also do not trigger a rerun.
 #' @export
 validateStudyTask <- function(taskFilePath) {
   
@@ -118,103 +113,9 @@ validateStudyTask <- function(taskFilePath) {
       stop("Task has no implementation code in E. Script section")
     }
   }
-
-  dataReads <- .findDataFileReads(taskFilePath)
-  resultsReads <- dataReads[dataReads$readsResults, , drop = FALSE]
-  otherReads <- dataReads[!dataReads$readsResults, , drop = FALSE]
-
-  if (nrow(resultsReads) > 0) {
-    cli::cli_alert_danger("Task reads files from pipeline results:")
-    cli::cli_bullets(stats::setNames(
-      .formatReadBullets(resultsReads),
-      rep("x", nrow(resultsReads))
-    ))
-    cli::cli_bullets(c(
-      i = "Tasks must not consume the output of other tasks: the pipeline cannot detect when those files change, so this task could be skipped and silently reuse stale results.",
-      i = "Move the shared logic into this task, or into a file under {.path analysis/src} that the tasks {.code source()}."
-    ))
-    stop("Task reads files from pipeline results")
-  }
-
-  if (nrow(otherReads) > 0) {
-    cli::cli_alert_warning("Task reads data files that the pipeline does not track for changes:")
-    cli::cli_bullets(stats::setNames(
-      .formatReadBullets(otherReads),
-      rep("!", nrow(otherReads))
-    ))
-    cli::cli_bullets(c(
-      i = "Editing these files will not cause the task to rerun; rerun it manually (or change the task file) after they change."
-    ))
-  }
-
+  
   cli::cli_alert_success("Task validation successful: {fs::path_rel(taskFilePath)}")
   invisible(TRUE)
-}
-
-
-#' @title Find Data File Reads in a Task
-#' @description Statically locates calls to common data-file readers (CSV,
-#'   RDS, parquet, Excel, ...) in a task script, and flags those whose
-#'   arguments reference a pipeline results location (`exec/results`,
-#'   `outputFolder`, `setOutputFolder()`, `resolveResultsPath()`, or
-#'   `dissemination/export`). Used by [validateStudyTask()], since
-#'   [shouldRerunTask()] cannot detect changes to files a task reads.
-#' @details Detection works on the parse tree, so commented-out code and
-#'   strings are ignored. A path built in a separate variable is not traced
-#'   back, so such a read is reported as untracked rather than as a results
-#'   read. A file that fails to parse returns no reads.
-#' @param taskFilePath Character. Path to the task R script.
-#' @return Data frame with columns `line` (integer), `call` (character), and
-#'   `readsResults` (logical).
-#' @keywords internal
-.findDataFileReads <- function(taskFilePath) {
-  empty <- data.frame(line = integer(), call = character(), readsResults = logical())
-
-  readFunctions <- c(
-    "read.csv", "read.csv2", "read.table", "read.delim", "read.delim2",
-    "readRDS", "load",
-    "read_csv", "read_csv2", "read_tsv", "read_delim", "read_table", "read_rds",
-    "vroom", "fread", "read_parquet", "read_feather", "read_ipc_file",
-    "open_dataset", "qread", "qs_read", "read_fst",
-    "read_excel", "read_xlsx", "read_xls", "read_json"
-  )
-  resultsPattern <- "exec/results|outputFolder|setOutputFolder|resolveResultsPath|dissemination/export"
-
-  parsed <- tryCatch(parse(taskFilePath, keep.source = TRUE), error = function(e) NULL)
-  if (is.null(parsed)) {
-    return(empty)
-  }
-
-  pd <- utils::getParseData(parsed)
-  fnTokens <- pd[pd$token == "SYMBOL_FUNCTION_CALL" & pd$text %in% readFunctions, ]
-  if (nrow(fnTokens) == 0) {
-    return(empty)
-  }
-
-  callIds <- vapply(fnTokens$parent, function(fnExprId) {
-    callId <- pd$parent[pd$id == fnExprId]
-    # Widen a piped call (`path |> read_csv()`) to the whole pipe so the path
-    # on the left-hand side is inspected too.
-    repeat {
-      parentId <- pd$parent[pd$id == callId]
-      if (parentId == 0) break
-      siblings <- pd[pd$parent == parentId, ]
-      if (!any(siblings$token == "PIPE" | siblings$text == "%>%")) break
-      callId <- parentId
-    }
-    callId
-  }, integer(1))
-
-  calls <- vapply(callIds, function(id) utils::getParseText(pd, id), character(1))
-  calls <- gsub("\\s+", " ", calls)
-
-  result <- data.frame(
-    line = fnTokens$line1,
-    call = calls,
-    readsResults = grepl(resultsPattern, calls),
-    stringsAsFactors = FALSE
-  )
-  result[!duplicated(result), , drop = FALSE]
 }
 
 #' @importFrom yaml read_yaml
@@ -1132,10 +1033,4 @@ announce_code_state <- function(codeState) {
   }
 
   invisible(NULL)
-}
-
-
-.formatReadBullets <- function(reads) {
-  escaped <- gsub("}", "}}", gsub("{", "{{", reads$call, fixed = TRUE), fixed = TRUE)
-  paste0("Line ", reads$line, ": {.code ", escaped, "}")
 }

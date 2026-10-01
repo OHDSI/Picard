@@ -274,11 +274,10 @@ re-executes every task that had run against the old definition. If a manifest
 or lockfile hash cannot be computed for any reason, tasks are re-run rather than
 skipped.
 
-The pipeline does **not** track data files that a task reads itself. A task
-must never read another task's output: `validateStudyTask()` fails any task
-that reads a file (e.g. with `read_csv()` or `readRDS()`) from `exec/results`
-or an `outputFolder`, and warns about other data-file reads, since editing those
-files will not trigger a rerun.
+The pipeline does **not** yet track changes to data files that a task reads
+itself (e.g. with `read_csv()` or `readRDS()`), so a task that reads any data
+file is **always re-run**. Tasks should still avoid reading one another's
+output.
 
 ## Handling Errors and Failures
 

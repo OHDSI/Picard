@@ -295,7 +295,6 @@ All task files must pass validation before execution:
 4. Section D must create an `executionSettings` object via `createExecutionSettingsFromConfig()`
 5. Section D must create an `outputFolder` object via `setOutputFolder()`
 6. Section E must contain actual code (not just comments or template placeholders)
-7. The task must not read files from pipeline results (`exec/results`, an `outputFolder`) — tasks must not consume one another's output. Other data-file reads produce a warning, because the pipeline does not detect changes to them
 
 **Why Validation Matters:**
 

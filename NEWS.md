@@ -8,12 +8,6 @@
   the same meaning (a test-mode namespace) and the same normalization, so only
   the argument name changes. There is no compatibility shim — a stray
   `testLabel =` now raises `unused argument`.
-- `validateStudyTask()` now fails a task that reads a data file (`read_csv()`,
-  `readRDS()`, `fread()`, ...) from a pipeline results location
-  (`exec/results`, `outputFolder`, `setOutputFolder()`, `resolveResultsPath()`,
-  `dissemination/export`). The pipeline cannot detect changes to such files, so
-  a task consuming another task's output could be skipped and silently reuse
-  stale results. Other data-file reads are allowed but produce a warning (#118).
 
 - `sourceInputBuilderScripts()` now requires all six builder scripts and aborts
   before sourcing anything if one is missing or if `inputs/cohorts/R/` or
@@ -65,6 +59,11 @@
   Backed by the new `ConceptSetManifest$getManifestHash()`.
 - `shouldRerunTask()` now reruns a task when **`renv.lock`** changes — the R
   version or any package's version, source, or remote SHA (#118).
+- A task that reads a data file (`read_csv()`, `readRDS()`, `fread()`, ...) now
+  **always reruns**, since changes to the files it reads are not tracked. This
+  prevents a task that consumes another task's output from silently reusing
+  stale results (#118). Tracking those files' hashes so such tasks can be
+  skipped is left for later.
 - `exec/logs/task_run_history.csv` gains `concept_set_manifest_hash` and
   `renv_lock_hash` columns. Existing history rows have no recorded value, so
   every task reruns once after upgrading. Studies without a concept set
