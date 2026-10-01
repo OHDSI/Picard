@@ -2362,17 +2362,17 @@ ConceptSetManifest <- R6::R6Class(
         current_hash <- atlas_subset$hash[i]
         row_file_path <- atlas_subset$file_path[i]
 
-        # Fetch JSON from ATLAS and compare hashes
+        # Fetch JSON from ATLAS and compare hashes. A failed fetch stops the sync:
+        # skipping the concept set would leave the manifest silently out of date
         cs_def <- tryCatch(
           atlasConnection$getConceptSetDefinition(conceptSetId = row_atlas_id),
           error = function(e) {
-            cli::cli_warn("Failed to fetch atlasId {row_atlas_id}: {e$message}")
-            NULL
+            cli::cli_abort(
+              "Failed to fetch ATLAS concept set {row_atlas_id} ({row_label}).",
+              parent = e
+            )
           }
         )
-        if (is.null(cs_def)) {
-          next
-        }
 
         expression_json <- c(cs_def$expression[1], "\n") |> paste(collapse = "") # make sure matches file read
         remote_hash <- rlang::hash(expression_json)
@@ -2393,12 +2393,6 @@ ConceptSetManifest <- R6::R6Class(
           localHash = current_hash,
           remoteHash = remote_hash
         )
-      }
-
-      res <- Filter(Negate(is.null), res)
-      if (length(res) == 0) {
-        cli::cli_alert_warning("No ATLAS concept sets could be checked")
-        return(invisible(NULL))
       }
 
       res_final <- do.call('rbind', res) |>
@@ -2470,17 +2464,17 @@ ConceptSetManifest <- R6::R6Class(
         existing_path <- check_atlas_changes$filePath[i]
         existing_id <- check_atlas_changes$id[i]
 
-        # Fetch JSON from ATLAS
+        # Fetch JSON from ATLAS. A failed fetch stops the sync:
+        # skipping the concept set would leave the manifest silently out of date
         cs_def <- tryCatch(
           atlasConnection$getConceptSetDefinition(conceptSetId = row_atlas_id),
           error = function(e) {
-            cli::cli_warn("Failed to fetch atlasId {row_atlas_id}: {e$message}")
-            NULL
+            cli::cli_abort(
+              "Failed to fetch ATLAS concept set {row_atlas_id} ({row_label}).",
+              parent = e
+            )
           }
         )
-        if (is.null(cs_def)) {
-          next
-        }
 
         expression_json <- cs_def$expression[1]
         expression_json_file <- c(expression_json, "\n") |> paste(collapse = "")

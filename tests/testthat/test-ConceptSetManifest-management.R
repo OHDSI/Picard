@@ -558,3 +558,24 @@ testthat::test_that("updateAtlasConceptSets returns NULL when no ATLAS concept s
   ))
   testthat::expect_null(res)
 })
+
+# Testing: a failed ATLAS fetch stops the sync instead of skipping the concept set.
+testthat::test_that("checkAtlasConceptSets and updateAtlasConceptSets abort when a fetch fails", {
+  setup <- csm_test_new_manifest("mgmt-cs-atlas-fetch-fail")
+  manifest <- setup$manifest
+  jsons <- csm_test_atlas_fixture_jsons()
+  manifest$importAtlasConceptSets(
+    conceptSetsLoad = data.frame(atlasId = 100L, label = "T2D Concepts", category = "condition"),
+    atlasConnection = csm_test_fake_atlas_connection(list("100" = jsons$v1))
+  )
+  failing_conn <- list(getConceptSetDefinition = function(conceptSetId) stop("ATLAS unreachable"))
+
+  for (method in c("checkAtlasConceptSets", "updateAtlasConceptSets")) {
+    err <- testthat::expect_error(
+      suppressMessages(manifest[[method]](atlasConnection = failing_conn)),
+      regexp = "Failed to fetch ATLAS concept set 100 (T2D Concepts)",
+      fixed = TRUE
+    )
+    testthat::expect_match(conditionMessage(err$parent), "ATLAS unreachable")
+  }
+})

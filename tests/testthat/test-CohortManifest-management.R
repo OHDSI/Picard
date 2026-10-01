@@ -1377,3 +1377,24 @@ testthat::test_that("updateAtlasCohorts returns NULL when no ATLAS cohorts are r
   ))
   testthat::expect_null(res)
 })
+
+# Testing: a failed ATLAS fetch stops the sync instead of skipping the cohort.
+testthat::test_that("checkAtlasCohorts and updateAtlasCohorts abort when a fetch fails", {
+  setup <- cm_test_new_manifest("mgmt-atlas-fetch-fail")
+  manifest <- setup$manifest
+  jsons <- cm_test_atlas_fixture_jsons()
+  manifest$importAtlasCohorts(
+    cohortsLoad = data.frame(atlasId = 100L, label = "Atlas Cohort", category = "Target"),
+    atlasConnection = cm_test_fake_atlas_connection(list("100" = jsons$v1))
+  )
+  failing_conn <- list(getCohortDefinition = function(cohortId) stop("ATLAS unreachable"))
+
+  for (method in c("checkAtlasCohorts", "updateAtlasCohorts")) {
+    err <- testthat::expect_error(
+      suppressMessages(manifest[[method]](atlasConnection = failing_conn)),
+      regexp = "Failed to fetch ATLAS cohort 100 (Atlas Cohort)",
+      fixed = TRUE
+    )
+    testthat::expect_match(conditionMessage(err$parent), "ATLAS unreachable")
+  }
+})
