@@ -8,7 +8,8 @@ sourceInputBuilderScripts(
   projectPath = here::here(),
   configBlock = NULL,
   pipelineVersion = "prod",
-  verbose = TRUE
+  verbose = TRUE,
+  stopOnError = TRUE
 )
 }
 \arguments{
@@ -24,6 +25,9 @@ matching \code{\link{createExecutionSettingsFromConfig}}; pass the test
 namespace (e.g. \code{"dev"}) when building inputs for a test run.}
 
 \item{verbose}{Logical. If TRUE (default), displays which scripts are being sourced.}
+
+\item{stopOnError}{Logical. If TRUE (default), stop at the first builder
+script that errors. If FALSE, warn and continue with the remaining scripts.}
 }
 \value{
 Invisibly returns a list with:
@@ -32,8 +36,8 @@ Invisibly returns a list with:
 \item \code{config_blocks}: Character vector of config blocks processed (NULL when
 \code{configBlock} is NULL)
 \item \code{directories_checked}: Character vector of directories checked
-\item \code{error_summary}: List of any errors encountered (always empty on
-successful return; a non-empty list raises an error instead)
+\item \code{error_summary}: Named list of error messages from failed scripts (only
+non-empty when \code{stopOnError = FALSE})
 }
 }
 \description{
@@ -79,8 +83,10 @@ pipelineVersion = inputBuilderEnv$pipelineVersion)}. When \code{configBlock}
 is NULL, scripts are sourced once with \code{inputBuilderEnv$configBlock}
 set to NULL.
 
-Errors inside builder scripts are collected across all scripts and config
-blocks (so they can be fixed in one pass) and then raised as a single error:
-input building is a hard precondition of pipeline execution, so a failed
-script stops the run before \code{execStudyPipeline()} can be reached.
+By default, an error inside a builder script stops the run immediately:
+input building is a hard precondition of pipeline execution, and later
+builders may depend on earlier ones, so a failed script must stop
+\code{main.R} before \code{execStudyPipeline()} can be reached. Set
+\code{stopOnError = FALSE} to instead warn and continue with the remaining
+scripts; the errors are then returned in \code{error_summary}.
 }

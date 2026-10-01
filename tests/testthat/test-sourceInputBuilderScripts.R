@@ -40,10 +40,31 @@ testthat::test_that("sourceInputBuilderScripts sources scripts in order on succe
   testthat::expect_equal(get("sibs_test_marker", envir = globalenv()), "ran")
 })
 
-# Testing: a failing builder script aborts the run so the pipeline cannot start,
-# and all script errors are reported together.
-testthat::test_that("sourceInputBuilderScripts aborts when a builder script fails", {
+# Testing: by default, a failing builder script stops the run immediately, so
+# later builders (and the pipeline) never run on a partial manifest.
+testthat::test_that("sourceInputBuilderScripts stops at the first failing script by default", {
   root <- sibs_test_project("sibs-fail")
+  writeLines(
+    "stop('concept set boom')",
+    fs::path(root, "inputs", "conceptSets", "R", "import_atlas_concept_set.R")
+  )
+  writeLines(
+    "sibs_test_marker <- 'ran'",
+    fs::path(root, "inputs", "cohorts", "R", "import_sql_cohort.R")
+  )
+
+  err <- testthat::expect_error(
+    sourceInputBuilderScripts(projectPath = root, verbose = FALSE),
+    regexp = "import_atlas_concept_set.R"
+  )
+  testthat::expect_match(conditionMessage(err$parent), "concept set boom")
+  testthat::expect_false(exists("sibs_test_marker", envir = globalenv()))
+})
+
+# Testing: stopOnError = FALSE warns for each failing script, keeps going, and
+# returns the errors.
+testthat::test_that("sourceInputBuilderScripts warns and continues when stopOnError = FALSE", {
+  root <- sibs_test_project("sibs-warn")
   writeLines(
     "stop('concept set boom')",
     fs::path(root, "inputs", "conceptSets", "R", "import_atlas_concept_set.R")
@@ -52,16 +73,31 @@ testthat::test_that("sourceInputBuilderScripts aborts when a builder script fail
     "stop('cohort boom')",
     fs::path(root, "inputs", "cohorts", "R", "import_sql_cohort.R")
   )
+  writeLines(
+    "sibs_test_marker <- 'ran'",
+    fs::path(root, "inputs", "cohorts", "R", "build_dependent_cohorts.R")
+  )
+  withr::defer(rm("sibs_test_marker", envir = globalenv()))
 
-  err <- testthat::expect_error(
-    sourceInputBuilderScripts(projectPath = root, verbose = FALSE),
-    regexp = "input builder script"
+  warnings <- character(0)
+  res <- withCallingHandlers(
+    sourceInputBuilderScripts(projectPath = root, verbose = FALSE, stopOnError = FALSE),
+    warning = function(w) {
+      warnings <<- c(warnings, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }
   )
 
-  # Both failures are reported in one pass, not just the first
-  msg <- conditionMessage(err)
-  testthat::expect_true(grepl("concept set boom", msg, fixed = TRUE))
-  testthat::expect_true(grepl("cohort boom", msg, fixed = TRUE))
+  testthat::expect_length(warnings, 2)
+  testthat::expect_equal(
+    res$error_summary,
+    list(
+      "inputs/conceptSets/R/import_atlas_concept_set.R" = "concept set boom",
+      "inputs/cohorts/R/import_sql_cohort.R" = "cohort boom"
+    )
+  )
+  testthat::expect_length(res$sourced_files, 4)
+  testthat::expect_equal(get("sibs_test_marker", envir = globalenv()), "ran")
 })
 
 # Testing: a missing required script aborts before anything is sourced.
@@ -132,8 +168,9 @@ testthat::test_that("sourceInputBuilderScripts runs scripts once per config bloc
   testthat::expect_equal(res$config_blocks, c("db_a", "db_b"))
 })
 
-# Testing: failures are reported per config block.
-testthat::test_that("sourceInputBuilderScripts reports failures per config block", {
+# Testing: a failure names the config block it happened in, and stops before
+# later blocks run.
+testthat::test_that("sourceInputBuilderScripts reports the failing config block", {
   root <- sibs_test_project("sibs-env-fail")
   writeLines(
     "if (inputBuilderEnv$configBlock == 'db_b') stop('db_b boom')",
@@ -143,12 +180,14 @@ testthat::test_that("sourceInputBuilderScripts reports failures per config block
   err <- testthat::expect_error(
     sourceInputBuilderScripts(
       projectPath = root,
-      configBlock = c("db_a", "db_b"),
+      configBlock = c("db_a", "db_b", "db_c"),
       verbose = FALSE
     ),
-    regexp = "1 input builder script"
+    regexp = "[db_b]",
+    fixed = TRUE
   )
-  testthat::expect_true(grepl("[db_b]", conditionMessage(err), fixed = TRUE))
+  testthat::expect_match(conditionMessage(err$parent), "db_b boom")
+  testthat::expect_equal(get("inputBuilderEnv", envir = globalenv())$configBlock, "db_b")
 })
 
 # Testing: pipelineVersion defaults to "prod", not the version in config.yml

@@ -1322,10 +1322,12 @@ clearPendingPR <- function() {
 #' is NULL, scripts are sourced once with \code{inputBuilderEnv$configBlock}
 #' set to NULL.
 #'
-#' Errors inside builder scripts are collected across all scripts and config
-#' blocks (so they can be fixed in one pass) and then raised as a single error:
-#' input building is a hard precondition of pipeline execution, so a failed
-#' script stops the run before \code{execStudyPipeline()} can be reached.
+#' By default, an error inside a builder script stops the run immediately:
+#' input building is a hard precondition of pipeline execution, and later
+#' builders may depend on earlier ones, so a failed script must stop
+#' \code{main.R} before \code{execStudyPipeline()} can be reached. Set
+#' \code{stopOnError = FALSE} to instead warn and continue with the remaining
+#' scripts; the errors are then returned in \code{error_summary}.
 #'
 #' @param projectPath Character. Path to the project root. Defaults to current project.
 #' @param configBlock Character vector. Config block name(s) from \code{config.yml}.
@@ -1336,25 +1338,29 @@ clearPendingPR <- function() {
 #'   matching \code{\link{createExecutionSettingsFromConfig}}; pass the test
 #'   namespace (e.g. \code{"dev"}) when building inputs for a test run.
 #' @param verbose Logical. If TRUE (default), displays which scripts are being sourced.
+#' @param stopOnError Logical. If TRUE (default), stop at the first builder
+#'   script that errors. If FALSE, warn and continue with the remaining scripts.
 #' @return Invisibly returns a list with:
 #'   - `sourced_files`: Character vector of sourced files (absolute paths)
 #'   - `config_blocks`: Character vector of config blocks processed (NULL when
 #'     `configBlock` is NULL)
 #'   - `directories_checked`: Character vector of directories checked
-#'   - `error_summary`: List of any errors encountered (always empty on
-#'     successful return; a non-empty list raises an error instead)
+#'   - `error_summary`: Named list of error messages from failed scripts (only
+#'     non-empty when `stopOnError = FALSE`)
 #'
 #' @export 
 sourceInputBuilderScripts <- function(
     projectPath = here::here(),
     configBlock = NULL,
     pipelineVersion = "prod",
-    verbose = TRUE) {
+    verbose = TRUE,
+    stopOnError = TRUE) {
 
   checkmate::assert_character(
     configBlock,
     min.len = 1, any.missing = FALSE, null.ok = TRUE
   )
+  checkmate::assert_flag(stopOnError)
 
   # Initialize tracking
   sourced_files <- character(0)
@@ -1424,68 +1430,67 @@ sourceInputBuilderScripts <- function(
   # A NULL configBlock still gets a single pass
   blocks <- if (is.null(configBlock)) list(NULL) else as.list(configBlock)
 
-  tryCatch({
-    if (verbose) {
-      cli::cli_inform("Sourcing pre-pipeline input builder scripts in dependency order...")
+  fn_env <- rlang::current_env()
+
+  if (verbose) {
+    cli::cli_inform("Sourcing pre-pipeline input builder scripts in dependency order...")
+  }
+
+  for (block in blocks) {
+    if (!is.null(block)) {
+      cli::cli_alert_info("Processing config block: {block}")
     }
 
-    for (block in blocks) {
-      if (!is.null(block)) {
-        cli::cli_alert_info("Processing config block: {block}")
-      }
-
-      inputBuilderEnv <- createInputBuilderEnv(
-        configBlock = block,
-        pipelineVersion = pipelineVersion,
-        verbose = FALSE
-      )
-      assign("inputBuilderEnv", inputBuilderEnv, envir = globalenv())
-
-      # Source files in the MANDATORY ORDER
-      for (file in source_order) {
-        tryCatch({
-          if (verbose) {
-            cli::cli_bullets(c(
-              "bullet" = "Sourcing {.file {fs::path_file(file)}} from {.file {fs::path_file(dirname(file))}}"
-            ))
-          }
-          source(file = file, local = FALSE)
-          sourced_files <- union(sourced_files, file)
-        }, error = function(e) {
-          error_key <- fs::path_rel(file)
-          if (!is.null(block)) {
-            error_key <- paste0("[", block, "] ", error_key)
-          }
-          error_msg <- paste0("Error sourcing ", error_key, ": ", e$message)
-          errors[[error_key]] <<- error_msg
-          cli::cli_alert_danger(error_msg)
-        })
-      }
-    }
-
-    if (length(sourced_files) > 0) {
-      cli::cli_alert_success(
-        "Successfully sourced {length(sourced_files)} input builder script(s)"
-      )
-    }
-
-  }, error = function(e) {
-    cli::cli_alert_danger(
-      "Error in sourceInputBuilderScripts(): {e$message}"
+    inputBuilderEnv <- createInputBuilderEnv(
+      configBlock = block,
+      pipelineVersion = pipelineVersion,
+      verbose = FALSE
     )
-    errors[["critical"]] <<- e$message
-  })
+    assign("inputBuilderEnv", inputBuilderEnv, envir = globalenv())
 
-  # Input building is a hard precondition of pipeline execution: a failed
-  # builder script means the manifest may be incomplete or stale, so abort
-  # rather than letting the caller proceed to execStudyPipeline(). All script
-  # errors are reported together so they can be fixed in one pass.
-  if (length(errors) > 0) {
-    cli::cli_abort(c(
-      "{length(errors)} input builder script(s) failed:",
-      stats::setNames(unlist(errors), rep("x", length(errors))),
-      i = "Fix the errors above and re-run. Do not execute the pipeline until input building succeeds."
-    ))
+    # Source files in the MANDATORY ORDER
+    for (file in source_order) {
+      script_label <- fs::path_rel(file, projectPath)
+      if (!is.null(block)) {
+        script_label <- paste0("[", block, "] ", script_label)
+      }
+      if (verbose) {
+        cli::cli_bullets(c("bullet" = "Sourcing {.file {script_label}}"))
+      }
+
+      tryCatch({
+        source(file = file, local = FALSE)
+        sourced_files <- union(sourced_files, file)
+      }, error = function(e) {
+        # Input building is a hard precondition of pipeline execution: a failed
+        # builder script means the manifest may be incomplete or stale, and
+        # later builders may depend on it, so stop here by default
+        if (stopOnError) {
+          cli::cli_abort(
+            c(
+              "Input builder script {.file {script_label}} failed.",
+              i = "Fix the error and re-run. Do not execute the pipeline until input building succeeds."
+            ),
+            parent = e,
+            call = fn_env
+          )
+        }
+        errors[[script_label]] <<- conditionMessage(e)
+        cli::cli_warn(
+          c(
+            "Input builder script {.file {script_label}} failed; continuing because {.code stopOnError = FALSE}.",
+            x = "{conditionMessage(e)}"
+          ),
+          call = fn_env
+        )
+      })
+    }
+  }
+
+  if (length(sourced_files) > 0) {
+    cli::cli_alert_success(
+      "Successfully sourced {length(sourced_files)} input builder script(s)"
+    )
   }
 
   ll <- list(
@@ -1701,11 +1706,16 @@ createDisseminationEnv <- function(
 #' @param verbose Logical. If TRUE (default), displays which scripts are being sourced.
 #' @param warnMissing Logical. If TRUE (default), warns when the dissemination
 #'   scripts directory doesn't exist.
+#' @param stopOnError Logical. If TRUE (default), stop at the first
+#'   dissemination script that errors, so a broken script cannot let
+#'   \code{main.R} carry on with partial output. If FALSE, warn and continue
+#'   with the remaining scripts.
 #'
 #' @return Invisibly returns a list with:
 #'   - `sourced_files`: Character vector of sourced files (absolute paths)
 #'   - `directories_checked`: Character vector of directories checked
-#'   - `error_summary`: List of any errors encountered
+#'   - `error_summary`: Named list of error messages from failed scripts (only
+#'     non-empty when `stopOnError = FALSE`)
 #'   - `disseminationEnv`: List containing pipelineVersion, databaseIds, outputPath
 #'
 #' @details
@@ -1735,7 +1745,10 @@ sourceDisseminationScripts <- function(
     databaseIds = NULL,
     outputPath = here::here("dissemination/pretty"),
     verbose = TRUE,
-    warnMissing = TRUE) {
+    warnMissing = TRUE,
+    stopOnError = TRUE) {
+
+  checkmate::assert_flag(stopOnError)
 
   # Initialize tracking
   sourced_files <- character(0)
@@ -1752,54 +1765,34 @@ sourceDisseminationScripts <- function(
     verbose = FALSE
   )
 
+  fn_env <- rlang::current_env()
+
   # Define dissemination scripts directory
   diss_dir <- fs::path(projectPath, "dissemination/pretty/R")
+  directories_checked <- c(directories_checked, diss_dir)
 
-  tryCatch({
-    if (verbose) {
-      cli::cli_inform("Sourcing dissemination scripts...")
-    }
+  if (verbose) {
+    cli::cli_inform("Sourcing dissemination scripts...")
+  }
 
-    directories_checked <- c(directories_checked, diss_dir)
-
-    # Check if directory exists
-    if (!fs::dir_exists(diss_dir)) {
-      if (warnMissing) {
-        cli::cli_alert_warning(
-          "Dissemination scripts directory not found: {.file {fs::path_rel(diss_dir)}}"
-        )
-      }
-      cli::cli_alert_info("Skipping dissemination scripts")
-      ll <- list(
-        sourced_files = sourced_files,
-        directories_checked = directories_checked,
-        error_summary = errors,
-        disseminationEnv = disseminationEnv
+  r_files <- character(0)
+  if (!fs::dir_exists(diss_dir)) {
+    if (warnMissing) {
+      cli::cli_alert_warning(
+        "Dissemination scripts directory not found: {.file {fs::path_rel(diss_dir)}}"
       )
-      return(invisible(ll))
     }
-
-    # Find all .R files in this directory
-    r_files <- fs::dir_ls(diss_dir, glob = "*.R", type = "file")
-
-    # Sort alphabetically
-    r_files <- sort(r_files)
-
-    if (length(r_files) == 0) {
-      if (verbose) {
-        cli::cli_alert_info(
-          "No dissemination scripts found in {.file {fs::path_rel(diss_dir)}}"
-        )
-      }
-      ll <- list(
-        sourced_files = sourced_files,
-        directories_checked = directories_checked,
-        error_summary = errors,
-        disseminationEnv = disseminationEnv
+    cli::cli_alert_info("Skipping dissemination scripts")
+  } else {
+    r_files <- sort(fs::dir_ls(diss_dir, glob = "*.R", type = "file"))
+    if (length(r_files) == 0 && verbose) {
+      cli::cli_alert_info(
+        "No dissemination scripts found in {.file {fs::path_rel(diss_dir)}}"
       )
-      return(invisible(ll))
     }
+  }
 
+  if (length(r_files) > 0) {
     # Make disseminationEnv available in global environment for scripts to use
     assign("disseminationEnv", disseminationEnv, envir = globalenv())
 
@@ -1809,23 +1802,31 @@ sourceDisseminationScripts <- function(
       )
     }
 
-    # Source each file
     for (file in r_files) {
+      script_label <- fs::path_rel(file, projectPath)
+      if (verbose) {
+        cli::cli_bullets(c("bullet" = "Sourcing {.file {fs::path_file(file)}}"))
+      }
+
       tryCatch({
-        if (verbose) {
-          cli::cli_bullets(c(
-            "bullet" = "Sourcing {.file {fs::path_file(file)}}"
-          ))
-        }
         source(file = file, local = FALSE)
         sourced_files <- c(sourced_files, file)
       }, error = function(e) {
-        error_msg <- paste0(
-          "Error sourcing {fs::path_rel(file)}: ",
-          e$message
+        if (stopOnError) {
+          cli::cli_abort(
+            "Dissemination script {.file {script_label}} failed.",
+            parent = e,
+            call = fn_env
+          )
+        }
+        errors[[script_label]] <<- conditionMessage(e)
+        cli::cli_warn(
+          c(
+            "Dissemination script {.file {script_label}} failed; continuing because {.code stopOnError = FALSE}.",
+            x = "{conditionMessage(e)}"
+          ),
+          call = fn_env
         )
-        errors[[fs::path_rel(file)]] <- error_msg
-        cli::cli_alert_danger(error_msg)
       })
     }
 
@@ -1836,13 +1837,7 @@ sourceDisseminationScripts <- function(
     } else {
       cli::cli_alert_info("No dissemination scripts were sourced")
     }
-
-  }, error = function(e) {
-    cli::cli_alert_danger(
-      "Error in sourceDisseminationScripts(): {e$message}"
-    )
-    errors[["critical"]] <- e$message
-  })
+  }
 
   ll <- list(
     sourced_files = sourced_files,

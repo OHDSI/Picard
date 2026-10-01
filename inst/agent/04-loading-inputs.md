@@ -82,6 +82,11 @@ error before sourcing anything if one is missing, or if `inputs/cohorts/R/` or
 never run. Recreate a deleted builder with `makeInputBuilderScript()`, and put
 helper code in a subfolder such as `inputs/cohorts/R/src/`.
 
+If a builder script errors, `sourceInputBuilderScripts()` stops immediately, so
+later builders and the pipeline never run on a partially built manifest. Pass
+`stopOnError = FALSE` to warn and continue with the remaining scripts instead;
+the errors are returned in `error_summary`.
+
 ### Using a Database Connection in Builder Scripts
 
 Some builders need a database connection, for example to resolve concept sets
