@@ -813,7 +813,7 @@ cm_test_atlas_fixture_jsons <- function() {
   list(v1 = readr::read_file(v1_path), v2 = readr::read_file(v2_path))
 }
 
-# Testing: importAtlasCohorts errors when load rows are already registered (transient csv).
+# Testing: importAtlasCohorts errors when load rows are already registered (default stopIfExists = TRUE).
 testthat::test_that("importAtlasCohorts errors on already-registered rows", {
   setup <- cm_test_new_manifest("mgmt-atlas-import-dup")
   manifest <- setup$manifest

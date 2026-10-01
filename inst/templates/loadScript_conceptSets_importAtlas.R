@@ -80,9 +80,14 @@ library(picard)
 # ================================================================================
 
 # Reads inputs/conceptSets/conceptSetsLoad.csv and downloads CIRCE JSON
-# definitions from ATLAS. The load csv is for one-time imports only: rows
-# already registered in the manifest cause an error. Uncomment to import, then
-# comment it out again and delete the csv once the import succeeds.
+# definitions from ATLAS. Keep the load csv in the repo as the record of which
+# ATLAS concept sets the study uses, and add rows to it as the study grows.
+#
+# By default, rows already registered in the manifest cause an error, so the
+# import only adds new concept sets: uncomment it when you add rows, and comment
+# it out again once the import succeeds. Alternatively, pass
+# stopIfExists = FALSE to leave it uncommented and update registered rows in
+# place (definition, label, category, tags) on every run.
 # conceptSetManifest$importAtlasConceptSets(
 #   conceptSetsLoad = readr::read_csv(
 #     here::here("inputs/conceptSets/conceptSetsLoad.csv"),

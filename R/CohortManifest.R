@@ -1752,12 +1752,13 @@ CohortManifest <- R6::R6Class(
     #' Either create a dataframe or read in a csv file with columns `atlasId`, `label`, `category` (required) plus any
     #' additional columns treated as tag key-value pairs for tags. Calls `addAtlasCohort()` for each row.
     #'
-    #' By default, the load file is treated as a transient, one-time import
-    #' mechanism: rows whose atlasId is already registered in the manifest are
-    #' an error, not an update. Set `stopIfExists = FALSE` to instead update
+    #' The load file is kept in the study repository as the record of which
+    #' ATLAS cohorts the study uses. By default, rows whose atlasId is already
+    #' registered in the manifest are an error, not an update, so an import
+    #' only adds new cohorts. Set `stopIfExists = FALSE` to instead update
     #' those rows in place (delegates to `addAtlasCohort(stopIfExists = FALSE)`
-    #' for each), which supports iterating on the load file across repeated
-    #' runs. To sync registered cohorts with ATLAS without a load file, use
+    #' for each), which lets the whole load file be re-imported on every run.
+    #' To sync registered cohorts with ATLAS without re-importing, use
     #' `updateAtlasCohorts()`.
     #'
     #' @param cohortsLoad a data frame requiring the columns atlasId, label and category used to bulk add cohorts to the manifest
@@ -1809,8 +1810,7 @@ CohortManifest <- R6::R6Class(
 
       assigned_ids <- rep(NA_integer_, nrow(cohort_load_2))
 
-      # By default, the load csv is a transient, one-time import file —
-      # registered rows are an error, not an update mechanism. Fail fast
+      # By default registered rows are an error, not an update: fail fast
       # before importing anything, unless the caller opted into upserting.
       if (stopIfExists && nrow(existing_cohorts) > 0) {
         offending <- paste0(
@@ -1820,7 +1820,8 @@ CohortManifest <- R6::R6Class(
         cli::cli_abort(c(
           "{nrow(existing_cohorts)} cohort(s) in the load file are already registered in the manifest:",
           stats::setNames(offending, rep("x", length(offending))),
-          i = "Remove them from the load csv, or re-run with {.code stopIfExists = FALSE} to update them in place.",
+          i = "To import only new rows, keep the import commented out until you add rows to the load csv.",
+          i = "To update registered rows in place on every run, re-run with {.code stopIfExists = FALSE}.",
           i = "To sync registered cohorts with ATLAS, run {.code updateAtlasCohorts()}."
         ))
       }

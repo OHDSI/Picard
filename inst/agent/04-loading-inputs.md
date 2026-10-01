@@ -144,6 +144,11 @@ conceptSetManifest$importAtlasConceptSets(
 
 This downloads JSON definitions to `inputs/conceptSets/json/` and updates your manifest with metadata.
 
+Keep `conceptSetsLoad.csv` in the repo as the record of which ATLAS concept
+sets the study uses. By default, re-importing rows that are already registered
+is an error, so the import only adds new rows; pass `stopIfExists = FALSE` to
+update registered rows in place instead.
+
 **Tip:** You can also pass the dataframe directly without reading from a file, which is useful for programmatic workflows.
 
 #### Step 2: Load and review
@@ -242,6 +247,11 @@ cohortManifest$importAtlasCohorts(
 
 Downloads CIRCE JSON definitions to `inputs/cohorts/json/` and records each
 cohort in SQLite.
+
+Keep `cohortsLoad.csv` in the repo as the record of which ATLAS cohorts the
+study uses. By default, re-importing rows that are already registered is an
+error, so the import only adds new rows; pass `stopIfExists = FALSE` to update
+registered rows in place instead.
 
 **Tip:** You can also pass the dataframe directly without reading from a file, which is useful for programmatic workflows.
 

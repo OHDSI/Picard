@@ -211,7 +211,7 @@ csm_test_atlas_fixture_jsons <- function() {
   list(v1 = v1_json, v2 = v2_json)
 }
 
-# Testing: importAtlasConceptSets errors when load rows are already registered (transient csv).
+# Testing: importAtlasConceptSets errors when load rows are already registered (default stopIfExists = TRUE).
 testthat::test_that("importAtlasConceptSets errors on already-registered rows", {
   setup <- csm_test_new_manifest("csm-atlas-import-dup")
   manifest <- setup$manifest
