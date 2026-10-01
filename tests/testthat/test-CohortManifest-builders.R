@@ -200,3 +200,79 @@ testthat::test_that("buildCensorCohort entry route registers censor cohort", {
 
   cm_test_assert_cohort_registered(manifest, "T2D_Censored_At_Death", expected_source_type = "derived", expected_cohort_type = "censor")
 })
+
+# Purpose: Mark cohorts 'stale' directly in the manifest sqlite.
+cm_test_mark_stale <- function(manifest, ids) {
+  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
+  on.exit(DBI::dbDisconnect(conn))
+  for (id in ids) {
+    DBI::dbExecute(conn, "UPDATE cohort_manifest SET status = 'stale' WHERE id = ?", list(as.integer(id)))
+  }
+}
+
+# Purpose: Evaluate skip status against a stored checksum, with the DBMS
+# checksum lookup mocked to return `stored_hash`.
+cm_test_skip_status <- function(manifest, cohort, cohort_hashes, stored_hash, env = parent.frame()) {
+  testthat::local_mocked_bindings(
+    querySql = function(...) data.frame(CHECKSUM = stored_hash),
+    .package = "DatabaseConnector",
+    .env = env
+  )
+  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
+  on.exit(DBI::dbDisconnect(conn))
+  evaluate_cohort_skip_status(
+    cohort = cohort,
+    sqlite_conn = conn,
+    cohort_schema = "work",
+    checksum_table = "cohort_checksum",
+    conn = NULL,
+    is_checksum_empty = FALSE,
+    cohort_hashes = cohort_hashes,
+    dbPath = manifest$getDbPath()
+  )
+}
+
+# Testing: the derived-cohort checksum covers the cohort's own SQL, so a changed
+# definition with unchanged parents is still detected without the 'stale' flag.
+testthat::test_that("compute_dependency_hash changes when the derived cohort's own SQL changes", {
+  setup <- cm_test_seed_manifest_for_builders("builders-dep-hash")
+  manifest <- setup$manifest
+  dep_id <- setup$cohorts$id[setup$cohorts$label == "Eligible_With_Exclusions"][1]
+  dep <- manifest$getCohortById(dep_id)
+  parent_hashes <- lapply(manifest$getManifest(), function(cd) cd$getSqlHash())
+  names(parent_hashes) <- vapply(manifest$getManifest(), function(cd) as.character(cd$getId()), character(1))
+
+  edited <- list(getId = function() dep$getId(), getSqlHash = function() "edited-sql-hash")
+
+  testthat::expect_false(identical(
+    compute_dependency_hash(manifest$getDbPath(), dep, parent_hashes),
+    compute_dependency_hash(manifest$getDbPath(), edited, parent_hashes)
+  ))
+})
+
+# Testing: a cohort flagged 'stale' in the shared manifest is skipped when this
+# database's stored checksum still matches, and regenerated when it does not.
+testthat::test_that("evaluate_cohort_skip_status decides by the per-database checksum, not the stale flag", {
+  setup <- cm_test_seed_manifest_for_builders("builders-skip-stale")
+  manifest <- setup$manifest
+  dep_id <- setup$cohorts$id[setup$cohorts$label == "Eligible_With_Exclusions"][1]
+  base_id <- setup$cohorts$id[setup$cohorts$label == "Chronic Kidney Disease"][1]
+  cm_test_mark_stale(manifest, c(dep_id, base_id))
+
+  parent_hashes <- lapply(manifest$getManifest(), function(cd) cd$getSqlHash())
+  names(parent_hashes) <- vapply(manifest$getManifest(), function(cd) as.character(cd$getId()), character(1))
+  dep <- manifest$getCohortById(dep_id)
+  base <- manifest$getCohortById(base_id)
+  dep_hash <- compute_dependency_hash(manifest$getDbPath(), dep, parent_hashes)
+
+  dep_status <- cm_test_skip_status(manifest, dep, parent_hashes, stored_hash = dep_hash)
+  testthat::expect_true(dep_status$is_stale)
+  testthat::expect_true(dep_status$should_skip)
+
+  base_status <- cm_test_skip_status(manifest, base, parent_hashes, stored_hash = base$getSqlHash())
+  testthat::expect_true(base_status$is_stale)
+  testthat::expect_true(base_status$should_skip)
+
+  testthat::expect_false(cm_test_skip_status(manifest, dep, parent_hashes, stored_hash = "other")$should_skip)
+  testthat::expect_false(cm_test_skip_status(manifest, base, parent_hashes, stored_hash = "other")$should_skip)
+})

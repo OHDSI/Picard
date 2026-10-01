@@ -5259,6 +5259,15 @@ CohortManifest <- R6::R6Class(
         # resolve if should skip
         if (skip_info$should_skip) {
           cli::cli_alert_info("Skipping cohort {cohort_id}: {cohort_label} ({cohort_type})")
+          # This database's table is up to date, so the cohort is no longer
+          # pending regeneration
+          if (isTRUE(skip_info$is_stale)) {
+            DBI::dbExecute(
+              sqlite_conn,
+              "UPDATE cohort_manifest SET status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+              list(cohort_id)
+            )
+          }
           new_row <- data.frame(
             cohort_id = cohort_id, 
             label = cohort_label, 

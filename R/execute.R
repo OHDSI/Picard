@@ -257,15 +257,16 @@ generateCohorts <- function(executionSettings, pipelineVersion,
   }
   
   # Display the cohorts that will be generated. This listing covers every
-  # registered cohort, including ones marked 'stale' — those are exactly the
-  # cohorts that need regenerating, so hiding them here would be backwards.
+  # registered cohort, including ones marked 'stale' (definition changed since
+  # last generated). Whether a cohort is actually regenerated is decided per
+  # database by the checksum stored in its work schema.
   staleCount <- sum(cmSummary$status == "stale", na.rm = TRUE)
 
   cli::cli_rule("Cohorts to Generate")
   cli::cli_alert_info("Found {nrow(cmSummary)} cohort(s) in manifest")
   if (staleCount > 0) {
     cli::cli_alert_warning(
-      "{staleCount} cohort(s) are marked stale and will be regenerated (flagged below)."
+      "{staleCount} cohort(s) changed since they were last generated (flagged below); they are regenerated wherever this database's copy is out of date."
     )
   }
 
@@ -278,7 +279,7 @@ generateCohorts <- function(executionSettings, pipelineVersion,
 
     # Display basic info
     if (identical(row$status, "stale")) {
-      cli::cli_alert_warning("Cohort {cohort_id}: {cohort_label} [stale - will regenerate]")
+      cli::cli_alert_warning("Cohort {cohort_id}: {cohort_label} [stale]")
     } else {
       cli::cli_alert_success("Cohort {cohort_id}: {cohort_label}")
     }
