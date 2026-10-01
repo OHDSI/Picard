@@ -8,12 +8,6 @@
   the same meaning (a test-mode namespace) and the same normalization, so only
   the argument name changes. There is no compatibility shim — a stray
   `testLabel =` now raises `unused argument`.
-- `$buildCompositeCohort()` — `minEventCount` now defaults to the number of
-  criteria cohorts, so a composite built without it requires membership in all
-  of them (intersection). Previously the default was `1L`, which kept subjects in
-  any criteria cohort. Pass `minEventCount = 1L` to keep the old behavior;
-  re-running an existing build call with `stopIfExists = FALSE` and no
-  `minEventCount` marks the cohort stale under the new default (#126).
 
 - `sourceInputBuilderScripts()` now requires all six builder scripts and aborts
   before sourcing anything if one is missing or if `inputs/cohorts/R/` or
@@ -152,6 +146,7 @@
 - `initUlyssesRepo()` now aborts when its target repository directory already exists, preventing initialization from overwriting an existing repository.
 - The ATLAS import builder templates (`import_atlas_concept_set.R`, `import_atlas_cohort.R`) now follow the recommended workflow: the load csv is kept in the repo and imported with `stopIfExists = FALSE`, so re-runs update registered entries in place instead of requiring the csv to be deleted. Sections are reordered (manifest, connection, import, sync, review), `createBlank*LoadFile()` is commented out so `main.R` no longer prompts to overwrite the csv, the manifest is initialized only when missing, and outdated notes (`.Renviron` credentials, auto-registration of dropped-in JSON, wrong column list) are corrected (#112).
 - The generated `main.R` now runs `renv::restore()` by default (#113).
+- `$buildCompositeCohort()` documentation now describes `minEventCount` accurately (the number of criteria cohorts a subject must belong to, default 1 = any of them), and a warning is raised when it is not supplied, recommending the number of criteria cohorts for an intersection (#126).
 - Fixed the generated `main.R` (#115): `execStudyPipeline()` is passed its required `updateType`, `runPostProcessing()` is called with `pipelineVersion`/`dbIds` instead of nonexistent arguments, `sourceDisseminationScripts()` uses the new pipeline version, and the builder script names in the comments match the generated files. `test_main.R` gets the same `runPostProcessing()` fix.
 
 # picard 0.0.6

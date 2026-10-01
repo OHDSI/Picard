@@ -1002,11 +1002,9 @@ Invisible integer. The assigned cohort ID.
 Build a composite cohort
 
 Creates a derived cohort of subjects who belong to at least
-\code{minEventCount} of the criteria cohorts. With the default
-\code{minEventCount} (the number of criteria cohorts) this is an
-intersection: subjects must be in every criteria cohort. Lower values relax
-the requirement (e.g. \code{minEventCount = 1} keeps subjects in any of
-them).
+\code{minEventCount} of the criteria cohorts. Set \code{minEventCount} to
+the number of criteria cohorts for an intersection (subjects must be in
+every criteria cohort); lower values relax the requirement.
 
 Input route policy:
 \itemize{
@@ -1022,7 +1020,7 @@ Input route policy:
   criteriaCohortIds = NULL,
   criteriaCohortEntries = NULL,
   eventSelection = "First",
-  minEventCount = NULL,
+  minEventCount = 1L,
   stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
@@ -1051,10 +1049,11 @@ retain as the cohort_start_date and cohort_end_date in the output:
 Default: 'First'.
 }}
 
-\item{\code{minEventCount}}{Integer or NULL. Minimum number of distinct criteria cohorts a subject
-must belong to in order to qualify for the composite. Must be between 1 and the number of
-criteria cohorts. Default: NULL, which uses the number of criteria cohorts (subject must
-be in all of them).}
+\item{\code{minEventCount}}{Integer. Minimum number of distinct criteria cohorts a subject must
+belong to in order to qualify for the composite. Must be between 1 and the number of
+criteria cohorts. Default: 1 (subject in any criteria cohort qualifies). A warning is
+raised when it is not supplied; for an intersection, set it to the number of criteria
+cohorts.}
 
 \item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
 active or stale cohort with this label is already registered. If FALSE,

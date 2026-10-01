@@ -101,8 +101,8 @@ testthat::test_that("buildCompositeCohort entry route registers composite", {
   cm_test_assert_cohort_registered(manifest, "CKD_and_T2D_Composite", expected_source_type = "derived", expected_cohort_type = "composite")
 })
 
-# Testing: buildCompositeCohort defaults minEventCount to the number of criteria cohorts.
-testthat::test_that("buildCompositeCohort defaults minEventCount to all criteria cohorts", {
+# Testing: buildCompositeCohort warns when minEventCount is not supplied and keeps the default of 1.
+testthat::test_that("buildCompositeCohort warns when minEventCount is missing", {
   setup <- cm_test_seed_manifest_for_builders("build-composite-default")
   manifest <- setup$manifest
 
@@ -111,18 +111,27 @@ testthat::test_that("buildCompositeCohort defaults minEventCount to all criteria
     matchType = "exact"
   )
 
-  manifest$buildCompositeCohort(
-    label = "CKD_and_T2D_Default",
-    category = "Derived Cohorts",
-    criteriaCohortEntries = criteria
+  testthat::expect_warning(
+    manifest$buildCompositeCohort(
+      label = "CKD_and_T2D_Default",
+      category = "Derived Cohorts",
+      criteriaCohortEntries = criteria
+    ),
+    "minEventCount = 2L"
   )
 
   row <- cm_test_get_manifest_row(manifest, "CKD_and_T2D_Default")
   rule <- jsonlite::fromJSON(row$dependency_rule[[1]])
-  testthat::expect_equal(as.integer(rule$minEventCount), 2L)
+  testthat::expect_equal(as.integer(rule$minEventCount), 1L)
 
-  rendered_sql <- readr::read_file(cm_test_resolve_path(manifest, row$file_path[[1]]))
-  testthat::expect_true(grepl("event_count >= 2", rendered_sql, fixed = TRUE))
+  testthat::expect_no_warning(
+    manifest$buildCompositeCohort(
+      label = "CKD_and_T2D_Explicit",
+      category = "Derived Cohorts",
+      criteriaCohortEntries = criteria,
+      minEventCount = 2L
+    )
+  )
 
   testthat::expect_error(
     manifest$buildCompositeCohort(

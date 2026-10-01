@@ -153,15 +153,16 @@ cohortManifest$buildComplementCohort(
 
 ## 4. `buildCompositeCohort()` — Composite (Intersection)
 
-Subjects must appear in at least `minEventCount` of the source cohorts to qualify. `minEventCount`
-defaults to the number of source cohorts (subject must be in all of them).
+Subjects must appear in at least `minEventCount` of the source cohorts to qualify. Always set
+`minEventCount` explicitly (the default of 1 keeps subjects in *any* source cohort and warns); use
+the number of source cohorts to require membership in all of them.
 
 ```r
 cohortManifest$buildCompositeCohort(
   label                 = "CKD_and_T2D_Composite",
   category              = "Derived Cohorts",
   criteriaCohortEntries = dplyr::bind_rows(ckdEntry, t2dEntry),  # minimum 2 rows
-  minEventCount         = 2L,       # min. number of source cohorts; defaults to all
+  minEventCount         = 2L,       # min. number of source cohorts; set to all for intersection
   eventSelection        = "First",  # "First", "Last", or "All"
   stopIfExists          = FALSE
 )

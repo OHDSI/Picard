@@ -10,8 +10,8 @@ Parameters:
   criteria_cohort_ids - Comma-separated list of cohort definition IDs to include in the composite
   criteria_cohort_name_mapping - Criteria cohort mapping in the form: id N, name Label
   minimum_event_count - Minimum number of distinct criteria cohorts a subject must belong to.
-                        buildCompositeCohort() defaults this to the number of criteria cohorts
-                        (subject must be in all of them).
+                        Default: 1 (subject in any criteria cohort qualifies). Set to the number of
+                        criteria cohorts to require membership in all of them.
   event_selection - 'First' (earliest event), 'Last' (most recent event), or 'All' (retain all events).
                     Default: 'First'
   output_cohort_id - The new cohort definition ID for the composite cohort
