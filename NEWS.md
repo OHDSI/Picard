@@ -91,10 +91,12 @@
 - `makeInputBuilderScript(type = "buildDependentCohorts")` now writes
   `build_dependent_cohorts.R` instead of `build_dependent_cohorts_cohort.R`, which
   `sourceInputBuilderScripts()` never sourced.
-- The input builder templates now run without error when unpopulated: each
-  creates its manifest on first run, the ATLAS builders only connect to ATLAS
-  when there are registered ATLAS entries or a load csv to import, and the Capr
-  builders no longer require Capr until Capr code is added (#116).
+- The input builder templates now run without error when unpopulated: the
+  ATLAS builders are fully commented out, with instructions to uncomment each
+  step as needed (previously they created a blank load csv and connected to
+  ATLAS on every run); the Capr, SQL and dependent-cohort builders create their
+  manifest on first run; and the Capr builders no longer require Capr until
+  Capr code is added (#116).
 - `$updateAtlasCohorts()` / `$updateAtlasConceptSets()` no longer error when the
   manifest has no ATLAS entries.
 

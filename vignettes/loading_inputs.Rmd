@@ -77,7 +77,7 @@ remaining builder scripts in a **mandatory dependency order**. This ensures conc
 
 1. **Project initializes** with all 6 builder scripts pre-created
 2. **Edit the builders you need** - Each script has clear guidance comments
-3. **Leave unused builders as they are** - An unpopulated builder runs without error, creating the manifest on first run and skipping ATLAS when there is nothing to import
+3. **Leave unused builders as they are** - An unpopulated builder runs without error. The ATLAS builders are fully commented out until you uncomment the steps you need; the Capr, SQL and dependent-cohort builders create the manifest on first run
 4. **Run `main.R`** - `sourceInputBuilderScripts()` runs all 6 scripts in mandatory order
 5. **Manifests load** - Your cohorts and concept sets are ready for the pipeline
 
