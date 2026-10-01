@@ -1,6 +1,6 @@
 /*
 Composite Cohort - Combines multiple cohort definitions into a single cohort
-Creates a cohort where subjects must have at least N events from a set of cohort definitions.
+Creates a cohort of subjects who belong to at least N of a set of cohort definitions.
 The index date can be the first event, last event, or all events are retained.
 
 Cohort mapping
@@ -9,8 +9,9 @@ Cohort mapping
 Parameters:
   criteria_cohort_ids - Comma-separated list of cohort definition IDs to include in the composite
   criteria_cohort_name_mapping - Criteria cohort mapping in the form: id N, name Label
-  minimum_event_count - Minimum number of distinct cohort events required for a subject to qualify.
-                        Default: 1 (any subject with at least 1 event qualifies)
+  minimum_event_count - Minimum number of distinct criteria cohorts a subject must belong to.
+                        Default: 1 (subject in any criteria cohort qualifies). Set to the number of
+                        criteria cohorts to require membership in all of them.
   event_selection - 'First' (earliest event), 'Last' (most recent event), or 'All' (retain all events).
                     Default: 'First'
   output_cohort_id - The new cohort definition ID for the composite cohort

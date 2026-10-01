@@ -1,5 +1,5 @@
 # ================================================================================
-# File: importAtlas.R
+# File: import_atlas_cohort.R
 # ================================================================================
 #
 # Study: <<studyName>>
@@ -58,7 +58,30 @@ library(picard)
 
 
 # ================================================================================
-# D. SYNC REGISTERED ATLAS COHORTS
+# D. IMPORT NEW COHORTS FROM ATLAS
+# ================================================================================
+
+# Reads inputs/cohorts/cohortsLoad.csv and downloads CIRCE JSON definitions from
+# ATLAS. Keep the load csv in the repo as the record of which ATLAS cohorts the
+# study uses, and add rows to it as the study grows.
+#
+# By default, rows already registered in the manifest cause an error, so the
+# import only adds new cohorts: uncomment it when you add rows, and comment it
+# out again once the import succeeds. Alternatively, pass stopIfExists = FALSE
+# to leave it uncommented and update registered rows in place (definition,
+# category, tags) on every run. Rows are matched to registered cohorts by
+# label: to rename one, call $updateCohortLabel() and then edit the label in
+# the csv to match.
+# cohortManifest$importAtlasCohorts(
+#   cohortsLoad = readr::read_csv(
+#     here::here("inputs/cohorts/cohortsLoad.csv"),
+#     show_col_types = FALSE
+#   )
+# )
+
+
+# ================================================================================
+# E. SYNC REGISTERED ATLAS COHORTS
 # ================================================================================
 
 # Uncomment once the manifest has ATLAS cohorts, and leave it uncommented: it
@@ -75,27 +98,6 @@ library(picard)
 
 
 # ================================================================================
-# E. IMPORT NEW COHORTS FROM ATLAS
-# ================================================================================
-
-# Reads inputs/cohorts/cohortsLoad.csv and downloads CIRCE JSON definitions from
-# ATLAS. Keep the load csv in the repo as the record of which ATLAS cohorts the
-# study uses, and add rows to it as the study grows.
-#
-# By default, rows already registered in the manifest cause an error, so the
-# import only adds new cohorts: uncomment it when you add rows, and comment it
-# out again once the import succeeds. Alternatively, pass stopIfExists = FALSE
-# to leave it uncommented and update registered rows in place (definition,
-# label, category, tags) on every run.
-# cohortManifest$importAtlasCohorts(
-#   cohortsLoad = readr::read_csv(
-#     here::here("inputs/cohorts/cohortsLoad.csv"),
-#     show_col_types = FALSE
-#   )
-# )
-
-
-# ================================================================================
 # F. REVIEW IMPORTED COHORTS
 # ================================================================================
 
@@ -105,3 +107,13 @@ library(picard)
 # Optionally, export and inspect specific cohorts:
 # cohortDef <- cohortManifest$getCohortDefinition(cohortId = 1L)
 # print(cohortDef)
+
+
+# ================================================================================
+# G. REGISTERING COHORTS
+# ================================================================================
+#
+# Register cohorts through the manifest (load csv, $addAtlasCohort(),
+# $addCirceCohort(), ...). JSON files placed directly in inputs/cohorts/json/
+# without registration are removed as orphans the next time
+# loadCohortManifest() is called.

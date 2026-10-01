@@ -2731,8 +2731,10 @@ CohortManifest <- R6::R6Class(
 
     #' @description Build a composite cohort
     #'
-    #' Creates a derived cohort that requires membership in multiple cohorts
-    #' (intersection logic).
+    #' Creates a derived cohort of subjects who belong to at least
+    #' \code{minEventCount} of the criteria cohorts. Set \code{minEventCount} to
+    #' the number of criteria cohorts for an intersection (subjects must be in
+    #' every criteria cohort); lower values relax the requirement.
     #'
     #' Input route policy:
     #' - Preferred: provide \code{criteriaCohortEntries}
@@ -2746,8 +2748,11 @@ CohortManifest <- R6::R6Class(
     #'   (e.g., c(1, 2, 3) for Type 1 diabetes, Type 2 diabetes, and secondary diabetes).
     #' @param criteriaCohortEntries Data frame/tibble with an \code{id} column (minimum 2 rows).
     #'   Preferred route using manifest query results.
-    #' @param minEventCount Integer. Minimum number of distinct cohort events required for a subject
-    #'   to qualify for the composite. Default: 1 (any subject with at least 1 event qualifies).
+    #' @param minEventCount Integer. Minimum number of distinct criteria cohorts a subject must
+    #'   belong to in order to qualify for the composite. Must be between 1 and the number of
+    #'   criteria cohorts. Default: 1 (subject in any criteria cohort qualifies). A warning is
+    #'   raised when it is not supplied; for an intersection, set it to the number of criteria
+    #'   cohorts.
     #' @param eventSelection Character. One of 'First', 'Last', or 'All'. Specifies which event(s) to
     #'   retain as the cohort_start_date and cohort_end_date in the output:
     #'   - 'First': Keep the earliest event (earliest index date)
@@ -2816,7 +2821,13 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_string(category, min.chars = 1)
       checkmate::assert_list(tags, names = "named")
       checkmate::assert_choice(x = eventSelection, choices = c("First", "Last", "All"))
-      checkmate::assert_integerish(minEventCount, lower = 1, upper = length(criteriaCohortIds))
+      if (missing(minEventCount)) {
+        cli::cli_warn(c(
+          "{.arg minEventCount} not supplied; defaulting to 1, which keeps subjects in {.emph any} criteria cohort.",
+          i = "To require membership in all {length(criteriaCohortIds)} criteria cohorts, set {.code minEventCount = {length(criteriaCohortIds)}L}."
+        ))
+      }
+      checkmate::assert_int(minEventCount, lower = 1, upper = length(criteriaCohortIds))
 
       checkmate::assert_flag(stopIfExists)
       existing_id <- private$resolve_derived_upsert(label, stopIfExists, criteriaCohortIds, cohort_type = "composite")

@@ -111,8 +111,8 @@ cli::cli_blockquote(paste(
 
 ## Export results for external analysis (if applicable)
 # results <- runPostProcessing(
-#   executionSettings = eo,
-#   reviewSchema = TRUE
+#   pipelineVersion = pipelineVersion,
+#   dbIds = dbIds
 # )
 
 ## Prepare dataset for dissemination (if applicable)
