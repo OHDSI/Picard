@@ -1332,8 +1332,9 @@ clearPendingPR <- function() {
 #'   Scripts are sourced once per block, with the current block available as
 #'   \code{inputBuilderEnv$configBlock}. Defaults to NULL (source once).
 #' @param pipelineVersion Character. Pipeline version made available to builder
-#'   scripts as \code{inputBuilderEnv$pipelineVersion}. Defaults to NULL, which
-#'   uses the version recorded in \code{config.yml}.
+#'   scripts as \code{inputBuilderEnv$pipelineVersion}. Defaults to \code{"prod"},
+#'   matching \code{\link{createExecutionSettingsFromConfig}}; pass the test
+#'   namespace (e.g. \code{"dev"}) when building inputs for a test run.
 #' @param verbose Logical. If TRUE (default), displays which scripts are being sourced.
 #' @return Invisibly returns a list with:
 #'   - `sourced_files`: Character vector of sourced files (absolute paths)
@@ -1347,7 +1348,7 @@ clearPendingPR <- function() {
 sourceInputBuilderScripts <- function(
     projectPath = here::here(),
     configBlock = NULL,
-    pipelineVersion = NULL,
+    pipelineVersion = "prod",
     verbose = TRUE) {
 
   checkmate::assert_character(
@@ -1434,7 +1435,6 @@ sourceInputBuilderScripts <- function(
       }
 
       inputBuilderEnv <- createInputBuilderEnv(
-        projectPath = projectPath,
         configBlock = block,
         pipelineVersion = pipelineVersion,
         verbose = FALSE
@@ -1507,11 +1507,10 @@ sourceInputBuilderScripts <- function(
 #' before sourcing those scripts; call this function to build it standalone
 #' while running a builder script interactively.
 #'
-#' @param projectPath Character. Path to the project root directory.
 #' @param configBlock Character. A single config block name from \code{config.yml}.
 #'   Defaults to NULL.
-#' @param pipelineVersion Character. Pipeline version. Defaults to NULL, which
-#'   uses the version recorded in \code{config.yml}.
+#' @param pipelineVersion Character. Pipeline version. Defaults to \code{"prod"},
+#'   matching \code{\link{createExecutionSettingsFromConfig}}.
 #' @param verbose Logical. If TRUE (default), prints the resolved metadata.
 #' @return A list with \code{configBlock} and \code{pipelineVersion}.
 #'
@@ -1527,19 +1526,13 @@ sourceInputBuilderScripts <- function(
 #'
 #' @export
 createInputBuilderEnv <- function(
-    projectPath = here::here(),
     configBlock = NULL,
-    pipelineVersion = NULL,
+    pipelineVersion = "prod",
     verbose = TRUE) {
 
-  checkmate::assert_string(projectPath)
   checkmate::assert_string(configBlock, min.chars = 1, null.ok = TRUE)
-  checkmate::assert_string(pipelineVersion, min.chars = 1, null.ok = TRUE)
+  checkmate::assert_string(pipelineVersion, min.chars = 1)
   checkmate::assert_logical(verbose, len = 1, any.missing = FALSE)
-
-  if (is.null(pipelineVersion)) {
-    pipelineVersion <- detect_pipeline_version(projectPath)
-  }
 
   inputBuilderEnv <- list(
     configBlock = configBlock,
@@ -1548,7 +1541,7 @@ createInputBuilderEnv <- function(
 
   if (verbose) {
     cli::cli_alert_info(
-      "Input builder metadata: configBlock = {.val {configBlock %||% 'NULL'}}, pipelineVersion = {.val {pipelineVersion %||% 'NULL'}}"
+      "Input builder metadata: configBlock = {.val {configBlock %||% 'NULL'}}, pipelineVersion = {.val {pipelineVersion}}"
     )
   }
 

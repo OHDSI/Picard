@@ -5,20 +5,17 @@
 \title{Create an Input Builder Environment Object}
 \usage{
 createInputBuilderEnv(
-  projectPath = here::here(),
   configBlock = NULL,
-  pipelineVersion = NULL,
+  pipelineVersion = "prod",
   verbose = TRUE
 )
 }
 \arguments{
-\item{projectPath}{Character. Path to the project root directory.}
-
 \item{configBlock}{Character. A single config block name from \code{config.yml}.
 Defaults to NULL.}
 
-\item{pipelineVersion}{Character. Pipeline version. Defaults to NULL, which
-uses the version recorded in \code{config.yml}.}
+\item{pipelineVersion}{Character. Pipeline version. Defaults to \code{"prod"},
+matching \code{\link{createExecutionSettingsFromConfig}}.}
 
 \item{verbose}{Logical. If TRUE (default), prints the resolved metadata.}
 }

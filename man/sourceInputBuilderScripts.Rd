@@ -7,7 +7,7 @@
 sourceInputBuilderScripts(
   projectPath = here::here(),
   configBlock = NULL,
-  pipelineVersion = NULL,
+  pipelineVersion = "prod",
   verbose = TRUE
 )
 }
@@ -19,8 +19,9 @@ Scripts are sourced once per block, with the current block available as
 \code{inputBuilderEnv$configBlock}. Defaults to NULL (source once).}
 
 \item{pipelineVersion}{Character. Pipeline version made available to builder
-scripts as \code{inputBuilderEnv$pipelineVersion}. Defaults to NULL, which
-uses the version recorded in \code{config.yml}.}
+scripts as \code{inputBuilderEnv$pipelineVersion}. Defaults to \code{"prod"},
+matching \code{\link{createExecutionSettingsFromConfig}}; pass the test
+namespace (e.g. \code{"dev"}) when building inputs for a test run.}
 
 \item{verbose}{Logical. If TRUE (default), displays which scripts are being sourced.}
 }

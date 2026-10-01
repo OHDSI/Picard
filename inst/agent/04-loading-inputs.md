@@ -94,9 +94,10 @@ sourceInputBuilderScripts(configBlock = dbIds, pipelineVersion = "dev")
 
 Like `execStudyPipeline()`, this runs the builder scripts once per config
 block. Before each pass it assigns an `inputBuilderEnv` object to the global
-environment with the current `configBlock` and the `pipelineVersion`
-(`pipelineVersion` defaults to the version in `config.yml`). Builder scripts
-can use it to create execution settings:
+environment with the current `configBlock` and the `pipelineVersion`.
+`pipelineVersion` defaults to `"prod"`, like `createExecutionSettingsFromConfig()`,
+so pass your test namespace (e.g. `"dev"`) when building inputs for a test run.
+Builder scripts can use it to create execution settings:
 
 ```r
 executionSettings <- createExecutionSettingsFromConfig(

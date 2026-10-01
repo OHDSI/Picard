@@ -151,18 +151,17 @@ testthat::test_that("sourceInputBuilderScripts reports failures per config block
   testthat::expect_true(grepl("[db_b]", conditionMessage(err), fixed = TRUE))
 })
 
-# Testing: pipelineVersion falls back to the version recorded in config.yml.
-testthat::test_that("createInputBuilderEnv defaults pipelineVersion from config.yml", {
+# Testing: pipelineVersion defaults to "prod", not the version in config.yml
+# (which main.R has not yet incremented when the builders run).
+testthat::test_that("sourceInputBuilderScripts defaults pipelineVersion to prod", {
   root <- sibs_test_project("sibs-version")
-  writeLines(
-    c("default:", "  version: 1.2.0"),
-    fs::path(root, "config.yml")
-  )
+  writeLines(c("default:", "  version: 1.2.0"), fs::path(root, "config.yml"))
 
-  env <- createInputBuilderEnv(projectPath = root, verbose = FALSE)
+  sourceInputBuilderScripts(projectPath = root, verbose = FALSE)
 
+  env <- get("inputBuilderEnv", envir = globalenv())
   testthat::expect_null(env$configBlock)
-  testthat::expect_equal(env$pipelineVersion, "1.2.0")
+  testthat::expect_equal(env$pipelineVersion, "prod")
 })
 
 # Testing: the builder scripts a new study is initialized with run cleanly
