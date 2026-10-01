@@ -14,11 +14,8 @@
 #'      cohort manifest check.
 #'   5. renv lockfile changes — any change to the R version or to a package
 #'      recorded in `renv.lock` forces a rerun (see [.getRenvLockHash()]).
-#'   6. Data file reads — a task that reads a data file (e.g. `read_csv()`,
-#'      `readRDS()`) always reruns, because changes to the files it reads are
-#'      not tracked (see [.findDataFileReads()]).
-#'   7. Previous run errors (checked in logs and history)
-#'   8. Version changes. History is scoped by task, config block, and
+#'   6. Previous run errors (checked in logs and history)
+#'   7. Version changes. History is scoped by task, config block, and
 #'      `pipeline_version`, so separate test namespaces do not reuse one
 #'      another's run state.
 #'
@@ -141,19 +138,7 @@ shouldRerunTask <- function(
     rerunNeeded <- TRUE
   }
 
-  # Check 6: Task reads data files, whose changes are not tracked.
-  # TODO: track the hashes of files a task reads so these tasks can be skipped
-  # when the files are unchanged, instead of always rerunning.
-  dataReads <- .findDataFileReads(taskFile)
-  if (nrow(dataReads) > 0) {
-    reasons <- c(reasons, paste0(
-      "Task reads data files (line ", paste(dataReads$line, collapse = ", "),
-      ") - changes to them are not tracked, so it always reruns"
-    ))
-    rerunNeeded <- TRUE
-  }
-
-  # Check 7: Previous run had errors
+  # Check 6: Previous run had errors
   if (!is.null(lastRunInfo) && lastRunInfo$status == "failed") {
     reasons <- c(reasons, "Previous run failed - needs rerun")
     rerunNeeded <- TRUE
@@ -565,51 +550,6 @@ recordTaskExecution <- function(
     return(paste0("Change detected in ", name))
   }
   character(0)
-}
-
-
-#' @title Find Data File Reads in a Task
-#' @description Statically locates calls to common data-file readers (CSV,
-#'   RDS, parquet, Excel, ...) in a task script. [shouldRerunTask()] always
-#'   reruns a task that has any, since changes to the files it reads are not
-#'   tracked.
-#' @details Detection works on the parse tree, so commented-out code and
-#'   strings are ignored. A file that fails to parse returns no reads.
-#' @param taskFilePath Character. Path to the task R script.
-#' @return Data frame with columns `line` (integer) and `call` (character).
-#' @keywords internal
-.findDataFileReads <- function(taskFilePath) {
-  empty <- data.frame(line = integer(), call = character())
-
-  readFunctions <- c(
-    "read.csv", "read.csv2", "read.table", "read.delim", "read.delim2",
-    "readRDS", "load",
-    "read_csv", "read_csv2", "read_tsv", "read_delim", "read_table", "read_rds",
-    "vroom", "fread", "read_parquet", "read_feather", "read_ipc_file",
-    "open_dataset", "qread", "qs_read", "read_fst",
-    "read_excel", "read_xlsx", "read_xls", "read_json"
-  )
-
-  parsed <- tryCatch(parse(taskFilePath, keep.source = TRUE), error = function(e) NULL)
-  if (is.null(parsed)) {
-    return(empty)
-  }
-
-  pd <- utils::getParseData(parsed)
-  fnTokens <- pd[pd$token == "SYMBOL_FUNCTION_CALL" & pd$text %in% readFunctions, ]
-  if (nrow(fnTokens) == 0) {
-    return(empty)
-  }
-
-  calls <- vapply(fnTokens$parent, function(fnExprId) {
-    utils::getParseText(pd, pd$parent[pd$id == fnExprId])
-  }, character(1))
-
-  data.frame(
-    line = fnTokens$line1,
-    call = gsub("\\s+", " ", calls),
-    stringsAsFactors = FALSE
-  )
 }
 
 

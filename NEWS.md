@@ -59,11 +59,6 @@
   Backed by the new `ConceptSetManifest$getManifestHash()`.
 - `shouldRerunTask()` now reruns a task when **`renv.lock`** changes — the R
   version or any package's version, source, or remote SHA (#118).
-- A task that reads a data file (`read_csv()`, `readRDS()`, `fread()`, ...) now
-  **always reruns**, since changes to the files it reads are not tracked. This
-  prevents a task that consumes another task's output from silently reusing
-  stale results (#118). Tracking those files' hashes so such tasks can be
-  skipped is left for later.
 - `testStudyPipeline()`, `execStudyPipeline()`, and `testStudyTask()` gain a
   `forceRerun` argument (default `FALSE`) that bypasses change detection:
   `TRUE` reruns every task, and a vector of task file names reruns only those.

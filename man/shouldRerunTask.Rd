@@ -65,9 +65,6 @@ hash recorded on the previous run, with the same fail-safe rules as the
 cohort manifest check.
 \item renv lockfile changes — any change to the R version or to a package
 recorded in \code{renv.lock} forces a rerun (see \code{\link[=.getRenvLockHash]{.getRenvLockHash()}}).
-\item Data file reads — a task that reads a data file (e.g. \code{read_csv()},
-\code{readRDS()}) always reruns, because changes to the files it reads are
-not tracked (see \code{\link[=.findDataFileReads]{.findDataFileReads()}}).
 \item Previous run errors (checked in logs and history)
 \item Version changes. History is scoped by task, config block, and
 \code{pipeline_version}, so separate test namespaces do not reuse one

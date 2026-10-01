@@ -279,11 +279,6 @@ re-executes every task that had run against the old definition. If a manifest
 or lockfile hash cannot be computed for any reason, tasks are re-run rather than
 skipped.
 
-The pipeline does **not** yet track changes to data files that a task reads
-itself (e.g. with `read_csv()` or `readRDS()`), so a task that reads any data
-file is **always re-run**. Tasks should still avoid reading one another's
-output.
-
 To bypass change detection, pass `forceRerun`: `TRUE` re-runs every task, and
 a vector of task file names re-runs only those. Forced runs are still recorded
 in the task history.
