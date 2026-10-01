@@ -579,3 +579,32 @@ testthat::test_that("checkAtlasConceptSets and updateAtlasConceptSets abort when
     testthat::expect_match(conditionMessage(err$parent), "ATLAS unreachable")
   }
 })
+
+# Testing: stopOnError = FALSE skips concept sets whose fetch fails, with a warning.
+testthat::test_that("checkAtlasConceptSets and updateAtlasConceptSets skip failed fetches when stopOnError = FALSE", {
+  setup <- csm_test_new_manifest("mgmt-cs-atlas-fetch-skip")
+  manifest <- setup$manifest
+  jsons <- csm_test_atlas_fixture_jsons()
+  manifest$importAtlasConceptSets(
+    conceptSetsLoad = data.frame(atlasId = c(100L, 200L), label = c("CS A", "CS B"), category = "condition"),
+    atlasConnection = csm_test_fake_atlas_connection(list("100" = jsons$v1, "200" = jsons$v2))
+  )
+  partial_conn <- list(getConceptSetDefinition = function(conceptSetId) {
+    if (conceptSetId == 100L) stop("ATLAS unreachable")
+    list(expression = jsons$v2, saveName = "atlas_cs_200")
+  })
+
+  testthat::expect_warning(
+    suppressMessages(capture.output(
+      res <- manifest$checkAtlasConceptSets(atlasConnection = partial_conn, stopOnError = FALSE)
+    )),
+    regexp = "Failed to fetch ATLAS concept set 100"
+  )
+  testthat::expect_equal(res$atlasId, 200L)
+  testthat::expect_warning(
+    suppressMessages(capture.output(
+      manifest$updateAtlasConceptSets(atlasConnection = partial_conn, stopOnError = FALSE)
+    )),
+    regexp = "Failed to fetch ATLAS concept set 100"
+  )
+})

@@ -64,7 +64,9 @@ library(picard)
 # Uncomment once the manifest has ATLAS cohorts, and leave it uncommented: it
 # re-checks every registered ATLAS cohort against ATLAS and updates changed
 # definitions in place (same ID; derived cohorts marked stale so the pipeline
-# regenerates them). This is the step that propagates ATLAS edits.
+# regenerates them). This is the step that propagates ATLAS edits. If a cohort
+# cannot be fetched the sync stops; pass stopOnError = FALSE to skip it with a
+# warning instead.
 # cohortManifest$updateAtlasCohorts()
 
 # To update a single cohort on demand instead, use:

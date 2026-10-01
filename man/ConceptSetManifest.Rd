@@ -1308,7 +1308,10 @@ fetches their current definitions from ATLAS, computes hashes, and compares agai
 the stored local hash. Provides a read-only summary of which concept sets have changed
 in ATLAS since import. No modifications are made.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$checkAtlasConceptSets(atlasConnection = NULL)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$checkAtlasConceptSets(
+  atlasConnection = NULL,
+  stopOnError = TRUE
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -1318,6 +1321,10 @@ in ATLAS since import. No modifications are made.
 that returns a list with an \code{expression} element (the CIRCE JSON as a string).
 If \code{NULL} (default), uses the connection stored via \verb{$setAtlasConnection()}.
 If no connection is available, raises an error.}
+
+\item{\code{stopOnError}}{Logical. If TRUE (default), a failed ATLAS fetch
+aborts the sync. If FALSE, the concept set is skipped with a warning and the
+remaining concept sets are still synced.}
 }
 \if{html}{\out{</div>}}
 }
@@ -1344,7 +1351,10 @@ Fetches current definitions from ATLAS for concept sets that have changed and up
 the stored JSON files and manifest entries. This is the modification phase that applies
 changes detected by checkAtlasConceptSets().
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$updateAtlasConceptSets(atlasConnection = NULL)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$updateAtlasConceptSets(
+  atlasConnection = NULL,
+  stopOnError = TRUE
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -1352,6 +1362,10 @@ changes detected by checkAtlasConceptSets().
 \describe{
 \item{\code{atlasConnection}}{An ATLAS connection object with a method \code{getConceptSetDefinition(conceptSetId)}.
 If \code{NULL} (default), uses the connection stored via \verb{$setAtlasConnection()}.}
+
+\item{\code{stopOnError}}{Logical. If TRUE (default), a failed ATLAS fetch
+aborts the sync. If FALSE, the concept set is skipped with a warning and the
+remaining concept sets are still synced.}
 }
 \if{html}{\out{</div>}}
 }

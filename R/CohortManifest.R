@@ -3977,6 +3977,10 @@ CohortManifest <- R6::R6Class(
     #'   If `NULL` (default), uses the connection stored via `$setAtlasConnection()`.
     #'   If no connection is available, raises an error.
     #'
+    #' @param stopOnError Logical. If TRUE (default), a failed ATLAS fetch
+    #'   aborts the sync. If FALSE, the cohort is skipped with a warning and the
+    #'   remaining cohorts are still synced.
+    #'
     #' @return Invisible tibble with columns:
     #'   \itemize{
     #'     \item \code{id} - Cohort ID in manifest
@@ -3986,7 +3990,8 @@ CohortManifest <- R6::R6Class(
     #'     \item \code{localHash} - Hash of stored JSON
     #'     \item \code{remoteHash} - Hash of current ATLAS JSON
     #'   }
-    checkAtlasCohorts = function(atlasConnection = NULL) {
+    checkAtlasCohorts = function(atlasConnection = NULL, stopOnError = TRUE) {
+      checkmate::assert_flag(stopOnError)
 
       if (is.null(atlasConnection)) {
         atlasConnection <- private$.atlasConnection
@@ -4023,17 +4028,28 @@ CohortManifest <- R6::R6Class(
         current_hash <- cm_atlas_subset$hash[i]
         row_file_path <- cm_atlas_subset$file_path[i]
 
-        # Fetch JSON from ATLAS and compare hashes. A failed fetch stops the sync:
-        # skipping the cohort would leave the manifest silently out of date
+        # Fetch JSON from ATLAS and compare hashes. By default a failed fetch stops
+        # the sync, since skipping the cohort would leave the manifest
+        # silently out of date
         cohort_def <- tryCatch(
           atlasConnection$getCohortDefinition(row_atlas_id),
           error = function(e) {
-            cli::cli_abort(
-              "Failed to fetch ATLAS cohort {row_atlas_id} ({row_label}).",
-              parent = e
-            )
+            if (stopOnError) {
+              cli::cli_abort(
+                "Failed to fetch ATLAS cohort {row_atlas_id} ({row_label}).",
+                parent = e
+              )
+            }
+            cli::cli_warn(c(
+              "Failed to fetch ATLAS cohort {row_atlas_id} ({row_label}); skipping it because {.code stopOnError = FALSE}.",
+              x = "{conditionMessage(e)}"
+            ))
+            NULL
           }
         )
+        if (is.null(cohort_def)) {
+          next
+        }
 
         expression_json <- c(cohort_def$expression[1], "\n") |> paste(collapse = "") # make sure matches file read
         remote_hash <- rlang::hash(expression_json)
@@ -4054,6 +4070,12 @@ CohortManifest <- R6::R6Class(
           localHash = current_hash,
           remoteHash = remote_hash
         )
+      }
+
+      res <- Filter(Negate(is.null), res)
+      if (length(res) == 0) {
+        cli::cli_alert_warning("No ATLAS cohorts could be checked")
+        return(invisible(NULL))
       }
 
       res_final <- do.call('rbind', res) |>
@@ -4083,8 +4105,13 @@ CohortManifest <- R6::R6Class(
     #' @param atlasConnection An ATLAS connection object with a method `getCohortDefinition(cohortId)`.
     #'   If `NULL` (default), uses the connection stored via `$setAtlasConnection()`.
     #'
+    #' @param stopOnError Logical. If TRUE (default), a failed ATLAS fetch
+    #'   aborts the sync. If FALSE, the cohort is skipped with a warning and the
+    #'   remaining cohorts are still synced.
+    #'
     #' @return invisible of the tibble of atlas changes to update
-    updateAtlasCohorts = function(atlasConnection = NULL) {
+    updateAtlasCohorts = function(atlasConnection = NULL, stopOnError = TRUE) {
+      checkmate::assert_flag(stopOnError)
       if (is.null(atlasConnection)) {
         atlasConnection <- private$.atlasConnection
       }
@@ -4097,7 +4124,7 @@ CohortManifest <- R6::R6Class(
       }
 
       # check for changes; NULL means no ATLAS cohorts are registered
-      check_atlas_changes <- self$checkAtlasCohorts(atlasConnection)
+      check_atlas_changes <- self$checkAtlasCohorts(atlasConnection, stopOnError = stopOnError)
       if (!is.null(check_atlas_changes)) {
         check_atlas_changes <- dplyr::filter(check_atlas_changes, hasChanged)
       }
@@ -4125,17 +4152,28 @@ CohortManifest <- R6::R6Class(
         existing_path <- check_atlas_changes$filePath[i]
         existing_id <- check_atlas_changes$id[i]
 
-        # Fetch JSON from ATLAS and compare hashes. A failed fetch stops the sync:
-        # skipping the cohort would leave the manifest silently out of date
+        # Fetch JSON from ATLAS and compare hashes. By default a failed fetch stops
+        # the sync, since skipping the cohort would leave the manifest
+        # silently out of date
         cohort_def <- tryCatch(
           atlasConnection$getCohortDefinition(row_atlas_id),
           error = function(e) {
-            cli::cli_abort(
-              "Failed to fetch ATLAS cohort {row_atlas_id} ({row_label}).",
-              parent = e
-            )
+            if (stopOnError) {
+              cli::cli_abort(
+                "Failed to fetch ATLAS cohort {row_atlas_id} ({row_label}).",
+                parent = e
+              )
+            }
+            cli::cli_warn(c(
+              "Failed to fetch ATLAS cohort {row_atlas_id} ({row_label}); skipping it because {.code stopOnError = FALSE}.",
+              x = "{conditionMessage(e)}"
+            ))
+            NULL
           }
         )
+        if (is.null(cohort_def)) {
+          next
+        }
         expression_json <- cohort_def$expression[1]
         expression_json_file <- c(expression_json, "\n") |> paste(collapse = "") # make sure matches file read line ending
         new_hash <- rlang::hash(expression_json_file)

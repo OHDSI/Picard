@@ -2316,6 +2316,10 @@ ConceptSetManifest <- R6::R6Class(
     #'   If `NULL` (default), uses the connection stored via `$setAtlasConnection()`.
     #'   If no connection is available, raises an error.
     #'
+    #' @param stopOnError Logical. If TRUE (default), a failed ATLAS fetch
+    #'   aborts the sync. If FALSE, the concept set is skipped with a warning and the
+    #'   remaining concept sets are still synced.
+    #'
     #' @return Invisible tibble with columns:
     #'   - `id`: Concept set ID in the local manifest
     #'   - `label`: Concept set label
@@ -2324,7 +2328,8 @@ ConceptSetManifest <- R6::R6Class(
     #'   - `hasChanged`: Logical, TRUE if remote definition differs from local hash
     #'   - `localHash`: Hash of the stored JSON file
     #'   - `remoteHash`: Hash of the current ATLAS definition
-    checkAtlasConceptSets = function(atlasConnection = NULL) {
+    checkAtlasConceptSets = function(atlasConnection = NULL, stopOnError = TRUE) {
+      checkmate::assert_flag(stopOnError)
       if (is.null(atlasConnection)) {
         atlasConnection <- private$.atlasConnection
       }
@@ -2362,17 +2367,28 @@ ConceptSetManifest <- R6::R6Class(
         current_hash <- atlas_subset$hash[i]
         row_file_path <- atlas_subset$file_path[i]
 
-        # Fetch JSON from ATLAS and compare hashes. A failed fetch stops the sync:
-        # skipping the concept set would leave the manifest silently out of date
+        # Fetch JSON from ATLAS and compare hashes. By default a failed fetch stops
+        # the sync, since skipping the concept set would leave the manifest
+        # silently out of date
         cs_def <- tryCatch(
           atlasConnection$getConceptSetDefinition(conceptSetId = row_atlas_id),
           error = function(e) {
-            cli::cli_abort(
-              "Failed to fetch ATLAS concept set {row_atlas_id} ({row_label}).",
-              parent = e
-            )
+            if (stopOnError) {
+              cli::cli_abort(
+                "Failed to fetch ATLAS concept set {row_atlas_id} ({row_label}).",
+                parent = e
+              )
+            }
+            cli::cli_warn(c(
+              "Failed to fetch ATLAS concept set {row_atlas_id} ({row_label}); skipping it because {.code stopOnError = FALSE}.",
+              x = "{conditionMessage(e)}"
+            ))
+            NULL
           }
         )
+        if (is.null(cs_def)) {
+          next
+        }
 
         expression_json <- c(cs_def$expression[1], "\n") |> paste(collapse = "") # make sure matches file read
         remote_hash <- rlang::hash(expression_json)
@@ -2393,6 +2409,12 @@ ConceptSetManifest <- R6::R6Class(
           localHash = current_hash,
           remoteHash = remote_hash
         )
+      }
+
+      res <- Filter(Negate(is.null), res)
+      if (length(res) == 0) {
+        cli::cli_alert_warning("No ATLAS concept sets could be checked")
+        return(invisible(NULL))
       }
 
       res_final <- do.call('rbind', res) |>
@@ -2423,9 +2445,14 @@ ConceptSetManifest <- R6::R6Class(
     #' @param atlasConnection An ATLAS connection object with a method `getConceptSetDefinition(conceptSetId)`.
     #'   If `NULL` (default), uses the connection stored via `$setAtlasConnection()`.
     #'
+    #' @param stopOnError Logical. If TRUE (default), a failed ATLAS fetch
+    #'   aborts the sync. If FALSE, the concept set is skipped with a warning and the
+    #'   remaining concept sets are still synced.
+    #'
     #' @return Invisible tibble of concept sets that were updated, with columns:
     #'   id, label, atlasId, filePath, hasChanged, localHash, remoteHash
-    updateAtlasConceptSets = function(atlasConnection = NULL) {
+    updateAtlasConceptSets = function(atlasConnection = NULL, stopOnError = TRUE) {
+      checkmate::assert_flag(stopOnError)
       if (is.null(atlasConnection)) {
         atlasConnection <- private$.atlasConnection
       }
@@ -2438,7 +2465,7 @@ ConceptSetManifest <- R6::R6Class(
       }
 
       # Check for changes; NULL means no ATLAS concept sets are registered
-      check_atlas_changes <- self$checkAtlasConceptSets(atlasConnection)
+      check_atlas_changes <- self$checkAtlasConceptSets(atlasConnection, stopOnError = stopOnError)
       if (!is.null(check_atlas_changes)) {
         check_atlas_changes <- dplyr::filter(check_atlas_changes, hasChanged)
       }
@@ -2464,17 +2491,28 @@ ConceptSetManifest <- R6::R6Class(
         existing_path <- check_atlas_changes$filePath[i]
         existing_id <- check_atlas_changes$id[i]
 
-        # Fetch JSON from ATLAS. A failed fetch stops the sync:
-        # skipping the concept set would leave the manifest silently out of date
+        # Fetch JSON from ATLAS. By default a failed fetch stops
+        # the sync, since skipping the concept set would leave the manifest
+        # silently out of date
         cs_def <- tryCatch(
           atlasConnection$getConceptSetDefinition(conceptSetId = row_atlas_id),
           error = function(e) {
-            cli::cli_abort(
-              "Failed to fetch ATLAS concept set {row_atlas_id} ({row_label}).",
-              parent = e
-            )
+            if (stopOnError) {
+              cli::cli_abort(
+                "Failed to fetch ATLAS concept set {row_atlas_id} ({row_label}).",
+                parent = e
+              )
+            }
+            cli::cli_warn(c(
+              "Failed to fetch ATLAS concept set {row_atlas_id} ({row_label}); skipping it because {.code stopOnError = FALSE}.",
+              x = "{conditionMessage(e)}"
+            ))
+            NULL
           }
         )
+        if (is.null(cs_def)) {
+          next
+        }
 
         expression_json <- cs_def$expression[1]
         expression_json_file <- c(expression_json, "\n") |> paste(collapse = "")

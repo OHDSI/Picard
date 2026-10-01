@@ -1398,3 +1398,32 @@ testthat::test_that("checkAtlasCohorts and updateAtlasCohorts abort when a fetch
     testthat::expect_match(conditionMessage(err$parent), "ATLAS unreachable")
   }
 })
+
+# Testing: stopOnError = FALSE skips cohorts whose fetch fails, with a warning.
+testthat::test_that("checkAtlasCohorts and updateAtlasCohorts skip failed fetches when stopOnError = FALSE", {
+  setup <- cm_test_new_manifest("mgmt-atlas-fetch-skip")
+  manifest <- setup$manifest
+  jsons <- cm_test_atlas_fixture_jsons()
+  manifest$importAtlasCohorts(
+    cohortsLoad = data.frame(atlasId = c(100L, 200L), label = c("Atlas A", "Atlas B"), category = "Target"),
+    atlasConnection = cm_test_fake_atlas_connection(list("100" = jsons$v1, "200" = jsons$v2))
+  )
+  partial_conn <- list(getCohortDefinition = function(cohortId) {
+    if (cohortId == 100L) stop("ATLAS unreachable")
+    list(expression = jsons$v2, saveName = "atlas_cohort_200")
+  })
+
+  testthat::expect_warning(
+    suppressMessages(capture.output(
+      res <- manifest$checkAtlasCohorts(atlasConnection = partial_conn, stopOnError = FALSE)
+    )),
+    regexp = "Failed to fetch ATLAS cohort 100"
+  )
+  testthat::expect_equal(res$atlasId, 200L)
+  testthat::expect_warning(
+    suppressMessages(capture.output(
+      manifest$updateAtlasCohorts(atlasConnection = partial_conn, stopOnError = FALSE)
+    )),
+    regexp = "Failed to fetch ATLAS cohort 100"
+  )
+})
