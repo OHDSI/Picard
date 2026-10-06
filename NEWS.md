@@ -1,3 +1,29 @@
+# picard (development version)
+
+## Task Change Detection
+
+- `CohortManifest$getManifestHash()` now also covers each cohort's label,
+  category, and tags, so renaming, recategorizing, or retagging a cohort reruns
+  tasks — tasks often select cohorts by that metadata. A cohort's definition
+  hash (`CohortDef$getSqlHash()`) still covers only its SQL.
+- New `ConceptSetManifest$getManifestHash()`, consistent with the cohort
+  version: each concept set's normalized expression JSON plus its label,
+  category, and tags.
+- `shouldRerunTask()` now reruns a task when the **concept set manifest**
+  changes (#125), e.g. merging two categories, or when **`renv.lock`**
+  changes — the R version or any package's version, source, or remote SHA
+  (#118).
+- `testStudyPipeline()`, `execStudyPipeline()`, and `testStudyTask()` gain a
+  `forceRerun` argument (default `FALSE`) that bypasses change detection:
+  `TRUE` reruns every task, and a vector of task file names reruns only those.
+  Forced runs are still recorded in `task_run_history.csv` and noted in the
+  pipeline log.
+- `exec/logs/task_run_history.csv` gains `concept_set_manifest_hash` and
+  `renv_lock_hash` columns. Existing history rows have no recorded value for
+  them, and the cohort hash now includes metadata, so every task reruns once
+  after upgrading. Studies without a concept set manifest or `renv.lock` hash
+  to a stable sentinel and are not rerun on every run.
+
 # picard 0.0.7
 
 ## Breaking Changes

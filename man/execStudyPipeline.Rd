@@ -11,7 +11,8 @@ execStudyPipeline(
   skipConnectivityCheck = TRUE,
   ignoreUncommittedPaths = NULL,
   skipCodeStateCheck = FALSE,
-  env = rlang::caller_env()
+  env = rlang::caller_env(),
+  forceRerun = FALSE
 )
 }
 \arguments{
@@ -47,6 +48,12 @@ FALSE. Deliberately not settable from config.yml, so it cannot be baked
 permanently into a study.}
 
 \item{env}{The execution environment. Defaults to caller environment.}
+
+\item{forceRerun}{Logical or character. \code{TRUE} reruns every task,
+bypassing change detection (\code{\link[=shouldRerunTask]{shouldRerunTask()}}); a character vector of
+task file names (e.g. \code{"05_baseline_medicines.R"}) reruns only those.
+Forced runs are still recorded in \code{exec/logs/task_run_history.csv}.
+Default: \code{FALSE}}
 }
 \value{
 Invisibly returns task results list

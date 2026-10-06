@@ -198,32 +198,36 @@ Get the manifest as a list of CohortDef objects}
 
 \subsection{Returns}{
 List. A list of CohortDef objects in the manifest, indexed by cohort ID.
-Compute a deterministic hash of every cohort definition in the manifest
+Compute a deterministic hash of the manifest for task-rerun detection
 }
 }
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-getManifestHash"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-getManifestHash}{}}}
 \subsection{Method \code{getManifestHash()}}{
-Produces a single SHA256 string over the \emph{definition} of every active or
-stale cohort, used by the study pipeline (via \code{\link[=shouldRerunTask]{shouldRerunTask()}}) to
-decide whether cohort changes force affected tasks to rerun.
+Produces a single SHA256 string over everything about the active or
+stale cohorts that a task can depend on. Used by the study pipeline (via
+\code{\link[=shouldRerunTask]{shouldRerunTask()}}): when it changes, tasks rerun.
+
+This is distinct from a cohort's \emph{definition hash}
+(\code{CohortDef$getSqlHash()}), which covers only the rendered SQL.
+Tasks also select cohorts by label, category, or tag, so a change to
+that metadata changes the analysis even when no definition changed.
 
 For each cohort, ordered by id, the hash combines:
 \itemize{
-\item \code{id}, \code{cohort_type}, \code{source_type}
+\item \code{id}, \code{label}, \code{category}, \code{tags}
+\item \code{cohort_type}, \code{source_type}
 \item \code{depends_on} and \code{dependency_rule} (normalized JSON)
-\item the rendered-SQL hash (\code{CohortDef$getSqlHash()}) of the
+\item the definition hash (\code{CohortDef$getSqlHash()}) of the
 loaded cohort, or the sentinel \code{"<missing>"} when the cohort
 file is absent from disk
 }
 
-The rendered SQL — not the raw file bytes — is what executes against the
-CDM, so a cosmetic reformat of a cohort's JSON that renders to identical
-SQL does not move the hash, while any change to the executed SQL does.
-Cosmetic metadata (\code{label}, \code{category}, \code{tags}) is
-deliberately excluded: renaming or retagging a cohort does not change the
-analysis.
+Because the definition hash is over the rendered SQL, a cosmetic
+reformat of a cohort's JSON that renders to identical SQL does not move
+the hash. The stored file path is excluded, so path normalization does
+not force spurious reruns.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$getManifestHash()}\if{html}{\out{</div>}}
 }
