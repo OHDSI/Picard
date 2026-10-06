@@ -318,3 +318,74 @@ testthat::test_that("evaluate_cohort_skip_status decides by the per-database che
   testthat::expect_false(cm_test_skip_status(manifest, dep, parent_hashes, stored_hash = "other")$should_skip)
   testthat::expect_false(cm_test_skip_status(manifest, base, parent_hashes, stored_hash = "other")$should_skip)
 })
+
+# Purpose: Replay the generation loop's hash bookkeeping without a database:
+# walk the manifest in topological order and record each cohort's hash the way
+# executeCohortGeneration() does (SQL hash for base cohorts, dependency hash for
+# derived ones), so derived hashes see their parents' current hashes.
+cm_test_generation_hashes <- function(manifest) {
+  db_path <- manifest$getDbPath()
+  order <- topological_sort(build_dependency_graph(db_path))
+  derived_types <- c("subset", "union", "complement", "composite", "oprior", "tprior", "censor", "custom_derived")
+  hashes <- list()
+  for (id in order) {
+    cohort <- manifest$getCohortById(id)
+    hashes[[as.character(id)]] <- if (cohort$getCohortType() %in% derived_types) {
+      compute_dependency_hash(db_path, cohort, hashes)
+    } else {
+      cohort$getSqlHash()
+    }
+  }
+  hashes
+}
+
+# Testing: an edit to a base cohort's file propagates through the per-database
+# checksum to every descendant, including a grandchild that does not reference
+# the edited cohort directly, while unrelated derived cohorts keep their hash.
+# This is what lets the checksum alone decide regeneration (no 'stale' flag).
+testthat::test_that("editing a grandparent definition changes the grandchild's checksum", {
+  setup <- cm_test_seed_manifest_for_builders("builders-grandparent-hash")
+  manifest <- setup$manifest
+  paths <- setup$paths
+  ids <- function(labels) manifest$queryCohortsByLabel(labels = labels, matchType = "exact")
+
+  # sql base -> child (union with CKD) -> grandchild (union with death);
+  # unrelated: union of T2D and bleeding
+  manifest$buildUnionCohort(
+    label = "Child", category = "Derived Cohorts",
+    cohortEntries = ids(c("Custom SQL Cohort", "Chronic Kidney Disease"))
+  )
+  manifest$buildUnionCohort(
+    label = "Grandchild", category = "Derived Cohorts",
+    cohortEntries = ids(c("Child", "All-Cause Death"))
+  )
+  manifest$buildUnionCohort(
+    label = "Unrelated", category = "Derived Cohorts",
+    cohortEntries = ids(c("Type 2 Diabetes", "Major Bleeding Outcome"))
+  )
+  id_of <- function(label) as.character(ids(label)$id[1])
+  before <- cm_test_generation_hashes(manifest)
+
+  # Edit the base SQL file on disk and reload the manifest, as a new session would
+  sql_file <- fs::path(paths$sql_dir, "my_custom_cohort.sql")
+  readr::write_lines(c(readr::read_lines(sql_file), "-- definition changed"), sql_file)
+  reloaded <- suppressMessages(CohortManifest$new(dbPath = manifest$getDbPath()))
+  suppressMessages(reloaded$syncManifest())
+  after <- cm_test_generation_hashes(reloaded)
+  testthat::expect_length(after, length(before))
+  testthat::expect_true(all(vapply(c(before, after), is.character, logical(1))))
+
+  for (label in c("Custom SQL Cohort", "Child", "Grandchild")) {
+    testthat::expect_false(identical(before[[id_of(label)]], after[[id_of(label)]]), label = label)
+  }
+  testthat::expect_identical(before[[id_of("Unrelated")]], after[[id_of("Unrelated")]])
+  testthat::expect_identical(before[[id_of("All-Cause Death")]], after[[id_of("All-Cause Death")]])
+
+  # The grandchild's stored checksum from before the edit no longer matches, so
+  # it is regenerated even though its own file and direct parents' files are unchanged
+  grandchild <- reloaded$getCohortById(as.integer(id_of("Grandchild")))
+  status <- cm_test_skip_status(reloaded, grandchild, after, stored_hash = before[[id_of("Grandchild")]])
+  testthat::expect_false(status$should_skip)
+  testthat::expect_equal(status$dependency_status, "Definition or parent changed")
+  testthat::expect_true(cm_test_skip_status(reloaded, grandchild, after, stored_hash = after[[id_of("Grandchild")]])$should_skip)
+})
