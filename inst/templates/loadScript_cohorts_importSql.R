@@ -25,17 +25,24 @@ library(picard)
 # ================================================================================
 
 # The manifest is created on the first run and loaded on every run after that
-if (!fs::file_exists(here::here("inputs/cohorts/cohortManifest.sqlite"))) {
-  initCohortManifest(here::here("inputs/cohorts"))
+# Each config block can name its own manifest with cohortManifestPath in
+# config.yml (see ?getCohortManifestPath); the pipeline supplies the current
+# block as inputBuilderEnv$configBlock. To run this script interactively, first
+# create it with: inputBuilderEnv <- createInputBuilderEnv(configBlock = "my_database")
+if (!fs::file_exists(getCohortManifestPath(inputBuilderEnv$configBlock))) {
+  initCohortManifest(configBlock = inputBuilderEnv$configBlock)
 }
-cohortManifest <- loadCohortManifest()
+cohortManifest <- loadCohortManifest(configBlock = inputBuilderEnv$configBlock)
+
+# Keep each manifest's SQL files in its own folder (inputs/cohorts/sql/ for the
+# default manifest): loading a manifest removes files in its folder that it
+# does not track
+cohortsFolder <- fs::path_dir(cohortManifest$getDbPath())
 
 # Optional: attach execution settings when a database connection is needed
 # (e.g. to resolve concept sets for your SQL cohorts). The pipeline runs this
 # script once per config block, right before generating that block's cohorts,
 # and inputBuilderEnv supplies the current config block and pipeline version.
-# To run this script interactively, first create it with:
-# inputBuilderEnv <- createInputBuilderEnv(configBlock = "my_database")
 #
 # executionSettings <- createExecutionSettingsFromConfig(
 #   configBlock = inputBuilderEnv$configBlock,
@@ -49,7 +56,7 @@ cohortManifest <- loadCohortManifest()
 # ================================================================================
 
 # Your SQL file should:
-#   1. Be located in inputs/cohorts/sql/your_cohort.sql
+#   1. Be located in the manifest's sql/ folder, e.g. inputs/cohorts/sql/your_cohort.sql
 #   2. Accept these SqlRender parameters:
 #      - @target_cohort_id: The cohort definition ID assigned by the manifest
 #      - @target_database_schema: Schema where the cohort table resides
@@ -84,14 +91,14 @@ cohortManifest <- loadCohortManifest()
 # Uncomment and modify to add your SQL cohorts:
 
 # cohortManifest$addSqlCohort(
-#   filePath = here::here("inputs/cohorts/sql/type2_diabetes.sql"),
+#   filePath = fs::path(cohortsFolder, "sql/type2_diabetes.sql"),
 #   label = "Type 2 Diabetes - SQL",
 #   category = "Disease Populations",
 #   tags = list(source = "custom_sql", domain = "condition")
 # )
 
 # cohortManifest$addSqlCohort(
-#   filePath = here::here("inputs/cohorts/sql/metformin_exposure.sql"),
+#   filePath = fs::path(cohortsFolder, "sql/metformin_exposure.sql"),
 #   label = "Metformin Exposure - SQL",
 #   category = "Exposures",
 #   tags = list(source = "custom_sql", domain = "drug")
@@ -102,8 +109,8 @@ cohortManifest <- loadCohortManifest()
 # D. AUTO-DISCOVERY OF SQL FILES (OPTIONAL)
 # ================================================================================
 
-# If you prefer, you can auto-discover SQL files from inputs/cohorts/sql/:
-# sqlDir <- here::here("inputs/cohorts/sql")
+# If you prefer, you can auto-discover SQL files from the manifest's sql/ folder:
+# sqlDir <- fs::path(cohortsFolder, "sql")
 # sqlFiles <- list.files(sqlDir, pattern = "\\.sql$", full.names = TRUE)
 #
 # for (sqlFile in sqlFiles) {{

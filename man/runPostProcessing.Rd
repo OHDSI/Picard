@@ -24,9 +24,12 @@ runPostProcessing(
 \item{exportPath}{Character. Path where combined results will be saved.
 Defaults to "dissemination/export/merge"}
 
-\item{cohortsFolderPath}{Character. Path to cohorts folder for the CohortManifest.
-Defaults to "inputs/cohorts". If the path exists and contains a cohort manifest,
-generates a cohortManifestSnapshot.csv reference file.}
+\item{cohortsFolderPath}{Character. A path inside the study repository, used
+to locate \code{config.yml} and the cohort manifests. Defaults to
+"inputs/cohorts". Each database's manifest is the one named by its config
+block's \code{cohortManifestPath} (see \code{\link{getCohortManifestPath}});
+the active cohorts of every manifest that exists are written to
+cohortManifestSnapshot.csv.}
 
 \item{testMode}{Logical or NULL. When TRUE, QC checks are non-fatal (errors become
 warnings) and qcStatus is set to "DevMode". When NULL (default), testMode is
@@ -73,8 +76,12 @@ The function runs the complete post-processing workflow:
 Output files created in version export folder:
 \itemize{
 \item Merged result CSVs (per task)
-\item cohortManifestSnapshot.csv: Active cohort manifest at export time (id, label, filePath, hash, cohortType, timestamp)
-\item databaseInfo.csv: Databases included in merge operation
+\item cohortManifestSnapshot.csv: Active cohorts of each database's manifest at export time
+(databaseId, id, label, filePath, hash, cohortType, timestamp). databaseId matches
+the databaseId column of the merged results; databases sharing a manifest each
+get their own rows.
+\item databaseInfo.csv: Databases included in merge operation, with each one's
+cohortManifestPath
 \item schema_review.csv: Column-level inspection of all files
 \item qc_cohortValidation.csv: Cohort completeness validation results
 \item qc_processMeta.csv: Execution metadata (executionTimestamp, pipelineVersion, codeCommitSha,

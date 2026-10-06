@@ -216,3 +216,119 @@ testthat::test_that("executionSettings-dependent methods skipped", {
   testthat::skip("Out-of-scope: DBMS executionSettings methods are intentionally skipped in this wave (step 9).")
   testthat::expect_true(TRUE)
 })
+
+# Testing: each config block can name its own cohort manifest via cohortManifestPath.
+cm_test_write_config <- function(root, lines) {
+  readr::write_lines(lines, fs::path(root, "config.yml"))
+}
+
+testthat::test_that("getCohortManifestPath resolves a block's cohortManifestPath and falls back to the default", {
+  paths <- cm_test_make_manifest_paths("lifecycle-manifest-path")
+  cm_test_write_config(paths$root, c(
+    "default:",
+    "  projectName: test",
+    "db_a:",
+    "  cohortTable: cohort_a",
+    "  cohortManifestPath: inputs/cohorts/db_a/cohortManifest.sqlite",
+    "db_b:",
+    "  cohortTable: cohort_b"
+  ))
+  root <- findStudyProjectRoot(paths$root)
+
+  testthat::expect_equal(
+    getCohortManifestPath("db_a", projectPath = paths$root),
+    fs::path(root, "inputs/cohorts/db_a/cohortManifest.sqlite")
+  )
+  testthat::expect_equal(
+    getCohortManifestPath("db_b", projectPath = paths$root),
+    fs::path(root, "inputs/cohorts/cohortManifest.sqlite")
+  )
+  testthat::expect_equal(
+    getCohortManifestPath(projectPath = paths$root),
+    fs::path(root, "inputs/cohorts/cohortManifest.sqlite")
+  )
+  testthat::expect_error(
+    getCohortManifestPath("db_missing", projectPath = paths$root),
+    "not found"
+  )
+})
+
+testthat::test_that("getCohortManifestPath inherits cohortManifestPath from the default block", {
+  paths <- cm_test_make_manifest_paths("lifecycle-manifest-path-default")
+  cm_test_write_config(paths$root, c(
+    "default:",
+    "  cohortManifestPath: inputs/cohorts/shared/cohortManifest.sqlite",
+    "db_a:",
+    "  cohortTable: cohort_a"
+  ))
+
+  testthat::expect_equal(
+    getCohortManifestPath("db_a", projectPath = paths$root),
+    fs::path(findStudyProjectRoot(paths$root), "inputs/cohorts/shared/cohortManifest.sqlite")
+  )
+})
+
+testthat::test_that("getCohortManifestPath rejects two manifests in one folder", {
+  paths <- cm_test_make_manifest_paths("lifecycle-manifest-path-shared-folder")
+  cm_test_write_config(paths$root, c(
+    "default:",
+    "  projectName: test",
+    "db_a:",
+    "  cohortManifestPath: inputs/cohorts/cohortManifest_a.sqlite",
+    "db_b:",
+    "  cohortManifestPath: inputs/cohorts/cohortManifest_b.sqlite"
+  ))
+
+  testthat::expect_error(
+    getCohortManifestPath("db_a", projectPath = paths$root),
+    "shares its"
+  )
+  # The default manifest, unused by either block, is not a conflict until it exists
+  cm_test_write_config(paths$root, c(
+    "db_a:",
+    "  cohortManifestPath: inputs/cohorts/db_a/cohortManifest.sqlite"
+  ))
+  testthat::expect_no_error(getCohortManifestPath(projectPath = paths$root))
+  fs::dir_create(fs::path(paths$cohorts_dir, "db_a"))
+  fs::file_create(fs::path(paths$cohorts_dir, "db_a", "other.sqlite"))
+  testthat::expect_error(
+    getCohortManifestPath("db_a", projectPath = paths$root),
+    "shares its"
+  )
+})
+
+testthat::test_that("initCohortManifest and loadCohortManifest use the config block's manifest", {
+  paths <- cm_test_make_manifest_paths("lifecycle-manifest-by-block")
+  cm_test_write_config(paths$root, c(
+    "default:",
+    "  projectName: test",
+    "db_a:",
+    "  cohortManifestPath: inputs/cohorts/db_a/cohortManifest.sqlite",
+    "db_b:",
+    "  cohortManifestPath: inputs/cohorts/db_b/cohortManifest.sqlite",
+    "db_c:",
+    "  cohortManifestPath: inputs/cohorts/db_a/cohortManifest.sqlite"
+  ))
+
+  manifest_a <- suppressMessages(initCohortManifest(paths$root, configBlock = "db_a"))
+  suppressMessages(initCohortManifest(paths$root, configBlock = "db_b"))
+  json_a <- fs::path(paths$cohorts_dir, "db_a", "json")
+  fs::dir_create(json_a)
+  cm_test_add_circe_cohort(manifest_a, list(json_dir = json_a), label = "CKD", fixture_name = "ckd.json")
+
+  testthat::expect_true(fs::file_exists(fs::path(paths$cohorts_dir, "db_a", "cohortManifest.sqlite")))
+  testthat::expect_true(fs::file_exists(fs::path(paths$cohorts_dir, "db_b", "cohortManifest.sqlite")))
+  testthat::expect_false(fs::file_exists(paths$db_path))
+
+  load <- function(block) {
+    suppressMessages(loadCohortManifest(paths$root, configBlock = block))
+  }
+  testthat::expect_equal(load("db_a")$nCohorts(), 1L)
+  testthat::expect_equal(load("db_b")$nCohorts(), 0L)
+  testthat::expect_equal(load("db_c")$getDbPath(), load("db_a")$getDbPath())
+  testthat::expect_true(fs::file_exists(fs::path(json_a, "ckd.json")))
+  testthat::expect_error(
+    suppressMessages(loadCohortManifest(paths$root, autoSync = FALSE)),
+    "not found"
+  )
+})

@@ -764,6 +764,9 @@ DbConfigBlock <- R6::R6Class(
     #' @param dbServer Character string. Optional database server name for secrets.yml lookup (defaults to configBlockName).
     #' @param workDatabaseSchema Character string. Optional working schema for temp tables (per-block).
     #' @param tempEmulationSchema Character string. Optional temp table emulation schema (per-block).
+    #' @param cohortManifestPath Character string. Repo-relative path to the cohort manifest
+    #'   SQLite file this block uses (see [getCohortManifestPath()]). Defaults to
+    #'   `inputs/cohorts/cohortManifest.sqlite`.
     #'
     #' @return Invisibly returns self.
     initialize = function(configBlockName,
@@ -773,7 +776,8 @@ DbConfigBlock <- R6::R6Class(
                           databaseLabel = NULL,
                           dbServer = NULL,
                           workDatabaseSchema = NULL,
-                          tempEmulationSchema = NULL) {
+                          tempEmulationSchema = NULL,
+                          cohortManifestPath = DEFAULT_COHORT_MANIFEST_PATH) {
 
       checkmate::assert_string(x = configBlockName, min.chars = 1)
       checkmate::assert_string(x = cdmDatabaseSchema, min.chars = 1)
@@ -815,6 +819,9 @@ DbConfigBlock <- R6::R6Class(
       if (!is.null(tempEmulationSchema)) {
         private[[".tempEmulationSchema"]] <- tempEmulationSchema
       }
+
+      checkmate::assert_string(x = cohortManifestPath, min.chars = 1)
+      private[[".cohortManifestPath"]] <- cohortManifestPath
     },
 
     #' @description
@@ -834,6 +841,7 @@ DbConfigBlock <- R6::R6Class(
       cohortTable <- private$.cohortTable
       workSchema <- private$.workDatabaseSchema
       tempSchema <- private$.tempEmulationSchema %||% ""
+      cohortManifestPath <- private$.cohortManifestPath
 
       configBlock <- fs::path_package(package = "picard", "templates/configBlock.txt") |>
         readr::read_file() |>
@@ -850,7 +858,8 @@ DbConfigBlock <- R6::R6Class(
     .databaseLabel = NULL,
     .dbServer = NULL,
     .workDatabaseSchema = NULL,
-    .tempEmulationSchema = NULL
+    .tempEmulationSchema = NULL,
+    .cohortManifestPath = NULL
   ),
   active = list(
     #' @field configBlockName Unique identifier for this configuration block. Can be read or set with validation.
@@ -915,6 +924,14 @@ DbConfigBlock <- R6::R6Class(
       checkmate::assert_string(x = value, null.ok = TRUE)
       private[[".tempEmulationSchema"]] <- value
       cli::cli_alert_info("Updated {.field tempEmulationSchema}")
+    },
+
+    #' @field cohortManifestPath Repo-relative path to the cohort manifest SQLite file this block uses.
+    cohortManifestPath = function(value) {
+      if (missing(value)) return(private$.cohortManifestPath)
+      checkmate::assert_string(x = value, min.chars = 1)
+      private[[".cohortManifestPath"]] <- value
+      cli::cli_alert_info("Updated {.field cohortManifestPath}")
     }
   )
 )

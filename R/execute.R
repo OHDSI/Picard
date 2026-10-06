@@ -204,37 +204,43 @@ updateStudyVersion <- function(versionNumber, projectPath = here::here()) {
 #'   When supplied, its pipeline version and result-path rules are used.
 #' @param override Logical. If TRUE, skips the user confirmation prompt and proceeds
 #'   directly with cohort generation. Defaults to FALSE.
+#' @param configBlock Character or NULL. Config block whose
+#'   \code{cohortManifestPath} names the manifest to generate (see
+#'   \code{\link{getCohortManifestPath}}). NULL (default) uses
+#'   \code{inputs/cohorts/cohortManifest.sqlite}.
 #' @return Invisibly returns the cohort counts data frame (id, label, tags, 
 #'   cohort_entries, cohort_subjects). Also saves counts to cohortCounts.csv in the 
 #'   output folder.
 #' @export
 generateCohorts <- function(executionSettings, pipelineVersion,
-                            executionContext = NULL, override = FALSE) {
+                            executionContext = NULL, override = FALSE,
+                            configBlock = NULL) {
   checkmate::assert_class(executionContext, "ExecutionContext", null.ok = TRUE)
   if (!is.null(executionContext)) {
     pipelineVersion <- executionContext$getPipelineVersion()
   }
   
   # Check if cohortManifest exists
-  cohortsFolderPath <- here::here("inputs/cohorts")
-  dbPath <- fs::path(cohortsFolderPath, "cohortManifest.sqlite")
+  dbPath <- getCohortManifestPath(configBlock = configBlock)
+  cohortsFolderPath <- fs::path_rel(fs::path_dir(dbPath), here::here())
+  initArgs <- if (is.null(configBlock)) "" else glue::glue("configBlock = '{configBlock}'")
   
   if (!file.exists(dbPath)) {
     cli::cli_alert_danger("Cohort Manifest not found!")
     cli::cli_alert_info("Expected location: {fs::path_rel(dbPath)}")
     cli::cli_rule("How to create a Cohort Manifest")
     cli::cli_h2("Step 1: Initialize manifest")
-    cli::cli_code("cohortManifest <- initCohortManifest()")
+    cli::cli_code("cohortManifest <- initCohortManifest({initArgs})")
     cli::cli_h2("Step 2: Create cohortsLoad.csv in Excel")
     cli::cli_code("createBlankCohortsLoadFile()")
     cli::cli_h2("Step 3: Import cohorts from ATLAS")
     cli::cli_code("atlasConnection <- getAtlasConnection()")
     cli::cli_code("cohortManifest$importAtlasCohorts(atlasConnection, 'inputs/cohorts/cohortsLoad.csv')")
     cli::cli_h2("Step 4: Load into a new session")
-    cli::cli_code("cohortManifest <- loadCohortManifest()")
+    cli::cli_code("cohortManifest <- loadCohortManifest({initArgs})")
     cli::cli_bullets(c(
       "Place JSON or SQL files in {.path {cohortsFolderPath}/json} or {.path {cohortsFolderPath}/sql}",
-      "Then call: {.code loadCohortManifest()}"
+      "Then call: {.code loadCohortManifest({initArgs})}"
     ))
     cli::cli_rule()
     stop("Cannot proceed without a cohort manifest. Please create one using one of the options above.")
@@ -242,7 +248,7 @@ generateCohorts <- function(executionSettings, pipelineVersion,
   
   # Load the cohort manifest
   tryCatch({
-    cm <- loadCohortManifest(executionSettings = executionSettings)
+    cm <- loadCohortManifest(configBlock = configBlock, executionSettings = executionSettings)
   }, error = function(e) {
     cli::cli_alert_danger("Failed to load cohort manifest: {e$message}")
     stop("Error loading cohort manifest")
@@ -432,7 +438,7 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
 
   # Snapshot the input hashes once so the rerun check and every
   # recordTaskExecution() call below agree on the same values.
-  cohortManifestHash <- cohortManifestHash %||% .getCohortManifestHash()
+  cohortManifestHash <- cohortManifestHash %||% .getCohortManifestHash(configBlock = configBlock)
   conceptSetManifestHash <- conceptSetManifestHash %||% .getConceptSetManifestHash()
   renvLockHash <- renvLockHash %||% .getRenvLockHash()
 
@@ -860,7 +866,8 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
         executionSettings = executionSettings,
         pipelineVersion = pipelineVersion,
         executionContext = executionContext,
-        override = TRUE
+        override = TRUE,
+        configBlock = block
       )
     }, error = function(e) {
       cli::cli_alert_danger("Cohort generation failed for {block}: {e$message}")
@@ -870,7 +877,7 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
     # Snapshot this block's input hashes once, after its builders and generation
     # have reconciled the manifests, and reuse them for every task's rerun check /
     # run record
-    cohortManifestHash <- .getCohortManifestHash()
+    cohortManifestHash <- .getCohortManifestHash(configBlock = block)
     conceptSetManifestHash <- .getConceptSetManifestHash()
     renvLockHash <- .getRenvLockHash()
 

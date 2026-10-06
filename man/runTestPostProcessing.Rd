@@ -23,8 +23,9 @@ runTestPostProcessing(
 \item{exportPath}{Character. Path where combined results will be saved.
 Defaults to "dissemination/export/merge".}
 
-\item{cohortsFolderPath}{Character. Path to cohorts folder for the CohortManifest.
-Defaults to "inputs/cohorts".}
+\item{cohortsFolderPath}{Character. A path inside the study repository, used
+to locate the cohort manifests. Defaults to "inputs/cohorts". See
+\code{\link{runPostProcessing}}.}
 
 \item{compress}{Logical. If TRUE, merged per-task result files are written as
 gzip-compressed \code{.csv.gz}. See \code{\link{runPostProcessing}}. Default: FALSE.}

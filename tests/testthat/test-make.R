@@ -66,6 +66,26 @@ testthat::test_that("makeBlock builds DbConfigBlock with sanitized placeholders"
   block_text <- db_block$writeBlockSection()
   testthat::expect_true(grepl("cdm_schema_placeholder", block_text, fixed = TRUE))
   testthat::expect_true(grepl("work_schema_placeholder", block_text, fixed = TRUE))
+  testthat::expect_true(grepl(
+    "cohortManifestPath: inputs/cohorts/cohortManifest.sqlite", block_text, fixed = TRUE
+  ))
+})
+
+testthat::test_that("makeBlock writes a custom cohortManifestPath", {
+  db_block <- makeBlock(
+    configBlockName = "db_placeholder",
+    cdmDatabaseSchema = "cdm_schema_placeholder",
+    cohortTable = "cohort_table_placeholder",
+    workDatabaseSchema = "work_schema_placeholder",
+    cohortManifestPath = "inputs/cohorts/cohortManifest_db.sqlite"
+  )
+
+  testthat::expect_equal(db_block$cohortManifestPath, "inputs/cohorts/cohortManifest_db.sqlite")
+  testthat::expect_true(grepl(
+    "cohortManifestPath: inputs/cohorts/cohortManifest_db.sqlite",
+    db_block$writeBlockSection(),
+    fixed = TRUE
+  ))
 })
 
 testthat::test_that("makeUlyssesStudySettings initializes a standard repository structure in temp folder", {

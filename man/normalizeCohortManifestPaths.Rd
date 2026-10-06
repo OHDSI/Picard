@@ -6,7 +6,8 @@
 \usage{
 normalizeCohortManifestPaths(
   cohortsFolderPath = here::here("inputs/cohorts"),
-  dryRun = FALSE
+  dryRun = FALSE,
+  configBlock = NULL
 )
 }
 \arguments{
@@ -15,6 +16,10 @@ inside the study repository). Defaults to \code{here::here("inputs/cohorts")}.}
 
 \item{dryRun}{Logical. When \code{TRUE}, report what would change without writing.
 Defaults to \code{FALSE}.}
+
+\item{configBlock}{Character or NULL. Config block whose \code{cohortManifestPath}
+names the manifest to normalize (see \code{\link[=getCohortManifestPath]{getCohortManifestPath()}}). NULL
+(default) normalizes \code{inputs/cohorts/cohortManifest.sqlite}.}
 }
 \value{
 Invisibly, a tibble with columns \code{id}, \code{old_path}, \code{new_path},

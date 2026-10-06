@@ -20,7 +20,9 @@ settings automatically when provided).}
 
 \item{cohortsFolderPath}{Character. Path to the cohorts folder. Inferred
 from \code{manifest} when provided; otherwise defaults to
-\code{here::here("inputs/cohorts")}.}
+\code{here::here("inputs/cohorts")}, whose \code{cohortManifest.sqlite} is
+reset. To reset a manifest set by a config block's
+\code{cohortManifestPath}, pass it as \code{manifest}.}
 
 \item{scope}{Character. One of \code{"derived"}, \code{"manifest"},
 or \code{"full"}. Defaults to \code{"derived"}.}

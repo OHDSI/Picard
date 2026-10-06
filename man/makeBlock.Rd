@@ -12,7 +12,8 @@ makeBlock(
   databaseLabel = NULL,
   dbServer = NULL,
   workDatabaseSchema = NULL,
-  tempEmulationSchema = NULL
+  tempEmulationSchema = NULL,
+  cohortManifestPath = "inputs/cohorts/cohortManifest.sqlite"
 )
 }
 \arguments{
@@ -31,6 +32,11 @@ makeBlock(
 \item{workDatabaseSchema}{Character string. Optional working schema for temp tables (per-block).}
 
 \item{tempEmulationSchema}{Character string. Optional temp table emulation schema (per-block).}
+
+\item{cohortManifestPath}{Character string. Repo-relative path to the cohort
+manifest SQLite file this database uses (see \code{\link[=getCohortManifestPath]{getCohortManifestPath()}}).
+Point several blocks at the same file to share a manifest. Defaults to
+\code{inputs/cohorts/cohortManifest.sqlite}.}
 }
 \value{
 A DbConfigBlock R6 class with the config details

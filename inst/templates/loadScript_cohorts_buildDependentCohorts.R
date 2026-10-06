@@ -30,10 +30,14 @@ library(picard)
 
 # Base cohorts are loaded by the builder scripts that run before this one.
 # The manifest is created on the first run and loaded on every run after that
-if (!fs::file_exists(here::here("inputs/cohorts/cohortManifest.sqlite"))) {
-  initCohortManifest(here::here("inputs/cohorts"))
+# Each config block can name its own manifest with cohortManifestPath in
+# config.yml (see ?getCohortManifestPath); the pipeline supplies the current
+# block as inputBuilderEnv$configBlock. To run this script interactively, first
+# create it with: inputBuilderEnv <- createInputBuilderEnv(configBlock = "my_database")
+if (!fs::file_exists(getCohortManifestPath(inputBuilderEnv$configBlock))) {
+  initCohortManifest(configBlock = inputBuilderEnv$configBlock)
 }
-cohortManifest <- loadCohortManifest()
+cohortManifest <- loadCohortManifest(configBlock = inputBuilderEnv$configBlock)
 
 # Review existing cohorts to reference in dependent cohort definitions
 cohortManifest$tabulateManifest()
@@ -189,7 +193,7 @@ cohortManifest$tabulateManifest()
 # excEntry <- cohortManifest$queryCohortsByLabel("Exclusion cohort")
 #
 # cohortManifest$addDependentCustomCohort(
-#   filePath = here::here("inputs/cohorts/sql/my_custom_dependent.sql"),
+#   filePath = fs::path(fs::path_dir(cohortManifest$getDbPath()), "sql/my_custom_dependent.sql"),
 #   label = "Eligible_With_Exclusions",
 #   category = "Derived Cohorts",
 #   dependentCohortIdList = list(
@@ -213,7 +217,7 @@ cohortManifest$tabulateManifest()
 #       (cohort_definition_id, subject_id, cohort_start_date, cohort_end_date)
 #
 # dependentCohortIdList/sqlParameters values are rendered into the SQL immediately,
-# and the rendered file is written to inputs/cohorts/derived/<label>.sql (the file
+# and the rendered file is written to the manifest's derived/<label>.sql (the file
 # actually registered in the manifest) - just like the built-in derived cohort
 # builders above. Only @target_cohort_id and the other connection/schema
 # placeholders are left for generateCohorts() to fill in at execution time.

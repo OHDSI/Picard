@@ -126,7 +126,7 @@ shouldRerunTask <- function(
   }
 
   # Checks 3-5: study inputs and environment have changed
-  currentCohortManifestHash <- cohortManifestHash %||% .getCohortManifestHash()
+  currentCohortManifestHash <- cohortManifestHash %||% .getCohortManifestHash(configBlock = configBlock)
   currentConceptSetManifestHash <- conceptSetManifestHash %||% .getConceptSetManifestHash()
   currentRenvLockHash <- renvLockHash %||% .getRenvLockHash()
 
@@ -418,7 +418,7 @@ recordTaskExecution <- function(
 
 
 #' @title Get Cohort Manifest Hash
-#' @description Loads the cohort manifest and returns
+#' @description Loads a config block's cohort manifest and returns
 #'   [CohortManifest$getManifestHash()][CohortManifest], a SHA256 digest over
 #'   every registered (`active`/`stale`) cohort's definition and metadata
 #'   (label, category, tags). Used by [shouldRerunTask()] to detect cohort
@@ -430,13 +430,17 @@ recordTaskExecution <- function(
 #'   treats that as "cannot prove unchanged" and forces the rerun.
 #' @param projectPath Character. A path inside the study repository. Defaults to
 #'   the current project (`here::here()`).
+#' @param configBlock Character or NULL. Config block whose
+#'   `cohortManifestPath` names the manifest (see [getCohortManifestPath()]).
+#'   NULL (default) uses the default manifest.
 #' @return Character. SHA256 hex digest, or `NA_character_` if the manifest
 #'   cannot be read.
 #' @keywords internal
-.getCohortManifestHash <- function(projectPath = here::here()) {
+.getCohortManifestHash <- function(projectPath = here::here(), configBlock = NULL) {
   tryCatch({
     cm <- loadCohortManifest(
       cohortsFolderPath = projectPath,
+      configBlock = configBlock,
       autoSync = FALSE,
       verbose = FALSE
     )

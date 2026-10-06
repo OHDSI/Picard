@@ -8,14 +8,14 @@ loadCohortManifest(
   cohortsFolderPath = here::here("inputs/cohorts"),
   executionSettings = NULL,
   autoSync = TRUE,
-  verbose = TRUE
+  verbose = TRUE,
+  configBlock = NULL
 )
 }
 \arguments{
 \item{cohortsFolderPath}{Character. Path to the cohorts folder, or anywhere
 inside the study repository. Defaults to \code{here::here("inputs/cohorts")}. The
-repository root is discovered with \code{\link[=findStudyProjectRoot]{findStudyProjectRoot()}} and the manifest
-is always read from \verb{<root>/inputs/cohorts/cohortManifest.sqlite}.}
+repository root is discovered with \code{\link[=findStudyProjectRoot]{findStudyProjectRoot()}}.}
 
 \item{executionSettings}{An ExecutionSettings object containing database configuration
 for cohort generation. Optional; can be added later using \verb{$setExecutionSettings()}.}
@@ -26,6 +26,10 @@ file/row reconciliation — it is \strong{not} related to path resolution, and
 setting it to FALSE is not a workaround for a manifest that fails to load.}
 
 \item{verbose}{Logical. If TRUE, prints informative messages. Defaults to TRUE.}
+
+\item{configBlock}{Character or NULL. Config block whose \code{cohortManifestPath}
+names the manifest to load (see \code{\link[=getCohortManifestPath]{getCohortManifestPath()}}). NULL (default)
+loads \verb{<root>/inputs/cohorts/cohortManifest.sqlite}.}
 }
 \value{
 A CohortManifest R6 object.

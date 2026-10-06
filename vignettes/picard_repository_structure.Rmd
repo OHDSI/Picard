@@ -191,6 +191,7 @@ Central configuration file describing the study and its databases. It holds **no
 - `workDatabaseSchema`: Schema where the user has write access (for cohort tables and intermediary work)
 - `tempEmulationSchema`: Schema for temp tables on platforms that need it (Snowflake, Oracle)
 - `cohortTable`: Name of the cohort table to create
+- `cohortManifestPath`: Repo-relative path to the cohort manifest this database runs against (defaults to `inputs/cohorts/cohortManifest.sqlite`). See [Per-database cohort manifests](#per-database-cohort-manifests)
 
 Blocks are normally added with `makeBlock()` + `addBlock()` rather than hand-edited.
 
@@ -212,6 +213,7 @@ snowflake_prod:
   workDatabaseSchema: work_schema
   tempEmulationSchema: temp_schema
   cohortTable: my_study_cohorts
+  cohortManifestPath: inputs/cohorts/cohortManifest.sqlite
 
 postgres_local:
   dbServer: postgres_local
@@ -221,6 +223,7 @@ postgres_local:
   vocabDatabaseSchema: public
   workDatabaseSchema: results
   cohortTable: my_study_pg_cohorts
+  cohortManifestPath: inputs/cohorts/postgres_local/cohortManifest.sqlite
 ```
 
 The matching `~/.picard/secrets.yml` supplies the credentials, one top-level key per `dbServer`. Values can be plain strings or `!expr` R expressions (e.g. `keyring::key_get(...)`, `Sys.getenv(...)`):
@@ -427,6 +430,24 @@ SQLite database created/managed by `CohortManifest` class. Contains `cohort_mani
 4. Call `loadCohortManifest()` each session to rebuild the in-memory objects from SQLite
 5. Loads auto-sync against disk: file hashes are re-checked and drift is flagged
 6. Use CohortManifest methods to query cohorts: `$getCohortById(1)`, `$queryCohortsByTag("category: Disease Populations")`
+
+#### Per-database cohort manifests
+
+Each database block in `config.yml` names the cohort manifest it runs against with `cohortManifestPath`, so the cohorts generated in a database always match one manifest. Blocks without the field use `inputs/cohorts/cohortManifest.sqlite`. Blocks that should run the same cohorts point at the same file; a database that needs different definitions (e.g. database-specific concept ids in custom SQL) gets its own manifest:
+
+```
+inputs/cohorts/
+├── R/                                 # Builder scripts (shared by every manifest)
+├── json/ sql/ derived/                # Files of the default manifest
+├── cohortManifest.sqlite              # Default manifest
+└── postgres_local/
+    ├── json/ sql/ derived/            # Files of postgres_local's manifest
+    └── cohortManifest.sqlite
+```
+
+A manifest's definition files live in the folder that holds its `.sqlite` file. Loading a manifest removes files in its `json/`, `sql/` and `derived/` folders that it does not track, so each manifest needs its own folder: `getCohortManifestPath()` aborts if two manifests share one.
+
+Pass the config block to the manifest helpers to work with its manifest, e.g. `loadCohortManifest(configBlock = "postgres_local")` or `initCohortManifest(configBlock = "postgres_local")`. Without `configBlock` they use the default manifest. The pipeline does this for you: builder scripts load `inputBuilderEnv$configBlock`'s manifest, cohort generation and task change detection use each block's own manifest, and task files load the manifest of their `configBlock`.
 
 **See also:** [Loading Inputs](loading_inputs.html) for detailed guidance on creating, importing, and managing cohort manifests.
 

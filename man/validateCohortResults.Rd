@@ -19,6 +19,9 @@ If NULL, searches for a file with cohort_id, cohort_entries, and cohort_subjects
 \value{
 Data frame with columns:
 \itemize{
+\item databaseId: The database, when both the snapshot and the results file
+have a databaseId column (each database is checked against its own
+manifest's cohorts)
 \item cohortId: The cohort ID
 \item label: Cohort label from cohortKey
 \item validationStatus: "OK", "ZeroCount", or "Missing"

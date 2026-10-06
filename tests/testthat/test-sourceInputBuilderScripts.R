@@ -230,7 +230,18 @@ testthat::test_that("unpopulated builder scripts in a new study run without erro
   testthat::expect_true(fs::file_exists(fs::path(repo, "inputs/cohorts/cohortManifest.sqlite")))
   testthat::expect_true(fs::file_exists(fs::path(repo, "inputs/conceptSets/conceptSetManifest.sqlite")))
 
+  addBlock(
+    makeBlock(
+      configBlockName = "db_second",
+      cdmDatabaseSchema = "cdm_second",
+      cohortTable = "cohort_second",
+      workDatabaseSchema = "work_second",
+      cohortManifestPath = "inputs/cohorts/db_second/cohortManifest.sqlite"
+    ),
+    configFilePath = fs::path(repo, "config.yml")
+  )
   testthat::expect_no_error(suppressMessages(
-    sourceInputBuilderScripts(projectPath = repo, configBlock = c("db_a", "db_b"), verbose = FALSE)
+    sourceInputBuilderScripts(projectPath = repo, configBlock = c("db_placeholder", "db_second"), verbose = FALSE)
   ))
+  testthat::expect_true(fs::file_exists(fs::path(repo, "inputs/cohorts/db_second/cohortManifest.sqlite")))
 })

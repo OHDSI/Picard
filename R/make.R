@@ -44,6 +44,10 @@ makeStudyMeta <- function(studyTitle,
 #' @param dbServer the name of the database server in secrets.yml (defaults to configBlockName)
 #' @param workDatabaseSchema Character string. Optional working schema for temp tables (per-block).
 #' @param tempEmulationSchema Character string. Optional temp table emulation schema (per-block).
+#' @param cohortManifestPath Character string. Repo-relative path to the cohort
+#'   manifest SQLite file this database uses (see [getCohortManifestPath()]).
+#'   Point several blocks at the same file to share a manifest. Defaults to
+#'   `inputs/cohorts/cohortManifest.sqlite`.
 #' @returns A DbConfigBlock R6 class with the config details
 #' @export
 makeBlock <- function(configBlockName,
@@ -53,7 +57,8 @@ makeBlock <- function(configBlockName,
                       databaseLabel = NULL,
                       dbServer = NULL,
                       workDatabaseSchema = NULL,
-                      tempEmulationSchema = NULL) {
+                      tempEmulationSchema = NULL,
+                      cohortManifestPath = "inputs/cohorts/cohortManifest.sqlite") {
   DbConfigBlock$new(
     configBlockName = configBlockName,
     cdmDatabaseSchema = cdmDatabaseSchema,
@@ -62,7 +67,8 @@ makeBlock <- function(configBlockName,
     databaseLabel = databaseLabel,
     dbServer = dbServer,
     workDatabaseSchema = workDatabaseSchema,
-    tempEmulationSchema = tempEmulationSchema
+    tempEmulationSchema = tempEmulationSchema,
+    cohortManifestPath = cohortManifestPath
   )
 }
 

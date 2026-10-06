@@ -4,11 +4,15 @@
 \alias{initCohortManifest}
 \title{Initialize a New Cohort Manifest}
 \usage{
-initCohortManifest(path = "inputs/cohorts")
+initCohortManifest(path = "inputs/cohorts", configBlock = NULL)
 }
 \arguments{
-\item{path}{Character. Path to the cohorts folder where the SQLite file will be created.
-Defaults to \code{"inputs/cohorts"}.}
+\item{path}{Character. A path inside the study repository, used to locate
+the repository root. Defaults to \code{"inputs/cohorts"}.}
+
+\item{configBlock}{Character or NULL. Config block whose \code{cohortManifestPath}
+sets where the manifest is created (see \code{\link[=getCohortManifestPath]{getCohortManifestPath()}}). NULL
+(default) uses \code{inputs/cohorts/cohortManifest.sqlite}.}
 }
 \value{
 A \code{CohortManifest} R6 object (empty, ready for \verb{$add*()} calls).

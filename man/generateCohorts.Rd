@@ -8,7 +8,8 @@ generateCohorts(
   executionSettings,
   pipelineVersion,
   executionContext = NULL,
-  override = FALSE
+  override = FALSE,
+  configBlock = NULL
 )
 }
 \arguments{
@@ -28,6 +29,11 @@ When supplied, its pipeline version and result-path rules are used.}
 
 \item{override}{Logical. If TRUE, skips the user confirmation prompt and proceeds
 directly with cohort generation. Defaults to FALSE.}
+
+\item{configBlock}{Character or NULL. Config block whose
+\code{cohortManifestPath} names the manifest to generate (see
+\code{\link{getCohortManifestPath}}). NULL (default) uses
+\code{inputs/cohorts/cohortManifest.sqlite}.}
 }
 \value{
 Invisibly returns the cohort counts data frame (id, label, tags,

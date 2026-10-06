@@ -382,3 +382,29 @@ testthat::test_that("shouldRerunTask reruns once for history recorded before the
   tt_test_record_success(root)
   testthat::expect_false(tt_test_rerun(root)$should_rerun)
 })
+
+testthat::test_that(".getCohortManifestHash hashes the config block's own manifest", {
+  setup <- cm_test_new_manifest("tt-hash-by-block")
+  root <- setup$manifest$getProjectRoot()
+  readr::write_lines(
+    c(
+      "default:",
+      "  projectName: test",
+      "db_a:",
+      "  cohortManifestPath: inputs/cohorts/cohortManifest.sqlite",
+      "db_b:",
+      "  cohortManifestPath: inputs/cohorts/db_b/cohortManifest.sqlite"
+    ),
+    fs::path(root, "config.yml")
+  )
+  suppressMessages(initCohortManifest(root, configBlock = "db_b"))
+  cm_test_add_circe_cohort(setup$manifest, setup$paths, label = "CKD", fixture_name = "ckd.json")
+
+  hash_a <- .getCohortManifestHash(projectPath = root, configBlock = "db_a")
+  hash_b <- .getCohortManifestHash(projectPath = root, configBlock = "db_b")
+
+  testthat::expect_false(is.na(hash_a))
+  testthat::expect_false(is.na(hash_b))
+  testthat::expect_false(identical(hash_a, hash_b))
+  testthat::expect_identical(hash_a, .getCohortManifestHash(projectPath = root))
+})

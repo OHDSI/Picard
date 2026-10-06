@@ -33,10 +33,14 @@ library(picard)
 
 
 # The manifest is created on the first run and loaded on every run after that
-if (!fs::file_exists(here::here("inputs/cohorts/cohortManifest.sqlite"))) {
-  initCohortManifest(here::here("inputs/cohorts"))
+# Each config block can name its own manifest with cohortManifestPath in
+# config.yml (see ?getCohortManifestPath); the pipeline supplies the current
+# block as inputBuilderEnv$configBlock. To run this script interactively, first
+# create it with: inputBuilderEnv <- createInputBuilderEnv(configBlock = "my_database")
+if (!fs::file_exists(getCohortManifestPath(inputBuilderEnv$configBlock))) {
+  initCohortManifest(configBlock = inputBuilderEnv$configBlock)
 }
-cohortManifest <- loadCohortManifest()
+cohortManifest <- loadCohortManifest(configBlock = inputBuilderEnv$configBlock)
 
 
 # ================================================================================

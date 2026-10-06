@@ -37,7 +37,7 @@ outputFolder <- picard::setOutputFolder(
 )
 
 # get cohort manifest
-cm <- picard::loadCohortManifest()
+cm <- picard::loadCohortManifest(configBlock = configBlock)
 
 ##### Note: Add code that identifies task settings like cohorts or time windows
 

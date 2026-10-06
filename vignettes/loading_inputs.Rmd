@@ -96,15 +96,25 @@ the errors are returned in `error_summary`.
 
 `execStudyPipeline()` and `testStudyPipeline()` source the builder scripts
 separately for each config block, immediately before generating that block's
-cohorts and running its tasks. This lets builders make database-specific
-changes, such as resolving the concept ids used in custom SQL against each
-database, without the next database's builders overwriting them before they
-are used.
+cohorts and running its tasks.
+
+Each config block runs against the cohort manifest named by its
+`cohortManifestPath` in `config.yml` (default
+`inputs/cohorts/cohortManifest.sqlite`; see
+[Per-database cohort manifests](picard_repository_structure.html#per-database-cohort-manifests)).
+A database that needs different cohort definitions, such as custom SQL whose
+concept ids are resolved against that database, gets its own manifest in its
+own folder. Blocks that share a manifest share its definitions, so builder
+code that writes to a shared manifest must produce the same result for each
+of them.
 
 Before each pass, an `inputBuilderEnv` object is assigned to the global
 environment with the current `configBlock` and the run's `pipelineVersion`
-(the test namespace in `testStudyPipeline()`). Builder scripts can use it to
-create execution settings without hard-coding either value:
+(the test namespace in `testStudyPipeline()`). The builder templates load the
+block's manifest with
+`loadCohortManifest(configBlock = inputBuilderEnv$configBlock)`, and builder
+scripts can use the object to create execution settings without hard-coding
+either value:
 
 ```r
 executionSettings <- createExecutionSettingsFromConfig(

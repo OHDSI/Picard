@@ -102,7 +102,7 @@ cli::cli_blockquote(paste(
 # print(summary_report)
 
 ## View cohort manifest details
-# manifest <- loadCohortManifest()
+# manifest <- loadCohortManifest(configBlock = dbIds[1])
 # print(manifest$getManifest())
 
 ## View concept set manifest details

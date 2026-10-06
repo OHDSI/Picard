@@ -235,6 +235,61 @@ testthat::test_that("testStudyPipeline runs builders, cohorts and tasks per conf
 })
 
 
+testthat::test_that("testStudyPipeline uses each config block's own cohort manifest", {
+  fixture <- fs::path_abs(testthat::test_path("test_files", "ckd.json"))
+  repo <- pne_setup_repo()
+  task <- pne_write_task(repo)
+  readr::write_lines(
+    c(
+      "",
+      "db_second:",
+      "  dbServer: server_placeholder",
+      "  databaseName: db_second_name",
+      "  databaseLabel: Second DB",
+      "  cdmDatabaseSchema: cdm_second",
+      "  vocabDatabaseSchema: cdm_second",
+      "  workDatabaseSchema: work_second",
+      "  tempEmulationSchema: work_second",
+      "  cohortTable: cohort_second",
+      "  cohortManifestPath: inputs/cohorts/db_second/cohortManifest.sqlite"
+    ),
+    fs::path(repo, "config.yml"),
+    append = TRUE
+  )
+
+  suppressMessages(initCohortManifest(repo, configBlock = "db_placeholder"))
+  second <- suppressMessages(initCohortManifest(repo, configBlock = "db_second"))
+  json_path <- fs::path(repo, "inputs/cohorts/db_second/json/ckd.json")
+  fs::dir_create(fs::path_dir(json_path))
+  fs::file_copy(fixture, json_path)
+  suppressMessages(second$addCirceCohort(filePath = json_path, label = "CKD", category = "Target"))
+
+  generated_blocks <- character(0)
+  pne_mock_boundaries(task)
+  testthat::local_mocked_bindings(
+    sourceInputBuilderScripts = function(...) invisible(NULL),
+    generateCohorts = function(..., configBlock) {
+      generated_blocks <<- c(generated_blocks, configBlock)
+      invisible(data.frame())
+    }
+  )
+
+  suppressMessages(
+    testStudyPipeline(configBlock = c("db_placeholder", "db_second"), pipelineVersion = "dev")
+  )
+
+  testthat::expect_equal(generated_blocks, c("db_placeholder", "db_second"))
+
+  history <- pne_read_history(repo)
+  recorded <- stats::setNames(history$cohort_manifest_hash, history$config_block)
+  testthat::expect_false(identical(recorded[["db_placeholder"]], recorded[["db_second"]]))
+  testthat::expect_identical(
+    recorded[["db_second"]],
+    .getCohortManifestHash(projectPath = repo, configBlock = "db_second")
+  )
+})
+
+
 testthat::test_that("pre-flight warns rather than fails when the cohort manifest does not exist yet", {
   repo <- pne_setup_repo()
   pne_write_task(repo)

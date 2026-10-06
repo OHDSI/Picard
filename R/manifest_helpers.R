@@ -166,22 +166,130 @@ manifest_canonical_json <- function(x) {
 # COHORT MANIFEST HELPERS
 # ============================================================
 
+DEFAULT_COHORT_MANIFEST_PATH <- "inputs/cohorts/cohortManifest.sqlite"
+
+#' Get the Cohort Manifest Path for a Config Block
+#'
+#' Resolves the cohort manifest SQLite file used by a database config block.
+#' Each block in `config.yml` can set `cohortManifestPath` to the manifest it
+#' runs against, so a study can keep one manifest per database, or share one
+#' between several blocks by pointing them at the same file:
+#'
+#' ```yaml
+#' optum_dod:
+#'   cohortTable: my_study
+#'   cohortManifestPath: inputs/cohorts/optum_dod/cohortManifest.sqlite
+#' ```
+#'
+#' Cohort definition files (`json/`, `sql/`, `derived/`) live in the folder
+#' that holds the manifest file. Loading a manifest removes definition files
+#' in its folder that it does not track, so each manifest needs its own
+#' folder: this function aborts if another manifest named in `config.yml`, or
+#' another `.sqlite` file on disk, sits in the same folder.
+#'
+#' @param configBlock Character or NULL. Config block name from `config.yml`.
+#'   When NULL, or when the block (and the `default:` block) does not set
+#'   `cohortManifestPath`, the default `inputs/cohorts/cohortManifest.sqlite`
+#'   is used.
+#' @param projectPath Character. A path inside the study repository. Defaults
+#'   to the current project (`here::here()`).
+#'
+#' @return Character. Absolute path to the cohort manifest SQLite file. The
+#'   file is not required to exist.
+#'
+#' @export
+getCohortManifestPath <- function(configBlock = NULL, projectPath = here::here()) {
+  checkmate::assert_string(configBlock, min.chars = 1, null.ok = TRUE)
+
+  project_root <- findStudyProjectRoot(projectPath)
+  config_file <- fs::path(project_root, "config.yml")
+  configured <- configured_cohort_manifest_paths(project_root)
+
+  if (is.null(configBlock)) {
+    manifest_path <- resolve_cohort_manifest_path(DEFAULT_COHORT_MANIFEST_PATH, project_root)
+  } else if (configBlock %in% names(configured)) {
+    manifest_path <- configured[[configBlock]]
+  } else {
+    cli::cli_abort("Config block {.val {configBlock}} not found in {.path {config_file}}.")
+  }
+
+  assert_own_manifest_folder(manifest_path, configured, project_root, configBlock)
+  fs::path(manifest_path)
+}
+
+# Resolve a repo-relative (or absolute) manifest path to a normalized absolute path.
+resolve_cohort_manifest_path <- function(path, project_root) {
+  if (!fs::is_absolute_path(path)) {
+    path <- fs::path(project_root, path)
+  }
+  fs::path_norm(path)
+}
+
+# Absolute cohort manifest path for every database block in config.yml, named
+# by block. A block without cohortManifestPath inherits the default: block's
+# value, then DEFAULT_COHORT_MANIFEST_PATH.
+configured_cohort_manifest_paths <- function(project_root) {
+  config_file <- fs::path(project_root, "config.yml")
+  config_list <- yaml::read_yaml(config_file, eval.expr = FALSE) %||% list()
+
+  fallback <- config_list$default$cohortManifestPath %||% DEFAULT_COHORT_MANIFEST_PATH
+  blocks <- config_list[setdiff(names(config_list), "default")]
+  blocks <- blocks[vapply(blocks, is.list, logical(1))]
+
+  paths <- vapply(names(blocks), function(block) {
+    path <- blocks[[block]]$cohortManifestPath %||% fallback
+    checkmate::assert_string(path, min.chars = 1, .var.name = paste0(block, "$cohortManifestPath"))
+    as.character(resolve_cohort_manifest_path(path, project_root))
+  }, character(1))
+  as.list(paths)
+}
+
+# A manifest's sync removes json/sql files in its folder that it does not
+# track, so two manifests in one folder would delete each other's files.
+assert_own_manifest_folder <- function(manifest_path, configured, project_root, configBlock = NULL) {
+  folder <- fs::path_dir(manifest_path)
+  on_disk <- if (fs::dir_exists(folder)) {
+    fs::dir_ls(folder, regexp = "[.]sqlite$", type = "file")
+  } else {
+    character(0)
+  }
+  # Backups written by migrateCohortManifest() are not live manifests
+  on_disk <- on_disk[!grepl("_backup_[0-9_]+[.]sqlite$", on_disk)]
+
+  others <- unique(as.character(fs::path_norm(c(unlist(configured), on_disk))))
+  others <- others[fs::path_dir(others) == folder & others != manifest_path]
+  if (length(others) == 0) {
+    return(invisible(manifest_path))
+  }
+
+  rel <- function(p) as.character(fs::path_rel(p, project_root))
+  suggested <- fs::path("inputs/cohorts", configBlock %||% "my_database", "cohortManifest.sqlite")
+  cli::cli_abort(c(
+    "Cohort manifest {.path {rel(manifest_path)}} shares its folder with {.path {rel(others)}}.",
+    "i" = "Loading a manifest removes definition files in its folder that it does not track, so each manifest needs its own folder.",
+    "i" = "Set {.field cohortManifestPath} in {.file config.yml} to a separate folder, e.g. {.path {suggested}}."
+  ))
+}
+
 #' Initialize a New Cohort Manifest
 #'
 #' Creates a blank `cohortManifest.sqlite` database with the new schema.
 #' Directory creation (`json/`, `sql/`, `derived/`) is handled by the study repo
 #' initialization (see `listDefaultFolders()` in `R/Ulysses.R`).
 #'
-#' @param path Character. Path to the cohorts folder where the SQLite file will be created.
-#'   Defaults to `"inputs/cohorts"`.
+#' @param path Character. A path inside the study repository, used to locate
+#'   the repository root. Defaults to `"inputs/cohorts"`.
+#' @param configBlock Character or NULL. Config block whose `cohortManifestPath`
+#'   sets where the manifest is created (see [getCohortManifestPath()]). NULL
+#'   (default) uses `inputs/cohorts/cohortManifest.sqlite`.
 #'
 #' @return A `CohortManifest` R6 object (empty, ready for `$add*()` calls).
 #'
 #' @export
-initCohortManifest <- function(path = "inputs/cohorts") {
+initCohortManifest <- function(path = "inputs/cohorts", configBlock = NULL) {
+  dbPath <- getCohortManifestPath(configBlock = configBlock, projectPath = path)
   project_root <- findStudyProjectRoot(path)
-  cohorts_folder <- fs::path(project_root, "inputs", "cohorts")
-  dbPath <- fs::path(cohorts_folder, "cohortManifest.sqlite")
+  cohorts_folder <- fs::path_dir(dbPath)
 
   if (file.exists(dbPath)) {
     cli::cli_alert_warning("Manifest already exists at {fs::path_rel(dbPath)}.")
@@ -211,8 +319,7 @@ initCohortManifest <- function(path = "inputs/cohorts") {
 #'
 #' @param cohortsFolderPath Character. Path to the cohorts folder, or anywhere
 #'   inside the study repository. Defaults to `here::here("inputs/cohorts")`. The
-#'   repository root is discovered with [findStudyProjectRoot()] and the manifest
-#'   is always read from `<root>/inputs/cohorts/cohortManifest.sqlite`.
+#'   repository root is discovered with [findStudyProjectRoot()].
 #' @param executionSettings An ExecutionSettings object containing database configuration
 #'   for cohort generation. Optional; can be added later using `$setExecutionSettings()`.
 #' @param autoSync Logical. If TRUE (default), reconcile the manifest against the
@@ -220,6 +327,9 @@ initCohortManifest <- function(path = "inputs/cohorts") {
 #'   file/row reconciliation — it is **not** related to path resolution, and
 #'   setting it to FALSE is not a workaround for a manifest that fails to load.
 #' @param verbose Logical. If TRUE, prints informative messages. Defaults to TRUE.
+#' @param configBlock Character or NULL. Config block whose `cohortManifestPath`
+#'   names the manifest to load (see [getCohortManifestPath()]). NULL (default)
+#'   loads `<root>/inputs/cohorts/cohortManifest.sqlite`.
 #'
 #' @return A CohortManifest R6 object.
 #'
@@ -249,15 +359,20 @@ initCohortManifest <- function(path = "inputs/cohorts") {
 loadCohortManifest <- function(cohortsFolderPath = here::here("inputs/cohorts"),
                                executionSettings = NULL,
                                autoSync = TRUE,
-                               verbose = TRUE) {
+                               verbose = TRUE,
+                               configBlock = NULL) {
   project_root <- findStudyProjectRoot(cohortsFolderPath)
-  cohortsFolderPath <- fs::path(project_root, "inputs", "cohorts")
-  dbPath <- fs::path(cohortsFolderPath, "cohortManifest.sqlite")
+  dbPath <- getCohortManifestPath(configBlock = configBlock, projectPath = project_root)
 
   if (!file.exists(dbPath)) {
+    init_call <- if (is.null(configBlock)) {
+      "initCohortManifest()"
+    } else {
+      glue::glue("initCohortManifest(configBlock = \"{configBlock}\")")
+    }
     cli::cli_abort(c(
       "Cohort manifest not found at {.path {fs::path_rel(dbPath)}}.",
-      "i" = "Use {.code initCohortManifest()} to create a new manifest.",
+      "i" = "Use {.code {init_call}} to create a new manifest.",
       "i" = "Use {.code migrateCohortManifest()} if upgrading from picard <= 0.0.3."
     ))
   }
@@ -321,7 +436,9 @@ loadCohortManifest <- function(cohortsFolderPath = here::here("inputs/cohorts"),
 #'   settings automatically when provided).
 #' @param cohortsFolderPath Character. Path to the cohorts folder. Inferred
 #'   from \code{manifest} when provided; otherwise defaults to
-#'   \code{here::here("inputs/cohorts")}.
+#'   \code{here::here("inputs/cohorts")}, whose \code{cohortManifest.sqlite} is
+#'   reset. To reset a manifest set by a config block's
+#'   \code{cohortManifestPath}, pass it as \code{manifest}.
 #' @param scope Character. One of \code{"derived"}, \code{"manifest"},
 #'   or \code{"full"}. Defaults to \code{"derived"}.
 #' @param executionSettings An \code{ExecutionSettings} object. Required for
@@ -348,9 +465,11 @@ resetCohortManifest <- function(manifest = NULL,
   checkmate::assert_logical(archive, len = 1)
 
   # Resolve cohortsFolderPath and executionSettings from manifest object
+  dbPath <- fs::path(cohortsFolderPath, "cohortManifest.sqlite")
   if (!is.null(manifest)) {
     checkmate::assert_r6(manifest, classes = "CohortManifest")
-    cohortsFolderPath <- dirname(manifest$getDbPath())
+    dbPath <- manifest$getDbPath()
+    cohortsFolderPath <- dirname(dbPath)
     if (is.null(executionSettings)) {
       executionSettings <- manifest$getExecutionSettings()
     }
@@ -372,7 +491,6 @@ resetCohortManifest <- function(manifest = NULL,
     )
   }
 
-  dbPath      <- fs::path(cohortsFolderPath, "cohortManifest.sqlite")
   derived_dir <- fs::path(cohortsFolderPath, "derived")
   json_dir    <- fs::path(cohortsFolderPath, "json")
   sql_dir     <- fs::path(cohortsFolderPath, "sql")
@@ -580,7 +698,8 @@ resetCohortManifest <- function(manifest = NULL,
 # normalization is never mistaken for a definition change.
 normalize_manifest_paths <- function(folder_path,
                                      manifest_kind = c("cohort", "conceptSet"),
-                                     dry_run = FALSE) {
+                                     dry_run = FALSE,
+                                     db_path = NULL) {
   manifest_kind <- match.arg(manifest_kind)
   checkmate::assert_string(folder_path, min.chars = 1)
   checkmate::assert_flag(dry_run)
@@ -604,8 +723,8 @@ normalize_manifest_paths <- function(folder_path,
   )
 
   project_root <- findStudyProjectRoot(folder_path)
-  manifest_dir <- fs::path(project_root, "inputs", spec$leaf)
-  db_path <- fs::path(manifest_dir, spec$db_file)
+  db_path <- db_path %||% fs::path(project_root, "inputs", spec$leaf, spec$db_file)
+  manifest_dir <- fs::path_dir(db_path)
 
   if (!file.exists(db_path)) {
     cli::cli_abort(c(
@@ -725,6 +844,9 @@ normalize_manifest_paths <- function(folder_path,
 #'   inside the study repository). Defaults to `here::here("inputs/cohorts")`.
 #' @param dryRun Logical. When `TRUE`, report what would change without writing.
 #'   Defaults to `FALSE`.
+#' @param configBlock Character or NULL. Config block whose `cohortManifestPath`
+#'   names the manifest to normalize (see [getCohortManifestPath()]). NULL
+#'   (default) normalizes `inputs/cohorts/cohortManifest.sqlite`.
 #'
 #' @return Invisibly, a tibble with columns `id`, `old_path`, `new_path`,
 #'   `status` (one of `"rewritten"`, `"would_rewrite"`, `"unchanged"`,
@@ -733,8 +855,14 @@ normalize_manifest_paths <- function(folder_path,
 #' @seealso [findStudyProjectRoot()], [loadCohortManifest()]
 #' @export
 normalizeCohortManifestPaths <- function(cohortsFolderPath = here::here("inputs/cohorts"),
-                                         dryRun = FALSE) {
-  normalize_manifest_paths(cohortsFolderPath, manifest_kind = "cohort", dry_run = dryRun)
+                                         dryRun = FALSE,
+                                         configBlock = NULL) {
+  normalize_manifest_paths(
+    cohortsFolderPath,
+    manifest_kind = "cohort",
+    dry_run = dryRun,
+    db_path = getCohortManifestPath(configBlock, projectPath = cohortsFolderPath)
+  )
 }
 
 

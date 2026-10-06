@@ -4,18 +4,22 @@
 \alias{.getCohortManifestHash}
 \title{Get Cohort Manifest Hash}
 \usage{
-.getCohortManifestHash(projectPath = here::here())
+.getCohortManifestHash(projectPath = here::here(), configBlock = NULL)
 }
 \arguments{
 \item{projectPath}{Character. A path inside the study repository. Defaults to
 the current project (\code{here::here()}).}
+
+\item{configBlock}{Character or NULL. Config block whose
+\code{cohortManifestPath} names the manifest (see \code{\link[=getCohortManifestPath]{getCohortManifestPath()}}).
+NULL (default) uses the default manifest.}
 }
 \value{
 Character. SHA256 hex digest, or \code{NA_character_} if the manifest
 cannot be read.
 }
 \description{
-Loads the cohort manifest and returns
+Loads a config block's cohort manifest and returns
 \link[=CohortManifest]{CohortManifest$getManifestHash()}, a SHA256 digest over
 every registered (\code{active}/\code{stale}) cohort's definition and metadata
 (label, category, tags). Used by \code{\link[=shouldRerunTask]{shouldRerunTask()}} to detect cohort

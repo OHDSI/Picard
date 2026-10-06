@@ -112,19 +112,20 @@ v1.0.0/
 Documents which databases were included in the merge:
 
 ```
-databaseId,databaseName,databaseLabel,cohortTable
-database_1,database_1,OMOP CDM - Site A,cohort
-database_2,database_2,OMOP CDM - Site B,cohort_table
+databaseId,databaseName,databaseLabel,cohortTable,cohortManifestPath
+database_1,database_1,OMOP CDM - Site A,cohort,inputs/cohorts/cohortManifest.sqlite
+database_2,database_2,OMOP CDM - Site B,cohort_table,inputs/cohorts/database_2/cohortManifest.sqlite
 ```
 
 ### cohortManifestSnapshot.csv
 
-Point-in-time snapshot of your cohort manifest at execution:
+Point-in-time snapshot of each database's cohort manifest (the one named by its config block's `cohortManifestPath`) at execution. `databaseId` matches the `databaseId` column of the merged results; databases that share a manifest each get their own rows. `qc_cohortValidation.csv` checks each database's results against its own rows.
 
 ```
-id,label,category,tags,file_path,hash,cohort_type,status,created_at,updated_at
-1,Type 2 Diabetes,phenotype,high-priority,json/cohort_001.json,abc123...,circe,active,2025-01-15 10:30:00,2025-01-15 10:30:00
-2,CVD Outcome,outcome,,json/cohort_002.json,def456...,sql,active,2025-01-15 10:30:00,2025-01-15 10:30:00
+databaseId,id,label,category,tags,file_path,hash,cohort_type,status,created_at,updated_at
+database_1,1,Type 2 Diabetes,phenotype,high-priority,inputs/cohorts/json/cohort_001.json,abc123...,circe,active,2025-01-15 10:30:00,2025-01-15 10:30:00
+database_1,2,CVD Outcome,outcome,,inputs/cohorts/sql/cohort_002.sql,def456...,sql,active,2025-01-15 10:30:00,2025-01-15 10:30:00
+database_2,1,Type 2 Diabetes,phenotype,high-priority,inputs/cohorts/database_2/json/cohort_001.json,abc123...,circe,active,2025-01-15 10:30:00,2025-01-15 10:30:00
 ```
 
 Enables recovery via git history: `git log -- <file_path>`

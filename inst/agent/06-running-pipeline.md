@@ -238,11 +238,11 @@ Production execution follows five main phases:
 1. **Pre-Pipeline:** Auto-discover and source builder scripts from `inputs/conceptSets/R/` and `inputs/cohorts/R/`
    - Concept set builders run first (importAtlas, importCapr, or custom)
    - Cohort builders run second (importAtlas, importCapr, importSql, buildDependentCohorts)
-   - Manifests are loaded and populated with all definitions
+   - Manifests are loaded and populated with all definitions. Each config block uses the cohort manifest named by its `cohortManifestPath` in `config.yml` (default `inputs/cohorts/cohortManifest.sqlite`); see [Per-database cohort manifests](picard_repository_structure.html#per-database-cohort-manifests)
 
 2. **Setup:** Validate configuration, load execution settings, create output directories
 
-3. **Generate Cohorts:** Instantiate all cohort definitions in the database, validate cohort counts
+3. **Generate Cohorts:** Instantiate the config block's cohort manifest in its database, validate cohort counts
 
 4. **Run Analysis Tasks:** For each task in `analysis/tasks/`, load configuration, execute task code, check for errors, record results
 
@@ -257,7 +257,7 @@ from that record:
 
 - the task file's own contents;
 - a file the task `source()`s;
-- the **cohort manifest** — a cohort added or removed, its definition changed
+- the config block's **cohort manifest** — a cohort added or removed, its definition changed
   (the rendered SQL, or a derived cohort's build rule), or its label, category,
   or tags changed;
 - the **concept set manifest** — a concept set added or removed, its expression

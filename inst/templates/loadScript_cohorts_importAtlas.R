@@ -43,8 +43,10 @@ library(picard)
 # ================================================================================
 
 # Uncomment when you start using ATLAS. If the manifest does not exist yet,
-# run initCohortManifest() once at the console first.
-# cohortManifest <- loadCohortManifest()
+# run initCohortManifest(configBlock = "my_database") once at the console first.
+# inputBuilderEnv$configBlock is the config block the pipeline is building
+# inputs for; its cohortManifestPath in config.yml names the manifest.
+# cohortManifest <- loadCohortManifest(configBlock = inputBuilderEnv$configBlock)
 
 
 # ================================================================================

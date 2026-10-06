@@ -93,6 +93,31 @@
   without hard-coding either value. The generated `main.R` passes `dbIds`.
   `createInputBuilderEnv()` builds the same object for interactive use (#109).
 
+### Per-Database Cohort Manifests
+
+- Config blocks gain an optional `cohortManifestPath` naming the cohort
+  manifest that database runs against, so the cohorts generated in a database
+  always match one manifest. Blocks without it use
+  `inputs/cohorts/cohortManifest.sqlite`, and several blocks can share a
+  manifest by naming the same file. `makeBlock()` writes the field.
+- New `getCohortManifestPath(configBlock)` resolves a block's manifest.
+  `initCohortManifest()`, `loadCohortManifest()`,
+  `normalizeCohortManifestPaths()` and `generateCohorts()` gain a
+  `configBlock` argument; without it they use the default manifest.
+- The pipeline uses each block's own manifest for cohort generation, task
+  change detection and the pre-flight check. The builder and task templates
+  load the manifest of `inputBuilderEnv$configBlock` / the task's
+  `configBlock`.
+- Each manifest must sit in its own folder, holding its own `json/`, `sql/`
+  and `derived/`: loading a manifest removes files in its folder that it does
+  not track. `getCohortManifestPath()` aborts when another manifest in
+  `config.yml`, or another `.sqlite` file, shares the folder.
+- `runPostProcessing()` writes every database's active cohorts to
+  `cohortManifestSnapshot.csv` with a leading `databaseId` column (matching
+  the merged results), adds `cohortManifestPath` to `databaseInfo.csv`, and
+  `validateCohortResults()` checks each database's results against its own
+  manifest when both files carry `databaseId`.
+
 ### Study Metadata and Publishing
 
 - Added the optional `studyDescription` field to `makeStudyMeta()`. When supplied, it is inserted into the generated README; when omitted, the existing description placeholder is retained.

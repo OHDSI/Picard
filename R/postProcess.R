@@ -361,6 +361,9 @@ reviewExportSchema <- function(exportPath = here::here("dissemination/export/mer
 #' @param resultsFileName Character. Name of the results file to validate (e.g., "cohortCounts.csv").
 #'   If NULL, searches for a file with cohort_id, cohort_entries, and cohort_subjects columns.
 #' @return Data frame with columns:
+#'   - databaseId: The database, when both the snapshot and the results file
+#'     have a databaseId column (each database is checked against its own
+#'     manifest's cohorts)
 #'   - cohortId: The cohort ID
 #'   - label: Cohort label from cohortKey
 #'   - validationStatus: "OK", "ZeroCount", or "Missing"
@@ -475,12 +478,17 @@ validateCohortResults <- function(exportPath = here::here("dissemination/export/
     stringsAsFactors = FALSE
   )
   
+  byDatabase <- "databaseId" %in% names(cohortKey) && "databaseId" %in% names(results)
+
   for (i in seq_len(nrow(cohortKey))) {
     cohortId <- cohortKey$cohortId[i]
     label <- cohortKey$cohortLabel[i]
     
     # Check if cohort exists in results
     resultRow <- results[results$cohort_id == cohortId, ]
+    if (byDatabase) {
+      resultRow <- resultRow[resultRow$databaseId == cohortKey$databaseId[i], ]
+    }
     
     if (nrow(resultRow) == 0) {
       # Missing cohort
@@ -500,17 +508,22 @@ validateCohortResults <- function(exportPath = here::here("dissemination/export/
       }
     }
     
-    validation <- rbind(validation, data.frame(
+    row <- data.frame(
       cohortId = cohortId,
       label = label,
       validationStatus = status,
       details = details,
       stringsAsFactors = FALSE
-    ))
+    )
+    if (byDatabase) {
+      row$databaseId <- cohortKey$databaseId[i]
+    }
+    validation <- dplyr::bind_rows(validation, row)
   }
   
   # Print summary
-  validation <- tibble::as_tibble(validation)
+  validation <- tibble::as_tibble(validation) |>
+    dplyr::relocate(dplyr::any_of("databaseId"))
   
   okCount <- sum(validation$validationStatus == "OK")
   missingCount <- sum(validation$validationStatus == "Missing")
@@ -530,7 +543,7 @@ validateCohortResults <- function(exportPath = here::here("dissemination/export/
     for (i in seq_len(nrow(issues))) {
       issue <- issues[i, ]
       cli::cli_bullets(c(
-        " " = "{issue$cohortId}: {issue$label} - {issue$validationStatus} ({issue$details})"
+        " " = "{if (byDatabase) paste0('[', issue$databaseId, '] ') else ''}{issue$cohortId}: {issue$label} - {issue$validationStatus} ({issue$details})"
       ))
     }
   }
@@ -548,9 +561,12 @@ validateCohortResults <- function(exportPath = here::here("dissemination/export/
 #' @param resultsPath Character. Path to results root folder. Defaults to "exec/results"
 #' @param exportPath Character. Path where combined results will be saved.
 #'   Defaults to "dissemination/export/merge"
-#' @param cohortsFolderPath Character. Path to cohorts folder for the CohortManifest.
-#'   Defaults to "inputs/cohorts". If the path exists and contains a cohort manifest,
-#'   generates a cohortManifestSnapshot.csv reference file.
+#' @param cohortsFolderPath Character. A path inside the study repository, used
+#'   to locate \code{config.yml} and the cohort manifests. Defaults to
+#'   "inputs/cohorts". Each database's manifest is the one named by its config
+#'   block's \code{cohortManifestPath} (see \code{\link{getCohortManifestPath}});
+#'   the active cohorts of every manifest that exists are written to
+#'   cohortManifestSnapshot.csv.
 #' @param testMode Logical or NULL. When TRUE, QC checks are non-fatal (errors become
 #'   warnings) and qcStatus is set to "DevMode". When NULL (default), testMode is
 #'   automatically set to TRUE for non-semver pipeline versions (e.g. "dev", "test")
@@ -581,8 +597,12 @@ validateCohortResults <- function(exportPath = here::here("dissemination/export/
 #'
 #' Output files created in version export folder:
 #' - Merged result CSVs (per task)
-#' - cohortManifestSnapshot.csv: Active cohort manifest at export time (id, label, filePath, hash, cohortType, timestamp)
-#' - databaseInfo.csv: Databases included in merge operation
+#' - cohortManifestSnapshot.csv: Active cohorts of each database's manifest at export time
+#'   (databaseId, id, label, filePath, hash, cohortType, timestamp). databaseId matches
+#'   the databaseId column of the merged results; databases sharing a manifest each
+#'   get their own rows.
+#' - databaseInfo.csv: Databases included in merge operation, with each one's
+#'   cohortManifestPath
 #' - schema_review.csv: Column-level inspection of all files
 #' - qc_cohortValidation.csv: Cohort completeness validation results
 #' - qc_processMeta.csv: Execution metadata (executionTimestamp, pipelineVersion, codeCommitSha,
@@ -651,13 +671,19 @@ runPostProcessing <- function(pipelineVersion, dbIds, resultsPath = here::here("
   databaseFolderNames <- snakecase::to_snake_case(databaseNames)
   databaseLabels <- purrr::map_chr(dbIds, ~config::get("databaseLabel", config = .x))
   cohortTableNames <- purrr::map_chr(dbIds, ~config::get("cohortTable", config = .x))
-  
+  projectRoot <- findStudyProjectRoot(cohortsFolderPath)
+  cohortManifestPaths <- purrr::map_chr(
+    dbIds,
+    ~ as.character(getCohortManifestPath(configBlock = .x, projectPath = projectRoot))
+  )
+
   # Create database info reference file
   databaseInfo <- data.frame(
     databaseId = dbIds,
     databaseName = databaseNames,
     databaseLabel = databaseLabels,
     cohortTable = cohortTableNames,
+    cohortManifestPath = as.character(fs::path_rel(cohortManifestPaths, projectRoot)),
     stringsAsFactors = FALSE
   )
   
@@ -777,24 +803,45 @@ runPostProcessing <- function(pipelineVersion, dbIds, resultsPath = here::here("
     cli::cli_alert_danger("Error saving database info: {e$message}")
   })
   
-  # Create cohortKey reference file if cohorts manifest exists
-  if (dir.exists(cohortsFolderPath) && file.exists(fs::path(cohortsFolderPath, "cohortManifest.sqlite"))) {
+  # Snapshot each database's cohort manifest for point-in-time cohort provenance
+  if (any(file.exists(cohortManifestPaths))) {
     tryCatch({
       cli::cli_text("")
-      cli::cli_alert_info("Creating cohort key reference file...")
-      
-      # Load cohort manifest using new API
-      cohortManifest <- loadCohortManifest(cohortsFolderPath = cohortsFolderPath, verbose = FALSE)
-      
-      # Save manifest snapshot for point-in-time cohort provenance.
+      cli::cli_alert_info("Creating cohort manifest snapshot...")
+
       # Contains id, label, tags, filePath, hash, cohortType, status, timestamp.
       # The hash column enables recovery via: git log -- <filePath>
-      manifestSnapshot <- cohortManifest$tabulateManifest(filter = "active")
+      manifestTables <- list()
+      snapshotRows <- list()
+      for (i in seq_along(dbIds)) {
+        manifestPath <- cohortManifestPaths[i]
+        if (!file.exists(manifestPath)) {
+          cli::cli_alert_warning("No cohort manifest for {dbIds[i]} at {.path {fs::path_rel(manifestPath, projectRoot)}}")
+          next
+        }
+        if (is.null(manifestTables[[manifestPath]])) {
+          cohortManifest <- loadCohortManifest(
+            cohortsFolderPath = projectRoot,
+            configBlock = dbIds[i],
+            verbose = FALSE
+          )
+          manifestTables[[manifestPath]] <- cohortManifest$tabulateManifest(filter = "active")
+        }
+        snapshotRows[[i]] <- tibble::add_column(
+          manifestTables[[manifestPath]],
+          databaseId = databaseNames[i],
+          .before = 1
+        )
+      }
+      manifestSnapshot <- dplyr::bind_rows(snapshotRows)
+
       snapshotPath <- fs::path(versionExportPath, "cohortManifestSnapshot.csv")
       readr::write_csv(manifestSnapshot, snapshotPath)
-      cli::cli_alert_success("Cohort manifest snapshot saved to {fs::path_rel(snapshotPath)}: {nrow(manifestSnapshot)} cohort(s)")
+      cli::cli_alert_success(
+        "Cohort manifest snapshot saved to {fs::path_rel(snapshotPath)}: {length(manifestTables)} manifest(s), {nrow(manifestSnapshot)} row(s)"
+      )
     }, error = function(e) {
-      cli::cli_alert_danger("Error creating cohort key: {e$message}")
+      cli::cli_alert_danger("Error creating cohort manifest snapshot: {e$message}")
     })
   }
   
@@ -899,8 +946,9 @@ runPostProcessing <- function(pipelineVersion, dbIds, resultsPath = here::here("
 #' @param resultsPath Character. Path to results root folder. Defaults to "exec/results".
 #' @param exportPath Character. Path where combined results will be saved.
 #'   Defaults to "dissemination/export/merge".
-#' @param cohortsFolderPath Character. Path to cohorts folder for the CohortManifest.
-#'   Defaults to "inputs/cohorts".
+#' @param cohortsFolderPath Character. A path inside the study repository, used
+#'   to locate the cohort manifests. Defaults to "inputs/cohorts". See
+#'   \code{\link{runPostProcessing}}.
 #' @param compress Logical. If TRUE, merged per-task result files are written as
 #'   gzip-compressed \code{.csv.gz}. See \code{\link{runPostProcessing}}. Default: FALSE.
 #' @return Invisibly returns the merge summary data frame from runPostProcessing().

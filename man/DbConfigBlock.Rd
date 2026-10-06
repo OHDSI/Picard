@@ -46,6 +46,8 @@ Used to manage multiple database connections within a study.
 \item{\code{workDatabaseSchema}}{Working schema for writing temporary tables. Per-block setting (not study-level).}
 
 \item{\code{tempEmulationSchema}}{Schema for emulating temporary tables (Oracle/Snowflake). Per-block setting.}
+
+\item{\code{cohortManifestPath}}{Repo-relative path to the cohort manifest SQLite file this block uses.}
 }
 \if{html}{\out{</div>}}
 }
@@ -71,7 +73,8 @@ Initialize a new DbConfigBlock instance with database configuration.
   databaseLabel = NULL,
   dbServer = NULL,
   workDatabaseSchema = NULL,
-  tempEmulationSchema = NULL
+  tempEmulationSchema = NULL,
+  cohortManifestPath = DEFAULT_COHORT_MANIFEST_PATH
 )}\if{html}{\out{</div>}}
 }
 
@@ -93,6 +96,10 @@ Initialize a new DbConfigBlock instance with database configuration.
 \item{\code{workDatabaseSchema}}{Character string. Optional working schema for temp tables (per-block).}
 
 \item{\code{tempEmulationSchema}}{Character string. Optional temp table emulation schema (per-block).}
+
+\item{\code{cohortManifestPath}}{Character string. Repo-relative path to the cohort manifest
+SQLite file this block uses (see \code{\link[=getCohortManifestPath]{getCohortManifestPath()}}). Defaults to
+\code{inputs/cohorts/cohortManifest.sqlite}.}
 }
 \if{html}{\out{</div>}}
 }

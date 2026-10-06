@@ -9,3 +9,4 @@
   workDatabaseSchema: {workSchema}
   tempEmulationSchema: {tempSchema}
   cohortTable: {cohortTable}
+  cohortManifestPath: {cohortManifestPath}
