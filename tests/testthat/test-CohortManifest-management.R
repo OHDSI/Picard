@@ -813,7 +813,7 @@ cm_test_atlas_fixture_jsons <- function() {
   list(v1 = readr::read_file(v1_path), v2 = readr::read_file(v2_path))
 }
 
-# Testing: importAtlasCohorts errors when load rows are already registered (transient csv).
+# Testing: importAtlasCohorts errors when load rows are already registered (default stopIfExists = TRUE).
 testthat::test_that("importAtlasCohorts errors on already-registered rows", {
   setup <- cm_test_new_manifest("mgmt-atlas-import-dup")
   manifest <- setup$manifest
@@ -1366,4 +1366,64 @@ testthat::test_that("syncManifest still reports hash_updated on a real content c
 
   out <- manifest$syncManifest(strict_mode = TRUE)
   testthat::expect_true("hash_updated" %in% out$action[out$id == circe_id])
+})
+
+# Testing: syncing ATLAS cohorts is a no-op, not an error, when none are registered.
+testthat::test_that("updateAtlasCohorts returns NULL when no ATLAS cohorts are registered", {
+  setup <- cm_test_new_manifest("cohortmanifest-atlas-empty")
+
+  res <- testthat::expect_no_error(suppressMessages(
+    setup$manifest$updateAtlasCohorts(atlasConnection = list())
+  ))
+  testthat::expect_null(res)
+})
+
+# Testing: a failed ATLAS fetch stops the sync instead of skipping the cohort.
+testthat::test_that("checkAtlasCohorts and updateAtlasCohorts abort when a fetch fails", {
+  setup <- cm_test_new_manifest("mgmt-atlas-fetch-fail")
+  manifest <- setup$manifest
+  jsons <- cm_test_atlas_fixture_jsons()
+  manifest$importAtlasCohorts(
+    cohortsLoad = data.frame(atlasId = 100L, label = "Atlas Cohort", category = "Target"),
+    atlasConnection = cm_test_fake_atlas_connection(list("100" = jsons$v1))
+  )
+  failing_conn <- list(getCohortDefinition = function(cohortId) stop("ATLAS unreachable"))
+
+  for (method in c("checkAtlasCohorts", "updateAtlasCohorts")) {
+    err <- testthat::expect_error(
+      suppressMessages(manifest[[method]](atlasConnection = failing_conn)),
+      regexp = "Failed to fetch ATLAS cohort 100 (Atlas Cohort)",
+      fixed = TRUE
+    )
+    testthat::expect_match(conditionMessage(err$parent), "ATLAS unreachable")
+  }
+})
+
+# Testing: stopOnError = FALSE skips cohorts whose fetch fails, with a warning.
+testthat::test_that("checkAtlasCohorts and updateAtlasCohorts skip failed fetches when stopOnError = FALSE", {
+  setup <- cm_test_new_manifest("mgmt-atlas-fetch-skip")
+  manifest <- setup$manifest
+  jsons <- cm_test_atlas_fixture_jsons()
+  manifest$importAtlasCohorts(
+    cohortsLoad = data.frame(atlasId = c(100L, 200L), label = c("Atlas A", "Atlas B"), category = "Target"),
+    atlasConnection = cm_test_fake_atlas_connection(list("100" = jsons$v1, "200" = jsons$v2))
+  )
+  partial_conn <- list(getCohortDefinition = function(cohortId) {
+    if (cohortId == 100L) stop("ATLAS unreachable")
+    list(expression = jsons$v2, saveName = "atlas_cohort_200")
+  })
+
+  testthat::expect_warning(
+    suppressMessages(capture.output(
+      res <- manifest$checkAtlasCohorts(atlasConnection = partial_conn, stopOnError = FALSE)
+    )),
+    regexp = "Failed to fetch ATLAS cohort 100"
+  )
+  testthat::expect_equal(res$atlasId, 200L)
+  testthat::expect_warning(
+    suppressMessages(capture.output(
+      manifest$updateAtlasCohorts(atlasConnection = partial_conn, stopOnError = FALSE)
+    )),
+    regexp = "Failed to fetch ATLAS cohort 100"
+  )
 })

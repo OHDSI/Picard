@@ -133,10 +133,12 @@ resolve_manifest_path <- function(stored_path, project_root, manifest_dir) {
   root_relative
 }
 
-# Re-serialize a JSON string into a canonical form so that two equivalent
-# values (differing only in whitespace or key order) produce the same string.
-# Used when folding manifest columns such as `depends_on` / `dependency_rule`
-# into a content hash, so a cosmetic reformat does not look like a change.
+# Re-serialize a JSON string into a compact form so that two values differing
+# only in whitespace produce the same string. Key and array order are preserved,
+# so a reordering still counts as a change. Used when folding JSON (manifest
+# columns such as `depends_on` / `dependency_rule`, tags, and concept set
+# expressions) into a content hash, so a cosmetic reformat does not look like a
+# change.
 #
 # A missing / empty value returns "". A value that does not parse as JSON is
 # returned unchanged rather than dropped, so the caller still hashes something

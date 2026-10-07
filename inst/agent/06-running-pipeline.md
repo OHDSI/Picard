@@ -95,7 +95,7 @@ Before running production mode:
 3. **Pull latest changes:** `git pull`
 4. **Verify configuration:** Check config.yml for correctness
 5. **Prepare builder scripts:** Edit and finalize scripts in `inputs/cohorts/R/` and `inputs/conceptSets/R/`
-   - Delete unused builders; keep only the ones you need
+   - Leave unused builders in place; all 6 are required and unpopulated ones run without error
    - See [Loading Inputs](loading_inputs.html) for detailed guidance on each builder type
 
 You can also do this by using the `saveWork()` function which we describe in [Developing the Pipeline](developing_the_pipeline.html) to save your work and prepare for production.
@@ -235,7 +235,7 @@ for any row that is not `clean`.
 
 Production execution follows five main phases:
 
-1. **Pre-Pipeline:** Auto-discover and source builder scripts from `inputs/conceptSets/R/` and `inputs/cohorts/R/`
+1. **Pre-Pipeline:** `main.R` sources the builder scripts from `inputs/conceptSets/R/` and `inputs/cohorts/R/` (or the pipeline sources them per database with `skipInputBuilders = FALSE`)
    - Concept set builders run first (importAtlas, importCapr, or custom)
    - Cohort builders run second (importAtlas, importCapr, importSql, buildDependentCohorts)
    - Manifests are loaded and populated with all definitions
@@ -257,15 +257,38 @@ from that record:
 
 - the task file's own contents;
 - a file the task `source()`s;
-- the **cohort manifest** — any change to a registered cohort's *definition*:
-  the rendered SQL of a cohort, a cohort added or removed, or a derived
-  cohort's build rule. Renaming a cohort or editing its tags does not count;
+- the **cohort manifest** — a cohort added or removed, its definition changed
+  (the rendered SQL, or a derived cohort's build rule), or its label, category,
+  or tags changed;
+- the **concept set manifest** — a concept set added or removed, its expression
+  edited, or its label, category, or tags changed;
+- the **renv lockfile** (`renv.lock`) — the R version or any package's version
+  changed;
 - the pipeline version;
 - a previous run that ended in failure.
 
+Metadata counts as well as definitions because tasks often select cohorts and
+concept sets by label, category, or tag (for example, merging two medication
+categories into one changes a task's output without changing any definition).
+
 So after you edit a cohort's JSON or SQL and regenerate, the next pipeline run
-re-executes every task that had run against the old definition. If the manifest
-hash cannot be computed for any reason, tasks are re-run rather than skipped.
+re-executes every task that had run against the old definition. If a manifest
+or lockfile hash cannot be computed for any reason, tasks are re-run rather than
+skipped.
+
+To bypass change detection, pass `forceRerun`: `TRUE` re-runs every task, and
+a vector of task file names re-runs only those. Forced runs are still recorded
+in the task history.
+
+```r
+testStudyPipeline(configBlock = "myConfig", forceRerun = TRUE)
+testStudyPipeline(configBlock = "myConfig", forceRerun = "05_baseline_medicines.R")
+testStudyTask("05_baseline_medicines.R", configBlock = "myConfig", forceRerun = TRUE)
+```
+
+A production run (`execStudyPipeline()`) always increments the pipeline
+version, and run history is kept per version, so every task already re-runs in
+production.
 
 ## Handling Errors and Failures
 
