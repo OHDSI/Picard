@@ -8,7 +8,8 @@ testStudyPipeline(
   configBlock,
   pipelineVersion = "dev",
   env = rlang::caller_env(),
-  forceRerun = FALSE
+  forceRerun = FALSE,
+  skipInputBuilders = TRUE
 )
 }
 \arguments{
@@ -26,6 +27,11 @@ bypassing change detection (\code{\link[=shouldRerunTask]{shouldRerunTask()}}); 
 task file names (e.g. \code{"05_baseline_medicines.R"}) reruns only those.
 Forced runs are still recorded in \code{exec/logs/task_run_history.csv}.
 Default: \code{FALSE}}
+
+\item{skipInputBuilders}{Logical. If TRUE (default), the input builder
+scripts are not sourced; call \code{\link[=sourceInputBuilderScripts]{sourceInputBuilderScripts()}} before the
+pipeline instead. If FALSE, they are sourced for each config block before
+that block's cohorts are generated.}
 }
 \value{
 Invisibly returns task results list
@@ -37,11 +43,12 @@ used for test cohort tables and output folders. Test runs are allowed on
 development branches but rejected on the main branch.
 }
 \details{
-For each config block in turn, the pipeline sources the input
-builder scripts (see \code{\link{sourceInputBuilderScripts}}), generates
-that block's cohorts, and runs its tasks, before moving to the next block.
-Builders can therefore make database-specific changes (e.g. concept ids in
-custom SQL) without the next block's builders overwriting them.
+For each config block in turn, the pipeline generates that block's
+cohorts and runs its tasks, before moving to the next block. With
+\code{skipInputBuilders = FALSE}, it first sources the input builder
+scripts (see \code{\link{sourceInputBuilderScripts}}) for the block, so
+builders can make database-specific changes (e.g. concept ids in custom
+SQL) without the next block's builders overwriting them.
 }
 \examples{
 \dontrun{

@@ -235,7 +235,7 @@ for any row that is not `clean`.
 
 Production execution follows five main phases:
 
-1. **Pre-Pipeline:** Auto-discover and source builder scripts from `inputs/conceptSets/R/` and `inputs/cohorts/R/`
+1. **Pre-Pipeline:** `main.R` sources the builder scripts from `inputs/conceptSets/R/` and `inputs/cohorts/R/` (or the pipeline sources them per database with `skipInputBuilders = FALSE`)
    - Concept set builders run first (importAtlas, importCapr, or custom)
    - Cohort builders run second (importAtlas, importCapr, importSql, buildDependentCohorts)
    - Manifests are loaded and populated with all definitions. Each config block uses the cohort manifest named by its `cohortManifestPath` in `config.yml` (default `inputs/cohorts/cohortManifest.sqlite`); see [Per-database cohort manifests](picard_repository_structure.html#per-database-cohort-manifests)

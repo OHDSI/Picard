@@ -176,7 +176,7 @@ testthat::test_that("separate test namespaces stay isolated in results and task 
 })
 
 
-testthat::test_that("testStudyPipeline runs builders, cohorts and tasks per config block in order", {
+testthat::test_that("testStudyPipeline runs builders, cohorts and tasks per config block in order when not skipping builders", {
   repo <- pne_setup_repo()
   task <- pne_write_task(repo)
   readr::write_lines(
@@ -222,7 +222,11 @@ testthat::test_that("testStudyPipeline runs builders, cohorts and tasks per conf
   )
 
   suppressMessages(
-    testStudyPipeline(configBlock = c("db_placeholder", "db_second"), pipelineVersion = "dev")
+    testStudyPipeline(
+      configBlock = c("db_placeholder", "db_second"),
+      pipelineVersion = "dev",
+      skipInputBuilders = FALSE
+    )
   )
 
   testthat::expect_equal(
@@ -290,7 +294,25 @@ testthat::test_that("testStudyPipeline uses each config block's own cohort manif
 })
 
 
-testthat::test_that("pre-flight warns rather than fails when the cohort manifest does not exist yet", {
+testthat::test_that("testStudyPipeline skips input builders by default", {
+  repo <- pne_setup_repo()
+  task <- pne_write_task(repo)
+  pne_mock_boundaries(task)
+  builderCalls <- 0L
+  testthat::local_mocked_bindings(
+    sourceInputBuilderScripts = function(...) {
+      builderCalls <<- builderCalls + 1L
+      invisible(NULL)
+    }
+  )
+
+  suppressMessages(testStudyPipeline(configBlock = "db_placeholder", pipelineVersion = "dev"))
+
+  testthat::expect_identical(builderCalls, 0L)
+})
+
+
+testthat::test_that("pre-flight warns rather than fails when the pipeline will create the cohort manifest", {
   repo <- pne_setup_repo()
   pne_write_task(repo)
   secrets_path <- fs::path(Sys.getenv("HOME"), ".picard", "secrets.yml")
@@ -307,7 +329,8 @@ testthat::test_that("pre-flight warns rather than fails when the cohort manifest
       configBlock = "db_placeholder",
       pipelineVersion = "dev",
       testMode = TRUE,
-      skipRenv = TRUE
+      skipRenv = TRUE,
+      skipInputBuilders = FALSE
     ),
     message = function(m) {
       msgs <<- c(msgs, conditionMessage(m))
@@ -315,6 +338,21 @@ testthat::test_that("pre-flight warns rather than fails when the cohort manifest
     }
   ))
   testthat::expect_true(any(grepl("~ Cohort manifest +No manifest yet", msgs)))
+
+  msgs <- character(0)
+  testthat::expect_error(withCallingHandlers(
+    runPreflightChecks(
+      configBlock = "db_placeholder",
+      pipelineVersion = "dev",
+      testMode = TRUE,
+      skipRenv = TRUE
+    ),
+    message = function(m) {
+      msgs <<- c(msgs, conditionMessage(m))
+      invokeRestart("muffleMessage")
+    }
+  ))
+  testthat::expect_true(any(grepl("✗ Cohort manifest +Cohort manifest not found", msgs)))
 })
 
 

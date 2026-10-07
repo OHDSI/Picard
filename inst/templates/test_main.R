@@ -51,7 +51,7 @@ cli::cli_alert_info("Setting course for database sectors: {{paste(dbIds, collaps
 # ════════════════════════════════════════════════════════════════════════════════
 
 # TEST MODE CAPABILITIES:
-#   • For each database: source input builders, generate cohorts, run tasks
+#   • For each database: generate cohorts, run tasks
 #   • Execute full pipeline validation and task processing
 #   • Skip environment validation (assumes development setup)
 #   • Skip production git state checks (main-branch guard remains active)
@@ -63,6 +63,11 @@ cli::cli_h2("Initiating test flight sequence...")
 
 # Test namespace. Use a distinct value per analyst when sharing a database schema.
 pipelineVersion <- "dev"
+
+# Build cohort and concept set manifests. To run the builders for each database
+# right before its cohorts are generated, remove this call and pass
+# skipInputBuilders = FALSE to testStudyPipeline() instead.
+sourceInputBuilderScripts(configBlock = dbIds, pipelineVersion = pipelineVersion)
 
 taskResults <- testStudyPipeline(
   configBlock = dbIds,

@@ -94,9 +94,12 @@ the errors are returned in `error_summary`.
 
 ### Database-Specific Builders
 
-`execStudyPipeline()` and `testStudyPipeline()` source the builder scripts
-separately for each config block, immediately before generating that block's
-cohorts and running its tasks.
+The generated `main.R` and `test_main.R` call
+`sourceInputBuilderScripts(configBlock = dbIds)` before running the pipeline,
+which sources the builder scripts once per config block. To instead source them
+for each config block immediately before generating that block's cohorts and
+running its tasks, remove that call and pass `skipInputBuilders = FALSE` to
+`execStudyPipeline()` or `testStudyPipeline()`.
 
 Each config block runs against the cohort manifest named by its
 `cohortManifestPath` in `config.yml` (default
@@ -839,8 +842,8 @@ cohortManifest     <- loadCohortManifest()
 Both functions read from SQLite and rebuild the in-memory R6 objects. No
 network connection or CSV file is required.
 
-These calls are included in the default builder scripts and run automatically
-when the pipeline sources the builder scripts for each database.
+These calls are included in the default builder scripts and run whenever the
+builder scripts are sourced.
 
 ---
 
