@@ -547,6 +547,9 @@ getIgnoreUncommittedPaths <- function(configFilePath = "config.yml") {
 #' @param skipCodeStateCheck Logical. If TRUE, the code-state check is skipped
 #'   entirely — a last resort. The run is still allowed, but the checklist and
 #'   the run history record that the working tree was never verified.
+#' @param skipInputBuilders Logical. If FALSE, the pipeline sources the input
+#'   builder scripts, which create the cohort manifest, so a missing manifest
+#'   is only a warning. If TRUE (default), a missing manifest fails.
 #' @param resultsPath Character. Path to the results root folder for collision check.
 #' @param tasksFolderPath Character. Path to the tasks folder.
 #' @return Invisibly returns a list with \code{lockfileHash},
@@ -563,11 +566,13 @@ runPreflightChecks <- function(configBlock,
                                skipConnectivityCheck = TRUE,
                                ignoreUncommittedPaths = NULL,
                                skipCodeStateCheck = FALSE,
+                               skipInputBuilders = TRUE,
                                resultsPath = here::here("exec/results"),
                                tasksFolderPath = here::here("analysis/tasks")) {
 
   checkmate::assert_character(ignoreUncommittedPaths, any.missing = FALSE, null.ok = TRUE)
   checkmate::assert_logical(skipCodeStateCheck, len = 1, any.missing = FALSE)
+  checkmate::assert_flag(skipInputBuilders)
 
   if (is.null(ignoreUncommittedPaths)) {
     ignoreUncommittedPaths <- getIgnoreUncommittedPaths()
@@ -695,10 +700,10 @@ runPreflightChecks <- function(configBlock,
   )
 
   # 7. Cohort manifest — inlined to capture missingCohorts without <<-. A new
-  # study has no manifest until the pipeline sources its input builder scripts,
-  # so a missing manifest is only a warning.
+  # study has no manifest until its input builder scripts run, so a missing
+  # manifest is only a warning when the pipeline will source them.
   cohort_manifest_path <- here::here("inputs/cohorts/cohortManifest.sqlite")
-  cohort_check <- if (!fs::file_exists(cohort_manifest_path)) {
+  cohort_check <- if (!skipInputBuilders && !fs::file_exists(cohort_manifest_path)) {
     list(
       status = "warn",
       message = "No manifest yet \u2014 will be created by the input builder scripts",

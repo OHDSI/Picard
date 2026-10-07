@@ -642,6 +642,10 @@ testStudyTask <- function(
 #'   task file names (e.g. \code{"05_baseline_medicines.R"}) reruns only those.
 #'   Forced runs are still recorded in \code{exec/logs/task_run_history.csv}.
 #'   Default: \code{FALSE}
+#' @param skipInputBuilders Logical. If TRUE (default), the input builder
+#'   scripts are not sourced; call [sourceInputBuilderScripts()] before the
+#'   pipeline instead. If FALSE, they are sourced for each config block before
+#'   that block's cohorts are generated.
 #' @param env the execution environment
 #' @param pipelineVersionOverride Character. Optional test-mode override for the
 #'   pipeline version (the test namespace). Drives the cohort-table suffix, the
@@ -655,7 +659,8 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
                              skipCodeStateCheck = FALSE,
                              env = rlang::caller_env(),
                              pipelineVersionOverride = NULL,
-                             forceRerun = FALSE) {
+                             forceRerun = FALSE,
+                             skipInputBuilders = TRUE) {
   
   # Compute prospective pipeline version (needed for pre-flight checks)
   if (testMode) {
@@ -728,6 +733,7 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
     skipConnectivityCheck = skipConnectivityCheck,
     ignoreUncommittedPaths = ignoreUncommittedPaths,
     skipCodeStateCheck = skipCodeStateCheck,
+    skipInputBuilders = skipInputBuilders,
     resultsPath = here::here("exec/results"),
     tasksFolderPath = here::here("analysis/tasks")
   )
@@ -812,11 +818,11 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
   # Cohort manifest status and missing-cohort interactive prompt are handled
   # in runPreflightChecks() before pipeline execution begins.
 
-  # Each config block runs input builders -> cohort generation -> tasks before
-  # the next block starts. Builder scripts can make database-specific changes
-  # to the manifest (e.g. concept ids in custom SQL), which the next block's
-  # builders would overwrite. The ExecutionContext owns namespace derivation
-  # (cohort-table suffix, results folder, task history).
+  # Each config block runs input builders (unless skipped) -> cohort
+  # generation -> tasks before the next block starts. Builder scripts can make
+  # database-specific changes to the manifest (e.g. concept ids in custom SQL),
+  # which the next block's builders would overwrite. The ExecutionContext owns
+  # namespace derivation (cohort-table suffix, results folder, task history).
   taskResults <- list()
 
   for (db in seq_along(configBlock)) {
@@ -824,21 +830,23 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
     cli::cli_rule("Config block: {block}")
     appendLogLine(logFilePath, glue::glue("[{format(Sys.time(), '%H:%M:%S')}] Processing config block: {block}"))
 
-    appendLogLine(logFilePath, glue::glue("[{format(Sys.time(), '%H:%M:%S')}] Sourcing input builder scripts for config block: {block}"))
-    tryCatch({
-      sourceInputBuilderScripts(
-        projectPath = here::here(),
-        configBlock = block,
-        pipelineVersion = pipelineVersion
-      )
-    }, error = function(e) {
-      appendLogLine(logFilePath, formatErrorDetail(e))
-      cli::cli_abort(
-        "Input building failed for config block {.val {block}}; pipeline halted.",
-        parent = e,
-        call = NULL
-      )
-    })
+    if (!skipInputBuilders) {
+      appendLogLine(logFilePath, glue::glue("[{format(Sys.time(), '%H:%M:%S')}] Sourcing input builder scripts for config block: {block}"))
+      tryCatch({
+        sourceInputBuilderScripts(
+          projectPath = here::here(),
+          configBlock = block,
+          pipelineVersion = pipelineVersion
+        )
+      }, error = function(e) {
+        appendLogLine(logFilePath, formatErrorDetail(e))
+        cli::cli_abort(
+          "Input building failed for config block {.val {block}}; pipeline halted.",
+          parent = e,
+          call = NULL
+        )
+      })
+    }
 
     appendLogLine(logFilePath, glue::glue("[{format(Sys.time(), '%H:%M:%S')}] Generating cohorts for config block: {block}"))
     cli::cli_alert_info("Generating cohorts for config block: {block}")
@@ -985,11 +993,12 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
 #'   pipelineVersion value is interpreted as the test namespace and is
 #'   used for test cohort tables and output folders. Test runs are allowed on
 #'   development branches but rejected on the main branch.
-#' @details For each config block in turn, the pipeline sources the input
-#'   builder scripts (see \code{\link{sourceInputBuilderScripts}}), generates
-#'   that block's cohorts, and runs its tasks, before moving to the next block.
-#'   Builders can therefore make database-specific changes (e.g. concept ids in
-#'   custom SQL) without the next block's builders overwriting them.
+#' @details For each config block in turn, the pipeline generates that block's
+#'   cohorts and runs its tasks, before moving to the next block. With
+#'   \code{skipInputBuilders = FALSE}, it first sources the input builder
+#'   scripts (see \code{\link{sourceInputBuilderScripts}}) for the block, so
+#'   builders can make database-specific changes (e.g. concept ids in custom
+#'   SQL) without the next block's builders overwriting them.
 #' @param configBlock Character or character vector. Name(s) of config block(s) to use.
 #' @param pipelineVersion Character. Test namespace used for output folders and
 #'   cohort table suffix. Defaults to \code{"dev"}. The value is normalized to
@@ -1000,6 +1009,10 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
 #'   task file names (e.g. \code{"05_baseline_medicines.R"}) reruns only those.
 #'   Forced runs are still recorded in \code{exec/logs/task_run_history.csv}.
 #'   Default: \code{FALSE}
+#' @param skipInputBuilders Logical. If TRUE (default), the input builder
+#'   scripts are not sourced; call [sourceInputBuilderScripts()] before the
+#'   pipeline instead. If FALSE, they are sourced for each config block before
+#'   that block's cohorts are generated.
 #' @param env The execution environment. Defaults to caller environment.
 #' @return Invisibly returns task results list
 #' @export
@@ -1013,13 +1026,14 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
 #' testStudyPipeline(configBlock = "myConfig", pipelineVersion = "feature_ml_test")
 #' }
 testStudyPipeline <- function(configBlock, pipelineVersion = "dev", env = rlang::caller_env(),
-                              forceRerun = FALSE) {
+                              forceRerun = FALSE, skipInputBuilders = TRUE) {
   checkmate::assert_character(configBlock, min.len = 1, any.missing = FALSE)
   checkmate::assert_string(pipelineVersion, min.chars = 1)
   checkmate::assert(
     checkmate::check_flag(forceRerun),
     checkmate::check_character(forceRerun, min.len = 1, any.missing = FALSE)
   )
+  checkmate::assert_flag(skipInputBuilders)
 
   pipelineVersion <- normalizePipelineVersion(pipelineVersion)
 
@@ -1042,7 +1056,8 @@ testStudyPipeline <- function(configBlock, pipelineVersion = "dev", env = rlang:
     pipelineVersionOverride = pipelineVersion,
     skipRenv = TRUE,
     env = env,
-    forceRerun = forceRerun
+    forceRerun = forceRerun,
+    skipInputBuilders = skipInputBuilders
   )
 }
 
@@ -1050,11 +1065,12 @@ testStudyPipeline <- function(configBlock, pipelineVersion = "dev", env = rlang:
 #' @description Executes the full study pipeline in production mode with full validation,
 #'   version management, and reproducibility tracking. Creates a release branch, runs
 #'   the complete pipeline, provides PR instructions, and saves reference to PENDING_PR.md.
-#' @details For each config block in turn, the pipeline sources the input
-#'   builder scripts (see \code{\link{sourceInputBuilderScripts}}), generates
-#'   that block's cohorts, and runs its tasks, before moving to the next block.
-#'   Builders can therefore make database-specific changes (e.g. concept ids in
-#'   custom SQL) without the next block's builders overwriting them.
+#' @details For each config block in turn, the pipeline generates that block's
+#'   cohorts and runs its tasks, before moving to the next block. With
+#'   \code{skipInputBuilders = FALSE}, it first sources the input builder
+#'   scripts (see \code{\link{sourceInputBuilderScripts}}) for the block, so
+#'   builders can make database-specific changes (e.g. concept ids in custom
+#'   SQL) without the next block's builders overwriting them.
 #' @param configBlock Character or character vector. Name(s) of config block(s) to use.
 #' @param updateType Character. Type of version increment: 'major', 'minor', or 'patch'.
 #'   - MAJOR: Breaking changes
@@ -1083,6 +1099,10 @@ testStudyPipeline <- function(configBlock, pipelineVersion = "dev", env = rlang:
 #'   task file names (e.g. \code{"05_baseline_medicines.R"}) reruns only those.
 #'   Forced runs are still recorded in \code{exec/logs/task_run_history.csv}.
 #'   Default: \code{FALSE}
+#' @param skipInputBuilders Logical. If TRUE (default), the input builder
+#'   scripts are not sourced; call [sourceInputBuilderScripts()] before the
+#'   pipeline instead. If FALSE, they are sourced for each config block before
+#'   that block's cohorts are generated.
 #' @param env The execution environment. Defaults to caller environment.
 #' @return Invisibly returns task results list
 #' @export
@@ -1110,13 +1130,15 @@ execStudyPipeline <- function(configBlock, updateType, skipRenv = FALSE,
                               ignoreUncommittedPaths = NULL,
                               skipCodeStateCheck = FALSE,
                               env = rlang::caller_env(),
-                              forceRerun = FALSE) {
+                              forceRerun = FALSE,
+                              skipInputBuilders = TRUE) {
   checkmate::assert_character(configBlock, min.len = 1, any.missing = FALSE)
   checkmate::assert_string(updateType, min.chars = 1)
   checkmate::assert(
     checkmate::check_flag(forceRerun),
     checkmate::check_character(forceRerun, min.len = 1, any.missing = FALSE)
   )
+  checkmate::assert_flag(skipInputBuilders)
   checkmate::assert_logical(skipRenv, len = 1)
   checkmate::assert_logical(skipConnectivityCheck, len = 1)
   checkmate::assert_character(ignoreUncommittedPaths, any.missing = FALSE, null.ok = TRUE)
@@ -1212,7 +1234,8 @@ execStudyPipeline <- function(configBlock, updateType, skipRenv = FALSE,
     ignoreUncommittedPaths = ignoreUncommittedPaths,
     skipCodeStateCheck = skipCodeStateCheck,
     env = env,
-    forceRerun = forceRerun
+    forceRerun = forceRerun,
+    skipInputBuilders = skipInputBuilders
   )
   
   # After successful execution, create PR metadata

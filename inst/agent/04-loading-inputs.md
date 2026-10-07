@@ -89,12 +89,17 @@ the errors are returned in `error_summary`.
 
 ### Database-Specific Builders
 
-`execStudyPipeline()` and `testStudyPipeline()` source the builder scripts
-separately for each config block, immediately before generating that block's
-cohorts and running its tasks. This lets builders make database-specific
-changes, such as resolving the concept ids used in custom SQL against each
-database, without the next database's builders overwriting them before they
-are used.
+The generated `main.R` and `test_main.R` call
+`sourceInputBuilderScripts(configBlock = dbIds)` before running the pipeline,
+which sources the builder scripts once per config block. Because all databases
+share one manifest, a builder that makes database-specific changes (such as
+resolving the concept ids used in custom SQL against each database) leaves the
+manifest matching only the last database.
+
+To avoid this, remove that call and pass `skipInputBuilders = FALSE` to
+`execStudyPipeline()` or `testStudyPipeline()`. The pipeline then sources the
+builder scripts separately for each config block, immediately before
+generating that block's cohorts and running its tasks.
 
 Before each pass, an `inputBuilderEnv` object is assigned to the global
 environment with the current `configBlock` and the run's `pipelineVersion`
@@ -824,8 +829,8 @@ cohortManifest     <- loadCohortManifest()
 Both functions read from SQLite and rebuild the in-memory R6 objects. No
 network connection or CSV file is required.
 
-These calls are included in the default builder scripts and run automatically
-when the pipeline sources the builder scripts for each database.
+These calls are included in the default builder scripts and run whenever the
+builder scripts are sourced.
 
 ---
 

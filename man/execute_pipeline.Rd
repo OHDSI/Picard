@@ -14,7 +14,8 @@ execute_pipeline(
   skipCodeStateCheck = FALSE,
   env = rlang::caller_env(),
   pipelineVersionOverride = NULL,
-  forceRerun = FALSE
+  forceRerun = FALSE,
+  skipInputBuilders = TRUE
 )
 }
 \arguments{
@@ -53,6 +54,11 @@ bypassing change detection (\code{\link[=shouldRerunTask]{shouldRerunTask()}}); 
 task file names (e.g. \code{"05_baseline_medicines.R"}) reruns only those.
 Forced runs are still recorded in \code{exec/logs/task_run_history.csv}.
 Default: \code{FALSE}}
+
+\item{skipInputBuilders}{Logical. If TRUE (default), the input builder
+scripts are not sourced; call \code{\link[=sourceInputBuilderScripts]{sourceInputBuilderScripts()}} before the
+pipeline instead. If FALSE, they are sourced for each config block before
+that block's cohorts are generated.}
 }
 \value{
 Invisibly returns task results list

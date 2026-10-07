@@ -92,6 +92,11 @@
   build execution settings (e.g. to resolve concept sets for SQL cohorts)
   without hard-coding either value. The generated `main.R` passes `dbIds`.
   `createInputBuilderEnv()` builds the same object for interactive use (#109).
+- `execStudyPipeline()` / `testStudyPipeline()` gain `skipInputBuilders`
+  (default `TRUE`). With `FALSE`, the pipeline sources the builder scripts for
+  each config block right before generating that block's cohorts, so
+  database-specific builder changes are not overwritten by the next database.
+  By default the builders are still sourced from `main.R` / `test_main.R`.
 
 ### Study Metadata and Publishing
 

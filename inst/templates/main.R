@@ -41,16 +41,19 @@ dbIds <- c("{configBlocks}")
 # unpopulated builders run without error. Scripts run in a fixed order with
 # concept sets first, so cohorts can reference them if needed.
 #
-# You do not call the builder scripts here: execStudyPipeline() sources them
-# for each database in dbIds, right before generating that database's cohorts
-# and running its tasks, so database-specific changes (e.g. concept ids in
-# custom SQL) are not overwritten by the next database. Each pass can read
+# The builders run once per database in dbIds. Each pass can read
 # inputBuilderEnv$configBlock and inputBuilderEnv$pipelineVersion to build
-# execution settings. To run the builders on their own while developing, use
-# sourceInputBuilderScripts(configBlock = "<one of dbIds>").
+# execution settings.
+#
+# If builders make database-specific changes (e.g. concept ids in custom SQL),
+# remove this call and pass skipInputBuilders = FALSE to execStudyPipeline()
+# instead, so each database's builders run right before its cohorts are
+# generated and are not overwritten by the next database.
 #
 # WARNING: Do NOT add builder scripts to analysis/tasks/ folder!
 #          Use the dedicated R/ folders in inputs/cohorts/ and inputs/conceptSets/
+
+sourceInputBuilderScripts(configBlock = dbIds)
 
 # E. Execute Production Pipeline ─────────────────────────────────────────────────
 
@@ -58,7 +61,7 @@ dbIds <- c("{configBlocks}")
 # - Validates environment and git state before running
 # - Creates release branch automatically
 # - Increments semantic version
-# - For each database: sources input builders, generates cohorts, runs tasks
+# - For each database: generates cohorts, runs tasks
 # - Commits changes and saves PR reference to PENDING_PR.md
 
 cli::cli_h2("Engaging primary systems...")
