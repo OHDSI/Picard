@@ -1,23 +1,31 @@
 # Render a derived cohort's SQL with build-time parameters and write it to
-# inputs/cohorts/derived/<label>.sql. Parameters not passed in `...` (e.g. the
-# connection/schema placeholders filled in at generation time) are left as
-# literal @tokens in the output. `header`, when supplied, is prepended
-# verbatim (after rendering) as a QC comment block - not itself rendered.
-render_and_write_derived_sql <- function(derived_dir, label, sql_content, ..., header = NULL) {
+# inputs/cohorts/derived/<label>.sql for new cohorts. Existing cohorts can pass
+# their stored path to overwrite the definition in place. Parameters not passed
+# in `...` (e.g. the connection/schema placeholders filled in at generation
+# time) are left as literal @tokens in the output. `header`, when supplied, is
+# prepended verbatim (after rendering) as a QC comment block - not itself rendered.
+render_and_write_derived_sql <- function(derived_dir, label, sql_content, ..., header = NULL,
+                                         output_path = NULL) {
     safe_label <- gsub("[^a-zA-Z0-9_-]", "_", label)
     sql_path <- fs::path(derived_dir, paste0(safe_label, ".sql"))
+
+    if (!is.null(output_path)) {
+      sql_path <- output_path
+    }
+
     rendered_sql <- SqlRender::render(sql_content, ...)
     if (!is.null(header) && length(header) > 0) {
       rendered_sql <- paste(c(header, "", rendered_sql), collapse = "\n")
     }
+    fs::dir_create(fs::path_dir(sql_path), recurse = TRUE)
     writeLines(rendered_sql, sql_path)
     return(sql_path)
 }
 
-write_derived_template <- function(derived_dir, label, template_name, ...) {
+write_derived_template <- function(derived_dir, label, template_name, ..., output_path = NULL) {
     template_path <- system.file("sql", template_name, package = "picard")
     sql_content <- readr::read_file(template_path)
-    render_and_write_derived_sql(derived_dir, label, sql_content, ...)
+    render_and_write_derived_sql(derived_dir, label, sql_content, ..., output_path = output_path)
 }
 
 # Build a "/* Dependent cohorts ... */" QC header documenting which cohort
@@ -40,6 +48,7 @@ custom_derived_reserved_param_names <- function() {
   c(
     "sql",
     "header",
+    "output_path",
     "cdm_database_schema",
     "vocabulary_database_schema",
     "target_database_schema",

@@ -10,6 +10,26 @@ testthat::test_that("tabulateManifest returns active rows", {
   testthat::expect_true(all(out$status == "active"))
 })
 
+# Testing: tabulateManifest keeps tag names when stored JSON values are null.
+testthat::test_that("tabulateManifest preserves tags with null values", {
+  setup <- cm_test_seed_manifest_for_queries("review-tabulate-null-tags")
+  manifest <- setup$manifest
+
+  row <- manifest$queryCohortsByLabel("Type 2 Diabetes", matchType = "exact")
+  cohort_id <- as.integer(row$id[[1]])
+  manifest$updateCohortTags(
+    cohort_id,
+    list(class = "GLP1", ingredient = NA_character_)
+  )
+
+  out <- manifest$tabulateManifest(filter = "active")
+  tags <- out$tags[[which(out$id == cohort_id)]]
+
+  testthat::expect_equal(tags$tag_name, c("class", "ingredient"))
+  testthat::expect_equal(tags$tag_value[[1]], "GLP1")
+  testthat::expect_true(is.na(tags$tag_value[[2]]))
+})
+
 # Testing: tabulateManifest respects deleted and stale filters.
 testthat::test_that("tabulateManifest supports deleted and stale filters", {
   setup <- cm_test_seed_manifest_for_queries("review-tabulate-filters")

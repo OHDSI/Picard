@@ -159,7 +159,35 @@ testthat::test_that("buildDemographicCohort entry route registers subset", {
     genderConceptIds = c(8507)
   )
 
-  cm_test_assert_cohort_registered(manifest, "CKD_Males_40_to_75", expected_source_type = "derived", expected_cohort_type = "subset")
+  before <- cm_test_get_manifest_row(manifest, "CKD_Males_40_to_75")
+  before_path <- before$file_path[[1]]
+  before_disk_path <- cm_test_resolve_path(manifest, before_path)
+  renamed_label <- "CKD_Males_40_to_75_Renamed"
+  manifest$updateCohortLabel(as.integer(before$id[[1]]), renamed_label)
+
+  manifest$buildDemographicCohort(
+    label = renamed_label,
+    category = "Derived Cohorts",
+    baseCohortEntry = base,
+    minAge = 40L,
+    maxAge = 75L,
+    genderConceptIds = c(8507),
+    stopIfExists = FALSE
+  )
+
+  after <- cm_test_get_manifest_row(manifest, renamed_label)
+  testthat::expect_equal(as.integer(after$id[[1]]), as.integer(before$id[[1]]))
+  testthat::expect_equal(after$file_path[[1]], before_path)
+  testthat::expect_equal(after$hash[[1]], before$hash[[1]])
+  testthat::expect_equal(
+    after$hash[[1]],
+    rlang::hash(readr::read_file(before_disk_path))
+  )
+  testthat::expect_false(
+    file.exists(fs::path(fs::path_dir(before_disk_path), paste0(renamed_label, ".sql")))
+  )
+
+  cm_test_assert_cohort_registered(manifest, renamed_label, expected_source_type = "derived", expected_cohort_type = "subset")
 })
 
 # Testing: buildStratifiedCohorts registers stratum cohorts plus Unclassified.
@@ -183,6 +211,66 @@ testthat::test_that("buildStratifiedCohorts creates named strata and unclassifie
   testthat::expect_true("CKD - Female" %in% names(ids))
   testthat::expect_true("CKD - Male" %in% names(ids))
   testthat::expect_true("CKD - Unclassified" %in% names(ids))
+})
+
+# Testing: buildStratifiedCohorts rejects existing labels by default and can update them in place.
+testthat::test_that("buildStratifiedCohorts stopIfExists updates strata in place", {
+  setup <- cm_test_seed_manifest_for_builders("build-stratified-upsert")
+  manifest <- setup$manifest
+
+  base <- manifest$queryCohortsByLabel("Chronic Kidney Disease", matchType = "exact")
+  strata <- list(
+    Female = list(genderConceptIds = 8532L),
+    Male = list(genderConceptIds = 8507L)
+  )
+  labels <- c("CKD - Female", "CKD - Male", "CKD - Unclassified")
+
+  before_ids <- manifest$buildStratifiedCohorts(
+    baseCohortEntry = base,
+    strata = strata,
+    labelPrefix = "CKD",
+    category = "Derived Cohorts"
+  )
+  before <- lapply(labels, function(label) cm_test_get_manifest_row(manifest, label))
+  names(before) <- labels
+
+  testthat::expect_error(
+    manifest$buildStratifiedCohorts(
+      baseCohortEntry = base,
+      strata = strata,
+      labelPrefix = "CKD",
+      category = "Derived Cohorts"
+    ),
+    regexp = "already in use"
+  )
+
+  revised_strata <- strata
+  revised_strata$Female$genderConceptIds <- 8507L
+  revised_strata$Other <- "1 = 0"
+  updated_ids <- manifest$buildStratifiedCohorts(
+    baseCohortEntry = base,
+    strata = revised_strata,
+    labelPrefix = "CKD",
+    category = "Derived Cohorts",
+    stopIfExists = FALSE
+  )
+  after <- lapply(labels, function(label) cm_test_get_manifest_row(manifest, label))
+  names(after) <- labels
+
+  testthat::expect_equal(updated_ids[labels], before_ids)
+  testthat::expect_true("CKD - Other" %in% names(updated_ids))
+  for (label in labels) {
+    testthat::expect_equal(after[[label]]$id[[1]], before[[label]]$id[[1]])
+    testthat::expect_equal(after[[label]]$file_path[[1]], before[[label]]$file_path[[1]])
+  }
+  testthat::expect_false(identical(after[["CKD - Female"]]$hash[[1]], before[["CKD - Female"]]$hash[[1]]))
+  testthat::expect_equal(after[["CKD - Female"]]$status[[1]], "stale")
+  testthat::expect_equal(after[["CKD - Male"]]$status[[1]], "active")
+  testthat::expect_equal(after[["CKD - Unclassified"]]$status[[1]], "stale")
+
+  new_stratum <- cm_test_get_manifest_row(manifest, "CKD - Other")
+  testthat::expect_equal(nrow(new_stratum), 1)
+  testthat::expect_equal(new_stratum$status[[1]], "active")
 })
 
 # Testing: buildOPriorT registers o-prior derived cohort from outcome/target entries.

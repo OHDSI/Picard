@@ -787,9 +787,12 @@ runPostProcessing <- function(pipelineVersion, dbIds, resultsPath = here::here("
       cohortManifest <- loadCohortManifest(cohortsFolderPath = cohortsFolderPath, verbose = FALSE)
       
       # Save manifest snapshot for point-in-time cohort provenance.
-      # Contains id, label, tags, filePath, hash, cohortType, status, timestamp.
+      # Contains cohort metadata with tag values expanded into one column per tag key.
       # The hash column enables recovery via: git log -- <filePath>
-      manifestSnapshot <- cohortManifest$tabulateManifest(filter = "active")
+      manifestSnapshot <- cohortManifest$tabulateManifest(
+        filter = "active",
+        tags_format = "wide"
+      )
       snapshotPath <- fs::path(versionExportPath, "cohortManifestSnapshot.csv")
       readr::write_csv(manifestSnapshot, snapshotPath)
       cli::cli_alert_success("Cohort manifest snapshot saved to {fs::path_rel(snapshotPath)}: {nrow(manifestSnapshot)} cohort(s)")
