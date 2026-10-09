@@ -1441,7 +1441,13 @@ CohortManifest <- R6::R6Class(
               parsed_tags <- safe_parse_tags(tags_json)
               tibble::tibble(
                 tag_name = names(parsed_tags) %||% character(0),
-                tag_value = as.character(unlist(parsed_tags) %||% character(0))
+                tag_value = purrr::map_chr(parsed_tags, function(value) {
+                  if (is.null(value)) {
+                    NA_character_
+                  } else {
+                    as.character(value)
+                  }
+                })
               )
             })
           )
