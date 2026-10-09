@@ -5443,12 +5443,12 @@ CohortManifest <- R6::R6Class(
 
     #' @description Retrieve cohort counts from the database
     #'
-    #' Retrieves entry and subject counts for cohorts from the cohort table in the target database.
-    #' Can retrieve counts for all cohorts or a specific subset. Enriches the results with metadata
+    #' Retrieves entry and subject counts for registered cohorts from the cohort table in the target database.
+    #' Can retrieve counts for all active/stale manifest cohorts or a specific subset. Enriches the results with metadata
     #' (label and tags) from the CohortDef objects in the manifest.
     #'
-    #' @param cohortIds Integer vector. Optional. Specific cohort IDs to retrieve counts for.
-    #'   If NULL (default), returns counts for all cohorts.
+    #' @param cohortIds Integer vector. Optional. Specific registered cohort IDs to retrieve counts for.
+    #'   If NULL (default), returns counts for all active/stale cohorts in the manifest.
     #'
     #' @return Data frame with columns:
     #'   - cohort_id: The cohort definition ID
@@ -5489,17 +5489,31 @@ CohortManifest <- R6::R6Class(
 
       dbms <- settings$getDbms()
 
-      # Build SQL query
-      # When cohortIds is NULL, retrieve counts for ALL cohort IDs in the table
-      where_clause <- ""
-      if (!is.null(cohortIds)) {
-        checkmate::assert_integerish(cohortIds)
-        cohort_ids_str <- paste0(cohortIds, collapse = ", ")
-        where_clause <- paste0("\n        WHERE cohort_definition_id IN (", cohort_ids_str, ")")
+      manifest_ids <- as.integer(
+        self$tabulateManifest(filter = "active", tags_format = "json")$id
+      )
+      if (is.null(cohortIds)) {
+        cohortIds <- manifest_ids
       } else {
-        # Explicitly retrieve all cohort IDs from the table
-        cli::cli_alert_info("Retrieving counts for all cohorts in {cohort_table}")
+        checkmate::assert_integerish(cohortIds)
+        cohortIds <- intersect(as.integer(cohortIds), manifest_ids)
       }
+
+      if (length(cohortIds) == 0) {
+        return(data.frame(
+          cohort_id = integer(),
+          label = character(),
+          tags = character(),
+          cohort_entries = integer(),
+          cohort_subjects = integer(),
+          stringsAsFactors = FALSE
+        ))
+      }
+
+      # Build SQL query
+      cohort_ids_str <- paste0(cohortIds, collapse = ", ")
+      where_clause <- paste0("\n        WHERE cohort_definition_id IN (", cohort_ids_str, ")")
+      cli::cli_alert_info("Retrieving counts for {length(cohortIds)} registered cohort(s) in {cohort_table}")
 
       sql <- paste0(
         "SELECT
@@ -5522,6 +5536,9 @@ CohortManifest <- R6::R6Class(
         results$cohort_id <- as.integer(results$cohort_id)
         results$cohort_entries <- as.integer(results$cohort_entries)
         results$cohort_subjects <- as.integer(results$cohort_subjects)
+
+        results <- results |>
+          dplyr::filter(.data$cohort_id %in% cohortIds)
         
         # Initialize columns for metadata
         results$label <- character(nrow(results))

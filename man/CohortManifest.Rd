@@ -2090,8 +2090,8 @@ Data frame with execution results including:
 \subsection{Method \code{retrieveCohortCounts()}}{
 Retrieve cohort counts from the database
 
-Retrieves entry and subject counts for cohorts from the cohort table in the target database.
-Can retrieve counts for all cohorts or a specific subset. Enriches the results with metadata
+Retrieves entry and subject counts for registered cohorts from the cohort table in the target database.
+Can retrieve counts for all active/stale manifest cohorts or a specific subset. Enriches the results with metadata
 (label and tags) from the CohortDef objects in the manifest.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$retrieveCohortCounts(cohortIds = NULL)}\if{html}{\out{</div>}}
@@ -2100,8 +2100,8 @@ Can retrieve counts for all cohorts or a specific subset. Enriches the results w
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{cohortIds}}{Integer vector. Optional. Specific cohort IDs to retrieve counts for.
-If NULL (default), returns counts for all cohorts.}
+\item{\code{cohortIds}}{Integer vector. Optional. Specific registered cohort IDs to retrieve counts for.
+If NULL (default), returns counts for all active/stale cohorts in the manifest.}
 }
 \if{html}{\out{</div>}}
 }
