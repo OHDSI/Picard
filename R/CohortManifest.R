@@ -4472,7 +4472,7 @@ CohortManifest <- R6::R6Class(
 
       for (i in seq_len(nrow(tables_to_check))) {
         table_name <- tables_to_check$name[i]
-        check_results <- picard:::tableExists(
+        check_results <- tableExists(
           conn, schema, table_name, dbms, settings$databaseName
         )
         tables_to_check$check[i] <- ifelse(check_results, "exists", "missing")
