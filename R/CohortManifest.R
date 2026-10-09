@@ -3081,10 +3081,13 @@ CohortManifest <- R6::R6Class(
     #'   with a \code{" - "} separator.
     #' @param category Character. Category applied to every stratum cohort. Default: \code{"derived"}.
     #' @param tags Named list. Optional metadata tags applied to every stratum cohort.
+    #' @param stopIfExists Logical. If TRUE (default), errors when any stratum label is
+    #'   already registered. If FALSE, updates existing derived strata in place and
+    #'   creates any new strata.
     #'
     #' @return Invisibly returns a named list of assigned cohort IDs, keyed by cohort label.
     buildStratifiedCohorts = function(baseCohortId = NULL, baseCohortEntry = NULL, strata, labelPrefix = NULL,
-                                      category = "derived", tags = list()) {
+                      category = "derived", tags = list(), stopIfExists = TRUE) {
 
       use_id_route <- !is.null(baseCohortId)
       use_entry_route <- !is.null(baseCohortEntry)
@@ -3124,6 +3127,7 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_string(labelPrefix, null.ok = TRUE)
       checkmate::assert_string(category, min.chars = 1)
       checkmate::assert_list(tags, names = "named")
+      checkmate::assert_flag(stopIfExists)
 
       private$validate_parent_cohorts_exist(baseCohortId)
 
@@ -3145,6 +3149,27 @@ CohortManifest <- R6::R6Class(
       negated <- paste0("NOT (", unlist(stratum_conditions), ")")
       stratum_conditions[["Unclassified"]] <- paste(negated, collapse = "\n    AND ")
 
+      cohort_labels <- names(stratum_conditions)
+      if (!is.null(labelPrefix)) {
+        cohort_labels <- paste0(labelPrefix, " - ", cohort_labels)
+      }
+
+      existing_ids <- stats::setNames(
+        vapply(
+          cohort_labels,
+          function(cohort_label) {
+            private$resolve_derived_upsert(
+              cohort_label,
+              stopIfExists,
+              baseCohortId,
+              cohort_type = "subset"
+            )
+          },
+          integer(1)
+        ),
+        cohort_labels
+      )
+
       cohorts_dir <- dirname(private$.dbPath)
       derived_dir <- fs::path(cohorts_dir, "derived")
       if (!dir.exists(derived_dir)) dir.create(derived_dir, recursive = TRUE)
@@ -3157,9 +3182,10 @@ CohortManifest <- R6::R6Class(
       result <- list()
       cli::cli_rule("Building stratified cohorts from base cohort {baseCohortId}")
 
-      for (nm in names(stratum_conditions)) {
+      for (i in seq_along(stratum_conditions)) {
+        nm <- names(stratum_conditions)[[i]]
         condition    <- stratum_conditions[[nm]]
-        cohort_label <- if (!is.null(labelPrefix)) paste0(labelPrefix, " - ", nm) else nm
+        cohort_label <- cohort_labels[[i]]
         is_unclassified <- nm == "Unclassified"
 
         rendered_sql <- SqlRender::render(
@@ -3170,8 +3196,14 @@ CohortManifest <- R6::R6Class(
           warnOnMissingParameters = FALSE
         )
 
-        file_name <- sprintf("stratified_%d_%s", as.integer(baseCohortId), sanitise_name(nm))
-        sql_path  <- fs::path(derived_dir, paste0(file_name, ".sql"))
+        existing_id <- existing_ids[[cohort_label]]
+        sql_path <- private$derived_output_path(existing_id)
+
+        if (is.null(sql_path)) {
+          file_name <- sprintf("stratified_%d_%s", as.integer(baseCohortId), sanitise_name(nm))
+          sql_path <- fs::path(derived_dir, paste0(file_name, ".sql"))
+        }
+
         writeLines(rendered_sql, sql_path)
 
         dependency_rule <- list(
@@ -3181,12 +3213,12 @@ CohortManifest <- R6::R6Class(
           isUnclassified    = is_unclassified
         )
 
-        cohort_id <- private$insert_cohort(
+        cohort_id <- private$upsert_derived_cohort(
+          existingId      = existing_id,
           label           = cohort_label,
           category        = category,
           tags            = tags,
           file_path       = private$to_manifest_path(sql_path),
-          source_type     = "derived",
           cohort_type     = "subset",
           depends_on      = as.integer(baseCohortId),
           dependency_rule = dependency_rule

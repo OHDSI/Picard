@@ -1167,7 +1167,8 @@ Input route policy:
   strata,
   labelPrefix = NULL,
   category = "derived",
-  tags = list()
+  tags = list(),
+  stopIfExists = TRUE
 )}\if{html}{\out{</div>}}
 }
 
@@ -1191,6 +1192,10 @@ with a \code{" - "} separator.}
 \item{\code{category}}{Character. Category applied to every stratum cohort. Default: \code{"derived"}.}
 
 \item{\code{tags}}{Named list. Optional metadata tags applied to every stratum cohort.}
+
+\item{\code{stopIfExists}}{Logical. If TRUE (default), errors when any stratum label is
+already registered. If FALSE, updates existing derived strata in place and
+creates any new strata.}
 }
 \if{html}{\out{</div>}}
 }
