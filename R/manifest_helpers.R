@@ -1314,13 +1314,21 @@ createBlankConceptSetsLoadFile <- function(conceptSetsFolderPath = here::here("i
 
 
 
-tableExists <- function(connection, schema, tableName, dbms) {
+tableExists <- function(connection, schema, tableName, dbms, databaseName = NULL) {
   tryCatch({
-    query <- paste0("SELECT COUNT(*) FROM ", schema, ".", tableName, " WHERE 1=0")
-    result <- DatabaseConnector::querySql(connection, query)
-    return(TRUE)
+    DatabaseConnector::existsTable(connection, schema, tableName)
   }, error = function(e) {
-    return(FALSE)
+    database_label <- dbms
+
+    if (!is.null(databaseName) && !is.na(databaseName)) {
+      database_label <- databaseName
+    }
+
+    cli::cli_abort(c(
+      "Unable to check whether cohort table {.val {schema}.{tableName}} is available in database {.val {database_label}}.",
+      i = "The table existence query failed with: {conditionMessage(e)}",
+      i = "Operation: checking cohort table existence. This may indicate a warehouse, connection, permission, schema, or identifier problem."
+    ), parent = e)
   })
 }
 

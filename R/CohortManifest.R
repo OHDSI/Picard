@@ -4472,7 +4472,9 @@ CohortManifest <- R6::R6Class(
 
       for (i in seq_len(nrow(tables_to_check))) {
         table_name <- tables_to_check$name[i]
-        check_results <- picard:::tableExists(conn, schema, table_name, dbms)
+        check_results <- picard:::tableExists(
+          conn, schema, table_name, dbms, settings$databaseName
+        )
         tables_to_check$check[i] <- ifelse(check_results, "exists", "missing")
       }
       
@@ -4556,7 +4558,7 @@ CohortManifest <- R6::R6Class(
       }
       checkmate::assert_string(tableName, min.chars = 1)
 
-      if (tableExists(conn, schema, tableName, dbms)) {
+      if (tableExists(conn, schema, tableName, dbms, settings$databaseName)) {
         cli::cli_alert_warning("{type} table already exists: {tableName}")
         return(invisible(NULL))
       }
@@ -4573,7 +4575,10 @@ CohortManifest <- R6::R6Class(
         DatabaseConnector::executeSql(conn, sql, progressBar = FALSE, reportOverallTime = FALSE)
         cli::cli_alert_success("Created {type} table: {tableName}")
       }, error = function(e) {
-        cli::cli_alert_danger("Failed to create {type} table {tableName}: {e$message}")
+        cli::cli_abort(c(
+          "Failed to create {type} cohort table {.val {schema}.{tableName}} in database {.val {settings$databaseName}}.",
+          i = "The database returned: {conditionMessage(e)}"
+        ), parent = e)
       })
 
       invisible(NULL)
@@ -4785,7 +4790,7 @@ CohortManifest <- R6::R6Class(
         table_type <- table_info$type
 
         # Check if table exists
-        if (tableExists(conn, schema, table_name, dbms)) {
+        if (tableExists(conn, schema, table_name, dbms, settings$databaseName)) {
           # Build DROP TABLE statement
           sql <- paste0("DROP TABLE ", schema, ".", table_name)
 
