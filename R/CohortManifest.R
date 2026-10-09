@@ -356,8 +356,31 @@ CohortManifest <- R6::R6Class(
       return(existing_id)
     },
 
+    # Existing derived definitions are rewritten at their registered location;
+    # only new cohorts derive a filename from their label.
+    derived_output_path = function(existingId) {
+      if (is.na(existingId)) {
+        return(NULL)
+      }
+
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      existing <- DBI::dbGetQuery(
+        conn,
+        "SELECT file_path FROM cohort_manifest WHERE id = ?",
+        list(existingId)
+      )
+
+      if (nrow(existing) != 1 || is.na(existing$file_path[1])) {
+        cli::cli_abort("Cannot find the registered file path for derived cohort {existingId}.")
+      }
+
+      private$resolve_path(existing$file_path[1])
+    },
+
     # Insert a new derived cohort, or — when existingId is not NA — update the
-    # registered one in place (same id and label). On update the definition
+    # registered one in place (same ID and file path). On update the definition
     # columns are replaced and, *only when the definition actually changed*,
     # the cohort is marked 'stale' so the next generateCohorts() run
     # regenerates it, with stale cascading to its own dependents. Re-running a
@@ -390,11 +413,22 @@ CohortManifest <- R6::R6Class(
         list(existingId)
       )
 
-      # Resolve the incoming path before hashing: a relative path hashed against
-      # the wrong working directory silently yields the wrong hash (or the
-      # label sentinel). A derived cohort's rendered file is written just before
-      # this call, so a missing file here is a real error.
+      # Existing derived cohorts must be rendered to their registered path.
+      # Resolve both paths so equivalent path conventions remain valid.
       resolved_file <- private$resolve_path(file_path)
+      previous_file_path <- previous$file_path[1]
+      previous_resolved <- private$resolve_path(previous_file_path)
+
+      if (!identical(as.character(resolved_file), as.character(previous_resolved))) {
+        cli::cli_abort(c(
+          "Cannot update derived cohort {.val {label}} at a different file path.",
+          i = "The registered definition is at {.path {previous_file_path}}."
+        ))
+      }
+
+      resolved_file <- previous_resolved
+
+      # The rendered file must exist at the registered location.
       hash <- if (file.exists(resolved_file)) {
         rlang::hash(readr::read_file(resolved_file))
       } else {
@@ -424,11 +458,6 @@ CohortManifest <- R6::R6Class(
       # Compare paths by resolved-absolute form so a pure path-convention
       # difference (e.g. a legacy row rewritten repo-root-relative) is not
       # mistaken for a definition change and does not mark the cohort stale.
-      previous_resolved <- if (!is.na(previous$file_path[1])) {
-        private$resolve_path(previous$file_path[1])
-      } else {
-        NA_character_
-      }
       definition_changed <- !identical(hash, previous$hash[1]) ||
         !identical(as.character(resolved_file), as.character(previous_resolved)) ||
         !identical(as.character(depends_on_json), as.character(previous$depends_on[1])) ||
@@ -451,11 +480,11 @@ CohortManifest <- R6::R6Class(
       status_clause <- if (definition_changed) " status = 'stale'," else ""
 
       set_clauses <- paste0(
-        "category = ?, file_path = ?, hash = ?, source_type = ?, cohort_type = ?,",
+        "category = ?, hash = ?, source_type = ?, cohort_type = ?,",
         " depends_on = ?, dependency_rule = ?, tags = ?,", status_clause,
         " updated_at = CURRENT_TIMESTAMP"
       )
-      params <- list(category, file_path, hash, source_type, cohort_type, depends_on_json, dep_rule_json, tags_json)
+      params <- list(category, hash, source_type, cohort_type, depends_on_json, dep_rule_json, tags_json)
 
       DBI::dbExecute(
         conn,
@@ -808,7 +837,13 @@ CohortManifest <- R6::R6Class(
         header <- format_dependent_cohort_header(resolved_ids = dependentCohortIdList, resolved_labels = resolved_labels)
         sql_path <- do.call(
           render_and_write_derived_sql,
-          c(list(derived_dir = derived_dir, label = label, sql_content = sql_content, header = header), render_params)
+          c(list(
+            derived_dir = derived_dir,
+            label = label,
+            sql_content = sql_content,
+            header = header,
+            output_path = private$derived_output_path(existing_id)
+          ), render_params)
         )
 
         cohort_id <- private$upsert_derived_cohort(
@@ -2371,6 +2406,7 @@ CohortManifest <- R6::R6Class(
       # Generate SQL via internal builder
       derived_dir <- make_derived_folder(private$.manifestDir)
       sql_path <- write_derived_template(derived_dir, label, "createUnionCohort.sql",
+        output_path = private$derived_output_path(existing_id),
         cohort_ids = paste(cohortIds, collapse = ", "),
         cohort_id_name_mapping = cohortIdNameMapping,
         gap_days = gapDays,
@@ -2550,6 +2586,7 @@ CohortManifest <- R6::R6Class(
       # Generate SQL from template
       derived_dir <- make_derived_folder(private$.manifestDir)
       sql_path <- write_derived_template(derived_dir, label, "createSubsetCohort_Cohort.sql",
+        output_path = private$derived_output_path(existing_id),
         base_cohort_id = baseCohortId,
         base_cohort_name = baseCohortName,
         filter_cohort_id = filterCohortId,
@@ -2711,6 +2748,7 @@ CohortManifest <- R6::R6Class(
 
       derived_dir <- make_derived_folder(private$.manifestDir)
       sql_path <- write_derived_template(derived_dir, label, "createComplementCohort.sql",
+        output_path = private$derived_output_path(existing_id),
         population_cohort_id = populationCohortId,
         population_cohort_name = populationCohortName,
         exclude_cohort_ids = paste(as.integer(excludeCohortIds), collapse = ", "),
@@ -2849,6 +2887,7 @@ CohortManifest <- R6::R6Class(
       derived_dir <- make_derived_folder(private$.manifestDir)
       cohort_ids_str <- paste(criteriaCohortIds, collapse = ",")
       sql_path <- write_derived_template(derived_dir, label, "createCompositeCohort.sql",
+        output_path = private$derived_output_path(existing_id),
         criteria_cohort_ids = cohort_ids_str,
         criteria_cohort_name_mapping = criteriaCohortNameMapping,
         minimum_event_count = minEventCount,
@@ -2976,8 +3015,12 @@ CohortManifest <- R6::R6Class(
       derived_dir <- fs::path(cohorts_dir, "derived")
       if (!dir.exists(derived_dir)) dir.create(derived_dir, recursive = TRUE)
 
-      safe_label <- gsub("[^a-zA-Z0-9_-]", "_", label)
-      sql_path <- fs::path(derived_dir, paste0(safe_label, ".sql"))
+      sql_path <- private$derived_output_path(existing_id)
+
+      if (is.null(sql_path)) {
+        safe_label <- gsub("[^a-zA-Z0-9_-]", "_", label)
+        sql_path <- fs::path(derived_dir, paste0(safe_label, ".sql"))
+      }
 
       template_path <- system.file("sql", "createSubsetCohort_Person.sql", package = "picard")
       rendered_sql <- readr::read_file(template_path) |>
@@ -2990,6 +3033,7 @@ CohortManifest <- R6::R6Class(
           race_concept_ids      = sql_race_ids,
           ethnicity_concept_ids = sql_ethnicity_ids
         )
+      fs::dir_create(fs::path_dir(sql_path), recurse = TRUE)
       writeLines(rendered_sql, sql_path)
 
       cohort_id <- private$upsert_derived_cohort(
@@ -5881,6 +5925,7 @@ CohortManifest <- R6::R6Class(
 
       derived_dir <- make_derived_folder(private$.manifestDir)
       sql_path <- write_derived_template(derived_dir, label, "createOPriorT.sql",
+        output_path = private$derived_output_path(existing_id),
         outcome_cohort_id = outcomeCohortId,
         outcome_cohort_name = outcomeCohortName,
         target_cohort_id = targetCohortId,
@@ -6050,6 +6095,7 @@ CohortManifest <- R6::R6Class(
 
       derived_dir <- make_derived_folder(private$.manifestDir)
       sql_path <- write_derived_template(derived_dir, label, "createTPriorO.sql",
+        output_path = private$derived_output_path(existing_id),
         target_cohort_id = targetCohortId,
         target_cohort_name = targetCohortName,
         outcome_cohort_id = outcomeCohortId,
@@ -6202,6 +6248,7 @@ CohortManifest <- R6::R6Class(
         derived_dir = derived_dir,
         label = label,
         template_name = "createCensorCohort.sql",
+        output_path = private$derived_output_path(existing_id),
         target_cohort_id = targetCohortId,
         target_cohort_name = targetCohortName,
         censor_cohort_id = censorCohortId,
