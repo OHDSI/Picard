@@ -16,12 +16,13 @@ The ConceptSetManifest class manages multiple concept set definitions and stores
 metadata in a SQLite database located at inputs/conceptSets/conceptSetManifest.sqlite.
 Each ConceptSetDef is assigned a sequential ID based on its position in the manifest.
 
-By default, the load file is treated as a transient, one-time import
-mechanism: rows whose atlasId is already registered in the manifest are
-an error, not an update. Set \code{stopIfExists = FALSE} to instead update
-those rows in place, which supports iterating on the load file across
-repeated runs. To sync registered concept sets with ATLAS without a
-load file, use \code{updateAtlasConceptSets()}.
+The load file is kept in the study repository as the record of which
+ATLAS concept sets the study uses. By default, rows whose atlasId is
+already registered in the manifest are an error, not an update, so an
+import only adds new concept sets. Set \code{stopIfExists = FALSE} to instead
+update those rows in place, which lets the whole load file be
+re-imported on every run. To sync registered concept sets with ATLAS
+without re-importing, use \code{updateAtlasConceptSets()}.
 
 \strong{Processing Steps:}
 \enumerate{
@@ -166,6 +167,7 @@ by finding the reverse mapping relationship. For each concept set:
 \itemize{
 \item \href{#method-ConceptSetManifest-new}{\code{ConceptSetManifest$new()}}
 \item \href{#method-ConceptSetManifest-getManifest}{\code{ConceptSetManifest$getManifest()}}
+\item \href{#method-ConceptSetManifest-getManifestHash}{\code{ConceptSetManifest$getManifestHash()}}
 \item \href{#method-ConceptSetManifest-tabulateManifest}{\code{ConceptSetManifest$tabulateManifest()}}
 \item \href{#method-ConceptSetManifest-viewManifest}{\code{ConceptSetManifest$viewManifest()}}
 \item \href{#method-ConceptSetManifest-getDbPath}{\code{ConceptSetManifest$getDbPath()}}
@@ -256,6 +258,40 @@ Get the manifest as a list of ConceptSetDef objects}
 
 \subsection{Returns}{
 List. A list of ConceptSetDef objects in the manifest.
+Compute a deterministic hash of the manifest for task-rerun detection
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ConceptSetManifest-getManifestHash"></a>}}
+\if{latex}{\out{\hypertarget{method-ConceptSetManifest-getManifestHash}{}}}
+\subsection{Method \code{getManifestHash()}}{
+Produces a single SHA256 string over everything about the active
+concept sets that a task can depend on. Used by the study pipeline (via
+\code{\link[=shouldRerunTask]{shouldRerunTask()}}): when it changes, tasks rerun.
+
+This is distinct from a concept set's \emph{definition hash}
+(\code{ConceptSetDef$getHash()}), which covers only the expression JSON.
+Tasks also select or group concept sets by label, category, or tag, so a
+change to that metadata changes the analysis even when no definition
+changed.
+
+For each concept set, ordered by id, the hash combines:
+\itemize{
+\item \code{id}, \code{label}, \code{category}, \code{tags}
+\item a hash of the loaded concept set's expression JSON
+(normalized, so a cosmetic reformat does not move the hash), or
+the sentinel \code{"<missing>"} when the file is absent from disk
+}
+
+The stored file path is excluded, so path normalization does not force
+spurious reruns.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$getManifestHash()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Character. A SHA256 hash string. An empty manifest hashes to a
+stable constant.
 }
 }
 \if{html}{\out{<hr>}}
@@ -1307,7 +1343,10 @@ fetches their current definitions from ATLAS, computes hashes, and compares agai
 the stored local hash. Provides a read-only summary of which concept sets have changed
 in ATLAS since import. No modifications are made.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$checkAtlasConceptSets(atlasConnection = NULL)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$checkAtlasConceptSets(
+  atlasConnection = NULL,
+  stopOnError = TRUE
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -1317,6 +1356,10 @@ in ATLAS since import. No modifications are made.
 that returns a list with an \code{expression} element (the CIRCE JSON as a string).
 If \code{NULL} (default), uses the connection stored via \verb{$setAtlasConnection()}.
 If no connection is available, raises an error.}
+
+\item{\code{stopOnError}}{Logical. If TRUE (default), a failed ATLAS fetch
+aborts the sync. If FALSE, the concept set is skipped with a warning and the
+remaining concept sets are still synced.}
 }
 \if{html}{\out{</div>}}
 }
@@ -1343,7 +1386,10 @@ Fetches current definitions from ATLAS for concept sets that have changed and up
 the stored JSON files and manifest entries. This is the modification phase that applies
 changes detected by checkAtlasConceptSets().
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$updateAtlasConceptSets(atlasConnection = NULL)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ConceptSetManifest$updateAtlasConceptSets(
+  atlasConnection = NULL,
+  stopOnError = TRUE
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -1351,6 +1397,10 @@ changes detected by checkAtlasConceptSets().
 \describe{
 \item{\code{atlasConnection}}{An ATLAS connection object with a method \code{getConceptSetDefinition(conceptSetId)}.
 If \code{NULL} (default), uses the connection stored via \verb{$setAtlasConnection()}.}
+
+\item{\code{stopOnError}}{Logical. If TRUE (default), a failed ATLAS fetch
+aborts the sync. If FALSE, the concept set is skipped with a warning and the
+remaining concept sets are still synced.}
 }
 \if{html}{\out{</div>}}
 }

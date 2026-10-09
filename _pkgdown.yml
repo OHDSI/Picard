@@ -76,6 +76,7 @@ reference:
       - createDisseminationEnv
       - createExecutionSettings
       - createExecutionSettingsFromConfig
+      - createInputBuilderEnv
       - createPullRequest
       - createSubsetEndWindow
       - createSubsetStartWindow

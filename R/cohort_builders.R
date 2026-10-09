@@ -276,11 +276,15 @@ compute_dependency_hash = function(dbPath, cohort, parent_hashes) {
     # Serialize the rule (dependency parameters)
     rule_json <- jsonlite::toJSON(rule, auto_unbox = TRUE)
 
-    # Combine: parent hashes + rule parameters
+    # Combine: parent hashes + rule parameters + this cohort's own rendered SQL,
+    # so the checksum alone detects any change that affects the generated
+    # table (e.g. an edited custom derived SQL file with unchanged parents)
     combined <- paste0(
     paste(parent_hash_strs, collapse = "|"),
     "|",
-    rule_json
+    rule_json,
+    "|",
+    cohort$getSqlHash()
     )
     md5Hash <- rlang::hash(combined)
     return(md5Hash)
@@ -354,27 +358,27 @@ evaluate_cohort_skip_status <- function(
     }
   }
 
+  # The checksum stored in this database's work schema decides whether to skip,
+  # not the shared manifest's 'stale' flag. Builders can make database-specific
+  # changes (e.g. concept ids in custom SQL), so the manifest flips between
+  # definitions as the pipeline moves through databases; the per-database
+  # checksum only changes when this database's definition does.
   if (length(parent_ids) > 0) {
     current_dependency_hash <- compute_dependency_hash(dbPath, cohort, cohort_hashes)
 
-    if (is_stale) {
-      dependency_status <- "Stale - parent changed"
-      should_skip <- FALSE
-    } else if (!is_checksum_empty && !is.null(stored_hash)) {
+    if (!is_checksum_empty && !is.null(stored_hash)) {
       if (!is.na(stored_hash) && stored_hash == current_dependency_hash) {
         dependency_status <- "Unchanged"
         should_skip <- TRUE
       } else { 
-        dependency_status <- "Parent changed" 
+        dependency_status <- "Definition or parent changed"
       }
     } else { 
         dependency_status <- "New" 
     }
   } else {
-    # A cohort explicitly marked stale is never skipped, whatever the checksum
-    # says — 'stale' is the manifest asserting the generated table is out of date
     current_hash <- cohort$getSqlHash()
-    if (!is_stale && !is.null(stored_hash) && !is.na(stored_hash) && stored_hash == current_hash) {
+    if (!is.null(stored_hash) && !is.na(stored_hash) && stored_hash == current_hash) {
       should_skip <- TRUE
     }
   }

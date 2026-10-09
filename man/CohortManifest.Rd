@@ -198,32 +198,36 @@ Get the manifest as a list of CohortDef objects}
 
 \subsection{Returns}{
 List. A list of CohortDef objects in the manifest, indexed by cohort ID.
-Compute a deterministic hash of every cohort definition in the manifest
+Compute a deterministic hash of the manifest for task-rerun detection
 }
 }
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CohortManifest-getManifestHash"></a>}}
 \if{latex}{\out{\hypertarget{method-CohortManifest-getManifestHash}{}}}
 \subsection{Method \code{getManifestHash()}}{
-Produces a single SHA256 string over the \emph{definition} of every active or
-stale cohort, used by the study pipeline (via \code{\link[=shouldRerunTask]{shouldRerunTask()}}) to
-decide whether cohort changes force affected tasks to rerun.
+Produces a single SHA256 string over everything about the active or
+stale cohorts that a task can depend on. Used by the study pipeline (via
+\code{\link[=shouldRerunTask]{shouldRerunTask()}}): when it changes, tasks rerun.
+
+This is distinct from a cohort's \emph{definition hash}
+(\code{CohortDef$getSqlHash()}), which covers only the rendered SQL.
+Tasks also select cohorts by label, category, or tag, so a change to
+that metadata changes the analysis even when no definition changed.
 
 For each cohort, ordered by id, the hash combines:
 \itemize{
-\item \code{id}, \code{cohort_type}, \code{source_type}
+\item \code{id}, \code{label}, \code{category}, \code{tags}
+\item \code{cohort_type}, \code{source_type}
 \item \code{depends_on} and \code{dependency_rule} (normalized JSON)
-\item the rendered-SQL hash (\code{CohortDef$getSqlHash()}) of the
+\item the definition hash (\code{CohortDef$getSqlHash()}) of the
 loaded cohort, or the sentinel \code{"<missing>"} when the cohort
 file is absent from disk
 }
 
-The rendered SQL — not the raw file bytes — is what executes against the
-CDM, so a cosmetic reformat of a cohort's JSON that renders to identical
-SQL does not move the hash, while any change to the executed SQL does.
-Cosmetic metadata (\code{label}, \code{category}, \code{tags}) is
-deliberately excluded: renaming or retagging a cohort does not change the
-analysis.
+Because the definition hash is over the rendered SQL, a cosmetic
+reformat of a cohort's JSON that renders to identical SQL does not move
+the hash. The stored file path is excluded, so path normalization does
+not force spurious reruns.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$getManifestHash()}\if{html}{\out{</div>}}
 }
@@ -519,12 +523,13 @@ Batch-import cohorts from ATLAS via a cohortsLoad dataframe
 Either create a dataframe or read in a csv file with columns \code{atlasId}, \code{label}, \code{category} (required) plus any
 additional columns treated as tag key-value pairs for tags. Calls \code{addAtlasCohort()} for each row.
 
-By default, the load file is treated as a transient, one-time import
-mechanism: rows whose atlasId is already registered in the manifest are
-an error, not an update. Set \code{stopIfExists = FALSE} to instead update
+The load file is kept in the study repository as the record of which
+ATLAS cohorts the study uses. By default, rows whose atlasId is already
+registered in the manifest are an error, not an update, so an import
+only adds new cohorts. Set \code{stopIfExists = FALSE} to instead update
 those rows in place (delegates to \code{addAtlasCohort(stopIfExists = FALSE)}
-for each), which supports iterating on the load file across repeated
-runs. To sync registered cohorts with ATLAS without a load file, use
+for each), which lets the whole load file be re-imported on every run.
+To sync registered cohorts with ATLAS without re-importing, use
 \code{updateAtlasCohorts()}.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CohortManifest$importAtlasCohorts(
@@ -1000,8 +1005,10 @@ Invisible integer. The assigned cohort ID.
 \subsection{Method \code{buildCompositeCohort()}}{
 Build a composite cohort
 
-Creates a derived cohort that requires membership in multiple cohorts
-(intersection logic).
+Creates a derived cohort of subjects who belong to at least
+\code{minEventCount} of the criteria cohorts. Set \code{minEventCount} to
+the number of criteria cohorts for an intersection (subjects must be in
+every criteria cohort); lower values relax the requirement.
 
 Input route policy:
 \itemize{
@@ -1046,8 +1053,11 @@ retain as the cohort_start_date and cohort_end_date in the output:
 Default: 'First'.
 }}
 
-\item{\code{minEventCount}}{Integer. Minimum number of distinct cohort events required for a subject
-to qualify for the composite. Default: 1 (any subject with at least 1 event qualifies).}
+\item{\code{minEventCount}}{Integer. Minimum number of distinct criteria cohorts a subject must
+belong to in order to qualify for the composite. Must be between 1 and the number of
+criteria cohorts. Default: 1 (subject in any criteria cohort qualifies). A warning is
+raised when it is not supplied; for an intersection, set it to the number of criteria
+cohorts.}
 
 \item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
 active or stale cohort with this label is already registered. If FALSE,
@@ -1797,7 +1807,7 @@ fetches their current definitions from ATLAS, computes hashes, and compares agai
 the stored local hash. Provides a read-only summary of which cohorts have changed
 in ATLAS since import. No modifications are made.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$checkAtlasCohorts(atlasConnection = NULL)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$checkAtlasCohorts(atlasConnection = NULL, stopOnError = TRUE)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -1807,6 +1817,10 @@ in ATLAS since import. No modifications are made.
 that returns a list with an \code{expression} element.
 If \code{NULL} (default), uses the connection stored via \verb{$setAtlasConnection()}.
 If no connection is available, raises an error.}
+
+\item{\code{stopOnError}}{Logical. If TRUE (default), a failed ATLAS fetch
+aborts the sync. If FALSE, the cohort is skipped with a warning and the
+remaining cohorts are still synced.}
 }
 \if{html}{\out{</div>}}
 }
@@ -1831,7 +1845,7 @@ Update ATLAS cohorts with remote definitions
 Fetches current definitions from ATLAS for specified cohorts and updates the stored JSON files
 and manifest entries. This is the modification phase that applies changes detected by checkAtlasChanges().
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$updateAtlasCohorts(atlasConnection = NULL)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CohortManifest$updateAtlasCohorts(atlasConnection = NULL, stopOnError = TRUE)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -1839,6 +1853,10 @@ and manifest entries. This is the modification phase that applies changes detect
 \describe{
 \item{\code{atlasConnection}}{An ATLAS connection object with a method \code{getCohortDefinition(cohortId)}.
 If \code{NULL} (default), uses the connection stored via \verb{$setAtlasConnection()}.}
+
+\item{\code{stopOnError}}{Logical. If TRUE (default), a failed ATLAS fetch
+aborts the sync. If FALSE, the cohort is skipped with a warning and the
+remaining cohorts are still synced.}
 }
 \if{html}{\out{</div>}}
 }

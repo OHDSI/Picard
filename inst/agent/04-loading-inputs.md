@@ -72,25 +72,53 @@ remaining builder scripts in a **mandatory dependency order**. This ensures conc
 
 1. **Project initializes** with all 6 builder scripts pre-created
 2. **Edit the builders you need** - Each script has clear guidance comments
-3. **Delete unused builders** - Remove scripts you do not need
-4. **Run `main.R`** - `sourceInputBuilderScripts()` auto-discovers and runs remaining scripts in mandatory order
+3. **Leave unused builders as they are** - An unpopulated builder runs without error. The ATLAS builders are fully commented out until you uncomment the steps you need; the Capr, SQL and dependent-cohort builders create the manifest on first run
+4. **Run `main.R`** - For each database, `execStudyPipeline()` runs all 6 scripts in mandatory order, then generates that database's cohorts and runs its tasks
 5. **Manifests load** - Your cohorts and concept sets are ready for the pipeline
 
-Example: If you only use ATLAS for concept sets and Capr for cohorts:
+All 6 builder scripts are required. `sourceInputBuilderScripts()` stops with an
+error before sourcing anything if one is missing, or if `inputs/cohorts/R/` or
+`inputs/conceptSets/R/` contains any other `.R` file, because such a file would
+never run. Recreate a deleted builder with `makeInputBuilderScript()`, and put
+helper code in a subfolder such as `inputs/cohorts/R/src/`.
 
+If a builder script errors, `sourceInputBuilderScripts()` stops immediately, so
+later builders and the pipeline never run on a partially built manifest. Pass
+`stopOnError = FALSE` to warn and continue with the remaining scripts instead;
+the errors are returned in `error_summary`.
+
+### Database-Specific Builders
+
+The generated `main.R` and `test_main.R` call
+`sourceInputBuilderScripts(configBlock = dbIds)` before running the pipeline,
+which sources the builder scripts once per config block. Because all databases
+share one manifest, a builder that makes database-specific changes (such as
+resolving the concept ids used in custom SQL against each database) leaves the
+manifest matching only the last database.
+
+To avoid this, remove that call and pass `skipInputBuilders = FALSE` to
+`execStudyPipeline()` or `testStudyPipeline()`. The pipeline then sources the
+builder scripts separately for each config block, immediately before
+generating that block's cohorts and running its tasks.
+
+Before each pass, an `inputBuilderEnv` object is assigned to the global
+environment with the current `configBlock` and the run's `pipelineVersion`
+(the test namespace in `testStudyPipeline()`). Builder scripts can use it to
+create execution settings without hard-coding either value:
+
+```r
+executionSettings <- createExecutionSettingsFromConfig(
+  configBlock = inputBuilderEnv$configBlock,
+  pipelineVersion = inputBuilderEnv$pipelineVersion
+)
+cohortManifest$setExecutionSettings(executionSettings)
 ```
-inputs/conceptSets/R/
-  ✓ import_atlas_concept_set.R
-  ✗ import_capr_concept_set.R (deleted)
 
-inputs/cohorts/R/
-  ✗ import_atlas_cohort.R (deleted)
-  ✓ import_capr_cohort.R
-  ✗ import_sql_cohort.R (deleted)
-  ✗ build_dependent_cohorts.R (deleted)
-```
-
-When `main.R` runs, only `import_atlas_concept_set.R` and `import_capr_cohort.R` source (in order: concept sets first, then cohorts).
+To run the builders on their own while developing, call
+`sourceInputBuilderScripts(configBlock = "my_database", pipelineVersion = "dev")`;
+`pipelineVersion` defaults to `"prod"`, like `createExecutionSettingsFromConfig()`.
+To run a single builder script interactively, create the object first with
+`inputBuilderEnv <- createInputBuilderEnv(configBlock = "my_database")`.
 
 ---
 
@@ -125,6 +153,11 @@ conceptSetManifest$importAtlasConceptSets(
 ```
 
 This downloads JSON definitions to `inputs/conceptSets/json/` and updates your manifest with metadata.
+
+Keep `conceptSetsLoad.csv` in the repo as the record of which ATLAS concept
+sets the study uses. By default, re-importing rows that are already registered
+is an error, so the import only adds new rows; pass `stopIfExists = FALSE` to
+update registered rows in place instead.
 
 **Tip:** You can also pass the dataframe directly without reading from a file, which is useful for programmatic workflows.
 
@@ -224,6 +257,11 @@ cohortManifest$importAtlasCohorts(
 
 Downloads CIRCE JSON definitions to `inputs/cohorts/json/` and records each
 cohort in SQLite.
+
+Keep `cohortsLoad.csv` in the repo as the record of which ATLAS cohorts the
+study uses. By default, re-importing rows that are already registered is an
+error, so the import only adds new rows; pass `stopIfExists = FALSE` to update
+registered rows in place instead.
 
 **Tip:** You can also pass the dataframe directly without reading from a file, which is useful for programmatic workflows.
 
@@ -791,8 +829,8 @@ cohortManifest     <- loadCohortManifest()
 Both functions read from SQLite and rebuild the in-memory R6 objects. No
 network connection or CSV file is required.
 
-These calls are included in the default builder scripts and will run automatically
-when `main.R` executes `sourceInputBuilderScripts()`.
+These calls are included in the default builder scripts and run whenever the
+builder scripts are sourced.
 
 ---
 

@@ -8,7 +8,8 @@ testStudyTask(
   taskFile,
   configBlock,
   pipelineVersion = "dev",
-  env = rlang::caller_env()
+  env = rlang::caller_env(),
+  forceRerun = FALSE
 )
 }
 \arguments{
@@ -23,6 +24,9 @@ over-long namespace is rejected rather than truncated. Use the same value
 here and in \code{testStudyPipeline()}.}
 
 \item{env}{The execution environment. Defaults to caller environment.}
+
+\item{forceRerun}{Logical. If \code{TRUE}, runs the task even when
+\code{\link[=shouldRerunTask]{shouldRerunTask()}} finds nothing has changed. Default: \code{FALSE}}
 }
 \value{
 Invisibly returns the task result

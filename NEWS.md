@@ -1,3 +1,29 @@
+# picard (development version)
+
+## Task Change Detection
+
+- `CohortManifest$getManifestHash()` now also covers each cohort's label,
+  category, and tags, so renaming, recategorizing, or retagging a cohort reruns
+  tasks — tasks often select cohorts by that metadata. A cohort's definition
+  hash (`CohortDef$getSqlHash()`) still covers only its SQL.
+- New `ConceptSetManifest$getManifestHash()`, consistent with the cohort
+  version: each concept set's normalized expression JSON plus its label,
+  category, and tags.
+- `shouldRerunTask()` now reruns a task when the **concept set manifest**
+  changes (#125), e.g. merging two categories, or when **`renv.lock`**
+  changes — the R version or any package's version, source, or remote SHA
+  (#118).
+- `testStudyPipeline()`, `execStudyPipeline()`, and `testStudyTask()` gain a
+  `forceRerun` argument (default `FALSE`) that bypasses change detection:
+  `TRUE` reruns every task, and a vector of task file names reruns only those.
+  Forced runs are still recorded in `task_run_history.csv` and noted in the
+  pipeline log.
+- `exec/logs/task_run_history.csv` gains `concept_set_manifest_hash` and
+  `renv_lock_hash` columns. Existing history rows have no recorded value for
+  them, and the cohort hash now includes metadata, so every task reruns once
+  after upgrading. Studies without a concept set manifest or `renv.lock` hash
+  to a stable sentinel and are not rerun on every run.
+
 # picard 0.0.7
 
 ## Breaking Changes
@@ -8,6 +34,16 @@
   the same meaning (a test-mode namespace) and the same normalization, so only
   the argument name changes. There is no compatibility shim — a stray
   `testLabel =` now raises `unused argument`.
+
+- `sourceInputBuilderScripts()` now requires all six builder scripts and aborts
+  before sourcing anything if one is missing or if `inputs/cohorts/R/` or
+  `inputs/conceptSets/R/` contains any other `.R` file (previously these were
+  skipped silently). Studies that deleted unused builders should recreate them
+  with `makeInputBuilderScript()`, and studies with
+  `build_dependent_cohorts_cohort.R` should rename it to
+  `build_dependent_cohorts.R`. Helper code belongs in a subfolder such as
+  `inputs/cohorts/R/src/`. The now-meaningless `warnMissing` argument is
+  removed (#116).
 
 ## New Features
 
@@ -48,6 +84,20 @@
 ### Building a disseminationEnv Interactively
 
 
+### Parameterized Input Builder Scripts
+
+- `sourceInputBuilderScripts()` gains `configBlock` and `pipelineVersion`
+  arguments. Builder scripts run once per config block, with the current block
+  and pipeline version exposed as an `inputBuilderEnv` object so scripts can
+  build execution settings (e.g. to resolve concept sets for SQL cohorts)
+  without hard-coding either value. The generated `main.R` passes `dbIds`.
+  `createInputBuilderEnv()` builds the same object for interactive use (#109).
+- `execStudyPipeline()` / `testStudyPipeline()` gain `skipInputBuilders`
+  (default `TRUE`). With `FALSE`, the pipeline sources the builder scripts for
+  each config block right before generating that block's cohorts, so
+  database-specific builder changes are not overwritten by the next database.
+  By default the builders are still sourced from `main.R` / `test_main.R`.
+
 ### Study Metadata and Publishing
 
 - Added the optional `studyDescription` field to `makeStudyMeta()`. When supplied, it is inserted into the generated README; when omitted, the existing description placeholder is retained.
@@ -63,6 +113,23 @@
 - `CohortDef$getFilePath()` / `ConceptSetDef$getFilePath()` now return an absolute path (safe to read regardless of `getwd()`); the new `$getDisplayPath(root = NULL)` gives a repo-root-relative path for display.
 
 ## Bug Fixes
+
+- `execStudyPipeline()` / `testStudyPipeline()` now generate cohorts in every
+  config block passed to `configBlock`. Previously cohorts were only generated
+  in the first block, so tasks for the other databases ran against cohort
+  tables that had not been built for that run.
+
+- `makeInputBuilderScript(type = "buildDependentCohorts")` now writes
+  `build_dependent_cohorts.R` instead of `build_dependent_cohorts_cohort.R`, which
+  `sourceInputBuilderScripts()` never sourced.
+- The input builder templates now run without error when unpopulated: the
+  ATLAS builders are fully commented out, with instructions to uncomment each
+  step as needed (previously they created a blank load csv and connected to
+  ATLAS on every run); the Capr, SQL and dependent-cohort builders create their
+  manifest on first run; and the Capr builders no longer require Capr until
+  Capr code is added (#116).
+- `$updateAtlasCohorts()` / `$updateAtlasConceptSets()` no longer error when the
+  manifest has no ATLAS entries.
 
 - `createExecutionSettingsFromConfig()` now honors its documented default: `pipelineVersion = "prod"` (or a `MAJOR.MINOR.PATCH` version) uses the configured cohort table unchanged. Previously `"prod"` was treated as a non-semver test namespace and produced a `_prod`-suffixed table.
 - Fixed cohort-manifest change detection for task reruns (`shouldRerunTask()`), which was broken three ways at once, so editing a cohort definition never re-ran the tasks that used it:
@@ -108,6 +175,10 @@
 - Improved cohort-generation reporting (see Issue #77): failures now use prominent danger-level messages with the failed cohort, label, and underlying error, remaining cohorts are reported as not generated, and the final summary says generation failed when appropriate. The cohort lookup now checks for missing manifest entries before accessing their fields, and cancellation guidance points to builder scripts and manifest methods instead of only `cohortsLoad.csv`.
 - `generateCohorts()` now delegates table creation to `executeCohortGeneration(confirm = FALSE)`, avoiding duplicate table checks and connection cycles while still creating missing tables automatically. The full cohort-count table is no longer printed to the console; a compact count summary and the saved `cohortCounts.csv` path are reported instead.
 - `initUlyssesRepo()` now aborts when its target repository directory already exists, preventing initialization from overwriting an existing repository.
+- Corrected the ATLAS import builder templates (#112): the import step now comes before the sync step, both templates note that JSON files dropped into `json/` without registration are deleted as orphans, and the concept set template listed the wrong load csv columns (`category` is required; `domain`/`sourceCode` are optional tags) and wrongly claimed dropped-in JSON files are auto-registered. Both templates now note that `stopIfExists = FALSE` matches rows by label (rename via `$updateCohortLabel()`/`$updateConceptSetLabel()`), and their headers use the generated file names.
+- The generated `main.R` now runs `renv::restore()` by default (#113).
+- `$buildCompositeCohort()` documentation now describes `minEventCount` accurately (the number of criteria cohorts a subject must belong to, default 1 = any of them), and a warning is raised when it is not supplied, recommending the number of criteria cohorts for an intersection (#126).
+- Fixed the generated `main.R` (#115): `execStudyPipeline()` is passed its required `updateType`, `runPostProcessing()` is called with `pipelineVersion`/`dbIds` instead of nonexistent arguments, and `sourceDisseminationScripts()` uses the new pipeline version. `test_main.R` gets the same `runPostProcessing()` fix.
 
 # picard 0.0.6
 

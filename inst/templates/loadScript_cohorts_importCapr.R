@@ -32,7 +32,10 @@ library(picard)
 # ================================================================================
 
 
-# Subsequent times: Load from existing SQLite database
+# The manifest is created on the first run and loaded on every run after that
+if (!fs::file_exists(here::here("inputs/cohorts/cohortManifest.sqlite"))) {
+  initCohortManifest(here::here("inputs/cohorts"))
+}
 cohortManifest <- loadCohortManifest()
 
 
@@ -40,9 +43,9 @@ cohortManifest <- loadCohortManifest()
 # B. WRITE YOUR CAPR COHORTS BELOW
 # ================================================================================
 
-# Ensure Capr is loaded (you may need to install it first)
+# Uncomment once you add Capr code below (you may need to install it first)
 # remotes::install_github("OHDSI/Capr")
-library(Capr)
+# library(Capr)
 
 # ---- Example: First-time Type 2 Diabetes diagnosis with 365d washout ----
 # Verify all concept ids in ATHENA (https://athena.ohdsi.org) before use.

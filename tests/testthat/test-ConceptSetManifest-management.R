@@ -211,7 +211,7 @@ csm_test_atlas_fixture_jsons <- function() {
   list(v1 = v1_json, v2 = v2_json)
 }
 
-# Testing: importAtlasConceptSets errors when load rows are already registered (transient csv).
+# Testing: importAtlasConceptSets errors when load rows are already registered (default stopIfExists = TRUE).
 testthat::test_that("importAtlasConceptSets errors on already-registered rows", {
   setup <- csm_test_new_manifest("csm-atlas-import-dup")
   manifest <- setup$manifest
@@ -547,4 +547,64 @@ testthat::test_that("concept-set syncManifest ignores a path-convention-only dif
     testthat::expect_false("hash_updated" %in% out$action)
   })
   testthat::expect_equal(csm_test_all_rows(manifest)$hash[1], original_hash)
+})
+
+# Testing: syncing ATLAS concept sets is a no-op, not an error, when none are registered.
+testthat::test_that("updateAtlasConceptSets returns NULL when no ATLAS concept sets are registered", {
+  setup <- csm_test_new_manifest("conceptsetmanifest-atlas-empty")
+
+  res <- testthat::expect_no_error(suppressMessages(
+    setup$manifest$updateAtlasConceptSets(atlasConnection = list())
+  ))
+  testthat::expect_null(res)
+})
+
+# Testing: a failed ATLAS fetch stops the sync instead of skipping the concept set.
+testthat::test_that("checkAtlasConceptSets and updateAtlasConceptSets abort when a fetch fails", {
+  setup <- csm_test_new_manifest("mgmt-cs-atlas-fetch-fail")
+  manifest <- setup$manifest
+  jsons <- csm_test_atlas_fixture_jsons()
+  manifest$importAtlasConceptSets(
+    conceptSetsLoad = data.frame(atlasId = 100L, label = "T2D Concepts", category = "condition"),
+    atlasConnection = csm_test_fake_atlas_connection(list("100" = jsons$v1))
+  )
+  failing_conn <- list(getConceptSetDefinition = function(conceptSetId) stop("ATLAS unreachable"))
+
+  for (method in c("checkAtlasConceptSets", "updateAtlasConceptSets")) {
+    err <- testthat::expect_error(
+      suppressMessages(manifest[[method]](atlasConnection = failing_conn)),
+      regexp = "Failed to fetch ATLAS concept set 100 (T2D Concepts)",
+      fixed = TRUE
+    )
+    testthat::expect_match(conditionMessage(err$parent), "ATLAS unreachable")
+  }
+})
+
+# Testing: stopOnError = FALSE skips concept sets whose fetch fails, with a warning.
+testthat::test_that("checkAtlasConceptSets and updateAtlasConceptSets skip failed fetches when stopOnError = FALSE", {
+  setup <- csm_test_new_manifest("mgmt-cs-atlas-fetch-skip")
+  manifest <- setup$manifest
+  jsons <- csm_test_atlas_fixture_jsons()
+  manifest$importAtlasConceptSets(
+    conceptSetsLoad = data.frame(atlasId = c(100L, 200L), label = c("CS A", "CS B"), category = "condition"),
+    atlasConnection = csm_test_fake_atlas_connection(list("100" = jsons$v1, "200" = jsons$v2))
+  )
+  partial_conn <- list(getConceptSetDefinition = function(conceptSetId) {
+    if (conceptSetId == 100L) stop("ATLAS unreachable")
+    list(expression = jsons$v2, saveName = "atlas_cs_200")
+  })
+
+  testthat::expect_warning(
+    suppressMessages(capture.output(
+      res <- manifest$checkAtlasConceptSets(atlasConnection = partial_conn, stopOnError = FALSE)
+    )),
+    regexp = "Failed to fetch ATLAS concept set 100"
+  )
+  testthat::expect_equal(res$atlasId, 200L)
+  testthat::expect_warning(
+    suppressMessages(capture.output(
+      manifest$updateAtlasConceptSets(atlasConnection = partial_conn, stopOnError = FALSE)
+    )),
+    regexp = "Failed to fetch ATLAS concept set 100"
+  )
 })

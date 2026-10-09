@@ -412,6 +412,23 @@ testthat::test_that("makeInputBuilderScript creates builder files for cohorts an
   testthat::expect_true(fs::file_exists(fs::path(repo_ctx$repo_path, "inputs/conceptSets/R/import_capr_concept_set.R")))
 })
 
+# Testing: generated builder file names match the names sourceInputBuilderScripts() looks for.
+testthat::test_that("makeInputBuilderScript names the dependent cohorts script build_dependent_cohorts.R", {
+  repo_ctx <- make_test_repo_for_file_creation("builder_dep_repo")
+  on.exit(fs::dir_delete(repo_ctx$root_dir), add = TRUE)
+
+  makeInputBuilderScript(
+    type = "buildDependentCohorts",
+    category = "cohorts",
+    projectPath = repo_ctx$repo_path,
+    open = FALSE
+  )
+
+  cohorts_r <- fs::path(repo_ctx$repo_path, "inputs/cohorts/R")
+  testthat::expect_true(fs::file_exists(fs::path(cohorts_r, "build_dependent_cohorts.R")))
+  testthat::expect_false(fs::file_exists(fs::path(cohorts_r, "build_dependent_cohorts_cohort.R")))
+})
+
 testthat::test_that("makeDisseminationScript creates numbered scripts in dissemination/pretty/R", {
   repo_ctx <- make_test_repo_for_file_creation("diss_repo")
   on.exit(fs::dir_delete(repo_ctx$root_dir), add = TRUE)

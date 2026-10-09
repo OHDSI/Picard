@@ -1102,28 +1102,32 @@ CohortManifest <- R6::R6Class(
       return(private$.manifest)
     },
 
-    #' Compute a deterministic hash of every cohort definition in the manifest
+    #' Compute a deterministic hash of the manifest for task-rerun detection
     #'
     #' @description
-    #' Produces a single SHA256 string over the *definition* of every active or
-    #' stale cohort, used by the study pipeline (via [shouldRerunTask()]) to
-    #' decide whether cohort changes force affected tasks to rerun.
+    #' Produces a single SHA256 string over everything about the active or
+    #' stale cohorts that a task can depend on. Used by the study pipeline (via
+    #' [shouldRerunTask()]): when it changes, tasks rerun.
+    #'
+    #' This is distinct from a cohort's *definition hash*
+    #' (\code{CohortDef$getSqlHash()}), which covers only the rendered SQL.
+    #' Tasks also select cohorts by label, category, or tag, so a change to
+    #' that metadata changes the analysis even when no definition changed.
     #'
     #' For each cohort, ordered by id, the hash combines:
     #'   \itemize{
-    #'     \item \code{id}, \code{cohort_type}, \code{source_type}
+    #'     \item \code{id}, \code{label}, \code{category}, \code{tags}
+    #'     \item \code{cohort_type}, \code{source_type}
     #'     \item \code{depends_on} and \code{dependency_rule} (normalized JSON)
-    #'     \item the rendered-SQL hash (\code{CohortDef$getSqlHash()}) of the
+    #'     \item the definition hash (\code{CohortDef$getSqlHash()}) of the
     #'       loaded cohort, or the sentinel \code{"<missing>"} when the cohort
     #'       file is absent from disk
     #'   }
     #'
-    #' The rendered SQL — not the raw file bytes — is what executes against the
-    #' CDM, so a cosmetic reformat of a cohort's JSON that renders to identical
-    #' SQL does not move the hash, while any change to the executed SQL does.
-    #' Cosmetic metadata (\code{label}, \code{category}, \code{tags}) is
-    #' deliberately excluded: renaming or retagging a cohort does not change the
-    #' analysis.
+    #' Because the definition hash is over the rendered SQL, a cosmetic
+    #' reformat of a cohort's JSON that renders to identical SQL does not move
+    #' the hash. The stored file path is excluded, so path normalization does
+    #' not force spurious reruns.
     #'
     #' @return Character. A SHA256 hash string. An empty manifest hashes to a
     #'   stable constant.
@@ -1133,16 +1137,17 @@ CohortManifest <- R6::R6Class(
 
       rows <- DBI::dbGetQuery(
         conn,
-        "SELECT id, cohort_type, source_type, depends_on, dependency_rule
+        "SELECT id, label, category, tags, cohort_type, source_type,
+                depends_on, dependency_rule
            FROM cohort_manifest
           WHERE status IN ('active', 'stale')
           ORDER BY id"
       )
 
-      # id -> rendered-SQL hash for cohorts currently loaded in memory. A cohort
+      # id -> definition hash for cohorts currently loaded in memory. A cohort
       # whose file is missing was skipped by load_manifest_from_db() and has no
       # CohortDef; it falls back to the "<missing>" sentinel below so that a
-      # file disappearing (or reappearing) still moves the manifest hash.
+      # file disappearing (or reappearing) still moves the hash.
       sql_hash_by_id <- list()
       for (cd in private$.manifest) {
         sql_hash_by_id[[as.character(cd$getId())]] <- cd$getSqlHash()
@@ -1155,11 +1160,13 @@ CohortManifest <- R6::R6Class(
         character(1)
       )
 
-      # One "|"-joined line per cohort, ordered by id. depends_on /
-      # dependency_rule are canonicalized so a cosmetic JSON reformat does not
-      # move the hash; label / category / tags are intentionally excluded.
+      # One "|"-joined line per cohort, ordered by id. JSON-valued columns are
+      # canonicalized so a cosmetic reformat does not move the hash.
       entries <- paste(
         id_chr,
+        rows$label,
+        rows$category,
+        vapply(rows$tags, manifest_canonical_json, character(1)),
         rows$cohort_type,
         rows$source_type,
         vapply(rows$depends_on, manifest_canonical_json, character(1)),
@@ -1752,12 +1759,13 @@ CohortManifest <- R6::R6Class(
     #' Either create a dataframe or read in a csv file with columns `atlasId`, `label`, `category` (required) plus any
     #' additional columns treated as tag key-value pairs for tags. Calls `addAtlasCohort()` for each row.
     #'
-    #' By default, the load file is treated as a transient, one-time import
-    #' mechanism: rows whose atlasId is already registered in the manifest are
-    #' an error, not an update. Set `stopIfExists = FALSE` to instead update
+    #' The load file is kept in the study repository as the record of which
+    #' ATLAS cohorts the study uses. By default, rows whose atlasId is already
+    #' registered in the manifest are an error, not an update, so an import
+    #' only adds new cohorts. Set `stopIfExists = FALSE` to instead update
     #' those rows in place (delegates to `addAtlasCohort(stopIfExists = FALSE)`
-    #' for each), which supports iterating on the load file across repeated
-    #' runs. To sync registered cohorts with ATLAS without a load file, use
+    #' for each), which lets the whole load file be re-imported on every run.
+    #' To sync registered cohorts with ATLAS without re-importing, use
     #' `updateAtlasCohorts()`.
     #'
     #' @param cohortsLoad a data frame requiring the columns atlasId, label and category used to bulk add cohorts to the manifest
@@ -1809,8 +1817,7 @@ CohortManifest <- R6::R6Class(
 
       assigned_ids <- rep(NA_integer_, nrow(cohort_load_2))
 
-      # By default, the load csv is a transient, one-time import file —
-      # registered rows are an error, not an update mechanism. Fail fast
+      # By default registered rows are an error, not an update: fail fast
       # before importing anything, unless the caller opted into upserting.
       if (stopIfExists && nrow(existing_cohorts) > 0) {
         offending <- paste0(
@@ -1820,7 +1827,8 @@ CohortManifest <- R6::R6Class(
         cli::cli_abort(c(
           "{nrow(existing_cohorts)} cohort(s) in the load file are already registered in the manifest:",
           stats::setNames(offending, rep("x", length(offending))),
-          i = "Remove them from the load csv, or re-run with {.code stopIfExists = FALSE} to update them in place.",
+          i = "To import only new rows, keep the import commented out until you add rows to the load csv.",
+          i = "To update registered rows in place on every run, re-run with {.code stopIfExists = FALSE}.",
           i = "To sync registered cohorts with ATLAS, run {.code updateAtlasCohorts()}."
         ))
       }
@@ -2730,8 +2738,10 @@ CohortManifest <- R6::R6Class(
 
     #' @description Build a composite cohort
     #'
-    #' Creates a derived cohort that requires membership in multiple cohorts
-    #' (intersection logic).
+    #' Creates a derived cohort of subjects who belong to at least
+    #' \code{minEventCount} of the criteria cohorts. Set \code{minEventCount} to
+    #' the number of criteria cohorts for an intersection (subjects must be in
+    #' every criteria cohort); lower values relax the requirement.
     #'
     #' Input route policy:
     #' - Preferred: provide \code{criteriaCohortEntries}
@@ -2745,8 +2755,11 @@ CohortManifest <- R6::R6Class(
     #'   (e.g., c(1, 2, 3) for Type 1 diabetes, Type 2 diabetes, and secondary diabetes).
     #' @param criteriaCohortEntries Data frame/tibble with an \code{id} column (minimum 2 rows).
     #'   Preferred route using manifest query results.
-    #' @param minEventCount Integer. Minimum number of distinct cohort events required for a subject
-    #'   to qualify for the composite. Default: 1 (any subject with at least 1 event qualifies).
+    #' @param minEventCount Integer. Minimum number of distinct criteria cohorts a subject must
+    #'   belong to in order to qualify for the composite. Must be between 1 and the number of
+    #'   criteria cohorts. Default: 1 (subject in any criteria cohort qualifies). A warning is
+    #'   raised when it is not supplied; for an intersection, set it to the number of criteria
+    #'   cohorts.
     #' @param eventSelection Character. One of 'First', 'Last', or 'All'. Specifies which event(s) to
     #'   retain as the cohort_start_date and cohort_end_date in the output:
     #'   - 'First': Keep the earliest event (earliest index date)
@@ -2815,7 +2828,13 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_string(category, min.chars = 1)
       checkmate::assert_list(tags, names = "named")
       checkmate::assert_choice(x = eventSelection, choices = c("First", "Last", "All"))
-      checkmate::assert_integerish(minEventCount, lower = 1, upper = length(criteriaCohortIds))
+      if (missing(minEventCount)) {
+        cli::cli_warn(c(
+          "{.arg minEventCount} not supplied; defaulting to 1, which keeps subjects in {.emph any} criteria cohort.",
+          i = "To require membership in all {length(criteriaCohortIds)} criteria cohorts, set {.code minEventCount = {length(criteriaCohortIds)}L}."
+        ))
+      }
+      checkmate::assert_int(minEventCount, lower = 1, upper = length(criteriaCohortIds))
 
       checkmate::assert_flag(stopIfExists)
       existing_id <- private$resolve_derived_upsert(label, stopIfExists, criteriaCohortIds, cohort_type = "composite")
@@ -3976,6 +3995,10 @@ CohortManifest <- R6::R6Class(
     #'   If `NULL` (default), uses the connection stored via `$setAtlasConnection()`.
     #'   If no connection is available, raises an error.
     #'
+    #' @param stopOnError Logical. If TRUE (default), a failed ATLAS fetch
+    #'   aborts the sync. If FALSE, the cohort is skipped with a warning and the
+    #'   remaining cohorts are still synced.
+    #'
     #' @return Invisible tibble with columns:
     #'   \itemize{
     #'     \item \code{id} - Cohort ID in manifest
@@ -3985,7 +4008,8 @@ CohortManifest <- R6::R6Class(
     #'     \item \code{localHash} - Hash of stored JSON
     #'     \item \code{remoteHash} - Hash of current ATLAS JSON
     #'   }
-    checkAtlasCohorts = function(atlasConnection = NULL) {
+    checkAtlasCohorts = function(atlasConnection = NULL, stopOnError = TRUE) {
+      checkmate::assert_flag(stopOnError)
 
       if (is.null(atlasConnection)) {
         atlasConnection <- private$.atlasConnection
@@ -4022,11 +4046,22 @@ CohortManifest <- R6::R6Class(
         current_hash <- cm_atlas_subset$hash[i]
         row_file_path <- cm_atlas_subset$file_path[i]
 
-        # Fetch JSON from ATLAS and compare hashes
+        # Fetch JSON from ATLAS and compare hashes. By default a failed fetch stops
+        # the sync, since skipping the cohort would leave the manifest
+        # silently out of date
         cohort_def <- tryCatch(
           atlasConnection$getCohortDefinition(row_atlas_id),
           error = function(e) {
-            cli::cli_warn("Failed to fetch atlasId {row_atlas_id}: {e$message}")
+            if (stopOnError) {
+              cli::cli_abort(
+                "Failed to fetch ATLAS cohort {row_atlas_id} ({row_label}).",
+                parent = e
+              )
+            }
+            cli::cli_warn(c(
+              "Failed to fetch ATLAS cohort {row_atlas_id} ({row_label}); skipping it because {.code stopOnError = FALSE}.",
+              x = "{conditionMessage(e)}"
+            ))
             NULL
           }
         )
@@ -4088,8 +4123,13 @@ CohortManifest <- R6::R6Class(
     #' @param atlasConnection An ATLAS connection object with a method `getCohortDefinition(cohortId)`.
     #'   If `NULL` (default), uses the connection stored via `$setAtlasConnection()`.
     #'
+    #' @param stopOnError Logical. If TRUE (default), a failed ATLAS fetch
+    #'   aborts the sync. If FALSE, the cohort is skipped with a warning and the
+    #'   remaining cohorts are still synced.
+    #'
     #' @return invisible of the tibble of atlas changes to update
-    updateAtlasCohorts = function(atlasConnection = NULL) {
+    updateAtlasCohorts = function(atlasConnection = NULL, stopOnError = TRUE) {
+      checkmate::assert_flag(stopOnError)
       if (is.null(atlasConnection)) {
         atlasConnection <- private$.atlasConnection
       }
@@ -4101,9 +4141,11 @@ CohortManifest <- R6::R6Class(
         ))
       }
 
-      # check for changes
-      check_atlas_changes <- self$checkAtlasCohorts(atlasConnection) |>
-        dplyr::filter(hasChanged)
+      # check for changes; NULL means no ATLAS cohorts are registered
+      check_atlas_changes <- self$checkAtlasCohorts(atlasConnection, stopOnError = stopOnError)
+      if (!is.null(check_atlas_changes)) {
+        check_atlas_changes <- dplyr::filter(check_atlas_changes, hasChanged)
+      }
 
       if (is.null(check_atlas_changes) || nrow(check_atlas_changes) == 0) {
         cli::cli_alert_info("No changed ATLAS cohorts found. All cohort(s) are current.")
@@ -4128,11 +4170,22 @@ CohortManifest <- R6::R6Class(
         existing_path <- check_atlas_changes$filePath[i]
         existing_id <- check_atlas_changes$id[i]
 
-        # Fetch JSON from ATLAS and compare hashes
+        # Fetch JSON from ATLAS and compare hashes. By default a failed fetch stops
+        # the sync, since skipping the cohort would leave the manifest
+        # silently out of date
         cohort_def <- tryCatch(
           atlasConnection$getCohortDefinition(row_atlas_id),
           error = function(e) {
-            cli::cli_warn("Failed to fetch atlasId {row_atlas_id}: {e$message}")
+            if (stopOnError) {
+              cli::cli_abort(
+                "Failed to fetch ATLAS cohort {row_atlas_id} ({row_label}).",
+                parent = e
+              )
+            }
+            cli::cli_warn(c(
+              "Failed to fetch ATLAS cohort {row_atlas_id} ({row_label}); skipping it because {.code stopOnError = FALSE}.",
+              x = "{conditionMessage(e)}"
+            ))
             NULL
           }
         )
@@ -5224,6 +5277,15 @@ CohortManifest <- R6::R6Class(
         # resolve if should skip
         if (skip_info$should_skip) {
           cli::cli_alert_info("Skipping cohort {cohort_id}: {cohort_label} ({cohort_type})")
+          # This database's table is up to date, so the cohort is no longer
+          # pending regeneration
+          if (isTRUE(skip_info$is_stale)) {
+            DBI::dbExecute(
+              sqlite_conn,
+              "UPDATE cohort_manifest SET status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+              list(cohort_id)
+            )
+          }
           new_row <- data.frame(
             cohort_id = cohort_id, 
             label = cohort_label, 
