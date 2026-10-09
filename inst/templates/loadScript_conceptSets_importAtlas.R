@@ -86,15 +86,14 @@ conceptSetManifest$updateAtlasConceptSets()
 # NOTE: no curly braces in this template (it is populated via glue).
 conceptSetsLoadPath <- here::here("inputs/conceptSets/conceptSetsLoad.csv")
 
-if (fs::file_exists(conceptSetsLoadPath))
+if (fs::file_exists(conceptSetsLoadPath)) {
   conceptSetManifest$importAtlasConceptSets(
     conceptSetsLoad = readr::read_csv(conceptSetsLoadPath, show_col_types = FALSE)
   )
-
-if (!fs::file_exists(conceptSetsLoadPath))
+} else {
   cli::cli_alert_info("No conceptSetsLoad.csv found - skipping one-time import")
-
-
+}
+  
 # ================================================================================
 # F. REVIEW IMPORTED CONCEPT SETS
 # ================================================================================
