@@ -306,7 +306,7 @@ is_the_checksum_empty <- function(
   if (inherits(checksum_count_result, "try-error") || nrow(checksum_count_result) == 0) {
     is_checksum_empty <- TRUE
   } else {
-    count_value <- checksum_count_result$COUNT[1]
+    count_value <- checksum_count_result[[1L]][1L]
     is_checksum_empty <- is.na(count_value) || count_value == 0
   }
   return(is_checksum_empty)
@@ -354,7 +354,7 @@ evaluate_cohort_skip_status <- function(
     )
     hash_result <- try(DatabaseConnector::querySql(conn, hash_query), silent = TRUE)
     if (!inherits(hash_result, "try-error") && nrow(hash_result) > 0) {
-      stored_hash <- hash_result$CHECKSUM[1]
+      stored_hash <- hash_result[[1L]][1L]
     }
   }
 

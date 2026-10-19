@@ -253,10 +253,11 @@ cm_test_mark_stale <- function(manifest, ids) {
 }
 
 # Purpose: Evaluate skip status against a stored checksum, with the DBMS
-# checksum lookup mocked to return `stored_hash`.
+# checksum lookup mocked to return `stored_hash`. The column is lowercase since
+# its case varies by DBMS.
 cm_test_skip_status <- function(manifest, cohort, cohort_hashes, stored_hash, env = parent.frame()) {
   testthat::local_mocked_bindings(
-    querySql = function(...) data.frame(CHECKSUM = stored_hash),
+    querySql = function(...) data.frame(checksum = stored_hash),
     .package = "DatabaseConnector",
     .env = env
   )
@@ -273,6 +274,21 @@ cm_test_skip_status <- function(manifest, cohort, cohort_hashes, stored_hash, en
     dbPath = manifest$getDbPath()
   )
 }
+
+# Testing: the checksum-table count is read by position, since the column
+# name's case varies by DBMS.
+testthat::test_that("is_the_checksum_empty reads the count regardless of column name case", {
+  for (count in c(0, 3)) {
+    testthat::local_mocked_bindings(
+      querySql = function(...) data.frame(count = count),
+      .package = "DatabaseConnector"
+    )
+    testthat::expect_identical(
+      is_the_checksum_empty(db_conn = NULL, cohort_schema = "work", checksum_table = "cohort_checksum"),
+      count == 0
+    )
+  }
+})
 
 # Testing: the derived-cohort checksum covers the cohort's own SQL, so a changed
 # definition with unchanged parents is still detected without the 'stale' flag.

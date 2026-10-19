@@ -80,57 +80,43 @@ UlyssesStudy <- R6::R6Class(
     #' 6. Initializes agent skills configuration
     #' 7. Initializes git repository
     #'
+    #' The repository directory may already exist if it is empty. To initialize
+    #' into a directory that already contains files, set `allowExisting = TRUE`:
+    #' only scaffold files that are missing are added, existing files are never
+    #' overwritten, and the required entries are merged into an existing
+    #' `.gitignore`. If the directory is already a git repository, nothing is
+    #' committed or pushed; review and commit the added files yourself.
+    #'
     #' @param verbose Logical. If TRUE (default), displays informative messages during initialization.
     #' @param openProject Logical. If TRUE, opens the project in a new RStudio session after initialization.
+    #' @param allowExisting Logical. If TRUE, initialize into an existing, non-empty
+    #'   directory by adding only the missing scaffold files. Default is FALSE,
+    #'   which aborts when the directory contains any files.
     #'
     #' @return Invisibly returns the path to the initialized repository.
-    initUlyssesRepo = function(verbose = TRUE, openProject = FALSE) {
+    initUlyssesRepo = function(verbose = TRUE, openProject = FALSE, allowExisting = FALSE) {
+      checkmate::assert_flag(allowExisting)
       repoPath <- private$.getRepoPath()
 
-      if (fs::dir_exists(repoPath)) {
+      isPopulated <- fs::dir_exists(repoPath) && length(fs::dir_ls(repoPath, all = TRUE)) > 0
+      if (isPopulated && !allowExisting) {
         cli::cli_abort(c(
-          "Repository directory already exists: {.file {repoPath}}",
-          i = "Choose a different {.arg repoName} or {.arg repoFolder}; initialization will not overwrite an existing repository."
+          "Repository directory already exists and is not empty: {.file {repoPath}}",
+          i = "Set {.code allowExisting = TRUE} to add the missing Ulysses files without overwriting existing ones, or choose a different {.arg repoName} or {.arg repoFolder}."
         ))
       }
-      
+
       if (verbose) cli::cli_h2("Initializing Ulysses Repository")
-      
+
       tryCatch({
-        # Step 1: Create repo directory and R project
-        if (verbose) cli::cli_inform("Creating R project directory...")
-        fs::dir_create(repoPath, recurse = TRUE)
-        usethis::local_project(repoPath, force = TRUE)
-        private$.initRProj()
-        
-        # Step 2: Create folder structure
-        if (verbose) cli::cli_inform("Creating directory structure...")
-        listDefaultFolders(repoPath = repoPath)
-        
-        # Step 3: Initialize files
-        if (verbose) cli::cli_inform("Creating initialization files...")
-        private$.initReadMe()
-        private$.initNews()
-        private$.initConfigFile()
-        private$.initQuarto()
-        private$.initMainExec()
-        private$.initAgent()
-        
-        # Step 3b: Populate pre-pipeline builder scripts
-        if (verbose) cli::cli_inform("Creating pre-pipeline builder scripts...")
-        private$.populateBuilderScripts(repoPath, verbose)
-        
-        # Step 4: Initialize git
-        if (verbose) cli::cli_inform("Initializing git repository...")
-        private$.initGit()
-        
-        # Step 5: Add renv lock file if supplied
-        if (verbose) cli::cli_inform("Setting up renv configuration...")
-        private$.addRenvLockFile()
-        
+        if (isPopulated) {
+          private$.initExistingRepo(repoPath, verbose)
+        } else {
+          private$.initNewRepo(repoPath, verbose)
+        }
+
         cli::cli_alert_success("Repository successfully initialized at {repoPath}")
-        
-        # Open project if requested
+
         if (openProject) {
           cli::cli_inform("Opening project in new session...")
           rstudioapi::openProject(repoPath, newSession = TRUE)
@@ -138,7 +124,7 @@ UlyssesStudy <- R6::R6Class(
       }, error = function(e) {
         cli::cli_abort("Failed to initialize repository: {e$message}")
       })
-      
+
       invisible(repoPath)
     }
   ),
@@ -155,6 +141,107 @@ UlyssesStudy <- R6::R6Class(
       fs::path(private$.repoFolder, private$.repoName) |> fs::path_expand()
     },
 
+    .initNewRepo = function(repoPath, verbose) {
+      if (verbose) cli::cli_inform("Creating R project directory...")
+      fs::dir_create(repoPath, recurse = TRUE)
+      usethis::local_project(repoPath, force = TRUE)
+      private$.scaffoldFiles(verbose)
+
+      if (verbose) cli::cli_inform("Initializing git repository...")
+      private$.initGit()
+
+      if (verbose) cli::cli_inform("Setting up renv configuration...")
+      private$.addRenvLockFile()
+      invisible(NULL)
+    },
+
+    # Builds the scaffold in a staging directory, then copies over only the
+    # files missing from repoPath so existing content is never overwritten.
+    .initExistingRepo = function(repoPath, verbose) {
+      if (verbose) cli::cli_inform("Directory {.file {repoPath}} already exists; adding missing Ulysses files...")
+
+      stageFolder <- fs::file_temp("ulysses-stage-")
+      fs::dir_create(stageFolder)
+      on.exit(fs::dir_delete(stageFolder), add = TRUE)
+      stagePath <- private$.stageScaffold(stageFolder)
+
+      stagedFiles <- fs::dir_ls(stagePath, recurse = TRUE, all = TRUE, type = "file")
+      relFiles <- fs::path_rel(stagedFiles, start = stagePath)
+      targetFiles <- fs::path(repoPath, relFiles)
+      isMissing <- !fs::file_exists(targetFiles)
+
+      existingRproj <- fs::dir_ls(repoPath, glob = "*.Rproj", type = "file")
+      if (length(existingRproj) > 0) {
+        isMissing[fs::path_ext(relFiles) == "Rproj" & fs::path_dir(relFiles) == "."] <- FALSE
+      }
+
+      fs::dir_create(unique(fs::path_dir(targetFiles[isMissing])))
+      fs::file_copy(stagedFiles[isMissing], targetFiles[isMissing])
+
+      if (verbose) {
+        cli::cli_alert_success("Added {sum(isMissing)} Ulysses file{?s} to {.file {repoPath}}")
+        keptFiles <- relFiles[!isMissing]
+        if (length(keptFiles) > 0) {
+          cli::cli_alert_info("Kept {length(keptFiles)} existing file{?s} unchanged: {.file {keptFiles}}")
+        }
+      }
+
+      usethis::local_project(repoPath, force = TRUE)
+      private$.addGitIgnore()
+
+      if (fs::dir_exists(fs::path(repoPath, ".git"))) {
+        cli::cli_alert_info("Existing git repository detected; review and commit the added files.")
+      } else {
+        if (verbose) cli::cli_inform("Initializing git repository...")
+        private$.initGit()
+      }
+      invisible(NULL)
+    },
+
+    # Scaffolds the repository under stageFolder by temporarily pointing
+    # repoFolder there. Output is suppressed since it would show staging paths.
+    .stageScaffold = function(stageFolder) {
+      repoFolder <- private$.repoFolder
+      private$.repoFolder <- stageFolder
+      on.exit(private$.repoFolder <- repoFolder, add = TRUE)
+
+      stagePath <- private$.getRepoPath()
+      fs::dir_create(stagePath)
+      usethis::local_project(stagePath, force = TRUE, quiet = TRUE)
+      utils::capture.output(suppressMessages({
+        private$.scaffoldFiles(verbose = FALSE)
+        private$.addRenvLockFile()
+      }))
+      stagePath
+    },
+
+    .scaffoldFiles = function(verbose) {
+      repoPath <- private$.getRepoPath()
+      private$.initRProj()
+
+      if (verbose) cli::cli_inform("Creating directory structure...")
+      listDefaultFolders(repoPath = repoPath)
+
+      if (verbose) cli::cli_inform("Creating initialization files...")
+      private$.initReadMe()
+      private$.initNews()
+      private$.initConfigFile()
+      private$.initQuarto()
+      private$.initMainExec()
+      private$.initAgent()
+
+      if (verbose) cli::cli_inform("Creating pre-pipeline builder scripts...")
+      private$.populateBuilderScripts(repoPath, verbose)
+      invisible(NULL)
+    },
+
+    .addGitIgnore = function() {
+      usethis::use_git_ignore(
+        c(".Rproj.user", ".Ruserdata", ".Rhistory", ".RData",
+          ".Renviron", "errorReportSql.txt", ".agent/", "AGENTS.md", "exec/")
+      )
+    },
+
     # File initialization methods
     .initRProj = function() {
       repoPath <- private$.getRepoPath()
@@ -169,10 +256,7 @@ UlyssesStudy <- R6::R6Class(
         
         cli::cli_alert_success("Created {.file {fs::path_rel(projFile)}}")
         
-        usethis::use_git_ignore(
-          c(".Rproj.user", ".Ruserdata", ".Rhistory", ".RData",
-            ".Renviron", "errorReportSql.txt", ".agent/", "AGENTS.md", "exec/")
-        )
+        private$.addGitIgnore()
       }, error = function(e) {
         cli::cli_abort("Failed to initialize R project: {e$message}")
       })

@@ -36,7 +36,7 @@ ExecutionSettings <- R6::R6Class(
       
       checkmate::assert_class(x = connectionDetails, classes = "ConnectionDetails", null.ok = TRUE)
       private[["connectionDetails"]] <- connectionDetails
-      checkmate::assert_class(x = connection, classes = "DatabaseConnectorJdbcConnection", null.ok = TRUE)
+      checkmate::assert_class(x = connection, classes = "DatabaseConnectorConnection", null.ok = TRUE)
       private[[".connection"]] <- connection
 
       checkmate::assert_string(x = cdmDatabaseSchema, min.chars = 1)
@@ -139,7 +139,7 @@ ExecutionSettings <- R6::R6Class(
         return(invisible(NULL))
       }
       
-      if (!inherits(conObj, "DatabaseConnectorJdbcConnection")) {
+      if (!inherits(conObj, "DatabaseConnectorConnection")) {
         cli::cli_alert_warning("Connection object is not valid type. Clearing reference.")
         private$.connection <- NULL
         return(invisible(NULL))
@@ -160,7 +160,7 @@ ExecutionSettings <- R6::R6Class(
     #' @description Retrieve the active connection object
     #' @details Returns the connection if it exists and is valid. Otherwise returns NULL
     #'   with an informative message. Use this to check connection status before database operations.
-    #' @return DatabaseConnectorJdbcConnection or NULL
+    #' @return DatabaseConnectorConnection or NULL
     getConnection = function() {
       conObj <- private$.connection
       
@@ -169,7 +169,7 @@ ExecutionSettings <- R6::R6Class(
         return(NULL)
       }
       
-      if (!inherits(conObj, "DatabaseConnectorJdbcConnection")) {
+      if (!inherits(conObj, "DatabaseConnectorConnection")) {
         cli::cli_alert_warning("Connection object is invalid. Call $connect() to re-establish connection.")
         return(NULL)
       }
@@ -202,7 +202,7 @@ ExecutionSettings <- R6::R6Class(
     
     validateConnection = function(conObj) {
       if (is.null(conObj)) return(FALSE)
-      if (!inherits(conObj, "DatabaseConnectorJdbcConnection")) return(FALSE)
+      if (!inherits(conObj, "DatabaseConnectorConnection")) return(FALSE)
       
       tryCatch({
         # Attempt a simple query to validate connection
