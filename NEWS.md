@@ -41,6 +41,9 @@
 - Cohort generation reads checksum-table query results by position, so
   checksums are found regardless of the column-name case a DBMS returns
   (#149).
+- `buildCompositeCohort()` SQL no longer uses `COUNT(DISTINCT ...) OVER (...)`,
+  which PostgreSQL and SQL Server reject, so composite cohorts now generate on
+  those platforms (#155).
 
 # picard 0.0.7
 

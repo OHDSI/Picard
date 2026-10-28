@@ -30,21 +30,26 @@ SELECT
   sub.cohort_end_date
 FROM (
   SELECT
-    subject_id,
-    cohort_start_date,
-    cohort_end_date,
-    COUNT(DISTINCT cohort_definition_id) OVER (PARTITION BY subject_id) AS event_count, /* count distinct cohort events per subject across specified cohort definitions */
+    bc.subject_id,
+    bc.cohort_start_date,
+    bc.cohort_end_date,
     {@event_selection == 'Last'} ? {
-      ROW_NUMBER() OVER (PARTITION BY subject_id ORDER BY cohort_start_date DESC) AS rn
+      ROW_NUMBER() OVER (PARTITION BY bc.subject_id ORDER BY bc.cohort_start_date DESC) AS rn
     } : {
-      ROW_NUMBER() OVER (PARTITION BY subject_id ORDER BY cohort_start_date) AS rn
+      ROW_NUMBER() OVER (PARTITION BY bc.subject_id ORDER BY bc.cohort_start_date) AS rn
     }
-  FROM @base_cohort_table
-  WHERE cohort_definition_id IN (@criteria_cohort_ids)
+  FROM @base_cohort_table bc
+  INNER JOIN (
+    SELECT subject_id
+    FROM @base_cohort_table
+    WHERE cohort_definition_id IN (@criteria_cohort_ids)
+    GROUP BY subject_id
+    HAVING COUNT(DISTINCT cohort_definition_id) >= @minimum_event_count
+  ) qualified ON bc.subject_id = qualified.subject_id
+  WHERE bc.cohort_definition_id IN (@criteria_cohort_ids)
 ) sub
-WHERE sub.event_count >= @minimum_event_count
 {@event_selection == 'First' | @event_selection == 'Last'} ? {
-  AND sub.rn = 1
+WHERE sub.rn = 1
 } : {
   /* keep all events for each subject */
 }
