@@ -259,6 +259,20 @@ ulySt$initUlyssesRepo(verbose = TRUE, openProject = FALSE)
 
 This creates your complete repository structure at the location specified in repoFolder.
 
+### Initializing Into an Existing Directory
+
+The repository directory (`repoFolder`/`repoName`) may already exist if it is empty. If it already contains files, `initUlyssesRepo()` stops rather than risk overwriting them. To convert an existing project folder into a Ulysses repository, set `allowExisting = TRUE`:
+
+```{r eval = FALSE}
+ulySt$initUlyssesRepo(verbose = TRUE, openProject = FALSE, allowExisting = TRUE)
+```
+
+With `allowExisting = TRUE`:
+
+- Only scaffold files that are missing are added; existing files (e.g. your `README.md` or `config.yml`) are never overwritten. The files that were kept are listed when initialization finishes.
+- The Ulysses entries are merged into an existing `.gitignore`.
+- If the directory is already a git repository, nothing is committed or pushed: review the added files and commit them yourself. Otherwise, git is initialized and all files in the directory, including the ones that were already there, are included in the initial commit.
+
 ## Setting Up Git Version Control
 
 Git is automatically initialized when you launch the repository.
