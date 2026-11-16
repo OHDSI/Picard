@@ -1,7 +1,10 @@
 ---
 title: <<studyTitle>>
 subtitle: Initial Results
-date: last-modified
+date: today
+execute:
+  echo: false
+  warning: false
 format:
   html:
     htmlwidgets: true

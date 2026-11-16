@@ -64,7 +64,6 @@ study-repository/
 ├── inputs/            # Cohort definitions and concept sets
 ├── dissemination/     # Results and evidence outputs
 ├── exec/              # Execution artifacts and logs
-├── docs/              # Generated documentation (pkgdown)
 ├── extras/            # Reference scripts and development files
 ├── config.yml         # Project configuration
 ├── main.R             # Production pipeline execution script

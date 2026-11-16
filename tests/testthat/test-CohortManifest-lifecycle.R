@@ -17,6 +17,85 @@ testthat::test_that("cm_test_new_manifest returns manifest and path bundle", {
   testthat::expect_equal(setup$manifest$getDbPath(), setup$paths$db_path)
 })
 
+# Testing: tableExists returns TRUE when its query succeeds.
+testthat::test_that("tableExists recognizes an existing table", {
+  testthat::local_mocked_bindings(
+    existsTable = function(connection, databaseSchema, tableName) TRUE,
+    .package = "DatabaseConnector"
+  )
+
+  testthat::expect_true(tableExists(NULL, "work", "cohort", "postgresql"))
+})
+
+# Testing: tableExists returns FALSE for a database-confirmed missing table.
+testthat::test_that("tableExists recognizes a missing table", {
+  testthat::local_mocked_bindings(
+    existsTable = function(connection, databaseSchema, tableName) FALSE,
+    .package = "DatabaseConnector"
+  )
+
+  testthat::expect_false(tableExists(NULL, "work", "cohort", "postgresql"))
+})
+
+# Testing: operational query errors retain their database context.
+testthat::test_that("tableExists reports non-missing query failures", {
+  testthat::local_mocked_bindings(
+    existsTable = function(connection, databaseSchema, tableName) {
+      stop("Insufficient privileges to operate on warehouse")
+    },
+    .package = "DatabaseConnector"
+  )
+
+  error <- tryCatch(
+    tableExists(NULL, "work", "cohort", "snowflake", databaseName = "study_db"),
+    error = function(e) e
+  )
+
+  testthat::expect_s3_class(error, "error")
+  error_message <- conditionMessage(error)
+  testthat::expect_match(error_message, "study_db")
+  testthat::expect_match(error_message, "work.cohort")
+  testthat::expect_match(error_message, "Insufficient privileges.*warehouse")
+  testthat::expect_match(error_message, "checking cohort table existence")
+})
+
+# Testing: createCohortTable propagates DDL errors with table context.
+testthat::test_that("createCohortTable reports database creation failures", {
+  setup <- cm_test_new_manifest("lifecycle-create-table-error")
+  manifest <- setup$manifest
+  mock_connection <- new.env(parent = emptyenv())
+  manifest$setExecutionSettings(list(
+    getConnection = function() mock_connection,
+    workDatabaseSchema = "work",
+    cohortTable = "cohort",
+    tempEmulationSchema = NULL,
+    databaseName = "study_db",
+    getDbms = function() "postgresql"
+  ))
+
+  testthat::local_mocked_bindings(
+    tableExists = function(...) FALSE,
+    .package = "picard"
+  )
+  testthat::local_mocked_bindings(
+    executeSql = function(...) {
+      stop("permission denied creating table")
+    },
+    .package = "DatabaseConnector"
+  )
+
+  error <- tryCatch(
+    manifest$createCohortTable(type = "main"),
+    error = function(e) e
+  )
+
+  testthat::expect_s3_class(error, "error")
+  error_message <- conditionMessage(error)
+  testthat::expect_match(error_message, "study_db")
+  testthat::expect_match(error_message, "work.cohort")
+  testthat::expect_match(error_message, "permission denied creating table")
+})
+
 # Testing: getManifest returns in-memory CohortDef list aligned with nCohorts.
 testthat::test_that("getManifest returns list matching nCohorts", {
   setup <- cm_test_seed_manifest_for_queries("lifecycle-getmanifest")

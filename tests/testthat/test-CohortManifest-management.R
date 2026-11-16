@@ -338,6 +338,45 @@ testthat::test_that("buildUnionCohort stopIfExists FALSE updates parent list in 
   testthat::expect_equal(after$hash[[1]], disk_hash)
 })
 
+# Testing: renaming a derived cohort does not change its definition file path.
+testthat::test_that("buildUnionCohort preserves file path after label rename", {
+  setup <- cm_test_seed_parent_with_union("mgmt-union-label-rename")
+  manifest <- setup$manifest
+
+  before <- cm_test_get_manifest_row(manifest, "Capr_T2D_or_CKD")
+  before_path <- before$file_path[[1]]
+  before_disk_path <- cm_test_resolve_path(manifest, before_path)
+  before_hash <- before$hash[[1]]
+  before_status <- before$status[[1]]
+
+  parents <- manifest$queryCohortsByLabel(
+    labels = c("Capr T2D", "Chronic Kidney Disease"),
+    matchType = "exact"
+  )
+  renamed_label <- "Capr_T2D_or_CKD_Renamed"
+  manifest$updateCohortLabel(as.integer(before$id[[1]]), renamed_label)
+
+  manifest$buildUnionCohort(
+    label = renamed_label,
+    category = "Derived Cohorts",
+    cohortEntries = parents,
+    stopIfExists = FALSE
+  )
+
+  after <- cm_test_get_manifest_row(manifest, renamed_label)
+  renamed_disk_path <- fs::path(fs::path_dir(before_disk_path), paste0(renamed_label, ".sql"))
+
+  testthat::expect_equal(as.integer(after$id[[1]]), as.integer(before$id[[1]]))
+  testthat::expect_equal(after$file_path[[1]], before_path)
+  testthat::expect_equal(after$hash[[1]], before_hash)
+  testthat::expect_equal(after$status[[1]], before_status)
+  testthat::expect_equal(
+    after$hash[[1]],
+    rlang::hash(readr::read_file(before_disk_path))
+  )
+  testthat::expect_false(file.exists(renamed_disk_path))
+})
+
 # Testing: derived-cohort upsert replaces tags wholesale (cleared when none supplied).
 testthat::test_that("buildUnionCohort stopIfExists FALSE without tags drops prior tags", {
   setup <- cm_test_seed_parent_with_union("mgmt-union-upsert-notags")
@@ -436,6 +475,8 @@ testthat::test_that("addDependentCustomCohort stopIfExists FALSE updates deps an
     dependentCohortIdList = list(inc_cohort_id = ckd_id, exc_cohort_id = t2d_id)
   )
   before <- cm_test_get_manifest_row(manifest, "Dep Custom")
+  before_path <- before$file_path[[1]]
+  before_disk_path <- cm_test_resolve_path(manifest, before_path)
   testthat::expect_equal(
     jsonlite::fromJSON(before$depends_on[[1]]),
     c(ckd_id, t2d_id)
@@ -443,15 +484,17 @@ testthat::test_that("addDependentCustomCohort stopIfExists FALSE updates deps an
 
   # Edit the SQL (append a comment) and swap the dependent IDs, then upsert
   writeLines(c(readLines(local_sql), "-- revised for upsert test"), local_sql)
+  renamed_label <- "Dep Custom Renamed"
+  manifest$updateCohortLabel(as.integer(before$id[[1]]), renamed_label)
   returned_id <- manifest$addDependentCustomCohort(
     filePath = local_sql,
-    label = "Dep Custom",
+    label = renamed_label,
     category = "Derived Cohorts",
     dependentCohortIdList = list(inc_cohort_id = t2d_id, exc_cohort_id = ckd_id),
     stopIfExists = FALSE
   )
 
-  after <- cm_test_get_manifest_row(manifest, "Dep Custom")
+  after <- cm_test_get_manifest_row(manifest, renamed_label)
   testthat::expect_equal(nrow(after), 1)
   testthat::expect_equal(as.integer(returned_id), as.integer(before$id[[1]]))
   testthat::expect_equal(
@@ -462,6 +505,14 @@ testthat::test_that("addDependentCustomCohort stopIfExists FALSE updates deps an
   testthat::expect_equal(after$status[[1]], "stale")
   testthat::expect_equal(after$source_type[[1]], "sql")
   testthat::expect_equal(after$cohort_type[[1]], "custom_derived")
+  testthat::expect_equal(after$file_path[[1]], before_path)
+  testthat::expect_equal(
+    after$hash[[1]],
+    rlang::hash(readr::read_file(before_disk_path))
+  )
+  testthat::expect_false(
+    file.exists(fs::path(fs::path_dir(before_disk_path), "Dep_Custom_Renamed.sql"))
+  )
 
   # The dependency rule carries the swapped parameter mapping
   rule <- jsonlite::fromJSON(after$dependency_rule[[1]])
