@@ -1,4 +1,4 @@
-# picard (development version)
+# picard 0.0.8
 
 ## Task Change Detection
 
