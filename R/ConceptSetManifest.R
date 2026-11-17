@@ -2950,7 +2950,8 @@ ConceptSetManifest <- R6::R6Class(
     #' @param sourceVocabs Character vector. Source vocabulary IDs to search for.
     #'   Valid options: "ICD9CM", "ICD10CM", "HCPCS", "CPT4", "LOINC", "NDC".
     #'   Defaults to c("ICD10CM"). The function will suggest appropriate vocabularies
-    #'   based on the domains of your concept sets and prompt you to use them.
+    #'   based on the domains of your concept sets and, in interactive sessions,
+    #'   prompt you to use them. Non-interactive sessions use this value directly.
     #' @param outputFolder Character. Path where the xlsx file will be saved.
     #'   Defaults to "inputs/conceptSets".
     #'
@@ -2972,7 +2973,8 @@ ConceptSetManifest <- R6::R6Class(
     #' 1. Verifies ExecutionSettings is configured with database connection
     #' 2. Detects domains of all concept sets in the manifest
     #' 3. Displays suggested vocabularies based on detected domains
-    #' 4. Prompts user to accept or override suggested vocabularies
+    #' 4. In interactive sessions, prompts the user to accept or override the
+    #'    suggestions; non-interactive sessions keep `sourceVocabs`
     #' 5. Creates a new xlsx workbook
     #' 6. For each concept set in the manifest:
     #'    - Reads the CIRCE JSON definition
@@ -3042,19 +3044,20 @@ ConceptSetManifest <- R6::R6Class(
         cli::cli_alert_info("Concept set domains detected: {paste(domains, collapse = ', ')}")
         cli::cli_alert_info("Suggested source vocabularies for these domains: {paste(suggested_vocabs, collapse = ', ')}")
         
-        # Interactive prompt to use suggested vocabularies
-        cli::cli_rule("Source Vocabulary Selection")
-        choice <- utils::menu(
-          c("Yes", "No"),
-          title = "Would you like to use the suggested source vocabularies?"
-        )
-        
-        if (choice == 1) {
-          # User selected "Yes"
-          sourceVocabs <- suggested_vocabs
-          cli::cli_alert_success("Using suggested vocabularies: {paste(sourceVocabs, collapse = ', ')}")
+        if (interactive()) {
+          cli::cli_rule("Source Vocabulary Selection")
+          choice <- utils::menu(
+            c("Yes", "No"),
+            title = "Would you like to use the suggested source vocabularies?"
+          )
+
+          if (choice == 1) {
+            sourceVocabs <- suggested_vocabs
+            cli::cli_alert_success("Using suggested vocabularies: {paste(sourceVocabs, collapse = ', ')}")
+          } else {
+            cli::cli_alert_info("Using specified vocabularies: {paste(sourceVocabs, collapse = ', ')}")
+          }
         } else {
-          # User selected "No"
           cli::cli_alert_info("Using specified vocabularies: {paste(sourceVocabs, collapse = ', ')}")
         }
       }
