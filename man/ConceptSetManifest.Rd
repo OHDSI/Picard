@@ -100,7 +100,8 @@ with any valid vocabulary combination.
 \item Verifies ExecutionSettings is configured with database connection
 \item Detects domains of all concept sets in the manifest
 \item Displays suggested vocabularies based on detected domains
-\item Prompts user to accept or override suggested vocabularies
+\item In interactive sessions, prompts the user to accept or override the
+suggestions; non-interactive sessions keep \code{sourceVocabs}
 \item Creates a new xlsx workbook
 \item For each concept set in the manifest:
 \itemize{
@@ -1519,7 +1520,8 @@ interactive vocabulary suggestions based on detected concept set domains.
 \item{\code{sourceVocabs}}{Character vector. Source vocabulary IDs to search for.
 Valid options: "ICD9CM", "ICD10CM", "HCPCS", "CPT4", "LOINC", "NDC".
 Defaults to c("ICD10CM"). The function will suggest appropriate vocabularies
-based on the domains of your concept sets and prompt you to use them.}
+based on the domains of your concept sets and, in interactive sessions,
+prompt you to use them. Non-interactive sessions use this value directly.}
 
 \item{\code{outputFolder}}{Character. Path where the xlsx file will be saved.
 Defaults to "inputs/conceptSets".}
