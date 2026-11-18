@@ -15,7 +15,6 @@ Imports:
     R6,
     DBI,
     glue,
-    lifecycle,
     RSQLite,
     cli,
     checkmate,
@@ -41,7 +40,9 @@ Imports:
     config,
     DT,
     gert,
-    usethis
+    usethis,
+    stats,
+    utils
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
@@ -50,11 +51,14 @@ Suggests:
     withr,
     Capr,
     keyring,
+    knitr,
     openxlsx2,
     quarto,
     renv,
+    rmarkdown,
     rstudioapi
 Remotes:
     ohdsi/Capr
+VignetteBuilder: knitr
 Config/roxygen2/version: 8.0.0
-RoxygenNote: 7.3.2
+RoxygenNote: 8.0.0

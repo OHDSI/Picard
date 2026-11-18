@@ -1,5 +1,7 @@
 #' @title Set Ulysses Contributor
 #' @importFrom rlang "%||%"
+#' @importFrom stats setNames
+#' @importFrom utils tail
 #' @param name the name of the contributor as a character string
 #' @param email the email of the contributor as a character string
 #' @param role the role of the contirbutor as a character string

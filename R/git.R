@@ -375,7 +375,7 @@ agentSaveWork <- function(commitMessage, gitRemoteName = "origin") {
 
 #' Create Feature Branch for Agent Work
 #' @description Creates a timestamped feature branch for automated agent-based
-#'   pipeline improvements. Branch name format: feature/agent-{agentName}-{timestamp}
+#'   pipeline improvements. Branch name format: `feature/agent-{agentName}-{timestamp}`
 #' @param taskDescription Character. Brief description of the work to be done.
 #' @param agentName Character. Name/identifier of the agent. Defaults to "auto".
 #' @return Branch name (invisible)

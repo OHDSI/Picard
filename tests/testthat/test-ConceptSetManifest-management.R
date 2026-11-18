@@ -201,6 +201,7 @@ csm_test_fake_atlas_connection <- function(expressions) {
 # Purpose: Generate two distinct valid concept set JSON payloads via Capr (fake
 # ATLAS payloads must be valid CIRCE JSON because ConceptSetDef validates via CirceR).
 csm_test_atlas_fixture_jsons <- function() {
+  testthat::skip_if_not_installed("Capr")
   v1_tmp <- tempfile(fileext = ".json")
   Capr::writeConceptSet(csm_test_make_capr_concept_set(), v1_tmp)
   v1_json <- readr::read_file(v1_tmp)

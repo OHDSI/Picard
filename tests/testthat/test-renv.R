@@ -95,7 +95,7 @@ testthat::test_that("captureLockfile aborts when the lockfile is missing", {
 
   testthat::expect_error(
     captureLockfile(path = fs::path(tmp, "renv.lock")),
-    "not found"
+    "not\\s+found"
   )
 })
 
