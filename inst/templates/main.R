@@ -16,35 +16,44 @@
 
 # B. Setup & Dependencies ────────────────────────────────────────────────────
 
-# Restore environment (uncomment if first run in this session)
-# renv::restore()
+# Restore the study's package environment from renv.lock
+renv::restore()
 
 library(picard) # pipeline orchestration and execution framework
 library(DatabaseConnector) # database connectivity and operations
 library(SqlRender) # SQL translation and rendering
 
-# C. Pre-Pipeline: Load & Build Manifest ─────────────────────────────────────
+# C. Database Configuration ──────────────────────────────────────────────────
+
+# Database identifiers to process (from config.yml)
+dbIds <- c("{configBlocks}")
+
+# D. Pre-Pipeline: Load & Build Manifest ─────────────────────────────────────
 #
 # WORKFLOW:
 #   Edit scripts in inputs/cohorts/R/ and inputs/conceptSets/R/ to:
-#   - Load concept sets from ATLAS (importAtlas.R)
-#   - Build concepts programmatically with Capr (importCapr.R)
-#   - Load custom SQL cohorts (importSql.R) [cohorts only]
-#   - Build derived cohorts (buildDependentCohorts.R) [cohorts only]
+#   - Load from ATLAS (import_atlas_*.R)
+#   - Build definitions programmatically with Capr (import_capr_*.R)
+#   - Load custom SQL cohorts (import_sql_cohort.R)
+#   - Build derived cohorts (build_dependent_cohorts.R)
 #
-# Delete unused builder scripts - only the ones you need will be sourced.
-# Scripts are sourced in alphabetical order, with concept sets first.
-# Concept set scripts run first so cohorts can reference them if needed.
+# All 6 builder scripts are required - leave unused ones as generated, since
+# unpopulated builders run without error. Scripts run in a fixed order with
+# concept sets first, so cohorts can reference them if needed.
+#
+# The builders run once per database in dbIds. Each pass can read
+# inputBuilderEnv$configBlock and inputBuilderEnv$pipelineVersion to build
+# execution settings.
+#
+# If builders make database-specific changes (e.g. concept ids in custom SQL),
+# remove this call and pass skipInputBuilders = FALSE to execStudyPipeline()
+# instead, so each database's builders run right before its cohorts are
+# generated and are not overwritten by the next database.
 #
 # WARNING: Do NOT add builder scripts to analysis/tasks/ folder!
 #          Use the dedicated R/ folders in inputs/cohorts/ and inputs/conceptSets/
 
-sourceInputBuilderScripts(verbose = TRUE)
-
-# D. Database Configuration ──────────────────────────────────────────────────
-
-# Database identifiers to process (from config.yml)
-dbIds <- c("{configBlocks}")
+sourceInputBuilderScripts(configBlock = dbIds)
 
 # E. Execute Production Pipeline ─────────────────────────────────────────────────
 
@@ -52,35 +61,40 @@ dbIds <- c("{configBlocks}")
 # - Validates environment and git state before running
 # - Creates release branch automatically
 # - Increments semantic version
+# - For each database: generates cohorts, runs tasks
 # - Commits changes and saves PR reference to PENDING_PR.md
 
 cli::cli_h2("Engaging primary systems...")
 
 taskResults <- execStudyPipeline(
   configBlock = dbIds,
+  updateType = "patch", # "major", "minor", or "patch" version increment
   skipRenv = FALSE  # Set to TRUE only if environment is pre-verified
 )
+
+# execStudyPipeline() writes the new version to config.yml
+pipelineVersion <- config::get("version")
 
 cli::cli_h2("Pipeline Execution Complete")
 cli::cli_alert_success("Task results saved to exec/logs/")
 
-# F. Post-Processing merge ──────────────────
+# F. Post-Processing merge ──────────────────────────────────────────────────
 
 # Modify your pull request with post-processing results and notes as needed before final review.
 
 ## Export results for further analysis
 cli::cli_alert_info("Initiating data export sequence...")
 results <- runPostProcessing(
-  executionSettings = eo,
-  reviewSchema = TRUE
+  pipelineVersion = pipelineVersion,
+  dbIds = dbIds
 )
 
-# G. Post-Processing prett ──────────────────
+# G. Post-Processing pretty ─────────────────────────────────────────────────
 
 ## Prepare dataset for dissemination
 # cli::cli_alert_info("Preparing dissemination package...")
 # sourceDisseminationScripts(
-#   pipelineVersion = "1.0.0",
+#   pipelineVersion = pipelineVersion,
 #   databaseIds = dbIds,
 #   outputPath = here::here("dissemination/pretty")
 # )

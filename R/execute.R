@@ -257,15 +257,16 @@ generateCohorts <- function(executionSettings, pipelineVersion,
   }
   
   # Display the cohorts that will be generated. This listing covers every
-  # registered cohort, including ones marked 'stale' — those are exactly the
-  # cohorts that need regenerating, so hiding them here would be backwards.
+  # registered cohort, including ones marked 'stale' (definition changed since
+  # last generated). Whether a cohort is actually regenerated is decided per
+  # database by the checksum stored in its work schema.
   staleCount <- sum(cmSummary$status == "stale", na.rm = TRUE)
 
   cli::cli_rule("Cohorts to Generate")
   cli::cli_alert_info("Found {nrow(cmSummary)} cohort(s) in manifest")
   if (staleCount > 0) {
     cli::cli_alert_warning(
-      "{staleCount} cohort(s) are marked stale and will be regenerated (flagged below)."
+      "{staleCount} cohort(s) changed since they were last generated (flagged below); they are regenerated wherever this database's copy is out of date."
     )
   }
 
@@ -278,7 +279,7 @@ generateCohorts <- function(executionSettings, pipelineVersion,
 
     # Display basic info
     if (identical(row$status, "stale")) {
-      cli::cli_alert_warning("Cohort {cohort_id}: {cohort_label} [stale - will regenerate]")
+      cli::cli_alert_warning("Cohort {cohort_id}: {cohort_label} [stale]")
     } else {
       cli::cli_alert_success("Cohort {cohort_id}: {cohort_label}")
     }
@@ -401,6 +402,12 @@ formatErrorDetail <- function(e) {
 #'   here; \code{execute_pipeline()} computes it once and passes it in so the
 #'   manifest is not re-loaded for every task. Recorded with the run and used
 #'   for the rerun check.
+#' @param conceptSetManifestHash Character or NULL. Pre-computed concept set
+#'   manifest hash (see \code{.getConceptSetManifestHash()}). Handled the same
+#'   way as \code{cohortManifestHash}.
+#' @param renvLockHash Character or NULL. Pre-computed renv lockfile hash (see
+#'   \code{.getRenvLockHash()}). Handled the same way as
+#'   \code{cohortManifestHash}.
 #' @param executionContext An optional `ExecutionContext` for the current run.
 #'   When supplied it owns namespace derivation (cohort-table suffix, results
 #'   folder) and `pipelineVersion` is taken from it.
@@ -411,6 +418,8 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
                          codeState = NULL,
                          logFilePath = NULL,
                          cohortManifestHash = NULL,
+                         conceptSetManifestHash = NULL,
+                         renvLockHash = NULL,
                          executionContext = NULL) {
 
   checkmate::assert_class(executionContext, "ExecutionContext", null.ok = TRUE)
@@ -421,10 +430,19 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
   commitSha <- codeState$sha %||% NA_character_
   codeStateLabel <- codeState$status %||% "unrecorded"
 
-  # Snapshot the cohort manifest once so the rerun check and every
-  # recordTaskExecution() call below agree on the same value.
-  if (is.null(cohortManifestHash)) {
-    cohortManifestHash <- .getCohortManifestHash()
+  # Snapshot the input hashes once so the rerun check and every
+  # recordTaskExecution() call below agree on the same values.
+  cohortManifestHash <- cohortManifestHash %||% .getCohortManifestHash()
+  conceptSetManifestHash <- conceptSetManifestHash %||% .getConceptSetManifestHash()
+  renvLockHash <- renvLockHash %||% .getRenvLockHash()
+
+  record <- function(status, errorMessage = NA_character_) {
+    recordTaskExecution(taskFile, configBlock, pipelineVersion, status,
+                        errorMessage = errorMessage,
+                        commitSha = commitSha, codeState = codeStateLabel,
+                        cohortManifestHash = cohortManifestHash,
+                        conceptSetManifestHash = conceptSetManifestHash,
+                        renvLockHash = renvLockHash)
   }
 
   cli::cat_rule(glue::glue_col("Run Task: {yellow {taskFile}}"))
@@ -441,10 +459,7 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
   # Verify task file exists
   if (!file.exists(fullTaskFilePath)) {
     cli::cli_alert_danger("Task file not found: {fs::path_rel(fullTaskFilePath)}")
-    recordTaskExecution(taskFile, configBlock, pipelineVersion, "failed",
-                        errorMessage = "Task file does not exist",
-                        commitSha = commitSha, codeState = codeStateLabel,
-                        cohortManifestHash = cohortManifestHash)
+    record("failed", "Task file does not exist")
     stop("Task file does not exist")
   }
 
@@ -470,14 +485,14 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
         configBlock = configBlock,
         executionSettings = executionSettings,
         pipelineVersion = pipelineVersion,
-        cohortManifestHash = cohortManifestHash
+        cohortManifestHash = cohortManifestHash,
+        conceptSetManifestHash = conceptSetManifestHash,
+        renvLockHash = renvLockHash
       )
 
       if (!statusCheck$should_rerun) {
         cli::cli_alert_success("Task is up to date - skipping execution")
-        recordTaskExecution(taskFile, configBlock, pipelineVersion, "skipped",
-                            commitSha = commitSha, codeState = codeStateLabel,
-                            cohortManifestHash = cohortManifestHash)
+        record("skipped")
         return(invisible(NULL))
       }
     }
@@ -488,10 +503,7 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
     validateStudyTask(fullTaskFilePath)
   }, error = function(e) {
     cli::cli_alert_danger("Task validation failed: {e$message}")
-    recordTaskExecution(taskFile, configBlock, pipelineVersion, "failed",
-                        errorMessage = paste("Validation failed:", e$message),
-                        commitSha = commitSha, codeState = codeStateLabel,
-                        cohortManifestHash = cohortManifestHash)
+    record("failed", paste("Validation failed:", e$message))
     stop("Invalid task structure - cannot execute")
   })
 
@@ -503,10 +515,7 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
       glue::glue(.open = "!||", .close = "||!")
   }, error = function(e) {
     cli::cli_alert_danger("Failed to read task file: {e$message}")
-    recordTaskExecution(taskFile, configBlock, pipelineVersion, "failed",
-                        errorMessage = paste("Read error:", e$message),
-                        commitSha = commitSha, codeState = codeStateLabel,
-                        cohortManifestHash = cohortManifestHash)
+    record("failed", paste("Read error:", e$message))
     stop("Error reading task file")
   })
 
@@ -515,10 +524,7 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
     exprs <- rlang::parse_exprs(rLines)
   }, error = function(e) {
     cli::cli_alert_danger("Failed to parse task file: {e$message}")
-    recordTaskExecution(taskFile, configBlock, pipelineVersion, "failed",
-                        errorMessage = paste("Parse error:", e$message),
-                        commitSha = commitSha, codeState = codeStateLabel,
-                        cohortManifestHash = cohortManifestHash)
+    record("failed", paste("Parse error:", e$message))
     stop("Error parsing task expressions")
   })
 
@@ -544,15 +550,10 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
 
   # Record success or failure
   if (!is.null(executionError)) {
-    recordTaskExecution(taskFile, configBlock, pipelineVersion, "failed",
-                        errorMessage = executionError,
-                        commitSha = commitSha, codeState = codeStateLabel,
-                        cohortManifestHash = cohortManifestHash)
+    record("failed", executionError)
     stop(executionError, call. = FALSE)
   } else {
-    recordTaskExecution(taskFile, configBlock, pipelineVersion, "success",
-                        commitSha = commitSha, codeState = codeStateLabel,
-                        cohortManifestHash = cohortManifestHash)
+    record("success")
     cli::cli_alert_success("Task {taskFile} completed successfully")
   }
 
@@ -571,6 +572,8 @@ execute_task <- function(taskFile, configBlock, pipelineVersion = "dev",
 #'   namespace. Defaults to \code{"dev"}. Normalized to lowercase snake_case; an
 #'   over-long namespace is rejected rather than truncated. Use the same value
 #'   here and in \code{testStudyPipeline()}.
+#' @param forceRerun Logical. If \code{TRUE}, runs the task even when
+#'   [shouldRerunTask()] finds nothing has changed. Default: \code{FALSE}
 #' @param env The execution environment. Defaults to caller environment.
 #' @return Invisibly returns the task result
 #' @export
@@ -583,11 +586,13 @@ testStudyTask <- function(
   taskFile, 
   configBlock, 
   pipelineVersion = "dev",
-  env = rlang::caller_env()
+  env = rlang::caller_env(),
+  forceRerun = FALSE
 ) {
   checkmate::assert_string(taskFile, min.chars = 1)
   checkmate::assert_string(configBlock, min.chars = 1)
   checkmate::assert_string(pipelineVersion, min.chars = 1)
+  checkmate::assert_flag(forceRerun)
 
   pipelineVersion <- normalizePipelineVersion(pipelineVersion)
 
@@ -608,7 +613,7 @@ testStudyTask <- function(
     taskFile = taskFile,
     configBlock = configBlock,
     pipelineVersion = pipelineVersion,
-    checkStatus = TRUE,
+    checkStatus = !forceRerun,
     env = env
   )
 }
@@ -632,6 +637,15 @@ testStudyTask <- function(
 #'   reads the list from config.yml, which itself defaults to ignoring nothing.
 #' @param skipCodeStateCheck Logical. If TRUE, skips the code-state check
 #'   entirely. Default: FALSE
+#' @param forceRerun Logical or character. \code{TRUE} reruns every task,
+#'   bypassing change detection ([shouldRerunTask()]); a character vector of
+#'   task file names (e.g. \code{"05_baseline_medicines.R"}) reruns only those.
+#'   Forced runs are still recorded in \code{exec/logs/task_run_history.csv}.
+#'   Default: \code{FALSE}
+#' @param skipInputBuilders Logical. If TRUE (default), the input builder
+#'   scripts are not sourced; call [sourceInputBuilderScripts()] before the
+#'   pipeline instead. If FALSE, they are sourced for each config block before
+#'   that block's cohorts are generated.
 #' @param env the execution environment
 #' @param pipelineVersionOverride Character. Optional test-mode override for the
 #'   pipeline version (the test namespace). Drives the cohort-table suffix, the
@@ -644,7 +658,9 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
                              ignoreUncommittedPaths = NULL,
                              skipCodeStateCheck = FALSE,
                              env = rlang::caller_env(),
-                             pipelineVersionOverride = NULL) {
+                             pipelineVersionOverride = NULL,
+                             forceRerun = FALSE,
+                             skipInputBuilders = TRUE) {
   
   # Compute prospective pipeline version (needed for pre-flight checks)
   if (testMode) {
@@ -717,6 +733,7 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
     skipConnectivityCheck = skipConnectivityCheck,
     ignoreUncommittedPaths = ignoreUncommittedPaths,
     skipCodeStateCheck = skipCodeStateCheck,
+    skipInputBuilders = skipInputBuilders,
     resultsPath = here::here("exec/results"),
     tasksFolderPath = here::here("analysis/tasks")
   )
@@ -732,6 +749,13 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
 
   cli::cli_alert_info("Found {length(taskFilesToRun)} task(s) to execute")
 
+  forcedTasks <- .resolveForcedTasks(forceRerun, taskFilesToRun)
+  if (length(forcedTasks) > 0) {
+    cli::cli_alert_warning(
+      "Forcing rerun (change detection bypassed) for: {.file {forcedTasks}}"
+    )
+  }
+
   # Apply version increment to files (production only, after pre-flight passes)
   if (!testMode) {
     cli::cli_rule("Version Increment")
@@ -745,21 +769,7 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
     })
   }
   
-  # Create execution settings from first configBlock. The ExecutionContext owns
-  # namespace derivation (cohort-table suffix, results folder, task history).
-  tryCatch({
-    executionSettings <- createExecutionSettingsFromConfig(
-      configBlock = configBlock[1],
-      pipelineVersion = pipelineVersion,
-      executionContext = executionContext
-    )
-    cli::cli_alert_success("Execution settings created for config: {configBlock[1]}")
-  }, error = function(e) {
-    cli::cli_alert_danger("Failed to create execution settings: {e$message}")
-    stop("Cannot initialize execution settings")
-  })
-  
-  # Setup logging before generating cohorts
+  # Setup logging before running input builders, cohorts and tasks
   logFilePath <- NULL
   tryCatch({
     logDir <- fs::path(here::here("exec/logs"))
@@ -785,6 +795,7 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
       glue::glue("Update Type: {updateType}"),
       glue::glue("Tasks: {length(taskFilesToRun)}"),
       glue::glue("Test Mode: {testMode}"),
+      glue::glue("Forced Reruns: {if (length(forcedTasks) > 0) paste(forcedTasks, collapse = ', ') else 'none'}"),
       glue::glue("Code State: {codeState$status %||% 'unrecorded'}"),
       glue::glue("Commit SHA: {codeState$sha %||% 'unrecorded'}"),
       if (length(codeState$ignoredFiles %||% character(0)) > 0) {
@@ -799,9 +810,6 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
     
     writeLines(logHeader, con = logFilePath)
 
-    # Log to file that we're starting cohort generation (file only — console
-    # already gets this via cli below, streamed live and not redirected)
-    appendLogLine(logFilePath, glue::glue("[{format(Sys.time(), '%H:%M:%S')}] Starting cohort generation..."))
 
   }, error = function(e) {
     cli::cli_alert_warning("Failed to setup logging: {e$message}")
@@ -809,38 +817,74 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
   
   # Cohort manifest status and missing-cohort interactive prompt are handled
   # in runPreflightChecks() before pipeline execution begins.
-  
-  # Generate cohorts before running pipeline
-  cli::cli_alert_info("Generating cohorts for pipeline...")
-  
-  tryCatch({
-    generateCohorts(
-      executionSettings = executionSettings,
-      pipelineVersion = pipelineVersion,
-      executionContext = executionContext,
-      override = TRUE
-    )
-  }, error = function(e) {
-    cli::cli_alert_danger("Cohort generation failed: {e$message}")
-    stop("Pipeline cannot proceed without cohorts")
-  })
 
-  # Snapshot the cohort manifest once, after generation has reconciled it, and
-  # reuse it for every task's rerun check / run record below.
-  cohortManifestHash <- .getCohortManifestHash()
-
-  # Run all tasks across all config blocks
-  cli::cli_rule("Running Pipeline Tasks")
+  # Each config block runs input builders (unless skipped) -> cohort
+  # generation -> tasks before the next block starts. Builder scripts can make
+  # database-specific changes to the manifest (e.g. concept ids in custom SQL),
+  # which the next block's builders would overwrite. The ExecutionContext owns
+  # namespace derivation (cohort-table suffix, results folder, task history).
   taskResults <- list()
-  
-  for (db in seq_along(configBlock)) {
-    appendLogLine(logFilePath, glue::glue("[{format(Sys.time(), '%H:%M:%S')}] Processing config block: {configBlock[db]}"))
 
-    cli::cli_alert_info("Processing config block: {configBlock[db]}")
+  for (db in seq_along(configBlock)) {
+    block <- configBlock[db]
+    cli::cli_rule("Config block: {block}")
+    appendLogLine(logFilePath, glue::glue("[{format(Sys.time(), '%H:%M:%S')}] Processing config block: {block}"))
+
+    if (!skipInputBuilders) {
+      appendLogLine(logFilePath, glue::glue("[{format(Sys.time(), '%H:%M:%S')}] Sourcing input builder scripts for config block: {block}"))
+      tryCatch({
+        sourceInputBuilderScripts(
+          projectPath = here::here(),
+          configBlock = block,
+          pipelineVersion = pipelineVersion
+        )
+      }, error = function(e) {
+        appendLogLine(logFilePath, formatErrorDetail(e))
+        cli::cli_abort(
+          "Input building failed for config block {.val {block}}; pipeline halted.",
+          parent = e,
+          call = NULL
+        )
+      })
+    }
+
+    appendLogLine(logFilePath, glue::glue("[{format(Sys.time(), '%H:%M:%S')}] Generating cohorts for config block: {block}"))
+    cli::cli_alert_info("Generating cohorts for config block: {block}")
+
+    tryCatch({
+      executionSettings <- createExecutionSettingsFromConfig(
+        configBlock = block,
+        pipelineVersion = pipelineVersion,
+        executionContext = executionContext
+      )
+      cli::cli_alert_success("Execution settings created for config: {block}")
+    }, error = function(e) {
+      cli::cli_alert_danger("Failed to create execution settings for {block}: {e$message}")
+      stop(glue::glue("Cannot initialize execution settings for config block: {block}"), call. = FALSE)
+    })
+
+    tryCatch({
+      generateCohorts(
+        executionSettings = executionSettings,
+        pipelineVersion = pipelineVersion,
+        executionContext = executionContext,
+        override = TRUE
+      )
+    }, error = function(e) {
+      cli::cli_alert_danger("Cohort generation failed for {block}: {e$message}")
+      stop(glue::glue("Pipeline cannot proceed without cohorts for config block: {block}"), call. = FALSE)
+    })
+
+    # Snapshot this block's input hashes once, after its builders and generation
+    # have reconciled the manifests, and reuse them for every task's rerun check /
+    # run record
+    cohortManifestHash <- .getCohortManifestHash()
+    conceptSetManifestHash <- .getConceptSetManifestHash()
+    renvLockHash <- .getRenvLockHash()
 
     for (task in seq_along(taskFilesToRun)) {
       taskName <- taskFilesToRun[task]
-      taskKey <- glue::glue("{configBlock[db]}_{taskName}")
+      taskKey <- glue::glue("{block}_{taskName}")
 
       appendLogLine(logFilePath, glue::glue("  [{format(Sys.time(), '%H:%M:%S')}] Executing task {task}/{length(taskFilesToRun)}: {taskName}"))
 
@@ -849,13 +893,15 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
         
         result <- execute_task(
           taskFile = taskName,
-          configBlock = configBlock[db],
+          configBlock = block,
           pipelineVersion = pipelineVersion,
-          checkStatus = TRUE,
+          checkStatus = !taskName %in% forcedTasks,
           env = env,
           codeState = codeState,
           logFilePath = logFilePath,
           cohortManifestHash = cohortManifestHash,
+          conceptSetManifestHash = conceptSetManifestHash,
+          renvLockHash = renvLockHash,
           executionContext = executionContext
         )
         
@@ -906,6 +952,7 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
       glue::glue("Total Tasks: {length(taskResults)}"),
       glue::glue("Log File: {fs::path_rel(logFilePath)}"),
       glue::glue("Test Mode: {testMode}"),
+      glue::glue("Forced Reruns: {if (length(forcedTasks) > 0) paste(forcedTasks, collapse = ', ') else 'none'}"),
       glue::glue("Code State: {codeState$status %||% 'unrecorded'}"),
       "================================================================================",
       ""
@@ -918,16 +965,54 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
   invisible(taskResults)
 }
 
+#' @title Resolve Which Tasks to Force-Rerun
+#' @param forceRerun Logical flag or character vector of task file names.
+#' @param taskFiles Character. Task file names in this pipeline run.
+#' @return Character vector of task file names to run without the rerun check.
+#' @keywords internal
+.resolveForcedTasks <- function(forceRerun, taskFiles) {
+  if (isTRUE(forceRerun)) {
+    return(taskFiles)
+  }
+  if (isFALSE(forceRerun)) {
+    return(character(0))
+  }
+
+  unknown <- setdiff(forceRerun, taskFiles)
+  if (length(unknown) > 0) {
+    cli::cli_abort(c(
+      "{.arg forceRerun} names task{?s} not in this pipeline: {.file {unknown}}",
+      "i" = "Available tasks: {.file {taskFiles}}"
+    ))
+  }
+  forceRerun
+}
+
 #' @title Test Study Pipeline
 #' @description Executes the full study pipeline in test mode. The
 #'   pipelineVersion value is interpreted as the test namespace and is
 #'   used for test cohort tables and output folders. Test runs are allowed on
 #'   development branches but rejected on the main branch.
+#' @details For each config block in turn, the pipeline generates that block's
+#'   cohorts and runs its tasks, before moving to the next block. With
+#'   \code{skipInputBuilders = FALSE}, it first sources the input builder
+#'   scripts (see \code{\link{sourceInputBuilderScripts}}) for the block, so
+#'   builders can make database-specific changes (e.g. concept ids in custom
+#'   SQL) without the next block's builders overwriting them.
 #' @param configBlock Character or character vector. Name(s) of config block(s) to use.
 #' @param pipelineVersion Character. Test namespace used for output folders and
 #'   cohort table suffix. Defaults to \code{"dev"}. The value is normalized to
 #'   lowercase snake_case; an over-long namespace is rejected rather than
 #'   truncated.
+#' @param forceRerun Logical or character. \code{TRUE} reruns every task,
+#'   bypassing change detection ([shouldRerunTask()]); a character vector of
+#'   task file names (e.g. \code{"05_baseline_medicines.R"}) reruns only those.
+#'   Forced runs are still recorded in \code{exec/logs/task_run_history.csv}.
+#'   Default: \code{FALSE}
+#' @param skipInputBuilders Logical. If TRUE (default), the input builder
+#'   scripts are not sourced; call [sourceInputBuilderScripts()] before the
+#'   pipeline instead. If FALSE, they are sourced for each config block before
+#'   that block's cohorts are generated.
 #' @param env The execution environment. Defaults to caller environment.
 #' @return Invisibly returns task results list
 #' @export
@@ -935,12 +1020,20 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
 #' \dontrun{
 #' # Test full pipeline on develop branch
 #' testStudyPipeline(configBlock = "myConfig")
+#' # Rerun every task, ignoring change detection
+#' testStudyPipeline(configBlock = "myConfig", forceRerun = TRUE)
 #' # Test full pipeline with a custom namespace
 #' testStudyPipeline(configBlock = "myConfig", pipelineVersion = "feature_ml_test")
 #' }
-testStudyPipeline <- function(configBlock, pipelineVersion = "dev", env = rlang::caller_env()) {
+testStudyPipeline <- function(configBlock, pipelineVersion = "dev", env = rlang::caller_env(),
+                              forceRerun = FALSE, skipInputBuilders = TRUE) {
   checkmate::assert_character(configBlock, min.len = 1, any.missing = FALSE)
   checkmate::assert_string(pipelineVersion, min.chars = 1)
+  checkmate::assert(
+    checkmate::check_flag(forceRerun),
+    checkmate::check_character(forceRerun, min.len = 1, any.missing = FALSE)
+  )
+  checkmate::assert_flag(skipInputBuilders)
 
   pipelineVersion <- normalizePipelineVersion(pipelineVersion)
 
@@ -962,7 +1055,9 @@ testStudyPipeline <- function(configBlock, pipelineVersion = "dev", env = rlang:
     testMode = TRUE,
     pipelineVersionOverride = pipelineVersion,
     skipRenv = TRUE,
-    env = env
+    env = env,
+    forceRerun = forceRerun,
+    skipInputBuilders = skipInputBuilders
   )
 }
 
@@ -970,6 +1065,12 @@ testStudyPipeline <- function(configBlock, pipelineVersion = "dev", env = rlang:
 #' @description Executes the full study pipeline in production mode with full validation,
 #'   version management, and reproducibility tracking. Creates a release branch, runs
 #'   the complete pipeline, provides PR instructions, and saves reference to PENDING_PR.md.
+#' @details For each config block in turn, the pipeline generates that block's
+#'   cohorts and runs its tasks, before moving to the next block. With
+#'   \code{skipInputBuilders = FALSE}, it first sources the input builder
+#'   scripts (see \code{\link{sourceInputBuilderScripts}}) for the block, so
+#'   builders can make database-specific changes (e.g. concept ids in custom
+#'   SQL) without the next block's builders overwriting them.
 #' @param configBlock Character or character vector. Name(s) of config block(s) to use.
 #' @param updateType Character. Type of version increment: 'major', 'minor', or 'patch'.
 #'   - MAJOR: Breaking changes
@@ -993,6 +1094,15 @@ testStudyPipeline <- function(configBlock, pipelineVersion = "dev", env = rlang:
 #'   the run history records the tree as `"unverified-skipped"`. Defaults to
 #'   FALSE. Deliberately not settable from config.yml, so it cannot be baked
 #'   permanently into a study.
+#' @param forceRerun Logical or character. \code{TRUE} reruns every task,
+#'   bypassing change detection ([shouldRerunTask()]); a character vector of
+#'   task file names (e.g. \code{"05_baseline_medicines.R"}) reruns only those.
+#'   Forced runs are still recorded in \code{exec/logs/task_run_history.csv}.
+#'   Default: \code{FALSE}
+#' @param skipInputBuilders Logical. If TRUE (default), the input builder
+#'   scripts are not sourced; call [sourceInputBuilderScripts()] before the
+#'   pipeline instead. If FALSE, they are sourced for each config block before
+#'   that block's cohorts are generated.
 #' @param env The execution environment. Defaults to caller environment.
 #' @return Invisibly returns task results list
 #' @export
@@ -1019,9 +1129,16 @@ execStudyPipeline <- function(configBlock, updateType, skipRenv = FALSE,
                               skipConnectivityCheck = TRUE,
                               ignoreUncommittedPaths = NULL,
                               skipCodeStateCheck = FALSE,
-                              env = rlang::caller_env()) {
+                              env = rlang::caller_env(),
+                              forceRerun = FALSE,
+                              skipInputBuilders = TRUE) {
   checkmate::assert_character(configBlock, min.len = 1, any.missing = FALSE)
   checkmate::assert_string(updateType, min.chars = 1)
+  checkmate::assert(
+    checkmate::check_flag(forceRerun),
+    checkmate::check_character(forceRerun, min.len = 1, any.missing = FALSE)
+  )
+  checkmate::assert_flag(skipInputBuilders)
   checkmate::assert_logical(skipRenv, len = 1)
   checkmate::assert_logical(skipConnectivityCheck, len = 1)
   checkmate::assert_character(ignoreUncommittedPaths, any.missing = FALSE, null.ok = TRUE)
@@ -1116,7 +1233,9 @@ execStudyPipeline <- function(configBlock, updateType, skipRenv = FALSE,
     skipConnectivityCheck = skipConnectivityCheck,
     ignoreUncommittedPaths = ignoreUncommittedPaths,
     skipCodeStateCheck = skipCodeStateCheck,
-    env = env
+    env = env,
+    forceRerun = forceRerun,
+    skipInputBuilders = skipInputBuilders
   )
   
   # After successful execution, create PR metadata
@@ -1278,12 +1397,15 @@ clearPendingPR <- function() {
 
 #' @title Source Pre-Pipeline Input Builder Scripts
 #' @description Auto-discovers and sources builder scripts from pre-pipeline directories
-#'   in a MANDATORY dependency order. Designed to be called from main.R before the 
-#'   production pipeline. This ensures concept sets are available before cohorts,
+#'   in a MANDATORY dependency order. \code{\link{execStudyPipeline}} and
+#'   \code{\link{testStudyPipeline}} call this for each config block, right
+#'   before generating that block's cohorts, so builders can make
+#'   database-specific changes; call it directly to build inputs while
+#'   developing. The order ensures concept sets are available before cohorts,
 #'   and dependent cohorts can reference already-loaded cohort definitions.
 #'
 #' @details
-#' Scripts are sourced in the following FIXED order (skipping any that don't exist):
+#' All six scripts are required and are sourced in the following FIXED order:
 #'   1. \code{inputs/conceptSets/R/import_atlas_concept_set.R}
 #'   2. \code{inputs/conceptSets/R/import_capr_concept_set.R}
 #'   3. \code{inputs/cohorts/R/import_atlas_cohort.R}
@@ -1299,119 +1421,253 @@ clearPendingPR <- function() {
 #'   }
 #'
 #' Use \code{\link{makeInputBuilderScript}} to create scripts with the correct naming convention.
-#' Missing scripts are silently skipped, allowing flexible configurations.
+#' The function aborts before sourcing anything if a required script is missing
+#' or if \code{inputs/conceptSets/R/} or \code{inputs/cohorts/R/} contain any
+#' other \code{.R} file, since such a file would otherwise never run. Unused
+#' builders should be left in place: the templates run without error when they
+#' have not been populated. Put helper code in a subfolder (e.g.
+#' \code{inputs/cohorts/R/src/}), which is not checked.
 #'
-#' Errors inside builder scripts are collected across all scripts (so they can
-#' be fixed in one pass) and then raised as a single error: input building is a
-#' hard precondition of pipeline execution, so a failed script stops the run
-#' before \code{execStudyPipeline()} can be reached.
+#' When \code{configBlock} is supplied, the full set of scripts is sourced once
+#' per config block, in order, the same way \code{execStudyPipeline()} runs
+#' tasks once per database. Before each pass, an \code{inputBuilderEnv} object
+#' (see \code{\link{createInputBuilderEnv}}) holding the current config block
+#' and the pipeline version is assigned into the global environment, so builder
+#' scripts can build execution settings without hard-coding either value, e.g.
+#' \code{createExecutionSettingsFromConfig(configBlock = inputBuilderEnv$configBlock,
+#' pipelineVersion = inputBuilderEnv$pipelineVersion)}. When \code{configBlock}
+#' is NULL, scripts are sourced once with \code{inputBuilderEnv$configBlock}
+#' set to NULL.
+#'
+#' By default, an error inside a builder script stops the run immediately:
+#' input building is a hard precondition of pipeline execution, and later
+#' builders may depend on earlier ones, so a failed script must stop
+#' \code{main.R} before \code{execStudyPipeline()} can be reached. Set
+#' \code{stopOnError = FALSE} to instead warn and continue with the remaining
+#' scripts; the errors are then returned in \code{error_summary}.
 #'
 #' @param projectPath Character. Path to the project root. Defaults to current project.
+#' @param configBlock Character vector. Config block name(s) from \code{config.yml}.
+#'   Scripts are sourced once per block, with the current block available as
+#'   \code{inputBuilderEnv$configBlock}. Defaults to NULL (source once).
+#' @param pipelineVersion Character. Pipeline version made available to builder
+#'   scripts as \code{inputBuilderEnv$pipelineVersion}. Defaults to \code{"prod"},
+#'   matching \code{\link{createExecutionSettingsFromConfig}}; pass the test
+#'   namespace (e.g. \code{"dev"}) when building inputs for a test run.
 #' @param verbose Logical. If TRUE (default), displays which scripts are being sourced.
-#' @param warnMissing Logical. If TRUE (default), warns when directories don't exist.
+#' @param stopOnError Logical. If TRUE (default), stop at the first builder
+#'   script that errors. If FALSE, warn and continue with the remaining scripts.
 #' @return Invisibly returns a list with:
 #'   - `sourced_files`: Character vector of sourced files (absolute paths)
+#'   - `config_blocks`: Character vector of config blocks processed (NULL when
+#'     `configBlock` is NULL)
 #'   - `directories_checked`: Character vector of directories checked
-#'   - `error_summary`: List of any errors encountered (always empty on
-#'     successful return; a non-empty list raises an error instead)
+#'   - `error_summary`: Named list of error messages from failed scripts (only
+#'     non-empty when `stopOnError = FALSE`)
 #'
 #' @export 
 sourceInputBuilderScripts <- function(
     projectPath = here::here(),
+    configBlock = NULL,
+    pipelineVersion = "prod",
     verbose = TRUE,
-    warnMissing = TRUE) {
+    stopOnError = TRUE) {
+
+  checkmate::assert_character(
+    configBlock,
+    min.len = 1, any.missing = FALSE, null.ok = TRUE
+  )
+  checkmate::assert_flag(stopOnError)
 
   # Initialize tracking
   sourced_files <- character(0)
   directories_checked <- character(0)
   errors <- list()
 
-  # Define the MANDATORY SOURCE ORDER
-  # Based on the fixed filenames created by makeInputBuilderScript()
-  # Missing files are skipped silently
-  source_order <- c(
+  # MANDATORY SOURCE ORDER, using the fixed filenames created by
+  # makeInputBuilderScript(). Names map each file to the arguments that
+  # recreate it.
+  required_scripts <- c(
     # Concept Sets (first)
-    fs::path(projectPath, "inputs/conceptSets/R/import_atlas_concept_set.R"),
-    fs::path(projectPath, "inputs/conceptSets/R/import_capr_concept_set.R"),
+    'type = "importAtlas", category = "conceptSets"' = "inputs/conceptSets/R/import_atlas_concept_set.R",
+    'type = "importCapr", category = "conceptSets"' = "inputs/conceptSets/R/import_capr_concept_set.R",
     # Cohorts (second)
-    fs::path(projectPath, "inputs/cohorts/R/import_atlas_cohort.R"),
-    fs::path(projectPath, "inputs/cohorts/R/import_capr_cohort.R"),
-    fs::path(projectPath, "inputs/cohorts/R/import_sql_cohort.R"),
+    'type = "importAtlas", category = "cohorts"' = "inputs/cohorts/R/import_atlas_cohort.R",
+    'type = "importCapr", category = "cohorts"' = "inputs/cohorts/R/import_capr_cohort.R",
+    'type = "importSql", category = "cohorts"' = "inputs/cohorts/R/import_sql_cohort.R",
     # Dependent Cohorts (last)
-    fs::path(projectPath, "inputs/cohorts/R/build_dependent_cohorts.R")
+    'type = "buildDependentCohorts", category = "cohorts"' = "inputs/cohorts/R/build_dependent_cohorts.R"
   )
+  source_order <- fs::path(projectPath, required_scripts)
 
-  # Track directories checked
   directories_checked <- c(
     fs::path(projectPath, "inputs/conceptSets/R"),
     fs::path(projectPath, "inputs/cohorts/R")
   )
 
-  tryCatch({
-    if (verbose) {
-      cli::cli_inform("Sourcing pre-pipeline input builder scripts in dependency order...")
+  # A misnamed or missing builder script would otherwise be skipped without
+  # anyone noticing, so check the folders before sourcing anything
+  missing_scripts <- required_scripts[!fs::file_exists(source_order)]
+  present_scripts <- fs::dir_ls(
+    directories_checked[fs::dir_exists(directories_checked)],
+    regexp = "[.][Rr]$",
+    type = "file"
+  )
+  unexpected_scripts <- fs::path_rel(present_scripts, projectPath)
+  unexpected_scripts <- setdiff(unexpected_scripts, required_scripts)
+
+  if (length(missing_scripts) > 0 || length(unexpected_scripts) > 0) {
+    problems <- c(
+      stats::setNames(
+        paste0(
+          "Missing {.file ", missing_scripts, "}. Recreate it with ",
+          "{.code makeInputBuilderScript(", names(missing_scripts), ")}."
+        ),
+        rep("x", length(missing_scripts))
+      ),
+      stats::setNames(
+        paste0("Unrecognized builder script {.file ", unexpected_scripts, "} would never be sourced."),
+        rep("x", length(unexpected_scripts))
+      )
+    )
+    if ("inputs/cohorts/R/build_dependent_cohorts_cohort.R" %in% unexpected_scripts) {
+      problems <- c(
+        problems,
+        i = "Rename {.file build_dependent_cohorts_cohort.R} (written by older versions of picard) to {.file build_dependent_cohorts.R}."
+      )
     }
+    cli::cli_abort(c(
+      "Input builder scripts are missing or misnamed.",
+      problems,
+      i = "Keep all six builder scripts, even unused ones: unpopulated templates run without error.",
+      i = "Move helper code into a subfolder such as {.file inputs/cohorts/R/src/}."
+    ))
+  }
+
+  # A NULL configBlock still gets a single pass
+  blocks <- if (is.null(configBlock)) list(NULL) else as.list(configBlock)
+
+  fn_env <- rlang::current_env()
+
+  if (verbose) {
+    cli::cli_inform("Sourcing pre-pipeline input builder scripts in dependency order...")
+  }
+
+  for (block in blocks) {
+    if (!is.null(block)) {
+      cli::cli_alert_info("Processing config block: {block}")
+    }
+
+    inputBuilderEnv <- createInputBuilderEnv(
+      configBlock = block,
+      pipelineVersion = pipelineVersion,
+      verbose = FALSE
+    )
+    assign("inputBuilderEnv", inputBuilderEnv, envir = globalenv())
 
     # Source files in the MANDATORY ORDER
     for (file in source_order) {
-      # Skip if file doesn't exist
-      if (!fs::file_exists(file)) {
-        next
+      script_label <- fs::path_rel(file, projectPath)
+      if (!is.null(block)) {
+        script_label <- paste0("[", block, "] ", script_label)
+      }
+      if (verbose) {
+        cli::cli_bullets(c("bullet" = "Sourcing {.file {script_label}}"))
       }
 
       tryCatch({
-        if (verbose) {
-          cli::cli_bullets(c(
-            "bullet" = "Sourcing {.file {fs::path_file(file)}} from {.file {fs::path_file(dirname(file))}}"
-          ))
-        }
         source(file = file, local = FALSE)
-        sourced_files <- c(sourced_files, file)
+        sourced_files <- union(sourced_files, file)
       }, error = function(e) {
-        error_msg <- paste0(
-          "Error sourcing ", fs::path_rel(file), ": ",
-          e$message
+        # Input building is a hard precondition of pipeline execution: a failed
+        # builder script means the manifest may be incomplete or stale, and
+        # later builders may depend on it, so stop here by default
+        if (stopOnError) {
+          cli::cli_abort(
+            c(
+              "Input builder script {.file {script_label}} failed.",
+              i = "Fix the error and re-run. Do not execute the pipeline until input building succeeds."
+            ),
+            parent = e,
+            call = fn_env
+          )
+        }
+        errors[[script_label]] <<- conditionMessage(e)
+        cli::cli_warn(
+          c(
+            "Input builder script {.file {script_label}} failed; continuing because {.code stopOnError = FALSE}.",
+            x = "{conditionMessage(e)}"
+          ),
+          call = fn_env
         )
-        errors[[fs::path_rel(file)]] <<- error_msg
-        cli::cli_alert_danger(error_msg)
       })
     }
+  }
 
-    if (length(sourced_files) > 0) {
-      cli::cli_alert_success(
-        "Successfully sourced {length(sourced_files)} input builder script(s)"
-      )
-    } else {
-      if (warnMissing) {
-        cli::cli_alert_info("No input builder scripts found")
-      }
-    }
-
-  }, error = function(e) {
-    cli::cli_alert_danger(
-      "Error in sourceInputBuilderScripts(): {e$message}"
+  if (length(sourced_files) > 0) {
+    cli::cli_alert_success(
+      "Successfully sourced {length(sourced_files)} input builder script(s)"
     )
-    errors[["critical"]] <<- e$message
-  })
-
-  # Input building is a hard precondition of pipeline execution: a failed
-  # builder script means the manifest may be incomplete or stale, so abort
-  # rather than letting the caller proceed to execStudyPipeline(). All script
-  # errors are reported together so they can be fixed in one pass.
-  if (length(errors) > 0) {
-    cli::cli_abort(c(
-      "{length(errors)} input builder script(s) failed:",
-      stats::setNames(unlist(errors), rep("x", length(errors))),
-      i = "Fix the errors above and re-run. Do not execute the pipeline until input building succeeds."
-    ))
   }
 
   ll <- list(
     sourced_files = sourced_files,
+    config_blocks = configBlock,
     directories_checked = directories_checked,
     error_summary = errors
   )
   invisible(ll)
+}
+
+#' Create an Input Builder Environment Object
+#'
+#' @description
+#' Builds the \code{inputBuilderEnv} object that input builder scripts in
+#' \code{inputs/cohorts/R/} and \code{inputs/conceptSets/R/} can use to build
+#' execution settings without hard-coding a config block or pipeline version.
+#' \code{\link{sourceInputBuilderScripts}} creates this object automatically
+#' before sourcing those scripts; call this function to build it standalone
+#' while running a builder script interactively.
+#'
+#' @param configBlock Character. A single config block name from \code{config.yml}.
+#'   Defaults to NULL.
+#' @param pipelineVersion Character. Pipeline version. Defaults to \code{"prod"},
+#'   matching \code{\link{createExecutionSettingsFromConfig}}.
+#' @param verbose Logical. If TRUE (default), prints the resolved metadata.
+#' @return A list with \code{configBlock} and \code{pipelineVersion}.
+#'
+#' @examples
+#' \dontrun{
+#' inputBuilderEnv <- createInputBuilderEnv(configBlock = "my_database")
+#'
+#' executionSettings <- createExecutionSettingsFromConfig(
+#'   configBlock = inputBuilderEnv$configBlock,
+#'   pipelineVersion = inputBuilderEnv$pipelineVersion
+#' )
+#' }
+#'
+#' @export
+createInputBuilderEnv <- function(
+    configBlock = NULL,
+    pipelineVersion = "prod",
+    verbose = TRUE) {
+
+  checkmate::assert_string(configBlock, min.chars = 1, null.ok = TRUE)
+  checkmate::assert_string(pipelineVersion, min.chars = 1)
+  checkmate::assert_logical(verbose, len = 1, any.missing = FALSE)
+
+  inputBuilderEnv <- list(
+    configBlock = configBlock,
+    pipelineVersion = pipelineVersion
+  )
+
+  if (verbose) {
+    cli::cli_alert_info(
+      "Input builder metadata: configBlock = {.val {configBlock %||% 'NULL'}}, pipelineVersion = {.val {pipelineVersion}}"
+    )
+  }
+
+  inputBuilderEnv
 }
 
 #' Detect the pipeline version recorded in a study's config.yml
@@ -1567,18 +1823,22 @@ createDisseminationEnv <- function(
 #' @param verbose Logical. If TRUE (default), displays which scripts are being sourced.
 #' @param warnMissing Logical. If TRUE (default), warns when the dissemination
 #'   scripts directory doesn't exist.
+#' @param stopOnError Logical. If TRUE (default), stop at the first
+#'   dissemination script that errors, so a broken script cannot let
+#'   \code{main.R} carry on with partial output. If FALSE, warn and continue
+#'   with the remaining scripts.
 #'
 #' @return Invisibly returns a list with:
 #'   - `sourced_files`: Character vector of sourced files (absolute paths)
 #'   - `directories_checked`: Character vector of directories checked
-#'   - `error_summary`: List of any errors encountered
+#'   - `error_summary`: Named list of error messages from failed scripts (only
+#'     non-empty when `stopOnError = FALSE`)
 #'   - `disseminationEnv`: List containing pipelineVersion, databaseIds, outputPath
 #'
 #' @details
 #' Typical workflow:
 #' \enumerate{
-#'   \item Run \code{\link{sourceInputBuilderScripts}} to load input definitions
-#'   \item Run \code{\link{execStudyPipeline}} to execute the analysis
+#'   \item Run \code{\link{execStudyPipeline}} to build inputs and execute the analysis
 #'   \item Run \code{\link{runPostProcessing}} to merge results across databases
 #'   \item Use \code{\link{makeDisseminationScript}} to create a template for formatting
 #'   \item Edit the template script with your custom formatting/export logic
@@ -1601,7 +1861,10 @@ sourceDisseminationScripts <- function(
     databaseIds = NULL,
     outputPath = here::here("dissemination/pretty"),
     verbose = TRUE,
-    warnMissing = TRUE) {
+    warnMissing = TRUE,
+    stopOnError = TRUE) {
+
+  checkmate::assert_flag(stopOnError)
 
   # Initialize tracking
   sourced_files <- character(0)
@@ -1618,54 +1881,34 @@ sourceDisseminationScripts <- function(
     verbose = FALSE
   )
 
+  fn_env <- rlang::current_env()
+
   # Define dissemination scripts directory
   diss_dir <- fs::path(projectPath, "dissemination/pretty/R")
+  directories_checked <- c(directories_checked, diss_dir)
 
-  tryCatch({
-    if (verbose) {
-      cli::cli_inform("Sourcing dissemination scripts...")
-    }
+  if (verbose) {
+    cli::cli_inform("Sourcing dissemination scripts...")
+  }
 
-    directories_checked <- c(directories_checked, diss_dir)
-
-    # Check if directory exists
-    if (!fs::dir_exists(diss_dir)) {
-      if (warnMissing) {
-        cli::cli_alert_warning(
-          "Dissemination scripts directory not found: {.file {fs::path_rel(diss_dir)}}"
-        )
-      }
-      cli::cli_alert_info("Skipping dissemination scripts")
-      ll <- list(
-        sourced_files = sourced_files,
-        directories_checked = directories_checked,
-        error_summary = errors,
-        disseminationEnv = disseminationEnv
+  r_files <- character(0)
+  if (!fs::dir_exists(diss_dir)) {
+    if (warnMissing) {
+      cli::cli_alert_warning(
+        "Dissemination scripts directory not found: {.file {fs::path_rel(diss_dir)}}"
       )
-      return(invisible(ll))
     }
-
-    # Find all .R files in this directory
-    r_files <- fs::dir_ls(diss_dir, glob = "*.R", type = "file")
-
-    # Sort alphabetically
-    r_files <- sort(r_files)
-
-    if (length(r_files) == 0) {
-      if (verbose) {
-        cli::cli_alert_info(
-          "No dissemination scripts found in {.file {fs::path_rel(diss_dir)}}"
-        )
-      }
-      ll <- list(
-        sourced_files = sourced_files,
-        directories_checked = directories_checked,
-        error_summary = errors,
-        disseminationEnv = disseminationEnv
+    cli::cli_alert_info("Skipping dissemination scripts")
+  } else {
+    r_files <- sort(fs::dir_ls(diss_dir, glob = "*.R", type = "file"))
+    if (length(r_files) == 0 && verbose) {
+      cli::cli_alert_info(
+        "No dissemination scripts found in {.file {fs::path_rel(diss_dir)}}"
       )
-      return(invisible(ll))
     }
+  }
 
+  if (length(r_files) > 0) {
     # Make disseminationEnv available in global environment for scripts to use
     assign("disseminationEnv", disseminationEnv, envir = globalenv())
 
@@ -1675,23 +1918,31 @@ sourceDisseminationScripts <- function(
       )
     }
 
-    # Source each file
     for (file in r_files) {
+      script_label <- fs::path_rel(file, projectPath)
+      if (verbose) {
+        cli::cli_bullets(c("bullet" = "Sourcing {.file {fs::path_file(file)}}"))
+      }
+
       tryCatch({
-        if (verbose) {
-          cli::cli_bullets(c(
-            "bullet" = "Sourcing {.file {fs::path_file(file)}}"
-          ))
-        }
         source(file = file, local = FALSE)
         sourced_files <- c(sourced_files, file)
       }, error = function(e) {
-        error_msg <- paste0(
-          "Error sourcing {fs::path_rel(file)}: ",
-          e$message
+        if (stopOnError) {
+          cli::cli_abort(
+            "Dissemination script {.file {script_label}} failed.",
+            parent = e,
+            call = fn_env
+          )
+        }
+        errors[[script_label]] <<- conditionMessage(e)
+        cli::cli_warn(
+          c(
+            "Dissemination script {.file {script_label}} failed; continuing because {.code stopOnError = FALSE}.",
+            x = "{conditionMessage(e)}"
+          ),
+          call = fn_env
         )
-        errors[[fs::path_rel(file)]] <- error_msg
-        cli::cli_alert_danger(error_msg)
       })
     }
 
@@ -1702,13 +1953,7 @@ sourceDisseminationScripts <- function(
     } else {
       cli::cli_alert_info("No dissemination scripts were sourced")
     }
-
-  }, error = function(e) {
-    cli::cli_alert_danger(
-      "Error in sourceDisseminationScripts(): {e$message}"
-    )
-    errors[["critical"]] <- e$message
-  })
+  }
 
   ll <- list(
     sourced_files = sourced_files,

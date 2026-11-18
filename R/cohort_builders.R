@@ -1,23 +1,31 @@
 # Render a derived cohort's SQL with build-time parameters and write it to
-# inputs/cohorts/derived/<label>.sql. Parameters not passed in `...` (e.g. the
-# connection/schema placeholders filled in at generation time) are left as
-# literal @tokens in the output. `header`, when supplied, is prepended
-# verbatim (after rendering) as a QC comment block - not itself rendered.
-render_and_write_derived_sql <- function(derived_dir, label, sql_content, ..., header = NULL) {
+# inputs/cohorts/derived/<label>.sql for new cohorts. Existing cohorts can pass
+# their stored path to overwrite the definition in place. Parameters not passed
+# in `...` (e.g. the connection/schema placeholders filled in at generation
+# time) are left as literal @tokens in the output. `header`, when supplied, is
+# prepended verbatim (after rendering) as a QC comment block - not itself rendered.
+render_and_write_derived_sql <- function(derived_dir, label, sql_content, ..., header = NULL,
+                                         output_path = NULL) {
     safe_label <- gsub("[^a-zA-Z0-9_-]", "_", label)
     sql_path <- fs::path(derived_dir, paste0(safe_label, ".sql"))
+
+    if (!is.null(output_path)) {
+      sql_path <- output_path
+    }
+
     rendered_sql <- SqlRender::render(sql_content, ...)
     if (!is.null(header) && length(header) > 0) {
       rendered_sql <- paste(c(header, "", rendered_sql), collapse = "\n")
     }
+    fs::dir_create(fs::path_dir(sql_path), recurse = TRUE)
     writeLines(rendered_sql, sql_path)
     return(sql_path)
 }
 
-write_derived_template <- function(derived_dir, label, template_name, ...) {
+write_derived_template <- function(derived_dir, label, template_name, ..., output_path = NULL) {
     template_path <- system.file("sql", template_name, package = "picard")
     sql_content <- readr::read_file(template_path)
-    render_and_write_derived_sql(derived_dir, label, sql_content, ...)
+    render_and_write_derived_sql(derived_dir, label, sql_content, ..., output_path = output_path)
 }
 
 # Build a "/* Dependent cohorts ... */" QC header documenting which cohort
@@ -40,6 +48,7 @@ custom_derived_reserved_param_names <- function() {
   c(
     "sql",
     "header",
+    "output_path",
     "cdm_database_schema",
     "vocabulary_database_schema",
     "target_database_schema",
@@ -276,11 +285,15 @@ compute_dependency_hash = function(dbPath, cohort, parent_hashes) {
     # Serialize the rule (dependency parameters)
     rule_json <- jsonlite::toJSON(rule, auto_unbox = TRUE)
 
-    # Combine: parent hashes + rule parameters
+    # Combine: parent hashes + rule parameters + this cohort's own rendered SQL,
+    # so the checksum alone detects any change that affects the generated
+    # table (e.g. an edited custom derived SQL file with unchanged parents)
     combined <- paste0(
     paste(parent_hash_strs, collapse = "|"),
     "|",
-    rule_json
+    rule_json,
+    "|",
+    cohort$getSqlHash()
     )
     md5Hash <- rlang::hash(combined)
     return(md5Hash)
@@ -302,7 +315,7 @@ is_the_checksum_empty <- function(
   if (inherits(checksum_count_result, "try-error") || nrow(checksum_count_result) == 0) {
     is_checksum_empty <- TRUE
   } else {
-    count_value <- checksum_count_result$COUNT[1]
+    count_value <- checksum_count_result[[1L]][1L]
     is_checksum_empty <- is.na(count_value) || count_value == 0
   }
   return(is_checksum_empty)
@@ -350,31 +363,31 @@ evaluate_cohort_skip_status <- function(
     )
     hash_result <- try(DatabaseConnector::querySql(conn, hash_query), silent = TRUE)
     if (!inherits(hash_result, "try-error") && nrow(hash_result) > 0) {
-      stored_hash <- hash_result$CHECKSUM[1]
+      stored_hash <- hash_result[[1L]][1L]
     }
   }
 
+  # The checksum stored in this database's work schema decides whether to skip,
+  # not the shared manifest's 'stale' flag. Builders can make database-specific
+  # changes (e.g. concept ids in custom SQL), so the manifest flips between
+  # definitions as the pipeline moves through databases; the per-database
+  # checksum only changes when this database's definition does.
   if (length(parent_ids) > 0) {
     current_dependency_hash <- compute_dependency_hash(dbPath, cohort, cohort_hashes)
 
-    if (is_stale) {
-      dependency_status <- "Stale - parent changed"
-      should_skip <- FALSE
-    } else if (!is_checksum_empty && !is.null(stored_hash)) {
+    if (!is_checksum_empty && !is.null(stored_hash)) {
       if (!is.na(stored_hash) && stored_hash == current_dependency_hash) {
         dependency_status <- "Unchanged"
         should_skip <- TRUE
       } else { 
-        dependency_status <- "Parent changed" 
+        dependency_status <- "Definition or parent changed"
       }
     } else { 
         dependency_status <- "New" 
     }
   } else {
-    # A cohort explicitly marked stale is never skipped, whatever the checksum
-    # says — 'stale' is the manifest asserting the generated table is out of date
     current_hash <- cohort$getSqlHash()
-    if (!is_stale && !is.null(stored_hash) && !is.na(stored_hash) && stored_hash == current_hash) {
+    if (!is.null(stored_hash) && !is.na(stored_hash) && stored_hash == current_hash) {
       should_skip <- TRUE
     }
   }

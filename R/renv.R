@@ -79,7 +79,7 @@ lockfileHashOnDisk <- function(path = "renv.lock") {
 #' @description Captures all package versions and saves lockfile.
 #'   Useful before major pipeline operations for reproducibility tracking.
 #' @param versionLabel Character. Optional label for the snapshot (e.g., "v1.0.0").
-#'   Used in saved filename: renv_lock_{versionLabel}.json
+#'   Used in saved filename: `renv_lock_{versionLabel}.json`
 #' @param savePath Character. Optional path to save versioned lockfile.
 #'   If NULL and versionLabel provided, saves to current directory.
 #' @return Character. Hash of lockfile contents for audit trail (invisibly)

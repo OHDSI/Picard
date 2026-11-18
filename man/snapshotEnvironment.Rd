@@ -8,7 +8,7 @@ snapshotEnvironment(versionLabel = NULL, savePath = NULL)
 }
 \arguments{
 \item{versionLabel}{Character. Optional label for the snapshot (e.g., "v1.0.0").
-Used in saved filename: renv_lock_{versionLabel}.json}
+Used in saved filename: \verb{renv_lock_\{versionLabel\}.json}}
 
 \item{savePath}{Character. Optional path to save versioned lockfile.
 If NULL and versionLabel provided, saves to current directory.}

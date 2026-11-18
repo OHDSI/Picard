@@ -252,9 +252,9 @@ pivotForComparison <- function(data, id_cols, names_from, values_from,
 
   pivot_result <- tidyr::pivot_wider(
     data = data,
-    id_cols = all_of(id_cols),
-    names_from = all_of(names_from),
-    values_from = all_of(values_from),
+    id_cols = dplyr::all_of(id_cols),
+    names_from = dplyr::all_of(names_from),
+    values_from = dplyr::all_of(values_from),
     names_prefix = names_prefix,
     values_fill = values_fill
   )

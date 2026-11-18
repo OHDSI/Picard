@@ -10,3 +10,5 @@ PKGDOWN_SETUP.md
 ^\.claude$
 TODO.md
 CLAUDE.md
+^hidden$
+^extras$

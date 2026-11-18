@@ -32,7 +32,10 @@ library(picard)
 # A. LOAD OR INITIALIZE MANIFEST
 # ================================================================================
 
-# Subsequent times: Load from existing SQLite database
+# The manifest is created on the first run and loaded on every run after that
+if (!fs::file_exists(here::here("inputs/conceptSets/conceptSetManifest.sqlite"))) {
+  initConceptSetManifest(here::here("inputs/conceptSets"))
+}
 conceptSetManifest <- loadConceptSetManifest()
 
 
@@ -40,9 +43,9 @@ conceptSetManifest <- loadConceptSetManifest()
 # B. WRITE YOUR CAPR CONCEPT SETS BELOW
 # ================================================================================
 
-# Ensure Capr is loaded (you may need to install it first)
+# Uncomment once you add Capr code below (you may need to install it first)
 # remotes::install_github("OHDSI/Capr")
-library(Capr)
+# library(Capr)
 
 # Verify all concept ids in ATHENA (https://athena.ohdsi.org) before use.
 

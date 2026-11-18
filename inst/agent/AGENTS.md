@@ -108,7 +108,7 @@ Focused workflows live in `.agent/skills/<name>/SKILL.md`. When a task matches a
    - Edit pre-pipeline builder scripts in `inputs/cohorts/R/` and `inputs/conceptSets/R/`
    - Use the `picard-capr-cohorts` skill for Capr-based definitions
    - Use `.agent/reference-docs/04-loading-inputs.md` for detailed guidance on each builder type
-   - Delete unused builders; keep only the ones you need
+   - Never delete or rename builders: all 6 are required, and unpopulated ones run without error
    - Available builders: ATLAS import, Capr-based, SQL (cohorts only), and derived cohorts (cohorts only)
 
 ### 5. **Develop Analysis Tasks and Test**

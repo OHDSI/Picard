@@ -1,7 +1,7 @@
 Package: picard
 Type: Package
 Title: RWE Pipelining Tool
-Version: 0.0.7
+Version: 0.0.8
 Authors@R: c(
     person("Martin", "Lavallee", , "lavallee@ohdsi.org", role = c("aut", "cre")),
     person("Katy", "Sadowski", , "sadowski@ohdsi.org", role = c("aut"))
@@ -10,12 +10,11 @@ Description: A pipeline tool for RWE analysis (typically using the OHDSI stack) 
     This package initializes a standard directory structure, builds cohorts, and executes R scripts in a specified order.
 License: Apache License (>= 2)
 URL: https://ohdsi.github.io/Picard/, https://github.com/ohdsi/Picard/
-Requires: R (>= 3.2)
+Requires: R (>= 4.1)
 Imports:
     R6,
     DBI,
     glue,
-    lifecycle,
     RSQLite,
     cli,
     checkmate,
@@ -39,15 +38,27 @@ Imports:
     lubridate,
     snakecase,
     config,
-    DT
+    DT,
+    gert,
+    usethis,
+    stats,
+    utils
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
 Suggests:
     testthat (>= 3.0.0),
     withr,
-    Capr
+    Capr,
+    keyring,
+    knitr,
+    openxlsx2,
+    quarto,
+    renv,
+    rmarkdown,
+    rstudioapi
 Remotes:
     ohdsi/Capr
+VignetteBuilder: knitr
 Config/roxygen2/version: 8.0.0
-RoxygenNote: 7.3.2
+RoxygenNote: 8.0.0

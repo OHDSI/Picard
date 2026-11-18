@@ -174,3 +174,194 @@ testthat::test_that("separate test namespaces stay isolated in results and task 
   testthat::expect_equal(sum(history$pipeline_version == "develop_ml"), 1L)
   testthat::expect_equal(sum(history$pipeline_version == "develop_ks"), 1L)
 })
+
+
+testthat::test_that("testStudyPipeline runs builders, cohorts and tasks per config block in order when not skipping builders", {
+  repo <- pne_setup_repo()
+  task <- pne_write_task(repo)
+  readr::write_lines(
+    c(
+      "",
+      "db_second:",
+      "  dbServer: server_placeholder",
+      "  databaseName: db_second_name",
+      "  databaseLabel: Second DB",
+      "  cdmDatabaseSchema: cdm_second",
+      "  vocabDatabaseSchema: cdm_second",
+      "  workDatabaseSchema: work_second",
+      "  tempEmulationSchema: work_second",
+      "  cohortTable: cohort_second"
+    ),
+    fs::path(repo, "config.yml"),
+    append = TRUE
+  )
+
+  # The task records itself in the same event log as the mocked builders and
+  # cohort generation, so the test sees the true interleaving.
+  events_file <- fs::path(repo, "events.txt")
+  task_path <- fs::path(repo, "analysis/tasks", task)
+  readr::write_lines(
+    c(
+      readr::read_lines(task_path),
+      sprintf('cat("task ", executionSettings$databaseName, "\\n", sep = "", file = "%s", append = TRUE)', events_file)
+    ),
+    task_path
+  )
+  log_event <- function(...) cat(..., "\n", sep = "", file = events_file, append = TRUE)
+
+  pne_mock_boundaries(task)
+  testthat::local_mocked_bindings(
+    sourceInputBuilderScripts = function(configBlock, pipelineVersion, ...) {
+      log_event("build ", configBlock, " ", pipelineVersion)
+      invisible(NULL)
+    },
+    generateCohorts = function(executionSettings, ...) {
+      log_event("generate ", executionSettings$databaseName)
+      invisible(data.frame())
+    }
+  )
+
+  suppressMessages(
+    testStudyPipeline(
+      configBlock = c("db_placeholder", "db_second"),
+      pipelineVersion = "dev",
+      skipInputBuilders = FALSE
+    )
+  )
+
+  testthat::expect_equal(
+    readr::read_lines(events_file),
+    c(
+      "build db_placeholder dev", "generate db_name_placeholder", "task db_name_placeholder",
+      "build db_second dev", "generate db_second_name", "task db_second_name"
+    )
+  )
+})
+
+
+testthat::test_that("testStudyPipeline skips input builders by default", {
+  repo <- pne_setup_repo()
+  task <- pne_write_task(repo)
+  pne_mock_boundaries(task)
+  builderCalls <- 0L
+  testthat::local_mocked_bindings(
+    sourceInputBuilderScripts = function(...) {
+      builderCalls <<- builderCalls + 1L
+      invisible(NULL)
+    }
+  )
+
+  suppressMessages(testStudyPipeline(configBlock = "db_placeholder", pipelineVersion = "dev"))
+
+  testthat::expect_identical(builderCalls, 0L)
+})
+
+
+testthat::test_that("pre-flight warns rather than fails when the pipeline will create the cohort manifest", {
+  repo <- pne_setup_repo()
+  pne_write_task(repo)
+  secrets_path <- fs::path(Sys.getenv("HOME"), ".picard", "secrets.yml")
+  readr::write_lines(
+    c(readr::read_lines(secrets_path), "  port: 0", "  user: tester", "  password: secret"),
+    secrets_path
+  )
+  testthat::local_mocked_bindings(get_current_branch = function() "develop")
+  testthat::expect_false(fs::file_exists(fs::path(repo, "inputs/cohorts/cohortManifest.sqlite")))
+
+  msgs <- character(0)
+  testthat::expect_no_error(withCallingHandlers(
+    runPreflightChecks(
+      configBlock = "db_placeholder",
+      pipelineVersion = "dev",
+      testMode = TRUE,
+      skipRenv = TRUE,
+      skipInputBuilders = FALSE
+    ),
+    message = function(m) {
+      msgs <<- c(msgs, conditionMessage(m))
+      invokeRestart("muffleMessage")
+    }
+  ))
+  testthat::expect_true(any(grepl("~ Cohort manifest +No manifest yet", msgs)))
+
+  msgs <- character(0)
+  testthat::expect_error(withCallingHandlers(
+    runPreflightChecks(
+      configBlock = "db_placeholder",
+      pipelineVersion = "dev",
+      testMode = TRUE,
+      skipRenv = TRUE
+    ),
+    message = function(m) {
+      msgs <<- c(msgs, conditionMessage(m))
+      invokeRestart("muffleMessage")
+    }
+  ))
+  testthat::expect_true(any(grepl("✗ Cohort manifest +Cohort manifest not found", msgs)))
+})
+
+
+# Forced reruns -------------------------------------------------------------------
+
+# The fixture has no cohort manifest, whose NA hash would force every rerun, so
+# pin the input hashes to make an unchanged second run skippable.
+pne_mock_stable_hashes <- function(env = parent.frame()) {
+  testthat::local_mocked_bindings(
+    .getCohortManifestHash = function(...) "cohort-hash",
+    .getConceptSetManifestHash = function(...) "concept-set-hash",
+    .getRenvLockHash = function(...) "renv-hash",
+    .env = env
+  )
+}
+
+testthat::test_that("forceRerun bypasses change detection in testStudyPipeline", {
+  repo <- pne_setup_repo()
+  task <- pne_write_task(repo)
+  pne_mock_boundaries(task)
+  pne_mock_stable_hashes()
+
+  run <- function(...) {
+    suppressMessages(testStudyPipeline(configBlock = "db_placeholder", ...))
+  }
+
+  run()
+  run()
+  run(forceRerun = TRUE)
+  run(forceRerun = task)
+
+  history <- pne_read_history(repo)
+  testthat::expect_identical(history$status, c("success", "skipped", "success", "success"))
+})
+
+testthat::test_that("forceRerun rejects task names that are not in the pipeline", {
+  repo <- pne_setup_repo()
+  task <- pne_write_task(repo)
+  pne_mock_boundaries(task)
+
+  testthat::expect_error(
+    suppressMessages(testStudyPipeline(configBlock = "db_placeholder", forceRerun = "99_missing.R")),
+    "not in this pipeline"
+  )
+  testthat::expect_false(fs::file_exists(fs::path(repo, "exec/logs/task_run_history.csv")))
+})
+
+testthat::test_that("forceRerun bypasses change detection in testStudyTask", {
+  repo <- pne_setup_repo()
+  task <- pne_write_task(repo)
+  pne_mock_stable_hashes()
+  testthat::local_mocked_bindings(
+    get_current_branch = function() "develop",
+    .env = rlang::current_env()
+  )
+
+  run <- function(...) {
+    suppressMessages(testStudyTask(taskFile = task, configBlock = "db_placeholder", ...))
+  }
+
+  run()
+  run()
+  run(forceRerun = TRUE)
+
+  history <- pne_read_history(repo)
+  testthat::expect_identical(history$status, c("success", "skipped", "success"))
+})

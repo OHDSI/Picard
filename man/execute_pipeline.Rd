@@ -13,7 +13,9 @@ execute_pipeline(
   ignoreUncommittedPaths = NULL,
   skipCodeStateCheck = FALSE,
   env = rlang::caller_env(),
-  pipelineVersionOverride = NULL
+  pipelineVersionOverride = NULL,
+  forceRerun = FALSE,
+  skipInputBuilders = TRUE
 )
 }
 \arguments{
@@ -46,6 +48,17 @@ entirely. Default: FALSE}
 pipeline version (the test namespace). Drives the cohort-table suffix, the
 results folder, and the task-history namespace via the run's
 \code{ExecutionContext}.}
+
+\item{forceRerun}{Logical or character. \code{TRUE} reruns every task,
+bypassing change detection (\code{\link[=shouldRerunTask]{shouldRerunTask()}}); a character vector of
+task file names (e.g. \code{"05_baseline_medicines.R"}) reruns only those.
+Forced runs are still recorded in \code{exec/logs/task_run_history.csv}.
+Default: \code{FALSE}}
+
+\item{skipInputBuilders}{Logical. If TRUE (default), the input builder
+scripts are not sourced; call \code{\link[=sourceInputBuilderScripts]{sourceInputBuilderScripts()}} before the
+pipeline instead. If FALSE, they are sourced for each config block before
+that block's cohorts are generated.}
 }
 \value{
 Invisibly returns task results list

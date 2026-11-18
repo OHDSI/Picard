@@ -4,12 +4,20 @@
 #'   1. Task file modifications (file hash comparison)
 #'   2. Dependency file modifications (extracted from source() calls)
 #'   3. Cohort manifest changes — compares
-#'      [CohortManifest$getManifestHash()][CohortManifest] against the hash
-#'      recorded on the previous run. A rerun is forced when the hash differs,
+#'      [CohortManifest$getManifestHash()][CohortManifest] (definitions plus
+#'      label, category, and tags) against the hash recorded on the previous
+#'      run. A rerun is forced when the hash differs,
 #'      when no hash was recorded (first run, or a legacy history row), or when
 #'      the current hash cannot be computed at all.
-#'   4. Previous run errors (checked in logs and history)
-#'   5. Version changes. History is scoped by task, config block, and
+#'   4. Concept set manifest changes — compares
+#'      [ConceptSetManifest$getManifestHash()][ConceptSetManifest]
+#'      (definitions plus label, category, and tags) against the hash recorded
+#'      on the previous run, with the same fail-safe rules as the cohort
+#'      manifest check.
+#'   5. renv lockfile changes — any change to the R version or to a package
+#'      recorded in `renv.lock` forces a rerun (see [.getRenvLockHash()]).
+#'   6. Previous run errors (checked in logs and history)
+#'   7. Version changes. History is scoped by task, config block, and
 #'      `pipeline_version`, so separate test namespaces do not reuse one
 #'      another's run state.
 #'
@@ -22,6 +30,10 @@
 #'   hash (see [.getCohortManifestHash()]). When NULL (default) it is computed
 #'   here; callers that check many tasks in one run pass it in to avoid
 #'   re-loading the manifest per task.
+#' @param conceptSetManifestHash Character or NULL. A pre-computed concept set
+#'   manifest hash (see [.getConceptSetManifestHash()]). Computed here when NULL.
+#' @param renvLockHash Character or NULL. A pre-computed renv lockfile hash
+#'   (see [.getRenvLockHash()]). Computed here when NULL.
 #'
 #' @return List with elements:
 #'   - should_rerun: Logical. TRUE if task should be rerun
@@ -29,11 +41,14 @@
 #'   - last_run_info: List with previous run details (time, version, status)
 #'   - task_file_hash: Current hash of task file
 #'   - cohort_manifest_hash: Current hash of cohort manifest definitions
+#'   - concept_set_manifest_hash: Current hash of concept set manifest
+#'   - renv_lock_hash: Current hash of renv.lock
 #'
 #' @details
 #' Creates/updates exec/logs/task_run_history.csv tracking:
 #' - task_name, config_block, last_run_time, pipeline_version
-#' - task_file_hash, cohort_manifest_hash, status, error_message
+#' - task_file_hash, cohort_manifest_hash, concept_set_manifest_hash,
+#'   renv_lock_hash, status, error_message
 #'
 #' @export
 shouldRerunTask <- function(
@@ -42,7 +57,9 @@ shouldRerunTask <- function(
     executionSettings,
     pipelineVersion,
     tasksFolderPath = here::here("analysis/tasks"),
-    cohortManifestHash = NULL) {
+    cohortManifestHash = NULL,
+    conceptSetManifestHash = NULL,
+    renvLockHash = NULL) {
 
   # Initialize result structure
   reasons <- character()
@@ -108,30 +125,22 @@ shouldRerunTask <- function(
     rerunNeeded <- TRUE
   }
 
-  # Check 3: Cohort manifest has changed
+  # Checks 3-5: study inputs and environment have changed
   currentCohortManifestHash <- cohortManifestHash %||% .getCohortManifestHash()
-  previousCohortManifestHash <- if (!is.null(lastRunInfo)) {
-    lastRunInfo$cohort_manifest_hash
-  } else {
-    NA_character_
-  }
+  currentConceptSetManifestHash <- conceptSetManifestHash %||% .getConceptSetManifestHash()
+  currentRenvLockHash <- renvLockHash %||% .getRenvLockHash()
 
-  if (is.null(currentCohortManifestHash) || is.na(currentCohortManifestHash)) {
-    # Fail safe: a missing manifest hash means we cannot prove the cohort
-    # definitions are unchanged, so force the rerun rather than skip the check.
-    reasons <- c(reasons, "Cohort manifest hash unavailable - forcing rerun")
-    rerunNeeded <- TRUE
-  } else if (is.na(previousCohortManifestHash) || !nzchar(previousCohortManifestHash)) {
-    # First run for this task+config, or a run recorded before the hash was
-    # persisted (legacy history rows store ""). Rerun so a hash gets recorded.
-    reasons <- c(reasons, "No previous cohort manifest hash recorded")
-    rerunNeeded <- TRUE
-  } else if (previousCohortManifestHash != currentCohortManifestHash) {
-    reasons <- c(reasons, "Cohort manifest has changed")
+  hashReasons <- c(
+    .compareRecordedHash(currentCohortManifestHash, lastRunInfo$cohort_manifest_hash, "cohort manifest"),
+    .compareRecordedHash(currentConceptSetManifestHash, lastRunInfo$concept_set_manifest_hash, "concept set manifest"),
+    .compareRecordedHash(currentRenvLockHash, lastRunInfo$renv_lock_hash, "renv lockfile")
+  )
+  if (length(hashReasons) > 0) {
+    reasons <- c(reasons, hashReasons)
     rerunNeeded <- TRUE
   }
 
-  # Check 4: Previous run had errors
+  # Check 6: Previous run had errors
   if (!is.null(lastRunInfo) && lastRunInfo$status == "failed") {
     reasons <- c(reasons, "Previous run failed - needs rerun")
     rerunNeeded <- TRUE
@@ -159,7 +168,9 @@ shouldRerunTask <- function(
     reasons = reasons,
     last_run_info = if (nrow(previousRuns) > 0) previousRuns else NULL,
     task_file_hash = currentTaskHash,
-    cohort_manifest_hash = currentCohortManifestHash
+    cohort_manifest_hash = currentCohortManifestHash,
+    concept_set_manifest_hash = currentConceptSetManifestHash,
+    renv_lock_hash = currentRenvLockHash
   )
   return(ll)
 }
@@ -183,6 +194,9 @@ shouldRerunTask <- function(
 #'   check was skipped), \code{"unverified-test-mode"}, or \code{"unrecorded"}
 #'   for calls outside a pipeline run. Recorded so the audit trail never implies
 #'   a clean tree when the tree was not clean.
+#' @param conceptSetManifestHash Character. Hash of concept set manifest at time
+#'   of execution (optional)
+#' @param renvLockHash Character. Hash of renv.lock at time of execution (optional)
 #'
 #' @return Invisibly TRUE if successful
 #' @export
@@ -195,10 +209,14 @@ recordTaskExecution <- function(
     errorMessage = NA_character_,
     tasksFolderPath = here::here("analysis/tasks"),
     commitSha = NA_character_,
-    codeState = "unrecorded") {
+    codeState = "unrecorded",
+    conceptSetManifestHash = NA_character_,
+    renvLockHash = NA_character_) {
 
   # Tolerate NULL as "no hash" so the data.frame row below always has length 1.
   cohortManifestHash <- cohortManifestHash %||% NA_character_
+  conceptSetManifestHash <- conceptSetManifestHash %||% NA_character_
+  renvLockHash <- renvLockHash %||% NA_character_
 
   if (!file.exists(taskFile)) {
     taskFile <- fs::path(tasksFolderPath, taskFile)
@@ -232,6 +250,8 @@ recordTaskExecution <- function(
     pipeline_version = pipelineVersion,
     task_file_hash = taskHash,
     cohort_manifest_hash = ifelse(is.na(cohortManifestHash), "", cohortManifestHash),
+    concept_set_manifest_hash = ifelse(is.na(conceptSetManifestHash), "", conceptSetManifestHash),
+    renv_lock_hash = ifelse(is.na(renvLockHash), "", renvLockHash),
     status = status,
     error_message = ifelse(is.na(errorMessage), "", errorMessage),
     commit_sha = ifelse(is.na(commitSha), "", as.character(commitSha)),
@@ -341,6 +361,8 @@ recordTaskExecution <- function(
     pipeline_version = character(),
     task_file_hash = character(),
     cohort_manifest_hash = character(),
+    concept_set_manifest_hash = character(),
+    renv_lock_hash = character(),
     status = character(),
     error_message = character(),
     commit_sha = character(),
@@ -398,10 +420,11 @@ recordTaskExecution <- function(
 #' @title Get Cohort Manifest Hash
 #' @description Loads the cohort manifest and returns
 #'   [CohortManifest$getManifestHash()][CohortManifest], a SHA256 digest over
-#'   every registered (`active`/`stale`) cohort's definition. Used by
-#'   [shouldRerunTask()] to detect cohort changes that require a task rerun.
+#'   every registered (`active`/`stale`) cohort's definition and metadata
+#'   (label, category, tags). Used by [shouldRerunTask()] to detect cohort
+#'   changes that require a task rerun.
 #' @details A thin wrapper around the manifest method, which is the single
-#'   source of truth for what "the cohort definitions changed" means. The load
+#'   source of truth for what "the cohorts changed" means. The load
 #'   is read-only (`autoSync = FALSE`), so this has no side effects. Any failure
 #'   to load or hash the manifest returns `NA_character_`; [shouldRerunTask()]
 #'   treats that as "cannot prove unchanged" and forces the rerun.
@@ -422,6 +445,114 @@ recordTaskExecution <- function(
     cli::cli_alert_warning("Could not compute cohort manifest hash: {e$message}")
     return(NA_character_)
   })
+}
+
+
+#' @title Get Concept Set Manifest Hash
+#' @description Returns
+#'   [ConceptSetManifest$getManifestHash()][ConceptSetManifest] for the study's
+#'   concept set manifest. Used by [shouldRerunTask()] to detect concept set
+#'   changes (including label/category/tag changes) that require a task rerun.
+#' @details Concept sets are optional, so a study without a concept set
+#'   manifest hashes to a stable sentinel rather than `NA` (which would force a
+#'   rerun on every pipeline run). Any failure to read an existing manifest
+#'   returns `NA_character_`, which [shouldRerunTask()] treats as "cannot prove
+#'   unchanged" and forces the rerun.
+#' @param projectPath Character. A path inside the study repository. Defaults to
+#'   the current project (`here::here()`).
+#' @return Character. SHA256 hex digest, `"<no-concept-set-manifest>"`, or
+#'   `NA_character_` if the manifest cannot be read.
+#' @keywords internal
+.getConceptSetManifestHash <- function(projectPath = here::here()) {
+  tryCatch({
+    projectRoot <- findStudyProjectRoot(projectPath)
+    dbPath <- fs::path(projectRoot, "inputs", "conceptSets", "conceptSetManifest.sqlite")
+    if (!file.exists(dbPath)) {
+      return("<no-concept-set-manifest>")
+    }
+    csm <- suppressMessages(
+      ConceptSetManifest$new(dbPath = dbPath, projectRoot = projectRoot)
+    )
+    csm$getManifestHash()
+  }, error = function(e) {
+    cli::cli_alert_warning("Could not compute concept set manifest hash: {e$message}")
+    return(NA_character_)
+  })
+}
+
+
+#' @title Get renv Lockfile Hash
+#' @description Returns a SHA256 digest over the R version and every package
+#'   record (name, version, source, remote SHA) in the study's `renv.lock`.
+#'   Used by [shouldRerunTask()] so that any package or R version change forces
+#'   tasks to rerun.
+#' @details Only the recorded versions are hashed, not the raw file, so
+#'   reformatting the lockfile or reordering its entries does not force a
+#'   rerun. The pipeline validates that the installed library matches
+#'   `renv.lock` before running tasks, so the lockfile stands in for the
+#'   installed package versions. A study without `renv.lock` hashes to a stable
+#'   sentinel; a lockfile that cannot be parsed returns `NA_character_`, which
+#'   forces a rerun.
+#' @param projectPath Character. A path inside the study repository. Defaults to
+#'   the current project (`here::here()`).
+#' @return Character. SHA256 hex digest, `"<no-renv-lock>"`, or `NA_character_`
+#'   if the lockfile cannot be read.
+#' @keywords internal
+.getRenvLockHash <- function(projectPath = here::here()) {
+  tryCatch({
+    lockPath <- fs::path(findStudyProjectRoot(projectPath), "renv.lock")
+    if (!file.exists(lockPath)) {
+      return("<no-renv-lock>")
+    }
+
+    lock <- jsonlite::read_json(lockPath)
+    field <- function(x, name) as.character(x[[name]] %||% "")
+
+    packages <- lock$Packages %||% list()
+    packages <- packages[order(names(packages))]
+    packageEntries <- vapply(
+      packages,
+      function(pkg) {
+        paste(
+          field(pkg, "Package"), field(pkg, "Version"),
+          field(pkg, "Source"), field(pkg, "RemoteSha"),
+          sep = "|"
+        )
+      },
+      character(1),
+      USE.NAMES = FALSE
+    )
+
+    entries <- c(paste0("R|", field(lock$R, "Version")), packageEntries)
+    digest::digest(paste(entries, collapse = "\n"), algo = "sha256")
+  }, error = function(e) {
+    cli::cli_alert_warning("Could not compute renv lockfile hash: {e$message}")
+    return(NA_character_)
+  })
+}
+
+
+#' @title Compare a Current Hash Against the Recorded One
+#' @description Fail-safe comparison shared by the input/environment checks in
+#'   [shouldRerunTask()]. A rerun is required when the current hash cannot be
+#'   computed, when no hash was recorded on the previous run (first run, or a
+#'   history row written before the column existed), or when the hashes differ.
+#' @param current Character or NULL. The hash computed for this run.
+#' @param previous Character or NULL. The hash recorded on the previous run.
+#' @param name Character. Human-readable name used in the rerun reason.
+#' @return Character. A rerun reason, or `character(0)` when unchanged.
+#' @keywords internal
+.compareRecordedHash <- function(current, previous, name) {
+  if (is.null(current) || is.na(current)) {
+    return(paste0("Hash unavailable for ", name, " - forcing rerun"))
+  }
+  if (is.null(previous) || is.na(previous) || !nzchar(previous)) {
+    return(paste0("No previous ", name, " hash recorded"))
+  }
+  if (!identical(as.character(previous), as.character(current))) {
+    return(paste0("Change detected in ", name))
+  }
+  character(0)
 }
 
 

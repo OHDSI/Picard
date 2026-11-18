@@ -28,7 +28,11 @@ library(picard)
 # A. LOAD MANIFEST
 # ================================================================================
 
-# Load the manifest (assumes base cohorts are already loaded)
+# Base cohorts are loaded by the builder scripts that run before this one.
+# The manifest is created on the first run and loaded on every run after that
+if (!fs::file_exists(here::here("inputs/cohorts/cohortManifest.sqlite"))) {
+  initCohortManifest(here::here("inputs/cohorts"))
+}
 cohortManifest <- loadCohortManifest()
 
 # Review existing cohorts to reference in dependent cohort definitions

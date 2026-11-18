@@ -22,8 +22,9 @@ a parent changes.
 ### Prerequisites
 
 - Base cohorts (ATLAS, Capr, SQL) must already exist in the manifest.
-- The builder script is sourced via `sourceInputBuilderScripts()` as part of the pre-pipeline
-  setup in `main.R`. Do not source it manually — the manifest operations are destructive to prior state.
+- The builder script is sourced by `execStudyPipeline()` / `testStudyPipeline()` for each
+  database, before that database's cohorts are generated. Do not source it manually — the
+  manifest operations are destructive to prior state.
 - All builder functions require the manifest to be loaded:
 
 ```r

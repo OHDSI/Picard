@@ -133,10 +133,12 @@ resolve_manifest_path <- function(stored_path, project_root, manifest_dir) {
   root_relative
 }
 
-# Re-serialize a JSON string into a canonical form so that two equivalent
-# values (differing only in whitespace or key order) produce the same string.
-# Used when folding manifest columns such as `depends_on` / `dependency_rule`
-# into a content hash, so a cosmetic reformat does not look like a change.
+# Re-serialize a JSON string into a compact form so that two values differing
+# only in whitespace produce the same string. Key and array order are preserved,
+# so a reordering still counts as a change. Used when folding JSON (manifest
+# columns such as `depends_on` / `dependency_rule`, tags, and concept set
+# expressions) into a content hash, so a cosmetic reformat does not look like a
+# change.
 #
 # A missing / empty value returns "". A value that does not parse as JSON is
 # returned unchanged rather than dropped, so the caller still hashes something
@@ -800,7 +802,7 @@ createBlankCohortsLoadFile <- function(cohortsFolderPath = here::here("inputs/co
   ))
 
   if (openFile) {
-    rstudioapi::navigateToFile(file = file_path)
+    rstudio_navigate_to_file(file = file_path)
     cli::cat_bullet(
       "Navigating to new cohorts load file",
       bullet = "info",
@@ -1299,7 +1301,7 @@ createBlankConceptSetsLoadFile <- function(conceptSetsFolderPath = here::here("i
   ))
 
   if (openFile) {
-    rstudioapi::navigateToFile(file = file_path)
+    rstudio_navigate_to_file(file = file_path)
     cli::cat_bullet(
       "Navigating to new concept sets load file",
       bullet = "info",
@@ -1312,13 +1314,21 @@ createBlankConceptSetsLoadFile <- function(conceptSetsFolderPath = here::here("i
 
 
 
-tableExists <- function(connection, schema, tableName, dbms) {
+tableExists <- function(connection, schema, tableName, dbms, databaseName = NULL) {
   tryCatch({
-    query <- paste0("SELECT COUNT(*) FROM ", schema, ".", tableName, " WHERE 1=0")
-    result <- DatabaseConnector::querySql(connection, query)
-    return(TRUE)
+    DatabaseConnector::existsTable(connection, schema, tableName)
   }, error = function(e) {
-    return(FALSE)
+    database_label <- dbms
+
+    if (!is.null(databaseName) && !is.na(databaseName)) {
+      database_label <- databaseName
+    }
+
+    cli::cli_abort(c(
+      "Unable to check whether cohort table {.val {schema}.{tableName}} is available in database {.val {database_label}}.",
+      i = "The table existence query failed with: {conditionMessage(e)}",
+      i = "Operation: checking cohort table existence. This may indicate a warehouse, connection, permission, schema, or identifier problem."
+    ), parent = e)
   })
 }
 

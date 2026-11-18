@@ -10,7 +10,8 @@ sourceDisseminationScripts(
   databaseIds = NULL,
   outputPath = here::here("dissemination/pretty"),
   verbose = TRUE,
-  warnMissing = TRUE
+  warnMissing = TRUE,
+  stopOnError = TRUE
 )
 }
 \arguments{
@@ -33,13 +34,19 @@ Defaults to \code{here::here("dissemination/pretty")}.}
 
 \item{warnMissing}{Logical. If TRUE (default), warns when the dissemination
 scripts directory doesn't exist.}
+
+\item{stopOnError}{Logical. If TRUE (default), stop at the first
+dissemination script that errors, so a broken script cannot let
+\code{main.R} carry on with partial output. If FALSE, warn and continue
+with the remaining scripts.}
 }
 \value{
 Invisibly returns a list with:
 \itemize{
 \item \code{sourced_files}: Character vector of sourced files (absolute paths)
 \item \code{directories_checked}: Character vector of directories checked
-\item \code{error_summary}: List of any errors encountered
+\item \code{error_summary}: Named list of error messages from failed scripts (only
+non-empty when \code{stopOnError = FALSE})
 \item \code{disseminationEnv}: List containing pipelineVersion, databaseIds, outputPath
 }
 }
@@ -62,8 +69,7 @@ Excel export, StudyHub submission, or other dissemination targets.
 
 Typical workflow:
 \enumerate{
-\item Run \code{\link{sourceInputBuilderScripts}} to load input definitions
-\item Run \code{\link{execStudyPipeline}} to execute the analysis
+\item Run \code{\link{execStudyPipeline}} to build inputs and execute the analysis
 \item Run \code{\link{runPostProcessing}} to merge results across databases
 \item Use \code{\link{makeDisseminationScript}} to create a template for formatting
 \item Edit the template script with your custom formatting/export logic

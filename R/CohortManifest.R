@@ -356,8 +356,31 @@ CohortManifest <- R6::R6Class(
       return(existing_id)
     },
 
+    # Existing derived definitions are rewritten at their registered location;
+    # only new cohorts derive a filename from their label.
+    derived_output_path = function(existingId) {
+      if (is.na(existingId)) {
+        return(NULL)
+      }
+
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      existing <- DBI::dbGetQuery(
+        conn,
+        "SELECT file_path FROM cohort_manifest WHERE id = ?",
+        list(existingId)
+      )
+
+      if (nrow(existing) != 1 || is.na(existing$file_path[1])) {
+        cli::cli_abort("Cannot find the registered file path for derived cohort {existingId}.")
+      }
+
+      private$resolve_path(existing$file_path[1])
+    },
+
     # Insert a new derived cohort, or — when existingId is not NA — update the
-    # registered one in place (same id and label). On update the definition
+    # registered one in place (same ID and file path). On update the definition
     # columns are replaced and, *only when the definition actually changed*,
     # the cohort is marked 'stale' so the next generateCohorts() run
     # regenerates it, with stale cascading to its own dependents. Re-running a
@@ -390,11 +413,22 @@ CohortManifest <- R6::R6Class(
         list(existingId)
       )
 
-      # Resolve the incoming path before hashing: a relative path hashed against
-      # the wrong working directory silently yields the wrong hash (or the
-      # label sentinel). A derived cohort's rendered file is written just before
-      # this call, so a missing file here is a real error.
+      # Existing derived cohorts must be rendered to their registered path.
+      # Resolve both paths so equivalent path conventions remain valid.
       resolved_file <- private$resolve_path(file_path)
+      previous_file_path <- previous$file_path[1]
+      previous_resolved <- private$resolve_path(previous_file_path)
+
+      if (!identical(as.character(resolved_file), as.character(previous_resolved))) {
+        cli::cli_abort(c(
+          "Cannot update derived cohort {.val {label}} at a different file path.",
+          i = "The registered definition is at {.path {previous_file_path}}."
+        ))
+      }
+
+      resolved_file <- previous_resolved
+
+      # The rendered file must exist at the registered location.
       hash <- if (file.exists(resolved_file)) {
         rlang::hash(readr::read_file(resolved_file))
       } else {
@@ -424,11 +458,6 @@ CohortManifest <- R6::R6Class(
       # Compare paths by resolved-absolute form so a pure path-convention
       # difference (e.g. a legacy row rewritten repo-root-relative) is not
       # mistaken for a definition change and does not mark the cohort stale.
-      previous_resolved <- if (!is.na(previous$file_path[1])) {
-        private$resolve_path(previous$file_path[1])
-      } else {
-        NA_character_
-      }
       definition_changed <- !identical(hash, previous$hash[1]) ||
         !identical(as.character(resolved_file), as.character(previous_resolved)) ||
         !identical(as.character(depends_on_json), as.character(previous$depends_on[1])) ||
@@ -451,11 +480,11 @@ CohortManifest <- R6::R6Class(
       status_clause <- if (definition_changed) " status = 'stale'," else ""
 
       set_clauses <- paste0(
-        "category = ?, file_path = ?, hash = ?, source_type = ?, cohort_type = ?,",
+        "category = ?, hash = ?, source_type = ?, cohort_type = ?,",
         " depends_on = ?, dependency_rule = ?, tags = ?,", status_clause,
         " updated_at = CURRENT_TIMESTAMP"
       )
-      params <- list(category, file_path, hash, source_type, cohort_type, depends_on_json, dep_rule_json, tags_json)
+      params <- list(category, hash, source_type, cohort_type, depends_on_json, dep_rule_json, tags_json)
 
       DBI::dbExecute(
         conn,
@@ -808,7 +837,13 @@ CohortManifest <- R6::R6Class(
         header <- format_dependent_cohort_header(resolved_ids = dependentCohortIdList, resolved_labels = resolved_labels)
         sql_path <- do.call(
           render_and_write_derived_sql,
-          c(list(derived_dir = derived_dir, label = label, sql_content = sql_content, header = header), render_params)
+          c(list(
+            derived_dir = derived_dir,
+            label = label,
+            sql_content = sql_content,
+            header = header,
+            output_path = private$derived_output_path(existing_id)
+          ), render_params)
         )
 
         cohort_id <- private$upsert_derived_cohort(
@@ -1102,28 +1137,32 @@ CohortManifest <- R6::R6Class(
       return(private$.manifest)
     },
 
-    #' Compute a deterministic hash of every cohort definition in the manifest
+    #' Compute a deterministic hash of the manifest for task-rerun detection
     #'
     #' @description
-    #' Produces a single SHA256 string over the *definition* of every active or
-    #' stale cohort, used by the study pipeline (via [shouldRerunTask()]) to
-    #' decide whether cohort changes force affected tasks to rerun.
+    #' Produces a single SHA256 string over everything about the active or
+    #' stale cohorts that a task can depend on. Used by the study pipeline (via
+    #' [shouldRerunTask()]): when it changes, tasks rerun.
+    #'
+    #' This is distinct from a cohort's *definition hash*
+    #' (\code{CohortDef$getSqlHash()}), which covers only the rendered SQL.
+    #' Tasks also select cohorts by label, category, or tag, so a change to
+    #' that metadata changes the analysis even when no definition changed.
     #'
     #' For each cohort, ordered by id, the hash combines:
     #'   \itemize{
-    #'     \item \code{id}, \code{cohort_type}, \code{source_type}
+    #'     \item \code{id}, \code{label}, \code{category}, \code{tags}
+    #'     \item \code{cohort_type}, \code{source_type}
     #'     \item \code{depends_on} and \code{dependency_rule} (normalized JSON)
-    #'     \item the rendered-SQL hash (\code{CohortDef$getSqlHash()}) of the
+    #'     \item the definition hash (\code{CohortDef$getSqlHash()}) of the
     #'       loaded cohort, or the sentinel \code{"<missing>"} when the cohort
     #'       file is absent from disk
     #'   }
     #'
-    #' The rendered SQL — not the raw file bytes — is what executes against the
-    #' CDM, so a cosmetic reformat of a cohort's JSON that renders to identical
-    #' SQL does not move the hash, while any change to the executed SQL does.
-    #' Cosmetic metadata (\code{label}, \code{category}, \code{tags}) is
-    #' deliberately excluded: renaming or retagging a cohort does not change the
-    #' analysis.
+    #' Because the definition hash is over the rendered SQL, a cosmetic
+    #' reformat of a cohort's JSON that renders to identical SQL does not move
+    #' the hash. The stored file path is excluded, so path normalization does
+    #' not force spurious reruns.
     #'
     #' @return Character. A SHA256 hash string. An empty manifest hashes to a
     #'   stable constant.
@@ -1133,16 +1172,17 @@ CohortManifest <- R6::R6Class(
 
       rows <- DBI::dbGetQuery(
         conn,
-        "SELECT id, cohort_type, source_type, depends_on, dependency_rule
+        "SELECT id, label, category, tags, cohort_type, source_type,
+                depends_on, dependency_rule
            FROM cohort_manifest
           WHERE status IN ('active', 'stale')
           ORDER BY id"
       )
 
-      # id -> rendered-SQL hash for cohorts currently loaded in memory. A cohort
+      # id -> definition hash for cohorts currently loaded in memory. A cohort
       # whose file is missing was skipped by load_manifest_from_db() and has no
       # CohortDef; it falls back to the "<missing>" sentinel below so that a
-      # file disappearing (or reappearing) still moves the manifest hash.
+      # file disappearing (or reappearing) still moves the hash.
       sql_hash_by_id <- list()
       for (cd in private$.manifest) {
         sql_hash_by_id[[as.character(cd$getId())]] <- cd$getSqlHash()
@@ -1155,11 +1195,13 @@ CohortManifest <- R6::R6Class(
         character(1)
       )
 
-      # One "|"-joined line per cohort, ordered by id. depends_on /
-      # dependency_rule are canonicalized so a cosmetic JSON reformat does not
-      # move the hash; label / category / tags are intentionally excluded.
+      # One "|"-joined line per cohort, ordered by id. JSON-valued columns are
+      # canonicalized so a cosmetic reformat does not move the hash.
       entries <- paste(
         id_chr,
+        rows$label,
+        rows$category,
+        vapply(rows$tags, manifest_canonical_json, character(1)),
         rows$cohort_type,
         rows$source_type,
         vapply(rows$depends_on, manifest_canonical_json, character(1)),
@@ -1399,7 +1441,13 @@ CohortManifest <- R6::R6Class(
               parsed_tags <- safe_parse_tags(tags_json)
               tibble::tibble(
                 tag_name = names(parsed_tags) %||% character(0),
-                tag_value = as.character(unlist(parsed_tags) %||% character(0))
+                tag_value = purrr::map_chr(parsed_tags, function(value) {
+                  if (is.null(value)) {
+                    NA_character_
+                  } else {
+                    as.character(value)
+                  }
+                })
               )
             })
           )
@@ -1752,12 +1800,13 @@ CohortManifest <- R6::R6Class(
     #' Either create a dataframe or read in a csv file with columns `atlasId`, `label`, `category` (required) plus any
     #' additional columns treated as tag key-value pairs for tags. Calls `addAtlasCohort()` for each row.
     #'
-    #' By default, the load file is treated as a transient, one-time import
-    #' mechanism: rows whose atlasId is already registered in the manifest are
-    #' an error, not an update. Set `stopIfExists = FALSE` to instead update
+    #' The load file is kept in the study repository as the record of which
+    #' ATLAS cohorts the study uses. By default, rows whose atlasId is already
+    #' registered in the manifest are an error, not an update, so an import
+    #' only adds new cohorts. Set `stopIfExists = FALSE` to instead update
     #' those rows in place (delegates to `addAtlasCohort(stopIfExists = FALSE)`
-    #' for each), which supports iterating on the load file across repeated
-    #' runs. To sync registered cohorts with ATLAS without a load file, use
+    #' for each), which lets the whole load file be re-imported on every run.
+    #' To sync registered cohorts with ATLAS without re-importing, use
     #' `updateAtlasCohorts()`.
     #'
     #' @param cohortsLoad a data frame requiring the columns atlasId, label and category used to bulk add cohorts to the manifest
@@ -1809,8 +1858,7 @@ CohortManifest <- R6::R6Class(
 
       assigned_ids <- rep(NA_integer_, nrow(cohort_load_2))
 
-      # By default, the load csv is a transient, one-time import file —
-      # registered rows are an error, not an update mechanism. Fail fast
+      # By default registered rows are an error, not an update: fail fast
       # before importing anything, unless the caller opted into upserting.
       if (stopIfExists && nrow(existing_cohorts) > 0) {
         offending <- paste0(
@@ -1820,7 +1868,8 @@ CohortManifest <- R6::R6Class(
         cli::cli_abort(c(
           "{nrow(existing_cohorts)} cohort(s) in the load file are already registered in the manifest:",
           stats::setNames(offending, rep("x", length(offending))),
-          i = "Remove them from the load csv, or re-run with {.code stopIfExists = FALSE} to update them in place.",
+          i = "To import only new rows, keep the import commented out until you add rows to the load csv.",
+          i = "To update registered rows in place on every run, re-run with {.code stopIfExists = FALSE}.",
           i = "To sync registered cohorts with ATLAS, run {.code updateAtlasCohorts()}."
         ))
       }
@@ -2129,33 +2178,33 @@ CohortManifest <- R6::R6Class(
     #'
     #' Registers a SQL file in the manifest as a dependency-aware derived cohort.
     #' The source SQL file must preserve the standard Picard cohort write contract
-    #' using \.code{@target_database_schema.@target_cohort_table} and
-    #' \.code{@target_cohort_id}.
+    #' using \code{@target_database_schema.@target_cohort_table} and
+    #' \code{@target_cohort_id}.
     #'
     #' `dependentCohortIdList` and `sqlParameters` values are rendered into the
-    #' source SQL immediately (via \.code{SqlRender::render()}) and the result is
-    #' written to \.code{inputs/cohorts/derived/<label>.sql} — the file registered
+    #' source SQL immediately (via \code{SqlRender::render()}) and the result is
+    #' written to \code{inputs/cohorts/derived/<label>.sql} — the file registered
     #' in the manifest — exactly like the built-in derived cohort types (subset,
-    #' union, etc.). Only the connection/schema placeholders (\.code{@target_cohort_id}
-    #' and friends) are left for \.code{generateCohorts()} to fill in at execution time.
+    #' union, etc.). Only the connection/schema placeholders (\code{@target_cohort_id}
+    #' and friends) are left for \code{generateCohorts()} to fill in at execution time.
     #'
     #' @param filePath Character. Path to the source SQL file/template.
     #' @param label Character. Display name for the cohort.
     #' @param category Character. Required classification.
     #' @param dependentCohortIdList Named list. Each name is a SqlRender parameter to
     #'   render into the SQL file. Each value is, preferably, a manifest entry —
-    #'   a data.frame/tibble with an \.code{id} column, as returned by query methods
-    #'   like \.code{queryCohortsByLabel()} (a single row bakes in one ID; a multi-row
-    #'   table bakes in a comma-separated vector, for \.code{IN (@param)} clauses) —
+    #'   a data.frame/tibble with an \code{id} column, as returned by query methods
+    #'   like \code{queryCohortsByLabel()} (a single row bakes in one ID; a multi-row
+    #'   table bakes in a comma-separated vector, for \code{IN (@param)} clauses) —
     #'   or, for backward compatibility, a raw integer cohort ID (or integer vector).
-    #'   These IDs also become this cohort's \.code{depends_on} parents for staleness
-    #'   tracking. When entries carry a \.code{label} column, it's included (purely
+    #'   These IDs also become this cohort's \code{depends_on} parents for staleness
+    #'   tracking. When entries carry a \code{label} column, it's included (purely
     #'   for QC) in a generated comment header at the top of the derived SQL file.
-    #'   Example: \.code{list(inc_cohort_id = ckdEntry, exc_cohort_id = t2dEntry)}.
+    #'   Example: \code{list(inc_cohort_id = ckdEntry, exc_cohort_id = t2dEntry)}.
     #' @param sqlParameters Named list. Optional additional SqlRender parameters to
     #'   render into the SQL file (any type — thresholds, dates, strings, etc.),
     #'   not treated as cohort dependencies.
-    #'   Example: \.code{list(min_days = 30L, index_year = 2020L)}.
+    #'   Example: \code{list(min_days = 30L, index_year = 2020L)}.
     #' @param tags Named list. Optional metadata tags.
     #' @param stopIfExists Logical. If TRUE (default), raises an error when an
     #'   active or stale cohort with this label is already registered. If FALSE,
@@ -2363,6 +2412,7 @@ CohortManifest <- R6::R6Class(
       # Generate SQL via internal builder
       derived_dir <- make_derived_folder(private$.manifestDir)
       sql_path <- write_derived_template(derived_dir, label, "createUnionCohort.sql",
+        output_path = private$derived_output_path(existing_id),
         cohort_ids = paste(cohortIds, collapse = ", "),
         cohort_id_name_mapping = cohortIdNameMapping,
         gap_days = gapDays,
@@ -2542,6 +2592,7 @@ CohortManifest <- R6::R6Class(
       # Generate SQL from template
       derived_dir <- make_derived_folder(private$.manifestDir)
       sql_path <- write_derived_template(derived_dir, label, "createSubsetCohort_Cohort.sql",
+        output_path = private$derived_output_path(existing_id),
         base_cohort_id = baseCohortId,
         base_cohort_name = baseCohortName,
         filter_cohort_id = filterCohortId,
@@ -2703,6 +2754,7 @@ CohortManifest <- R6::R6Class(
 
       derived_dir <- make_derived_folder(private$.manifestDir)
       sql_path <- write_derived_template(derived_dir, label, "createComplementCohort.sql",
+        output_path = private$derived_output_path(existing_id),
         population_cohort_id = populationCohortId,
         population_cohort_name = populationCohortName,
         exclude_cohort_ids = paste(as.integer(excludeCohortIds), collapse = ", "),
@@ -2730,8 +2782,10 @@ CohortManifest <- R6::R6Class(
 
     #' @description Build a composite cohort
     #'
-    #' Creates a derived cohort that requires membership in multiple cohorts
-    #' (intersection logic).
+    #' Creates a derived cohort of subjects who belong to at least
+    #' \code{minEventCount} of the criteria cohorts. Set \code{minEventCount} to
+    #' the number of criteria cohorts for an intersection (subjects must be in
+    #' every criteria cohort); lower values relax the requirement.
     #'
     #' Input route policy:
     #' - Preferred: provide \code{criteriaCohortEntries}
@@ -2745,8 +2799,11 @@ CohortManifest <- R6::R6Class(
     #'   (e.g., c(1, 2, 3) for Type 1 diabetes, Type 2 diabetes, and secondary diabetes).
     #' @param criteriaCohortEntries Data frame/tibble with an \code{id} column (minimum 2 rows).
     #'   Preferred route using manifest query results.
-    #' @param minEventCount Integer. Minimum number of distinct cohort events required for a subject
-    #'   to qualify for the composite. Default: 1 (any subject with at least 1 event qualifies).
+    #' @param minEventCount Integer. Minimum number of distinct criteria cohorts a subject must
+    #'   belong to in order to qualify for the composite. Must be between 1 and the number of
+    #'   criteria cohorts. Default: 1 (subject in any criteria cohort qualifies). A warning is
+    #'   raised when it is not supplied; for an intersection, set it to the number of criteria
+    #'   cohorts.
     #' @param eventSelection Character. One of 'First', 'Last', or 'All'. Specifies which event(s) to
     #'   retain as the cohort_start_date and cohort_end_date in the output:
     #'   - 'First': Keep the earliest event (earliest index date)
@@ -2815,7 +2872,13 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_string(category, min.chars = 1)
       checkmate::assert_list(tags, names = "named")
       checkmate::assert_choice(x = eventSelection, choices = c("First", "Last", "All"))
-      checkmate::assert_integerish(minEventCount, lower = 1, upper = length(criteriaCohortIds))
+      if (missing(minEventCount)) {
+        cli::cli_warn(c(
+          "{.arg minEventCount} not supplied; defaulting to 1, which keeps subjects in {.emph any} criteria cohort.",
+          i = "To require membership in all {length(criteriaCohortIds)} criteria cohorts, set {.code minEventCount = {length(criteriaCohortIds)}L}."
+        ))
+      }
+      checkmate::assert_int(minEventCount, lower = 1, upper = length(criteriaCohortIds))
 
       checkmate::assert_flag(stopIfExists)
       existing_id <- private$resolve_derived_upsert(label, stopIfExists, criteriaCohortIds, cohort_type = "composite")
@@ -2830,6 +2893,7 @@ CohortManifest <- R6::R6Class(
       derived_dir <- make_derived_folder(private$.manifestDir)
       cohort_ids_str <- paste(criteriaCohortIds, collapse = ",")
       sql_path <- write_derived_template(derived_dir, label, "createCompositeCohort.sql",
+        output_path = private$derived_output_path(existing_id),
         criteria_cohort_ids = cohort_ids_str,
         criteria_cohort_name_mapping = criteriaCohortNameMapping,
         minimum_event_count = minEventCount,
@@ -2957,8 +3021,12 @@ CohortManifest <- R6::R6Class(
       derived_dir <- fs::path(cohorts_dir, "derived")
       if (!dir.exists(derived_dir)) dir.create(derived_dir, recursive = TRUE)
 
-      safe_label <- gsub("[^a-zA-Z0-9_-]", "_", label)
-      sql_path <- fs::path(derived_dir, paste0(safe_label, ".sql"))
+      sql_path <- private$derived_output_path(existing_id)
+
+      if (is.null(sql_path)) {
+        safe_label <- gsub("[^a-zA-Z0-9_-]", "_", label)
+        sql_path <- fs::path(derived_dir, paste0(safe_label, ".sql"))
+      }
 
       template_path <- system.file("sql", "createSubsetCohort_Person.sql", package = "picard")
       rendered_sql <- readr::read_file(template_path) |>
@@ -2971,6 +3039,7 @@ CohortManifest <- R6::R6Class(
           race_concept_ids      = sql_race_ids,
           ethnicity_concept_ids = sql_ethnicity_ids
         )
+      fs::dir_create(fs::path_dir(sql_path), recurse = TRUE)
       writeLines(rendered_sql, sql_path)
 
       cohort_id <- private$upsert_derived_cohort(
@@ -3012,10 +3081,13 @@ CohortManifest <- R6::R6Class(
     #'   with a \code{" - "} separator.
     #' @param category Character. Category applied to every stratum cohort. Default: \code{"derived"}.
     #' @param tags Named list. Optional metadata tags applied to every stratum cohort.
+    #' @param stopIfExists Logical. If TRUE (default), errors when any stratum label is
+    #'   already registered. If FALSE, updates existing derived strata in place and
+    #'   creates any new strata.
     #'
     #' @return Invisibly returns a named list of assigned cohort IDs, keyed by cohort label.
     buildStratifiedCohorts = function(baseCohortId = NULL, baseCohortEntry = NULL, strata, labelPrefix = NULL,
-                                      category = "derived", tags = list()) {
+                      category = "derived", tags = list(), stopIfExists = TRUE) {
 
       use_id_route <- !is.null(baseCohortId)
       use_entry_route <- !is.null(baseCohortEntry)
@@ -3055,6 +3127,7 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_string(labelPrefix, null.ok = TRUE)
       checkmate::assert_string(category, min.chars = 1)
       checkmate::assert_list(tags, names = "named")
+      checkmate::assert_flag(stopIfExists)
 
       private$validate_parent_cohorts_exist(baseCohortId)
 
@@ -3076,6 +3149,27 @@ CohortManifest <- R6::R6Class(
       negated <- paste0("NOT (", unlist(stratum_conditions), ")")
       stratum_conditions[["Unclassified"]] <- paste(negated, collapse = "\n    AND ")
 
+      cohort_labels <- names(stratum_conditions)
+      if (!is.null(labelPrefix)) {
+        cohort_labels <- paste0(labelPrefix, " - ", cohort_labels)
+      }
+
+      existing_ids <- stats::setNames(
+        vapply(
+          cohort_labels,
+          function(cohort_label) {
+            private$resolve_derived_upsert(
+              cohort_label,
+              stopIfExists,
+              baseCohortId,
+              cohort_type = "subset"
+            )
+          },
+          integer(1)
+        ),
+        cohort_labels
+      )
+
       cohorts_dir <- dirname(private$.dbPath)
       derived_dir <- fs::path(cohorts_dir, "derived")
       if (!dir.exists(derived_dir)) dir.create(derived_dir, recursive = TRUE)
@@ -3088,9 +3182,10 @@ CohortManifest <- R6::R6Class(
       result <- list()
       cli::cli_rule("Building stratified cohorts from base cohort {baseCohortId}")
 
-      for (nm in names(stratum_conditions)) {
+      for (i in seq_along(stratum_conditions)) {
+        nm <- names(stratum_conditions)[[i]]
         condition    <- stratum_conditions[[nm]]
-        cohort_label <- if (!is.null(labelPrefix)) paste0(labelPrefix, " - ", nm) else nm
+        cohort_label <- cohort_labels[[i]]
         is_unclassified <- nm == "Unclassified"
 
         rendered_sql <- SqlRender::render(
@@ -3101,8 +3196,14 @@ CohortManifest <- R6::R6Class(
           warnOnMissingParameters = FALSE
         )
 
-        file_name <- sprintf("stratified_%d_%s", as.integer(baseCohortId), sanitise_name(nm))
-        sql_path  <- fs::path(derived_dir, paste0(file_name, ".sql"))
+        existing_id <- existing_ids[[cohort_label]]
+        sql_path <- private$derived_output_path(existing_id)
+
+        if (is.null(sql_path)) {
+          file_name <- sprintf("stratified_%d_%s", as.integer(baseCohortId), sanitise_name(nm))
+          sql_path <- fs::path(derived_dir, paste0(file_name, ".sql"))
+        }
+
         writeLines(rendered_sql, sql_path)
 
         dependency_rule <- list(
@@ -3112,12 +3213,12 @@ CohortManifest <- R6::R6Class(
           isUnclassified    = is_unclassified
         )
 
-        cohort_id <- private$insert_cohort(
+        cohort_id <- private$upsert_derived_cohort(
+          existingId      = existing_id,
           label           = cohort_label,
           category        = category,
           tags            = tags,
           file_path       = private$to_manifest_path(sql_path),
-          source_type     = "derived",
           cohort_type     = "subset",
           depends_on      = as.integer(baseCohortId),
           dependency_rule = dependency_rule
@@ -3976,6 +4077,10 @@ CohortManifest <- R6::R6Class(
     #'   If `NULL` (default), uses the connection stored via `$setAtlasConnection()`.
     #'   If no connection is available, raises an error.
     #'
+    #' @param stopOnError Logical. If TRUE (default), a failed ATLAS fetch
+    #'   aborts the sync. If FALSE, the cohort is skipped with a warning and the
+    #'   remaining cohorts are still synced.
+    #'
     #' @return Invisible tibble with columns:
     #'   \itemize{
     #'     \item \code{id} - Cohort ID in manifest
@@ -3985,7 +4090,8 @@ CohortManifest <- R6::R6Class(
     #'     \item \code{localHash} - Hash of stored JSON
     #'     \item \code{remoteHash} - Hash of current ATLAS JSON
     #'   }
-    checkAtlasCohorts = function(atlasConnection = NULL) {
+    checkAtlasCohorts = function(atlasConnection = NULL, stopOnError = TRUE) {
+      checkmate::assert_flag(stopOnError)
 
       if (is.null(atlasConnection)) {
         atlasConnection <- private$.atlasConnection
@@ -4022,11 +4128,22 @@ CohortManifest <- R6::R6Class(
         current_hash <- cm_atlas_subset$hash[i]
         row_file_path <- cm_atlas_subset$file_path[i]
 
-        # Fetch JSON from ATLAS and compare hashes
+        # Fetch JSON from ATLAS and compare hashes. By default a failed fetch stops
+        # the sync, since skipping the cohort would leave the manifest
+        # silently out of date
         cohort_def <- tryCatch(
           atlasConnection$getCohortDefinition(row_atlas_id),
           error = function(e) {
-            cli::cli_warn("Failed to fetch atlasId {row_atlas_id}: {e$message}")
+            if (stopOnError) {
+              cli::cli_abort(
+                "Failed to fetch ATLAS cohort {row_atlas_id} ({row_label}).",
+                parent = e
+              )
+            }
+            cli::cli_warn(c(
+              "Failed to fetch ATLAS cohort {row_atlas_id} ({row_label}); skipping it because {.code stopOnError = FALSE}.",
+              x = "{conditionMessage(e)}"
+            ))
             NULL
           }
         )
@@ -4088,8 +4205,13 @@ CohortManifest <- R6::R6Class(
     #' @param atlasConnection An ATLAS connection object with a method `getCohortDefinition(cohortId)`.
     #'   If `NULL` (default), uses the connection stored via `$setAtlasConnection()`.
     #'
+    #' @param stopOnError Logical. If TRUE (default), a failed ATLAS fetch
+    #'   aborts the sync. If FALSE, the cohort is skipped with a warning and the
+    #'   remaining cohorts are still synced.
+    #'
     #' @return invisible of the tibble of atlas changes to update
-    updateAtlasCohorts = function(atlasConnection = NULL) {
+    updateAtlasCohorts = function(atlasConnection = NULL, stopOnError = TRUE) {
+      checkmate::assert_flag(stopOnError)
       if (is.null(atlasConnection)) {
         atlasConnection <- private$.atlasConnection
       }
@@ -4101,9 +4223,11 @@ CohortManifest <- R6::R6Class(
         ))
       }
 
-      # check for changes
-      check_atlas_changes <- self$checkAtlasCohorts(atlasConnection) |>
-        dplyr::filter(hasChanged)
+      # check for changes; NULL means no ATLAS cohorts are registered
+      check_atlas_changes <- self$checkAtlasCohorts(atlasConnection, stopOnError = stopOnError)
+      if (!is.null(check_atlas_changes)) {
+        check_atlas_changes <- dplyr::filter(check_atlas_changes, hasChanged)
+      }
 
       if (is.null(check_atlas_changes) || nrow(check_atlas_changes) == 0) {
         cli::cli_alert_info("No changed ATLAS cohorts found. All cohort(s) are current.")
@@ -4128,11 +4252,22 @@ CohortManifest <- R6::R6Class(
         existing_path <- check_atlas_changes$filePath[i]
         existing_id <- check_atlas_changes$id[i]
 
-        # Fetch JSON from ATLAS and compare hashes
+        # Fetch JSON from ATLAS and compare hashes. By default a failed fetch stops
+        # the sync, since skipping the cohort would leave the manifest
+        # silently out of date
         cohort_def <- tryCatch(
           atlasConnection$getCohortDefinition(row_atlas_id),
           error = function(e) {
-            cli::cli_warn("Failed to fetch atlasId {row_atlas_id}: {e$message}")
+            if (stopOnError) {
+              cli::cli_abort(
+                "Failed to fetch ATLAS cohort {row_atlas_id} ({row_label}).",
+                parent = e
+              )
+            }
+            cli::cli_warn(c(
+              "Failed to fetch ATLAS cohort {row_atlas_id} ({row_label}); skipping it because {.code stopOnError = FALSE}.",
+              x = "{conditionMessage(e)}"
+            ))
             NULL
           }
         )
@@ -4337,7 +4472,9 @@ CohortManifest <- R6::R6Class(
 
       for (i in seq_len(nrow(tables_to_check))) {
         table_name <- tables_to_check$name[i]
-        check_results <- picard:::tableExists(conn, schema, table_name, dbms)
+        check_results <- tableExists(
+          conn, schema, table_name, dbms, settings$databaseName
+        )
         tables_to_check$check[i] <- ifelse(check_results, "exists", "missing")
       }
       
@@ -4421,7 +4558,7 @@ CohortManifest <- R6::R6Class(
       }
       checkmate::assert_string(tableName, min.chars = 1)
 
-      if (tableExists(conn, schema, tableName, dbms)) {
+      if (tableExists(conn, schema, tableName, dbms, settings$databaseName)) {
         cli::cli_alert_warning("{type} table already exists: {tableName}")
         return(invisible(NULL))
       }
@@ -4438,7 +4575,10 @@ CohortManifest <- R6::R6Class(
         DatabaseConnector::executeSql(conn, sql, progressBar = FALSE, reportOverallTime = FALSE)
         cli::cli_alert_success("Created {type} table: {tableName}")
       }, error = function(e) {
-        cli::cli_alert_danger("Failed to create {type} table {tableName}: {e$message}")
+        cli::cli_abort(c(
+          "Failed to create {type} cohort table {.val {schema}.{tableName}} in database {.val {settings$databaseName}}.",
+          i = "The database returned: {conditionMessage(e)}"
+        ), parent = e)
       })
 
       invisible(NULL)
@@ -4650,7 +4790,7 @@ CohortManifest <- R6::R6Class(
         table_type <- table_info$type
 
         # Check if table exists
-        if (tableExists(conn, schema, table_name, dbms)) {
+        if (tableExists(conn, schema, table_name, dbms, settings$databaseName)) {
           # Build DROP TABLE statement
           sql <- paste0("DROP TABLE ", schema, ".", table_name)
 
@@ -5224,6 +5364,15 @@ CohortManifest <- R6::R6Class(
         # resolve if should skip
         if (skip_info$should_skip) {
           cli::cli_alert_info("Skipping cohort {cohort_id}: {cohort_label} ({cohort_type})")
+          # This database's table is up to date, so the cohort is no longer
+          # pending regeneration
+          if (isTRUE(skip_info$is_stale)) {
+            DBI::dbExecute(
+              sqlite_conn,
+              "UPDATE cohort_manifest SET status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+              list(cohort_id)
+            )
+          }
           new_row <- data.frame(
             cohort_id = cohort_id, 
             label = cohort_label, 
@@ -5299,12 +5448,12 @@ CohortManifest <- R6::R6Class(
 
     #' @description Retrieve cohort counts from the database
     #'
-    #' Retrieves entry and subject counts for cohorts from the cohort table in the target database.
-    #' Can retrieve counts for all cohorts or a specific subset. Enriches the results with metadata
+    #' Retrieves entry and subject counts for registered cohorts from the cohort table in the target database.
+    #' Can retrieve counts for all active/stale manifest cohorts or a specific subset. Enriches the results with metadata
     #' (label and tags) from the CohortDef objects in the manifest.
     #'
-    #' @param cohortIds Integer vector. Optional. Specific cohort IDs to retrieve counts for.
-    #'   If NULL (default), returns counts for all cohorts.
+    #' @param cohortIds Integer vector. Optional. Specific registered cohort IDs to retrieve counts for.
+    #'   If NULL (default), returns counts for all active/stale cohorts in the manifest.
     #'
     #' @return Data frame with columns:
     #'   - cohort_id: The cohort definition ID
@@ -5345,17 +5494,31 @@ CohortManifest <- R6::R6Class(
 
       dbms <- settings$getDbms()
 
-      # Build SQL query
-      # When cohortIds is NULL, retrieve counts for ALL cohort IDs in the table
-      where_clause <- ""
-      if (!is.null(cohortIds)) {
-        checkmate::assert_integerish(cohortIds)
-        cohort_ids_str <- paste0(cohortIds, collapse = ", ")
-        where_clause <- paste0("\n        WHERE cohort_definition_id IN (", cohort_ids_str, ")")
+      manifest_ids <- as.integer(
+        self$tabulateManifest(filter = "active", tags_format = "json")$id
+      )
+      if (is.null(cohortIds)) {
+        cohortIds <- manifest_ids
       } else {
-        # Explicitly retrieve all cohort IDs from the table
-        cli::cli_alert_info("Retrieving counts for all cohorts in {cohort_table}")
+        checkmate::assert_integerish(cohortIds)
+        cohortIds <- intersect(as.integer(cohortIds), manifest_ids)
       }
+
+      if (length(cohortIds) == 0) {
+        return(data.frame(
+          cohort_id = integer(),
+          label = character(),
+          tags = character(),
+          cohort_entries = integer(),
+          cohort_subjects = integer(),
+          stringsAsFactors = FALSE
+        ))
+      }
+
+      # Build SQL query
+      cohort_ids_str <- paste0(cohortIds, collapse = ", ")
+      where_clause <- paste0("\n        WHERE cohort_definition_id IN (", cohort_ids_str, ")")
+      cli::cli_alert_info("Retrieving counts for {length(cohortIds)} registered cohort(s) in {cohort_table}")
 
       sql <- paste0(
         "SELECT
@@ -5378,6 +5541,9 @@ CohortManifest <- R6::R6Class(
         results$cohort_id <- as.integer(results$cohort_id)
         results$cohort_entries <- as.integer(results$cohort_entries)
         results$cohort_subjects <- as.integer(results$cohort_subjects)
+
+        results <- results |>
+          dplyr::filter(.data$cohort_id %in% cohortIds)
         
         # Initialize columns for metadata
         results$label <- character(nrow(results))
@@ -5819,6 +5985,7 @@ CohortManifest <- R6::R6Class(
 
       derived_dir <- make_derived_folder(private$.manifestDir)
       sql_path <- write_derived_template(derived_dir, label, "createOPriorT.sql",
+        output_path = private$derived_output_path(existing_id),
         outcome_cohort_id = outcomeCohortId,
         outcome_cohort_name = outcomeCohortName,
         target_cohort_id = targetCohortId,
@@ -5988,6 +6155,7 @@ CohortManifest <- R6::R6Class(
 
       derived_dir <- make_derived_folder(private$.manifestDir)
       sql_path <- write_derived_template(derived_dir, label, "createTPriorO.sql",
+        output_path = private$derived_output_path(existing_id),
         target_cohort_id = targetCohortId,
         target_cohort_name = targetCohortName,
         outcome_cohort_id = outcomeCohortId,
@@ -6140,6 +6308,7 @@ CohortManifest <- R6::R6Class(
         derived_dir = derived_dir,
         label = label,
         template_name = "createCensorCohort.sql",
+        output_path = private$derived_output_path(existing_id),
         target_cohort_id = targetCohortId,
         target_cohort_name = targetCohortName,
         censor_cohort_id = censorCohortId,

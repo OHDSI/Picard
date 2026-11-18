@@ -10,7 +10,9 @@ shouldRerunTask(
   executionSettings,
   pipelineVersion,
   tasksFolderPath = here::here("analysis/tasks"),
-  cohortManifestHash = NULL
+  cohortManifestHash = NULL,
+  conceptSetManifestHash = NULL,
+  renvLockHash = NULL
 )
 }
 \arguments{
@@ -28,6 +30,12 @@ shouldRerunTask(
 hash (see \code{\link[=.getCohortManifestHash]{.getCohortManifestHash()}}). When NULL (default) it is computed
 here; callers that check many tasks in one run pass it in to avoid
 re-loading the manifest per task.}
+
+\item{conceptSetManifestHash}{Character or NULL. A pre-computed concept set
+manifest hash (see \code{\link[=.getConceptSetManifestHash]{.getConceptSetManifestHash()}}). Computed here when NULL.}
+
+\item{renvLockHash}{Character or NULL. A pre-computed renv lockfile hash
+(see \code{\link[=.getRenvLockHash]{.getRenvLockHash()}}). Computed here when NULL.}
 }
 \value{
 List with elements:
@@ -37,6 +45,8 @@ List with elements:
 \item last_run_info: List with previous run details (time, version, status)
 \item task_file_hash: Current hash of task file
 \item cohort_manifest_hash: Current hash of cohort manifest definitions
+\item concept_set_manifest_hash: Current hash of concept set manifest
+\item renv_lock_hash: Current hash of renv.lock
 }
 }
 \description{
@@ -45,10 +55,18 @@ Determines whether a task needs to be rerun by checking:
 \item Task file modifications (file hash comparison)
 \item Dependency file modifications (extracted from source() calls)
 \item Cohort manifest changes — compares
-\link[=CohortManifest]{CohortManifest$getManifestHash()} against the hash
-recorded on the previous run. A rerun is forced when the hash differs,
+\link[=CohortManifest]{CohortManifest$getManifestHash()} (definitions plus
+label, category, and tags) against the hash recorded on the previous
+run. A rerun is forced when the hash differs,
 when no hash was recorded (first run, or a legacy history row), or when
 the current hash cannot be computed at all.
+\item Concept set manifest changes — compares
+\link[=ConceptSetManifest]{ConceptSetManifest$getManifestHash()}
+(definitions plus label, category, and tags) against the hash recorded
+on the previous run, with the same fail-safe rules as the cohort
+manifest check.
+\item renv lockfile changes — any change to the R version or to a package
+recorded in \code{renv.lock} forces a rerun (see \code{\link[=.getRenvLockHash]{.getRenvLockHash()}}).
 \item Previous run errors (checked in logs and history)
 \item Version changes. History is scoped by task, config block, and
 \code{pipeline_version}, so separate test namespaces do not reuse one
@@ -59,6 +77,7 @@ another's run state.
 Creates/updates exec/logs/task_run_history.csv tracking:
 \itemize{
 \item task_name, config_block, last_run_time, pipeline_version
-\item task_file_hash, cohort_manifest_hash, status, error_message
+\item task_file_hash, cohort_manifest_hash, concept_set_manifest_hash,
+renv_lock_hash, status, error_message
 }
 }

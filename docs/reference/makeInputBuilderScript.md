@@ -1,0 +1,82 @@
+# Create a Pre-Pipeline Builder Script
+
+Creates a new R script in the pre-pipeline builder directories
+(inputs/cohorts/R/ or inputs/conceptSets/R/) for loading, building, and
+maintaining manifests before executing the study pipeline. Unlike task
+files, builder scripts execute in sequence as part of manifest setup.
+
+## Usage
+
+``` r
+makeInputBuilderScript(
+  type,
+  category = c("cohorts", "conceptSets"),
+  projectPath = here::here(),
+  open = TRUE
+)
+```
+
+## Arguments
+
+- type:
+
+  Character. Type of builder script. For cohorts: "importAtlas",
+  "importCapr", "importSql", or "buildDependentCohorts" For concept
+  sets: "importAtlas" or "importCapr"
+
+- category:
+
+  Character. Category of manifest to build. Options: "cohorts" or
+  "conceptSets"
+
+- projectPath:
+
+  Character. Path to the project root (defaults to current project)
+
+- open:
+
+  Logical. Whether to open the file after creating it (default TRUE)
+
+## Value
+
+Invisibly returns the template content as a character string
+
+## Details
+
+Builder scripts are organized in two main pre-pipeline directories:
+
+- inputs/cohorts/R/: Scripts for loading and building cohorts
+
+- inputs/conceptSets/R/: Scripts for loading and building concept sets
+
+Available script types:
+
+- importAtlas: Import definitions from ATLAS using manifest API
+
+- importCapr: Build definitions programmatically using Capr
+
+- importSql: Load custom SQL-based definitions
+
+- buildDependentCohorts: Build derived cohorts (cohorts only)
+
+All six scripts are required and are sourced in sequence by the pipeline
+for each config block, before that block's cohorts are generated (see
+[`sourceInputBuilderScripts`](https://ohdsi.github.io/Picard/reference/sourceInputBuilderScripts.md)).
+Unused scripts can be left as generated: the templates run without error
+when they have not been populated. Use this function to recreate a
+deleted script.
+
+## Examples
+
+``` r
+if (FALSE) { # \dontrun{
+# Create a script for importing ATLAS cohorts
+makeInputBuilderScript(type = "importAtlas", category = "cohorts")
+
+# Create a script for building Capr-based cohorts
+makeInputBuilderScript(type = "importCapr", category = "cohorts")
+
+# Create a script for importing ATLAS concept sets
+makeInputBuilderScript(type = "importAtlas", category = "conceptSets")
+} # }
+```

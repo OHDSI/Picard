@@ -16,7 +16,7 @@ Branch name (invisible)
 }
 \description{
 Creates a timestamped feature branch for automated agent-based
-pipeline improvements. Branch name format: feature/agent-{agentName}-{timestamp}
+pipeline improvements. Branch name format: \code{feature/agent-{agentName}-{timestamp}}
 }
 \examples{
 \dontrun{

@@ -1,5 +1,7 @@
 #' @title Set Ulysses Contributor
 #' @importFrom rlang "%||%"
+#' @importFrom stats setNames
+#' @importFrom utils tail
 #' @param name the name of the contributor as a character string
 #' @param email the email of the contributor as a character string
 #' @param role the role of the contirbutor as a character string
@@ -13,6 +15,7 @@ setContributor <- function(name, email, role) {
 #' @param studyTitle the title of the study as a character string
 #' @param therapeuticArea the TA as a character string
 #' @param studyType the study type (typically characterization)
+#' @param contributors a list of ContributorLine class that identifies contributors to the study
 #' @param studyLinks a list of study links
 #' @param studyTags a list of study tags
 #' @param studyDescription a character string describing the study, or NULL
@@ -467,7 +470,7 @@ makeTaskFile <- function(
   )
 
   if (openFile) {
-    rstudioapi::navigateToFile(file = fs::path(analysisFolderPath, newName, ext = "R"))
+    rstudio_navigate_to_file(file = fs::path(analysisFolderPath, newName, ext = "R"))
     cli::cat_bullet(
       "Navigating to new task file",
       bullet = "info",
@@ -560,7 +563,7 @@ makeSrcFile <- function(
   )
 
   if (openFile) {
-    rstudioapi::navigateToFile(file = fs::path(srcFolderPath, fileName, ext = "R"))
+    rstudio_navigate_to_file(file = fs::path(srcFolderPath, fileName, ext = "R"))
     cli::cat_bullet(
       "Navigating to new source file",
       bullet = "info",
@@ -651,7 +654,7 @@ makeSrcSqlFile <- function(
   )
 
   if (openFile) {
-    rstudioapi::navigateToFile(file = fs::path(sqlFolderPath, fileName, ext = "sql"))
+    rstudio_navigate_to_file(file = fs::path(sqlFolderPath, fileName, ext = "sql"))
     cli::cat_bullet(
       "Navigating to new SQL file",
       bullet = "info",
@@ -1128,8 +1131,11 @@ initAgentMode <- function(projectPath = here::here(), verbose = TRUE, reset = FA
 #'   - importSql: Load custom SQL-based definitions
 #'   - buildDependentCohorts: Build derived cohorts (cohorts only)
 #'
-#' All scripts are sourced in sequence by main.R before the production pipeline executes.
-#' Users can delete unused scripts (e.g., if they only need ATLAS imports).
+#' All six scripts are required and are sourced in sequence by the pipeline for
+#' each config block, before that block's cohorts are generated (see
+#' \code{\link{sourceInputBuilderScripts}}).
+#' Unused scripts can be left as generated: the templates run without error when
+#' they have not been populated. Use this function to recreate a deleted script.
 #' @export
 #' @examples
 #' \dontrun{
@@ -1179,8 +1185,11 @@ makeInputBuilderScript <- function(type,
     conceptSets = "concept_set"
   )
   
-  # Combine type and category for filename
-  fileName <- paste0(fileName, "_", categorySuffix)
+  # Combine type and category for filename; buildDependentCohorts already
+  # names its category
+  if (type != "buildDependentCohorts") {
+    fileName <- paste0(fileName, "_", categorySuffix)
+  }
   filePath <- fs::path(builderFolderPath, fileName, ext = "R")
   
   # Read template
@@ -1213,7 +1222,7 @@ makeInputBuilderScript <- function(type,
   readr::write_file(x = loadScriptTemplate, file = filePath)
   
   if (open) {
-    rstudioapi::navigateToFile(file = filePath)
+    rstudio_navigate_to_file(file = filePath)
     cli::cat_bullet(
       "Opening builder script",
       bullet = "info",
@@ -1320,7 +1329,7 @@ makeDisseminationScript <- function(
   readr::write_file(x = disseminationTemplate, file = filePath)
 
   if (open) {
-    rstudioapi::navigateToFile(file = filePath)
+    rstudio_navigate_to_file(file = filePath)
     cli::cat_bullet(
       "Opening dissemination script",
       bullet = "info",

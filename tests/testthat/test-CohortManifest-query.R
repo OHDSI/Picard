@@ -12,6 +12,59 @@ testthat::test_that("queryCohortsByIds returns matching rows", {
   testthat::expect_equal(sort(out$label), sort(c("Chronic Kidney Disease", "Type 2 Diabetes")))
 })
 
+# Testing: retrieveCohortCounts includes only registered active/stale cohort IDs.
+testthat::test_that("retrieveCohortCounts filters counts to manifest cohorts", {
+  setup <- cm_test_seed_manifest_for_queries("query-cohort-counts-manifest-filter")
+  manifest <- setup$manifest
+
+  all_ids <- as.integer(cm_test_all_rows(manifest)$id)
+  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
+  on.exit(DBI::dbDisconnect(conn), add = TRUE)
+  DBI::dbExecute(
+    conn,
+    "UPDATE cohort_manifest SET status = 'stale' WHERE id = ?",
+    list(all_ids[[1]])
+  )
+  DBI::dbExecute(
+    conn,
+    "UPDATE cohort_manifest SET status = 'deleted' WHERE id = ?",
+    list(all_ids[[2]])
+  )
+  manifest_ids <- as.integer(manifest$tabulateManifest(filter = "active", tags_format = "json")$id)
+
+  mock_connection <- new.env(parent = emptyenv())
+  manifest$setExecutionSettings(list(
+    getConnection = function() mock_connection,
+    workDatabaseSchema = "work",
+    cohortTable = "cohort",
+    getDbms = function() "postgresql"
+  ))
+
+  captured_sql <- NULL
+  testthat::local_mocked_bindings(
+    querySql = function(conn, sql, ...) {
+      captured_sql <<- sql
+      data.frame(
+        cohort_id = c(all_ids, 999L),
+        cohort_entries = seq_along(c(all_ids, 999L)),
+        cohort_subjects = seq_along(c(all_ids, 999L))
+      )
+    },
+    .package = "DatabaseConnector",
+    .env = environment()
+  )
+
+  out <- manifest$retrieveCohortCounts()
+
+  testthat::expect_match(
+    captured_sql,
+    paste0("cohort_definition_id IN \\(", paste(manifest_ids, collapse = ", "), "\\)")
+  )
+  testthat::expect_setequal(out$cohort_id, manifest_ids)
+  testthat::expect_false(999L %in% out$cohort_id)
+  testthat::expect_false(all_ids[[2]] %in% out$cohort_id)
+})
+
 # Testing: queryCohortsByTag supports any/all semantics for parsed name:value tags.
 testthat::test_that("queryCohortsByTag supports any and all matching", {
   setup <- cm_test_seed_manifest_for_queries("query-by-tag")

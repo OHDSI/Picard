@@ -101,6 +101,48 @@ testthat::test_that("buildCompositeCohort entry route registers composite", {
   cm_test_assert_cohort_registered(manifest, "CKD_and_T2D_Composite", expected_source_type = "derived", expected_cohort_type = "composite")
 })
 
+# Testing: buildCompositeCohort warns when minEventCount is not supplied and keeps the default of 1.
+testthat::test_that("buildCompositeCohort warns when minEventCount is missing", {
+  setup <- cm_test_seed_manifest_for_builders("build-composite-default")
+  manifest <- setup$manifest
+
+  criteria <- manifest$queryCohortsByLabel(
+    labels = c("Chronic Kidney Disease", "Type 2 Diabetes"),
+    matchType = "exact"
+  )
+
+  testthat::expect_warning(
+    manifest$buildCompositeCohort(
+      label = "CKD_and_T2D_Default",
+      category = "Derived Cohorts",
+      criteriaCohortEntries = criteria
+    ),
+    "minEventCount = 2L"
+  )
+
+  row <- cm_test_get_manifest_row(manifest, "CKD_and_T2D_Default")
+  rule <- jsonlite::fromJSON(row$dependency_rule[[1]])
+  testthat::expect_equal(as.integer(rule$minEventCount), 1L)
+
+  testthat::expect_no_warning(
+    manifest$buildCompositeCohort(
+      label = "CKD_and_T2D_Explicit",
+      category = "Derived Cohorts",
+      criteriaCohortEntries = criteria,
+      minEventCount = 2L
+    )
+  )
+
+  testthat::expect_error(
+    manifest$buildCompositeCohort(
+      label = "CKD_and_T2D_TooMany",
+      category = "Derived Cohorts",
+      criteriaCohortEntries = criteria,
+      minEventCount = 3L
+    )
+  )
+})
+
 # Testing: buildDemographicCohort registers demographic subset from base cohort entry.
 testthat::test_that("buildDemographicCohort entry route registers subset", {
   setup <- cm_test_seed_manifest_for_builders("build-demographic")
@@ -117,7 +159,35 @@ testthat::test_that("buildDemographicCohort entry route registers subset", {
     genderConceptIds = c(8507)
   )
 
-  cm_test_assert_cohort_registered(manifest, "CKD_Males_40_to_75", expected_source_type = "derived", expected_cohort_type = "subset")
+  before <- cm_test_get_manifest_row(manifest, "CKD_Males_40_to_75")
+  before_path <- before$file_path[[1]]
+  before_disk_path <- cm_test_resolve_path(manifest, before_path)
+  renamed_label <- "CKD_Males_40_to_75_Renamed"
+  manifest$updateCohortLabel(as.integer(before$id[[1]]), renamed_label)
+
+  manifest$buildDemographicCohort(
+    label = renamed_label,
+    category = "Derived Cohorts",
+    baseCohortEntry = base,
+    minAge = 40L,
+    maxAge = 75L,
+    genderConceptIds = c(8507),
+    stopIfExists = FALSE
+  )
+
+  after <- cm_test_get_manifest_row(manifest, renamed_label)
+  testthat::expect_equal(as.integer(after$id[[1]]), as.integer(before$id[[1]]))
+  testthat::expect_equal(after$file_path[[1]], before_path)
+  testthat::expect_equal(after$hash[[1]], before$hash[[1]])
+  testthat::expect_equal(
+    after$hash[[1]],
+    rlang::hash(readr::read_file(before_disk_path))
+  )
+  testthat::expect_false(
+    file.exists(fs::path(fs::path_dir(before_disk_path), paste0(renamed_label, ".sql")))
+  )
+
+  cm_test_assert_cohort_registered(manifest, renamed_label, expected_source_type = "derived", expected_cohort_type = "subset")
 })
 
 # Testing: buildStratifiedCohorts registers stratum cohorts plus Unclassified.
@@ -141,6 +211,66 @@ testthat::test_that("buildStratifiedCohorts creates named strata and unclassifie
   testthat::expect_true("CKD - Female" %in% names(ids))
   testthat::expect_true("CKD - Male" %in% names(ids))
   testthat::expect_true("CKD - Unclassified" %in% names(ids))
+})
+
+# Testing: buildStratifiedCohorts rejects existing labels by default and can update them in place.
+testthat::test_that("buildStratifiedCohorts stopIfExists updates strata in place", {
+  setup <- cm_test_seed_manifest_for_builders("build-stratified-upsert")
+  manifest <- setup$manifest
+
+  base <- manifest$queryCohortsByLabel("Chronic Kidney Disease", matchType = "exact")
+  strata <- list(
+    Female = list(genderConceptIds = 8532L),
+    Male = list(genderConceptIds = 8507L)
+  )
+  labels <- c("CKD - Female", "CKD - Male", "CKD - Unclassified")
+
+  before_ids <- manifest$buildStratifiedCohorts(
+    baseCohortEntry = base,
+    strata = strata,
+    labelPrefix = "CKD",
+    category = "Derived Cohorts"
+  )
+  before <- lapply(labels, function(label) cm_test_get_manifest_row(manifest, label))
+  names(before) <- labels
+
+  testthat::expect_error(
+    manifest$buildStratifiedCohorts(
+      baseCohortEntry = base,
+      strata = strata,
+      labelPrefix = "CKD",
+      category = "Derived Cohorts"
+    ),
+    regexp = "already in use"
+  )
+
+  revised_strata <- strata
+  revised_strata$Female$genderConceptIds <- 8507L
+  revised_strata$Other <- "1 = 0"
+  updated_ids <- manifest$buildStratifiedCohorts(
+    baseCohortEntry = base,
+    strata = revised_strata,
+    labelPrefix = "CKD",
+    category = "Derived Cohorts",
+    stopIfExists = FALSE
+  )
+  after <- lapply(labels, function(label) cm_test_get_manifest_row(manifest, label))
+  names(after) <- labels
+
+  testthat::expect_equal(updated_ids[labels], before_ids)
+  testthat::expect_true("CKD - Other" %in% names(updated_ids))
+  for (label in labels) {
+    testthat::expect_equal(after[[label]]$id[[1]], before[[label]]$id[[1]])
+    testthat::expect_equal(after[[label]]$file_path[[1]], before[[label]]$file_path[[1]])
+  }
+  testthat::expect_false(identical(after[["CKD - Female"]]$hash[[1]], before[["CKD - Female"]]$hash[[1]]))
+  testthat::expect_equal(after[["CKD - Female"]]$status[[1]], "stale")
+  testthat::expect_equal(after[["CKD - Male"]]$status[[1]], "active")
+  testthat::expect_equal(after[["CKD - Unclassified"]]$status[[1]], "stale")
+
+  new_stratum <- cm_test_get_manifest_row(manifest, "CKD - Other")
+  testthat::expect_equal(nrow(new_stratum), 1)
+  testthat::expect_equal(new_stratum$status[[1]], "active")
 })
 
 # Testing: buildOPriorT registers o-prior derived cohort from outcome/target entries.
@@ -199,4 +329,167 @@ testthat::test_that("buildCensorCohort entry route registers censor cohort", {
   )
 
   cm_test_assert_cohort_registered(manifest, "T2D_Censored_At_Death", expected_source_type = "derived", expected_cohort_type = "censor")
+})
+
+# Purpose: Mark cohorts 'stale' directly in the manifest sqlite.
+cm_test_mark_stale <- function(manifest, ids) {
+  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
+  on.exit(DBI::dbDisconnect(conn))
+  for (id in ids) {
+    DBI::dbExecute(conn, "UPDATE cohort_manifest SET status = 'stale' WHERE id = ?", list(as.integer(id)))
+  }
+}
+
+# Purpose: Evaluate skip status against a stored checksum, with the DBMS
+# checksum lookup mocked to return `stored_hash`. The column is lowercase since
+# its case varies by DBMS.
+cm_test_skip_status <- function(manifest, cohort, cohort_hashes, stored_hash, env = parent.frame()) {
+  testthat::local_mocked_bindings(
+    querySql = function(...) data.frame(checksum = stored_hash),
+    .package = "DatabaseConnector",
+    .env = env
+  )
+  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
+  on.exit(DBI::dbDisconnect(conn))
+  evaluate_cohort_skip_status(
+    cohort = cohort,
+    sqlite_conn = conn,
+    cohort_schema = "work",
+    checksum_table = "cohort_checksum",
+    conn = NULL,
+    is_checksum_empty = FALSE,
+    cohort_hashes = cohort_hashes,
+    dbPath = manifest$getDbPath()
+  )
+}
+
+# Testing: the checksum-table count is read by position, since the column
+# name's case varies by DBMS.
+testthat::test_that("is_the_checksum_empty reads the count regardless of column name case", {
+  for (count in c(0, 3)) {
+    testthat::local_mocked_bindings(
+      querySql = function(...) data.frame(count = count),
+      .package = "DatabaseConnector"
+    )
+    testthat::expect_identical(
+      is_the_checksum_empty(db_conn = NULL, cohort_schema = "work", checksum_table = "cohort_checksum"),
+      count == 0
+    )
+  }
+})
+
+# Testing: the derived-cohort checksum covers the cohort's own SQL, so a changed
+# definition with unchanged parents is still detected without the 'stale' flag.
+testthat::test_that("compute_dependency_hash changes when the derived cohort's own SQL changes", {
+  setup <- cm_test_seed_manifest_for_builders("builders-dep-hash")
+  manifest <- setup$manifest
+  dep_id <- setup$cohorts$id[setup$cohorts$label == "Eligible_With_Exclusions"][1]
+  dep <- manifest$getCohortById(dep_id)
+  parent_hashes <- lapply(manifest$getManifest(), function(cd) cd$getSqlHash())
+  names(parent_hashes) <- vapply(manifest$getManifest(), function(cd) as.character(cd$getId()), character(1))
+
+  edited <- list(getId = function() dep$getId(), getSqlHash = function() "edited-sql-hash")
+
+  testthat::expect_false(identical(
+    compute_dependency_hash(manifest$getDbPath(), dep, parent_hashes),
+    compute_dependency_hash(manifest$getDbPath(), edited, parent_hashes)
+  ))
+})
+
+# Testing: a cohort flagged 'stale' in the shared manifest is skipped when this
+# database's stored checksum still matches, and regenerated when it does not.
+testthat::test_that("evaluate_cohort_skip_status decides by the per-database checksum, not the stale flag", {
+  setup <- cm_test_seed_manifest_for_builders("builders-skip-stale")
+  manifest <- setup$manifest
+  dep_id <- setup$cohorts$id[setup$cohorts$label == "Eligible_With_Exclusions"][1]
+  base_id <- setup$cohorts$id[setup$cohorts$label == "Chronic Kidney Disease"][1]
+  cm_test_mark_stale(manifest, c(dep_id, base_id))
+
+  parent_hashes <- lapply(manifest$getManifest(), function(cd) cd$getSqlHash())
+  names(parent_hashes) <- vapply(manifest$getManifest(), function(cd) as.character(cd$getId()), character(1))
+  dep <- manifest$getCohortById(dep_id)
+  base <- manifest$getCohortById(base_id)
+  dep_hash <- compute_dependency_hash(manifest$getDbPath(), dep, parent_hashes)
+
+  dep_status <- cm_test_skip_status(manifest, dep, parent_hashes, stored_hash = dep_hash)
+  testthat::expect_true(dep_status$is_stale)
+  testthat::expect_true(dep_status$should_skip)
+
+  base_status <- cm_test_skip_status(manifest, base, parent_hashes, stored_hash = base$getSqlHash())
+  testthat::expect_true(base_status$is_stale)
+  testthat::expect_true(base_status$should_skip)
+
+  testthat::expect_false(cm_test_skip_status(manifest, dep, parent_hashes, stored_hash = "other")$should_skip)
+  testthat::expect_false(cm_test_skip_status(manifest, base, parent_hashes, stored_hash = "other")$should_skip)
+})
+
+# Purpose: Replay the generation loop's hash bookkeeping without a database:
+# walk the manifest in topological order and record each cohort's hash the way
+# executeCohortGeneration() does (SQL hash for base cohorts, dependency hash for
+# derived ones), so derived hashes see their parents' current hashes.
+cm_test_generation_hashes <- function(manifest) {
+  db_path <- manifest$getDbPath()
+  order <- topological_sort(build_dependency_graph(db_path))
+  derived_types <- c("subset", "union", "complement", "composite", "oprior", "tprior", "censor", "custom_derived")
+  hashes <- list()
+  for (id in order) {
+    cohort <- manifest$getCohortById(id)
+    hashes[[as.character(id)]] <- if (cohort$getCohortType() %in% derived_types) {
+      compute_dependency_hash(db_path, cohort, hashes)
+    } else {
+      cohort$getSqlHash()
+    }
+  }
+  hashes
+}
+
+# Testing: an edit to a base cohort's file propagates through the per-database
+# checksum to every descendant, including a grandchild that does not reference
+# the edited cohort directly, while unrelated derived cohorts keep their hash.
+# This is what lets the checksum alone decide regeneration (no 'stale' flag).
+testthat::test_that("editing a grandparent definition changes the grandchild's checksum", {
+  setup <- cm_test_seed_manifest_for_builders("builders-grandparent-hash")
+  manifest <- setup$manifest
+  paths <- setup$paths
+  ids <- function(labels) manifest$queryCohortsByLabel(labels = labels, matchType = "exact")
+
+  # sql base -> child (union with CKD) -> grandchild (union with death);
+  # unrelated: union of T2D and bleeding
+  manifest$buildUnionCohort(
+    label = "Child", category = "Derived Cohorts",
+    cohortEntries = ids(c("Custom SQL Cohort", "Chronic Kidney Disease"))
+  )
+  manifest$buildUnionCohort(
+    label = "Grandchild", category = "Derived Cohorts",
+    cohortEntries = ids(c("Child", "All-Cause Death"))
+  )
+  manifest$buildUnionCohort(
+    label = "Unrelated", category = "Derived Cohorts",
+    cohortEntries = ids(c("Type 2 Diabetes", "Major Bleeding Outcome"))
+  )
+  id_of <- function(label) as.character(ids(label)$id[1])
+  before <- cm_test_generation_hashes(manifest)
+
+  # Edit the base SQL file on disk and reload the manifest, as a new session would
+  sql_file <- fs::path(paths$sql_dir, "my_custom_cohort.sql")
+  readr::write_lines(c(readr::read_lines(sql_file), "-- definition changed"), sql_file)
+  reloaded <- suppressMessages(CohortManifest$new(dbPath = manifest$getDbPath()))
+  suppressMessages(reloaded$syncManifest())
+  after <- cm_test_generation_hashes(reloaded)
+  testthat::expect_length(after, length(before))
+  testthat::expect_true(all(vapply(c(before, after), is.character, logical(1))))
+
+  for (label in c("Custom SQL Cohort", "Child", "Grandchild")) {
+    testthat::expect_false(identical(before[[id_of(label)]], after[[id_of(label)]]), label = label)
+  }
+  testthat::expect_identical(before[[id_of("Unrelated")]], after[[id_of("Unrelated")]])
+  testthat::expect_identical(before[[id_of("All-Cause Death")]], after[[id_of("All-Cause Death")]])
+
+  # The grandchild's stored checksum from before the edit no longer matches, so
+  # it is regenerated even though its own file and direct parents' files are unchanged
+  grandchild <- reloaded$getCohortById(as.integer(id_of("Grandchild")))
+  status <- cm_test_skip_status(reloaded, grandchild, after, stored_hash = before[[id_of("Grandchild")]])
+  testthat::expect_false(status$should_skip)
+  testthat::expect_equal(status$dependency_status, "Definition or parent changed")
+  testthat::expect_true(cm_test_skip_status(reloaded, grandchild, after, stored_hash = after[[id_of("Grandchild")]])$should_skip)
 })

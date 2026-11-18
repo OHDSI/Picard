@@ -11,7 +11,9 @@ execStudyPipeline(
   skipConnectivityCheck = TRUE,
   ignoreUncommittedPaths = NULL,
   skipCodeStateCheck = FALSE,
-  env = rlang::caller_env()
+  env = rlang::caller_env(),
+  forceRerun = FALSE,
+  skipInputBuilders = TRUE
 )
 }
 \arguments{
@@ -47,6 +49,17 @@ FALSE. Deliberately not settable from config.yml, so it cannot be baked
 permanently into a study.}
 
 \item{env}{The execution environment. Defaults to caller environment.}
+
+\item{forceRerun}{Logical or character. \code{TRUE} reruns every task,
+bypassing change detection (\code{\link[=shouldRerunTask]{shouldRerunTask()}}); a character vector of
+task file names (e.g. \code{"05_baseline_medicines.R"}) reruns only those.
+Forced runs are still recorded in \code{exec/logs/task_run_history.csv}.
+Default: \code{FALSE}}
+
+\item{skipInputBuilders}{Logical. If TRUE (default), the input builder
+scripts are not sourced; call \code{\link[=sourceInputBuilderScripts]{sourceInputBuilderScripts()}} before the
+pipeline instead. If FALSE, they are sourced for each config block before
+that block's cohorts are generated.}
 }
 \value{
 Invisibly returns task results list
@@ -55,6 +68,14 @@ Invisibly returns task results list
 Executes the full study pipeline in production mode with full validation,
 version management, and reproducibility tracking. Creates a release branch, runs
 the complete pipeline, provides PR instructions, and saves reference to PENDING_PR.md.
+}
+\details{
+For each config block in turn, the pipeline generates that block's
+cohorts and runs its tasks, before moving to the next block. With
+\code{skipInputBuilders = FALSE}, it first sources the input builder
+scripts (see \code{\link{sourceInputBuilderScripts}}) for the block, so
+builders can make database-specific changes (e.g. concept ids in custom
+SQL) without the next block's builders overwriting them.
 }
 \examples{
 \dontrun{

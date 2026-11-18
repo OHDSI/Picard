@@ -21,6 +21,8 @@ makeStudyMeta(
 
 \item{studyType}{the study type (typically characterization)}
 
+\item{contributors}{a list of ContributorLine class that identifies contributors to the study}
+
 \item{studyLinks}{a list of study links}
 
 \item{studyTags}{a list of study tags}
