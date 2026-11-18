@@ -1,0 +1,108 @@
+# Build a Subset Cohort Definition (Temporal)
+
+Creates a SQL file and metadata for a subset cohort based on temporal
+filtering between two cohorts. Returns a CohortDef object ready to add
+to a CohortManifest.
+
+## Usage
+
+``` r
+buildSubsetCohortTemporal(
+  label,
+  baseCohortId,
+  filterCohortId,
+  startWindow,
+  endWindow = NULL,
+  endDateType = "base",
+  subsetLimit = "First",
+  category = "derived",
+  manifest
+)
+```
+
+## Arguments
+
+- label:
+
+  Character. User-friendly name for the subset (e.g., "CKD with T2D
+  prior").
+
+- baseCohortId:
+
+  Integer. The cohort ID to subset.
+
+- filterCohortId:
+
+  Integer. The cohort ID to use for temporal filtering.
+
+- startWindow:
+
+  SubsetWindowOperator object. Defines the temporal window for the
+  subset cohort start date relative to the filter cohort event.
+
+- endWindow:
+
+  SubsetWindowOperator object (optional, NULL allowed). Defines the
+  temporal window for the subset cohort end date relative to the filter
+  cohort event. If NULL, the filter cohort end date is not used.
+
+- endDateType:
+
+  Character. Whether to use the base cohort end date ('base') or filter
+  cohort end date ('filter') as the cohort end date in the output subset
+  cohort. Default: 'base'.
+
+- subsetLimit:
+
+  Character. One of 'First', 'Last', or 'All'. Specifies which
+  qualifying filter cohort event(s) to retain per subject. 'First' keeps
+  the earliest event, 'Last' keeps the most recent event, 'All' keeps
+  all qualifying events. Default: 'First'.
+
+- manifest:
+
+  CohortManifest object. Required. Validates that base cohorts exist and
+  automatically registers the new cohort.
+
+## Value
+
+A CohortDef object with cohortType='subset' and dependencies set.
+
+## Details
+
+Creates three files:
+
+- SQL file:
+  `inputs/cohorts/derived/subset/subset_cohort_{baseCohortId}_cohort_{filterCohortId}.sql`
+
+- Metadata JSON: Same path with `.json` extension (parameters for
+  execution)
+
+- Context file: `.metadata` with rule description
+
+## Examples
+
+``` r
+# Create subset: Chronic Kidney Disease patients with a Type 2 Diabetes diagnosis
+# in the 365 days before or after their CKD start date
+
+# Define window for start date: T2D diagnosis must occur within 365 days before to 0 days after CKD start
+start_window <- createSubsetStartWindow(
+  subsetCohortWindowAnchor = "cohort_start_date",
+  startDays = -365,
+  endDays = 0,
+  baseCohortWindowAnchor = "cohort_start_date"
+)
+
+# Create the subset cohort: keep first T2D event per patient
+ckd_with_t2d <- buildSubsetCohortTemporal(
+  label = "CKD with recent T2D",
+  baseCohortId = 101,
+  filterCohortId = 102,
+  startWindow = start_window,
+  endWindow = NULL,
+  endDateType = "base",
+  subsetLimit = "First"
+)
+#> Error in checkmate::assert_class(x = manifest, classes = "CohortManifest"): argument "manifest" is missing, with no default
+```

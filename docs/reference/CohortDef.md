@@ -1,0 +1,289 @@
+# CohortDef R6 Class
+
+An R6 class that stores key information about cohorts managed by the
+CohortManifest. Each CohortDef is a pointer to a file on disk (JSON or
+SQL) with associated metadata.
+
+The CohortDef class manages cohort metadata and SQL generation. Upon
+initialization, it loads and validates cohort definitions from either
+JSON (CIRCE format) or SQL files, and creates a hash to uniquely
+identify the generated SQL.
+
+## Active bindings
+
+- `label`:
+
+  character to set the label to. If missing, returns the current label.
+
+- `tags`:
+
+  list of the values to set the tags to. If missing, returns the current
+  tags.
+
+- `category`:
+
+  character to set the category to. If missing, returns the current
+  category.
+
+## Methods
+
+### Public methods
+
+- [`CohortDef$new()`](#method-CohortDef-initialize)
+
+- [`CohortDef$getFilePath()`](#method-CohortDef-getFilePath)
+
+- [`CohortDef$getDisplayPath()`](#method-CohortDef-getDisplayPath)
+
+- [`CohortDef$getSql()`](#method-CohortDef-getSql)
+
+- [`CohortDef$getFileHash()`](#method-CohortDef-getFileHash)
+
+- [`CohortDef$getSqlHash()`](#method-CohortDef-getSqlHash)
+
+- [`CohortDef$getId()`](#method-CohortDef-getId)
+
+- [`CohortDef$setId()`](#method-CohortDef-setId)
+
+- [`CohortDef$formatTagsAsString()`](#method-CohortDef-formatTagsAsString)
+
+- [`CohortDef$getCohortType()`](#method-CohortDef-getCohortType)
+
+- [`CohortDef$setCohortType()`](#method-CohortDef-setCohortType)
+
+- [`CohortDef$getSourceType()`](#method-CohortDef-getSourceType)
+
+- [`CohortDef$getCategory()`](#method-CohortDef-getCategory)
+
+- [`CohortDef$setCategory()`](#method-CohortDef-setCategory)
+
+- [`CohortDef$clone()`](#method-CohortDef-clone)
+
+------------------------------------------------------------------------
+
+### `CohortDef$new()`
+
+Initialize a new CohortDef
+
+#### Usage
+
+    CohortDef$new(label, category, sourceType, tags = list(), filePath)
+
+#### Arguments
+
+- `label`:
+
+  Character. The common name of the cohort.
+
+- `category`:
+
+  Character. Required classification (e.g., 'target', 'exposure',
+  'outcome').
+
+- `sourceType`:
+
+  Character. Provenance: 'atlas', 'capr', 'circe', 'sql', or 'derived'.
+
+- `tags`:
+
+  List. A named list of tags that give metadata about the cohort.
+
+- `filePath`:
+
+  Character. Path to the cohort file in inputs/cohorts folder (can be
+  .json or .sql). Get the file path
+
+------------------------------------------------------------------------
+
+### `CohortDef$getFilePath()`
+
+#### Usage
+
+    CohortDef$getFilePath()
+
+#### Returns
+
+Character. Absolute path to the cohort file — safe to read regardless of
+the current working directory. Get the file path for display
+
+------------------------------------------------------------------------
+
+### `CohortDef$getDisplayPath()`
+
+#### Usage
+
+    CohortDef$getDisplayPath(root = NULL)
+
+#### Arguments
+
+- `root`:
+
+  Character or NULL. Study repository root. When supplied, the path is
+  returned relative to it (the form stored in the manifest); otherwise
+  the absolute path is returned.
+
+#### Returns
+
+Character. A human-facing path. Get the generated SQL
+
+------------------------------------------------------------------------
+
+### `CohortDef$getSql()`
+
+#### Usage
+
+    CohortDef$getSql()
+
+#### Returns
+
+Character. The SQL definition of the cohort. Get the file hash
+
+------------------------------------------------------------------------
+
+### `CohortDef$getFileHash()`
+
+#### Usage
+
+    CohortDef$getFileHash()
+
+#### Returns
+
+Character. MD5 hash of the raw file content on disk. Get the SQL hash
+
+------------------------------------------------------------------------
+
+### `CohortDef$getSqlHash()`
+
+#### Usage
+
+    CohortDef$getSqlHash()
+
+#### Returns
+
+Character. MD5 hash of the normalized SQL definition (line endings
+standardized). Get the cohort ID
+
+------------------------------------------------------------------------
+
+### `CohortDef$getId()`
+
+#### Usage
+
+    CohortDef$getId()
+
+#### Returns
+
+Integer. The cohort ID, or NA_integer\_ if not set. Set the cohort ID
+(internal use)
+
+------------------------------------------------------------------------
+
+### `CohortDef$setId()`
+
+#### Usage
+
+    CohortDef$setId(id)
+
+#### Arguments
+
+- `id`:
+
+  Integer. The cohort ID to set. Format tags as string
+
+------------------------------------------------------------------------
+
+### `CohortDef$formatTagsAsString()`
+
+#### Usage
+
+    CohortDef$formatTagsAsString()
+
+#### Returns
+
+Character. Tags formatted as "name: value \| name: value". Get the
+cohort type
+
+------------------------------------------------------------------------
+
+### `CohortDef$getCohortType()`
+
+#### Usage
+
+    CohortDef$getCohortType()
+
+#### Returns
+
+Character. One of 'circe', 'custom', 'custom_derived', 'subset',
+'union', 'complement', 'composite', 'oprior', 'tprior', 'censor'. Set
+the cohort type (internal use)
+
+------------------------------------------------------------------------
+
+### `CohortDef$setCohortType()`
+
+#### Usage
+
+    CohortDef$setCohortType(cohortType)
+
+#### Arguments
+
+- `cohortType`:
+
+  Character. One of 'circe', 'custom', 'custom_derived', 'subset',
+  'union', 'complement', 'composite', 'oprior', 'tprior', 'censor'. Get
+  the source type
+
+------------------------------------------------------------------------
+
+### `CohortDef$getSourceType()`
+
+#### Usage
+
+    CohortDef$getSourceType()
+
+#### Returns
+
+Character. One of 'atlas', 'capr', 'sql', 'derived'. Get the category
+
+------------------------------------------------------------------------
+
+### `CohortDef$getCategory()`
+
+#### Usage
+
+    CohortDef$getCategory()
+
+#### Returns
+
+Character. The cohort category (e.g., 'target', 'exposure', 'outcome').
+Set the category
+
+------------------------------------------------------------------------
+
+### `CohortDef$setCategory()`
+
+#### Usage
+
+    CohortDef$setCategory(category)
+
+#### Arguments
+
+- `category`:
+
+  Character. The cohort category.
+
+------------------------------------------------------------------------
+
+### `CohortDef$clone()`
+
+The objects of this class are cloneable with this method.
+
+#### Usage
+
+    CohortDef$clone(deep = FALSE)
+
+#### Arguments
+
+- `deep`:
+
+  Whether to make a deep clone.

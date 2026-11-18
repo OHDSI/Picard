@@ -1,0 +1,900 @@
+# The Ulysses Standard Repository Structure
+
+## Introduction
+
+Picard is built on the Ulysses framework, which follows the philosophy
+that real-world evidence (RWE) studies should be organized and versioned
+as software projects. Just as databases require a schema to organize
+data, RWE studies benefit from a standard directory structure to
+organize code, inputs, analyses, and outputs. This standardization
+enables:
+
+- **Reproducibility:** Anyone can understand the project structure at a
+  glance
+- **Collaboration:** Multiple contributors follow the same conventions
+- **Automation:** Consistent organization enables reliable workflows and
+  tooling
+- **Version control:** Clear separation of concerns makes git history
+  more meaningful
+
+Picard uses the Ulysses repository structure, adding specialized
+directories and configuration for cohort-based studies, Evidence
+Generation Plans, and results dissemination. This vignette describes the
+standard Ulysses repository structure created when you initialize a
+project by bundling study settings with
+[`makeUlyssesStudySettings()`](https://ohdsi.github.io/Picard/reference/makeUlyssesStudySettings.md)
+and calling `$initUlyssesRepo()` on the result (see [Launching a Picard
+Study](https://ohdsi.github.io/Picard/articles/launching_a_study.md)).
+
+## Pipeline Workflow and Folder Organization
+
+The Ulysses repository organizes folders to match the flow of a
+real-world evidence study:
+
+    ┌─────────────────────────────────────────────────────────────────┐
+    │ 1. META & CONFIG                                                │
+    │    (config.yml, README.md, NEWS.md, main.R, test_main.R)       │
+    │         ↓                                                        │
+    │ 2. INPUTS                                                       │
+    │    inputs/cohorts/ + inputs/conceptSets/                      │
+    │    (Define phenotypes, cohorts, covariates)                    │
+    │         ↓                                                        │
+    │ 3. ANALYSIS                                                     │
+    │    analysis/tasks/ + analysis/src/                              │
+    │    (Execute analyses, generate statistics)                      │
+    │         ↓                                                        │
+    │ 4. EXECUTION OUTPUT                                             │
+    │    exec/results/[database]/[version]/[task]/                  │
+    │    (Raw results by task, database, version)                     │
+    │         ↓                                                        │
+    │ 5. POST-PROCESSING & DISSEMINATION                              │
+    │    dissemination/export/merge/ + dissemination/pretty/ +       │
+    │    dissemination/quarto/                                        │
+    │    (Merge results, format for release, build Study Hub website) │
+    └─────────────────────────────────────────────────────────────────┘
+
+**Workflow sequence:** 1. Initialize with metadata (config.yml defines
+databases and schemas; credentials live in `~/.picard/secrets.yml`) 2.
+Load or create inputs (cohorts and concept sets) 3. Execute analysis
+tasks (code in analysis/tasks runs using inputs) 4. Raw results written
+to exec/results organized by database and version 5. Post-processing:
+[`runPostProcessing()`](https://ohdsi.github.io/Picard/reference/runPostProcessing.md)
+merges raw results across databases into `dissemination/export/merge/`,
+with reference files and QC reports 6. Dissemination: numbered scripts
+in `dissemination/pretty/R/` format merged results via
+[`sourceDisseminationScripts()`](https://ohdsi.github.io/Picard/reference/sourceDisseminationScripts.md);
+the Study Hub (quarto website) renders narrative and results together
+
+## Ulysses Repository Outline
+
+A newly initialized Picard study has the following high-level structure:
+
+    study-repository/
+    ├── analysis/          # Study analysis code and workflows
+    ├── inputs/            # Cohort definitions and concept sets
+    ├── dissemination/     # Results and evidence outputs
+    ├── exec/              # Execution artifacts and logs
+    ├── extras/            # Reference scripts and development files
+    ├── config.yml         # Project configuration
+    ├── main.R             # Production pipeline execution script
+    ├── README.md          # Project overview
+    ├── NEWS.md            # Release notes and changelog
+    ├── .gitignore         # Git configuration
+    └── study.Rproj        # RStudio project file
+
+## Elements of the Ulysses Repository
+
+### Vital Files
+
+These files are essential to the project and should be maintained
+throughout its lifecycle.
+
+#### project.Rproj
+
+An RStudio project file that configures the working directory and
+development environment. The Ulysses structure uses this to ensure
+consistent behavior across team members. When you open this file in
+RStudio, the working directory is automatically set to the project root.
+
+    study-repository.Rproj
+
+If using VS Code, Picard supports project detection through
+`.code-workspace` files and agent instructions.
+
+#### .gitignore
+
+Prevents sensitive files and intermediate outputs from being committed
+to version control. The standard `.gitignore` for Ulysses repository
+includes:
+
+- `renv/` - Local package library snapshots (renv-specific files)
+- `exec/` - Execution results and temporary files
+- `.env` - Environment variables and credentials
+- `*.log` - Log files
+- RStudio temporary files (`.Rhistory`, `.RData`, etc.)
+
+This ensures that your git repository contains only source code and
+documentation, not generated outputs or sensitive credentials.
+
+#### README.md
+
+The README serves as the project’s front door, communicating key study
+information: description, objectives, key personnel, status, and links
+to vital resources. The README includes:
+
+- **Study metadata:** Title, ID, start/end dates, study type,
+  therapeutic area
+- **Status badges:** Current version and project status
+- **Tags:** Keywords for searching similar studies within your
+  organization
+- **Links:** References to ATLAS, protocols, publications, and
+  repository
+
+Ulysses auto-generates a README template when you launch a project. You
+should customize the Study Description section to clearly explain your
+research question and study design, following your organization’s
+documentation standards.
+
+Example README.md structure (auto-generated):
+
+``` markdown
+# Cardiovascular Risk Assessment in Diabetes (Id: myStudyRepo)
+
+<!-- badge: start -->
+
+![Study Status: Started](https://img.shields.io/badge/Study%20Status-Started-blue.svg)
+![Version: 0.0.1](https://img.shields.io/badge/Version-0.0.1-yellow.svg)
+
+<!-- badge: end -->
+
+## Study Information
+
+- Study Id: myStudyRepo
+- Study Title: Cardiovascular Risk Assessment in Diabetes
+- Study Start Date: 2026-04-07
+- Expected Study End Date: 2028-04-07
+- Study Type: Cohort Study
+- Therapeutic Area: Cardiovascular/Endocrinology
+
+## Study Description
+
+Add a short description about the study!
+
+## Contributors
+
+- Jane Doe, Institution Name
+
+## Study Links
+
+- [ATLAS Cohort Definitions](https://atlas.example.com/)
+- [Study Repository](https://github.com/org/repo)
+```
+
+The README is auto-generated when you initialize a study with
+`$initUlyssesRepo()`. You should edit the Study Description section to
+explain your research question and study design. Update the badges and
+version as your study progresses.
+
+#### NEWS.md
+
+Tracks changes across study versions. When you run a production pipeline
+with
+[`execStudyPipeline()`](https://ohdsi.github.io/Picard/reference/execStudyPipeline.md),
+the Ulysses workflow automatically updates NEWS.md with version
+information and change summaries. This creates an audit trail of what
+changed in each release.
+
+Format follows semantic versioning conventions:
+
+``` markdown
+## Version 1.2.0 (2026-04-07)
+
+- Updated cohort definitions for primary population
+- Fixed missing exclusion criteria in comparative arm
+- Added sensitivity analyses for age groups
+
+## Version 1.1.0 (2026-03-15)
+
+- Added post-hoc subgroup analyses
+- Expanded results dissemination
+```
+
+#### config.yml
+
+Central configuration file describing the study and its databases. It
+holds **no credentials** — only non-sensitive settings. Uses YAML format
+with two section types:
+
+- **default:** Universal study settings (`projectName`, `version`, and
+  optionally `ignoreUncommittedPaths`)
+- **block headers:** One block per database, holding schema names, table
+  names, and a `dbServer` pointer into `secrets.yml`
+
+`createExecutionSettingsFromConfig(configBlock = "...")` reads a block
+to run the pipeline against that database, enabling multi-database
+studies.
+
+**Where credentials live:** DBMS type, server/port (or Snowflake
+`connectionString`), username, and password are **not** in `config.yml`.
+They live in a user-level `~/.picard/secrets.yml`, keyed by the block’s
+`dbServer` field. This keeps `config.yml` safe to commit. Set
+`secrets.yml` up with
+[`setupDbSecretsKeyring()`](https://ohdsi.github.io/Picard/reference/setupDbSecretsKeyring.md)
+/
+[`editSecrets()`](https://ohdsi.github.io/Picard/reference/editSecrets.md)
+— see [Launching a Picard
+Study](https://ohdsi.github.io/Picard/articles/launching_a_study.html#setting-up-database-credentials).
+
+**Fields in a config.yml database block:**
+
+- `dbServer`: Key used to look up credentials in `secrets.yml` (defaults
+  to the block name)
+- `databaseName`: Internal reference name (snake_case with database +
+  snapshot date)
+- `databaseLabel`: Pretty name for output formatting
+- `cdmDatabaseSchema`: Schema containing OMOP CDM tables (format:
+  `schema` or `database.schema`)
+- `vocabDatabaseSchema`: Schema containing vocabulary tables (usually
+  same as `cdmDatabaseSchema`)
+- `workDatabaseSchema`: Schema where the user has write access (for
+  cohort tables and intermediary work)
+- `tempEmulationSchema`: Schema for temp tables on platforms that need
+  it (Snowflake, Oracle)
+- `cohortTable`: Name of the cohort table to create
+
+Blocks are normally added with
+[`makeBlock()`](https://ohdsi.github.io/Picard/reference/makeBlock.md) +
+[`addBlock()`](https://ohdsi.github.io/Picard/reference/addBlock.md)
+rather than hand-edited.
+
+Example `config.yml` with two databases:
+
+``` yaml
+# Exec Config File for Ulysses Repo: my_study
+
+default:
+  projectName: my_study
+  version: 1.0.0
+
+snowflake_prod:
+  dbServer: snowflake_prod
+  databaseName: snowflake_prod_20260101
+  databaseLabel: Snowflake Production
+  cdmDatabaseSchema: omop_schema
+  vocabDatabaseSchema: omop_schema
+  workDatabaseSchema: work_schema
+  tempEmulationSchema: temp_schema
+  cohortTable: my_study_cohorts
+
+postgres_local:
+  dbServer: postgres_local
+  databaseName: postgres_local_20260101
+  databaseLabel: PostgreSQL Local
+  cdmDatabaseSchema: public
+  vocabDatabaseSchema: public
+  workDatabaseSchema: results
+  cohortTable: my_study_pg_cohorts
+```
+
+The matching `~/.picard/secrets.yml` supplies the credentials, one
+top-level key per `dbServer`. Values can be plain strings or `!expr` R
+expressions (e.g. `keyring::key_get(...)`, `Sys.getenv(...)`):
+
+``` yaml
+snowflake_prod:
+  dbms: snowflake
+  connectionString: !expr keyring::key_get("picard", "snowflake_prod_connstr")
+  user: !expr keyring::key_get("picard", "snowflake_prod_user")
+  password: !expr keyring::key_get("picard", "snowflake_prod_password")
+
+postgres_local:
+  dbms: postgresql
+  server: localhost
+  port: 5432
+  user: !expr Sys.getenv("PG_USER")
+  password: !expr Sys.getenv("PG_PASSWORD")
+```
+
+#### main.R
+
+The primary execution script for running the study pipeline in
+production mode. This is the script team members run to execute the full
+study workflow. The Ulysses workflow generates this file based on your
+project configuration.
+
+See [Running the
+Pipeline](https://ohdsi.github.io/Picard/articles/running_the_pipeline.md)
+for detailed information about main.R and the execution workflow.
+
+### Analysis Folder
+
+Contains the study code organized into executable analysis tasks.
+
+#### analysis/tasks/
+
+Individual R scripts that perform analytical steps. Each task is a
+self-contained unit that:
+
+- Loads necessary inputs (cohorts, concept sets, configuration)
+- Performs a specific analytical step
+- Saves results to a standardized output location
+
+**Note:** Cohort generation is a built-in Picard feature handled
+automatically when you run the pipeline. You do not create a cohort
+generation task file. Tasks start after cohorts are generated. See
+[Running the
+Pipeline](https://ohdsi.github.io/Picard/articles/running_the_pipeline.md)
+for details on pipeline execution and cohort generation.
+
+Tasks are named sequentially (01\_, 02\_, etc.) and executed in order:
+
+    analysis/tasks/
+    ├── 01_descriptiveStats.R
+    ├── 02_primaryAnalysis.R
+    ├── 03_sensitivityAnalysis.R
+
+Each task is independent and can be tested individually during
+development using
+[`testStudyTask()`](https://ohdsi.github.io/Picard/reference/testStudyTask.md).
+
+**Task File Format and Validation:**
+
+Picard enforces a standardized task file structure to ensure consistency
+and enable add-on modules to import external task files. Use
+[`makeTaskFile()`](https://ohdsi.github.io/Picard/reference/makeTaskFile.md)
+to create new tasks—it automatically generates files in the correct
+format.
+
+Required task file sections (validated by
+[`validateStudyTask()`](https://ohdsi.github.io/Picard/reference/validateStudyTask.md)):
+
+- **A. Meta:** Metadata about the task (title, author, description,
+  purpose)
+- **B. Dependencies:** Input files or objects required by the task
+- **C. Connection Settings:** Configuration block name and pipeline
+  version (uses template variables `!||configBlock||!` and
+  `!||pipelineVersion||!`)
+- **D. Task Settings:** Setup section where you:
+  - Create
+    `executionSettings <- createExecutionSettingsFromConfig(configBlock = configBlock)`
+  - Create
+    `outputFolder <- setOutputFolder(executionSettings = executionSettings, pipelineVersion = pipelineVersion, taskName = "task_name")`
+- **E. Script:** Actual analysis code that performs the task
+
+**Validation Rules:**
+
+All task files must pass validation before execution:
+
+1.  File must exist and be readable
+2.  All five sections (A, B, C, D, E) must be present
+3.  Template variables `!||configBlock||!` and `!||pipelineVersion||!`
+    must be defined in section C
+4.  Section D must create an `executionSettings` object via
+    [`createExecutionSettingsFromConfig()`](https://ohdsi.github.io/Picard/reference/createExecutionSettingsFromConfig.md)
+5.  Section D must create an `outputFolder` object via
+    [`setOutputFolder()`](https://ohdsi.github.io/Picard/reference/setOutputFolder.md)
+6.  Section E must contain actual code (not just comments or template
+    placeholders)
+
+**Why Validation Matters:**
+
+Standardized task files enable:
+
+- **Consistency:** All tasks follow the same structure across your study
+- **Portability:** Add-on modules and packages can import external tasks
+  that conform to the format
+- **Reproducibility:** Clear documentation of dependencies and
+  configuration
+- **Automation:** The pipeline can reliably execute tasks knowing they
+  meet structural requirements
+
+Example: If you have a task that follows the required format, you could
+import it from another Picard study or an add-on package rather than
+rewriting it.
+
+#### analysis/src/
+
+Reusable functions and helpers for custom logic specific to your study.
+When external packages (like `CohortPrevalence`, `FeatureExtraction`,
+`SelfControlledCaseSeries`) provide the required functionality, use
+those directly—no need for custom helpers. Use `analysis/src/` only for
+functions you’ve written that don’t have a package namespace.
+
+Organize by functionality:
+
+    analysis/src/
+    ├── cohortHelpers.R       # Custom cohort manipulation or validation functions
+    ├── analysisHelpers.R     # Custom statistical or analysis utilities
+    ├── outputHelpers.R       # Custom table formatting or export functions
+    └── diagnostics.R         # Custom validation or diagnostic functions
+
+**Example:** - ✅ Use library functions:
+[`library(CohortPrevalence)`](https://rdrr.io/r/base/library.html) →
+provides `computePrevalence()` - ✅ Write custom helper: You create
+`customPrevalence()` function to run bespoke prevalence tool → save in
+`prevHelpers.R`
+
+**Important:** Functions in `src/` must be sourced in the task files
+that use them. In your task’s section B (Dependencies), source the
+helper files:
+
+``` r
+# Section B. Dependencies
+source(here::here("analysis/src/cohortHelpers.R"))
+source(here::here("analysis/src/outputHelpers.R"))
+```
+
+This ensures all dependencies are explicit and documented, making task
+execution more transparent and reproducible.
+
+#### analysis/migrations/
+
+There is no `analysis/migrations/` folder in current Picard studies —
+post-processing and formatting now happen entirely under
+`dissemination/`, outside the versioned `analysis/` code. After
+[`execStudyPipeline()`](https://ohdsi.github.io/Picard/reference/execStudyPipeline.md)
+finishes,
+[`runPostProcessing()`](https://ohdsi.github.io/Picard/reference/runPostProcessing.md)
+merges raw per-database results into
+`dissemination/export/merge/v{version}/`, and numbered scripts in
+`dissemination/pretty/R/` (created with
+[`makeDisseminationScript()`](https://ohdsi.github.io/Picard/reference/makeDisseminationScript.md),
+run with
+[`sourceDisseminationScripts()`](https://ohdsi.github.io/Picard/reference/sourceDisseminationScripts.md))
+handle the data wrangling and formatting that used to live in migration
+scripts — aggregating, standardizing, pivoting, deriving, and filtering
+results for dissemination. See [Post-Processing and
+Dissemination](https://ohdsi.github.io/Picard/articles/post_processing.md)
+and the [Dissemination Folder](#dissemination-folder) section below for
+the full workflow.
+
+### Inputs Folder
+
+This folder stores cohort definitions and concept sets that define the
+study populations and other components for the analysis.
+
+#### inputs/cohorts/
+
+Cohort definitions defining the study populations. A **cohort** is a set
+of persons who satisfy one or more inclusion criteria for a duration of
+time. In OHDSI research, cohorts are the foundation of observational
+studies.
+
+**Cohort Definition Types:**
+
+1.  **CIRCE-Based Definitions (JSON):** Standard OHDSI approach
+    - Uses CIRCE-BE Java library for standardized representation
+    - Stored as JSON files in `json/` folder
+    - Ensures consistent serialization to SQL: same definition always
+      generates identical populations
+    - Typically imported from ATLAS
+2.  **Custom SQL Definitions:** For specialized logic
+    - Manual SQL queries in `sql/` folder
+    - Used when CIRCE cannot express the logic you need
+3.  **Dependency-Based Cohorts:** Derived from existing cohorts
+    - Subsets of existing cohorts (apply additional inclusion criteria)
+    - Unions of multiple cohorts (combine populations)
+    - Stored in `sql/` folder or as derivative definitions
+
+**Folder Structure:**
+
+    inputs/cohorts/
+    ├── json/
+    │   ├── 001_primaryPopulation.json     # CIRCE-based from ATLAS
+    │   ├── 002_comparativeArm.json        # CIRCE-based from ATLAS
+    │   └── 003_outcomeDefinition.json     # CIRCE-based from ATLAS
+    ├── sql/
+    │   ├── 004_primarySubset.sql          # Subset of cohort 001
+    │   └── 005_combinedPopulation.sql     # Union of cohorts 001 & 002
+    ├── cohortsLoad.csv                    # ATLAS cohorts the study uses
+    └── cohortManifest.sqlite              # Provenance & metadata tracking database
+
+**cohortsLoad.csv:**
+
+A CSV file listing the ATLAS cohorts to bulk-import.
+[`createBlankCohortsLoadFile()`](https://ohdsi.github.io/Picard/reference/createBlankCohortsLoadFile.md)
+scaffolds it; `importAtlasCohorts()` reads it, downloads each cohort’s
+JSON to `json/`, and registers it in the manifest with the
+`label`/`category`/`subCategory` carried onto the cohort as tags. The
+file is kept in the repo and maintained as the record of which ATLAS
+cohorts the study uses.
+
+Columns: - `atlasId`: ATLAS cohort definition ID (integer, e.g., `1`,
+`42`) - `label`: Display name (character, e.g.,
+`"Type 2 Diabetes patients"`) - `category`: Broad grouping (character,
+e.g., `"Disease Populations"`) - `subCategory`: Sub-grouping (character,
+optional, e.g., `"Endocrine"`)
+
+Example:
+
+    atlasId,label,category,subCategory
+    1,Type 2 Diabetes,Disease Populations,Endocrine
+    2,Diabetes Complications,Disease Populations,Endocrine
+
+When loaded, these metadata fields are converted to tags on each cohort
+for later querying (e.g., `$queryCohortsByTag()`,
+`$queryCohortsByLabel()`).
+
+**cohortManifest.sqlite:**
+
+SQLite database created/managed by `CohortManifest` class. Contains
+`cohort_manifest` table tracking all cohort metadata:
+
+| Column | Type | Purpose |
+|----|----|----|
+| `id` | INTEGER PRIMARY KEY | Sequential cohort ID assigned by Picard |
+| `label` | TEXT NOT NULL | Cohort display name (unique among active records) |
+| `category` | TEXT NOT NULL | User classification (e.g., “Disease Populations”) |
+| `tags` | TEXT | Serialized tags (e.g., `"atlasId: 1 \| subCategory: Endocrine"`) |
+| `file_path` | TEXT NOT NULL | Path to the SQL/JSON file, stored **relative to the study repo root** |
+| `hash` | TEXT NOT NULL | Hash of the file **contents** for change detection |
+| `source_type` | TEXT NOT NULL | `'circe'`, `'sql'`, or `'derived'` |
+| `cohort_type` | TEXT NOT NULL | `circe`, `custom`, `custom_derived`, `union`, `subset`, `complement`, `composite`, `oprior`, `tprior`, `censor` |
+| `depends_on` | TEXT | JSON array of parent cohort IDs (derived cohorts only) |
+| `dependency_rule` | TEXT | JSON object of build parameters (derived cohorts only) |
+| `status` | TEXT DEFAULT ‘active’ | `'active'`, `'stale'`, `'deleted'`, or `'purged'` |
+| `created_at` | DATETIME DEFAULT CURRENT_TIMESTAMP | When cohort was added to manifest |
+| `updated_at` | DATETIME DEFAULT CURRENT_TIMESTAMP | Last metadata/definition change |
+| `deleted_at` | DATETIME | Soft-delete timestamp if cohort removed |
+
+**Workflow:**
+
+1.  Initialize the manifest with
+    [`initCohortManifest()`](https://ohdsi.github.io/Picard/reference/initCohortManifest.md)
+    (creates `cohortManifest.sqlite`)
+2.  Register cohorts: bulk-import from ATLAS with `cohortsLoad.csv` +
+    `$importAtlasCohorts()`, or add individually with
+    `$addCirceCohort()`, `$addCaprCohort()`, `$addSqlCohort()`
+3.  Add derived cohorts with the `$build*()` /
+    `$addDependentCustomCohort()` methods
+4.  Call
+    [`loadCohortManifest()`](https://ohdsi.github.io/Picard/reference/loadCohortManifest.md)
+    each session to rebuild the in-memory objects from SQLite
+5.  Loads auto-sync against disk: file hashes are re-checked and drift
+    is flagged
+6.  Use CohortManifest methods to query cohorts: `$getCohortById(1)`,
+    `$queryCohortsByTag("category: Disease Populations")`
+
+**See also:** [Loading
+Inputs](https://ohdsi.github.io/Picard/articles/loading_inputs.md) for
+detailed guidance on creating, importing, and managing cohort manifests.
+
+#### inputs/conceptSets/
+
+Stores CIRCE-based concept set definitions for identifying cohorts and
+extracting covariates:
+
+    inputs/conceptSets/
+    ├── json/
+    │   ├── exposure_antidiabetic.json        # Drug exposure concept set
+    │   ├── outcome_mi.json                   # Condition outcome concept set
+    │   └── covariate_hypertension.json       # Covariate measurement concept set
+    ├── conceptSetsLoad.csv                   # ATLAS concept sets the study uses
+    └── conceptSetManifest.sqlite             # Provenance & metadata tracking database
+
+**conceptSetsLoad.csv:**
+
+Similar to cohortsLoad.csv, this CSV is kept in the repo and lists the
+ATLAS concept sets the study uses, imported via
+`$importAtlasConceptSets()`.
+[`createBlankConceptSetsLoadFile()`](https://ohdsi.github.io/Picard/reference/createBlankConceptSetsLoadFile.md)
+scaffolds it. Columns: - `atlasId`: ATLAS concept set ID (integer, e.g.,
+`456`, `789`) - `label`: Display name (character, e.g.,
+`"Antidiabetic medications"`) - `category`: Broad grouping (character,
+e.g., `"Medications"` or `"Diagnoses"`) - `subCategory`: Optional
+sub-grouping (character, e.g., `"Endocrine Drugs"`) - `domain`: OMOP
+clinical domain (character): `drug_exposure`, `condition_occurrence`,
+`measurement`, `procedure`, `observation`, `device_exposure`,
+`visit_occurrence`, or `init` (not yet classified) - `sourceCode`:
+Rarely used; `TRUE` if the concept set represents source codes instead
+of standard concepts
+
+Example:
+
+    atlasId,label,category,subCategory,sourceCode,domain
+    456,Antidiabetic Medications,Medications,Endocrine,FALSE,drug_exposure
+    789,Acute MI,Diagnoses,Cardiovascular,FALSE,condition_occurrence
+    1001,Hypertension,Diagnoses,Cardiovascular,FALSE,condition_occurrence
+
+When loaded, metadata fields are converted to tags on each concept set
+for querying (e.g., `$getConceptSetsByTag()`,
+`$getConceptSetsByLabel()`).
+
+**conceptSetManifest.sqlite:**
+
+SQLite database created/managed by `ConceptSetManifest` class. Contains
+`concept_set_manifest` table:
+
+| Column | Type | Purpose |
+|----|----|----|
+| `id` | INTEGER PRIMARY KEY | Sequential concept set ID assigned by Picard |
+| `label` | TEXT NOT NULL | Concept set display name |
+| `category` | TEXT NOT NULL | User classification (e.g., “Medications”) |
+| `tags` | TEXT | Serialized tags (e.g., `"atlasId: 456 \| domain: drug_exposure"`) |
+| `file_path` | TEXT NOT NULL | Path to the JSON file, stored **relative to the study repo root** |
+| `hash` | TEXT NOT NULL | Hash of the file **contents** for change detection |
+| `status` | TEXT DEFAULT ‘active’ | `'active'`, `'stale'`, `'deleted'`, or `'purged'` |
+| `created_at` | DATETIME DEFAULT CURRENT_TIMESTAMP | When concept set added to manifest |
+| `updated_at` | DATETIME DEFAULT CURRENT_TIMESTAMP | Last metadata/definition change |
+| `deleted_at` | DATETIME | Soft-delete timestamp if removed |
+
+**Workflow:**
+
+1.  Initialize the manifest with
+    [`initConceptSetManifest()`](https://ohdsi.github.io/Picard/reference/initConceptSetManifest.md)
+    (creates `conceptSetManifest.sqlite`)
+2.  Register concept sets: bulk-import from ATLAS with
+    `conceptSetsLoad.csv` + `$importAtlasConceptSets()`, or add
+    individually with `$addConceptSetFile()`, `$addCaprConceptSet()`, or
+    `$combineConceptSets()`
+3.  Call
+    [`loadConceptSetManifest()`](https://ohdsi.github.io/Picard/reference/loadConceptSetManifest.md)
+    each session to rebuild the in-memory objects from SQLite
+    (auto-syncs against disk)
+4.  Use ConceptSetManifest methods to query: `$getConceptSetById(456)`,
+    `$getConceptSetsByTag("domain: drug_exposure")`
+5.  Extract member/source codes using `$extractIncludedCodes()` /
+    `$extractSourceCodes()` (requires ExecutionSettings)
+
+**See also:** [Loading
+Inputs](https://ohdsi.github.io/Picard/articles/loading_inputs.md) for
+detailed guidance on creating, importing, and managing concept set
+manifests.
+
+### Dissemination Folder
+
+This folder organizes results, evidence outputs, and documentation for
+sharing with stakeholders. Contains four main subdirectories:
+`documents/`, `quarto/`, `export/`, and `pretty/`.
+
+#### dissemination/documents/
+
+Static written reports and supplementary materials (PDFs, Word docs,
+etc.); anything that provides narrative context or detailed information
+for readers but isn’t generated directly from the pipeline. Examples
+include:
+
+    dissemination/documents/
+    ├── mainReport.docx
+    ├── supplementaryMaterial.pdf
+    └── analysisProtocol.md
+
+#### dissemination/quarto/
+
+In Picard, the **Study Hub** is the primary dissemination format for
+sharing results with stakeholders. A Study Hub is an interactive website
+that communicates study objectives, analytical assumptions, and final
+results in a unified, professional HTML format.
+[Quarto](https://quarto.org) is the tool used to construct these Study
+Hub websites, enabling you to weave together narrative text, analysis
+code, and results into linked HTML pages that are reproducible and
+automatically updated when data changes.
+
+Quarto allows you to combine narrative text, R code, and results in
+documents that render to HTML, PDF, or Word. Quarto files (.qmd) contain
+markdown text interspersed with code chunks that execute when the
+document is rendered, automatically embedding results directly into the
+report. This ensures your documentation always reflects the latest data
+and findings.
+
+**Pre-formatted on initialization:** When you initialize a Picard
+project, the `dissemination/quarto/` folder is automatically set up with
+a standard Study Hub structure including template files:
+
+    dissemination/quarto/
+    ├── _quarto.yml           # Quarto configuration for website
+    ├── index.qmd             # Landing page (created from README.md)
+    ├── news.qmd              # News/changelog page (created from NEWS.md)
+    ├── egp.qmd               # Evidence Generation Plan template
+    ├── results.qmd           # Results template for data integration
+    ├── style.css             # Custom CSS styling for the website
+    ├── R/                    # Helper functions directory
+    ├── images/               # Images and figures directory
+    └── _site/                # Rendered HTML output (generated upon build)
+
+Use
+[`buildStudyHub()`](https://ohdsi.github.io/Picard/reference/buildStudyHub.md)
+to render your documentation into the `_site/` folder, which creates the
+final interactive website.
+
+#### dissemination/export/
+
+Raw results merged across databases via
+[`runPostProcessing()`](https://ohdsi.github.io/Picard/reference/runPostProcessing.md),
+one subfolder per pipeline version:
+
+    dissemination/export/
+    └── merge/
+        └── v1.0.0/                     # One folder per pipeline version
+            ├── cohort_counts.csv       # Task results merged across databases
+            ├── characterization.csv    # Task results merged across databases
+            ├── cohortManifestSnapshot.csv  # Reference: cohort metadata at execution
+            ├── databaseInfo.csv        # Reference: database details
+            ├── schema_review.csv       # Schema inspection results
+            ├── qc_cohortValidation.csv # QC: cohort completeness validation
+            └── qc_processMeta.csv      # QC: execution metadata
+
+`runPostProcessing(pipelineVersion, dbIds, ...)` reads raw results from
+`exec/results/` across all databases and tasks for a given version,
+merges each task’s results via
+[`importAndBind()`](https://ohdsi.github.io/Picard/reference/importAndBind.md),
+adds a `databaseId` column, writes the reference/QC files above, and
+reviews schema with
+[`reviewExportSchema()`](https://ohdsi.github.io/Picard/reference/reviewExportSchema.md).
+This folder holds durable, versioned raw exports — it is not touched by
+formatting scripts.
+
+#### dissemination/pretty/
+
+Where merged results get formatted for final release. Dissemination
+scripts live in `pretty/R/`, numbered like tasks, and their output is
+written alongside them by convention:
+
+    dissemination/pretty/
+    ├── R/                          # Dissemination/formatting scripts
+    │   ├── 01_format_results.R     # Created via makeDisseminationScript()
+    │   └── 02_studyHubTables.R
+    ├── mainResults.xlsx            # Formatted output written by a script
+    └── table1_demographics.csv     # Formatted output written by a script
+
+**Workflow:**
+
+1.  **Merge phase:**
+    [`runPostProcessing()`](https://ohdsi.github.io/Picard/reference/runPostProcessing.md)
+    produces the versioned raw results in
+    `dissemination/export/merge/v{version}/` described above.
+2.  **Author phase:** `makeDisseminationScript(name = "format_results")`
+    creates a numbered template in `dissemination/pretty/R/`.
+3.  **Format phase:**
+    [`sourceDisseminationScripts()`](https://ohdsi.github.io/Picard/reference/sourceDisseminationScripts.md)
+    sources every script in `dissemination/pretty/R/` in alphabetical
+    order, injecting a `disseminationEnv` object (`pipelineVersion`,
+    `databaseIds`, `outputPath`, `resultsPath`) so each script can read
+    from `dissemination/export/merge/` and write formatted
+    Excel/CSV/JSON output to `dissemination/pretty/` (or wherever
+    `outputPath` points) — for publication tables, Study Hub data, or
+    both. While authoring a script, call
+    [`createDisseminationEnv()`](https://ohdsi.github.io/Picard/reference/createDisseminationEnv.md)
+    directly to build the same object at the console and run the script
+    line by line before wiring it into the full pipeline.
+
+See [Post-Processing and
+Dissemination](https://ohdsi.github.io/Picard/articles/post_processing.md)
+for the full walkthrough, including QC reports and advanced usage of
+[`importAndBind()`](https://ohdsi.github.io/Picard/reference/importAndBind.md)/[`reviewExportSchema()`](https://ohdsi.github.io/Picard/reference/reviewExportSchema.md)/[`validateCohortResults()`](https://ohdsi.github.io/Picard/reference/validateCohortResults.md).
+
+### Exec Folder
+
+This folder contains execution artifacts and logs from running the
+pipeline. Results are organized by database, pipeline version, and task
+to support parallel development and multi-database studies.
+
+#### exec/results/
+
+Raw results from each pipeline execution, organized hierarchically:
+
+    exec/results/
+    ├── primary_db/                         # Created per config.yml database ID
+    │   ├── 1.0.0/                          # Versioned results (semantic versions)
+    │   │   ├── 00_buildCohorts/
+    │   │   │   ├── cohortCounts.csv
+    │   │   │   ├── cohortResults.csv
+    │   │   │   └── buildLog.txt
+    │   │   ├── 01_descriptiveStats/
+    │   │   │   ├── demographics.csv
+    │   │   │   └── flowchart.csv
+    │   │   ├── 02_surveillance/
+    │   │   │   └── incidenceCounts.csv
+    │   │   └── 03_primaryAnalysis/
+    │   │       └── modelResults.csv
+    │   ├── 1.1.0/                          # Another versioned run
+    │   │   ├── 00_buildCohorts/
+    │   │   └── ...
+    │   └── dev/                            # Development/test results (temporary)
+    │       ├── 00_buildCohorts/
+    │       └── ...
+    └── secondary_db/
+        ├── 1.0.0/
+        └── dev/
+
+**How results are organized:**
+
+- **Database folders:** One folder per database configured in
+  `config.yml`. Database folder name is snake_case version of the
+  `databaseName` from config (e.g., `optum_dod` → `optum_dod/`)
+- **Version folders:** Within each database, results are organized by
+  `pipelineVersion` (e.g., `1.0.0/`, `1.0.1/`). A special `dev/` folder
+  holds temporary test results
+- **Task folders:** Within each version, one folder per task created by
+  [`setOutputFolder()`](https://ohdsi.github.io/Picard/reference/setOutputFolder.md)
+  (e.g., `00_buildCohorts/`, `01_descriptiveStats/`)
+
+**Task file execution:** Each task script in `analysis/tasks/` creates
+an output folder via:
+
+``` r
+outputFolder <- setOutputFolder(
+  executionSettings = executionSettings,
+  pipelineVersion = pipelineVersion,
+  taskName = "00_buildCohorts"
+)
+```
+
+This creates:
+`exec/results/{databaseName}/{pipelineVersion}/{taskName}/` where task
+results (CSVs, logs, etc.) are written.
+
+**Development vs. Production:** - **Development mode** (`test_main.R`):
+Uses `pipelineVersion = "dev"` so results go to
+`exec/results/{db}/dev/`. Results are temporary and don’t interfere with
+versioned runs. - **Production mode** (`main.R`): Uses semantic
+versioning (e.g., `pipelineVersion = "1.0.0"`) so results go to
+`exec/results/{db}/1.0.0/`. Results are retained for post-processing and
+archival.
+
+#### exec/logs/
+
+Pipeline execution logs with timestamps and error details:
+
+    exec/logs/
+    ├── picard_log_1.0.0_20260407_093045.txt
+    ├── picard_log_dev_20260407_094512.txt
+    ├── task_run_history.csv
+    └── picard_log_1.0.1_20260408_140230.txt
+
+### Extras Folder
+
+Reference scripts and development artifacts that support the study but
+aren’t part of the core pipeline.
+
+#### extras/test_main.R
+
+Development variant of main.R for rapid iteration during development.
+Uses
+[`testStudyPipeline()`](https://ohdsi.github.io/Picard/reference/testStudyPipeline.md)
+instead of
+[`execStudyPipeline()`](https://ohdsi.github.io/Picard/reference/execStudyPipeline.md),
+skips validations, and places results in the `dev/` output folder.
+
+See [Running the
+Pipeline](https://ohdsi.github.io/Picard/articles/running_the_pipeline.md)
+for details on using test_main.R.
+
+#### extras/setup.R
+
+Optional setup script for configuring the local environment, installing
+dependencies, or initializing database connections. This provides a
+reference for team members setting up their development environment.
+
+#### extras/
+
+Store additional reference materials, exploration scripts, or
+documentation that team members create during development:
+
+    extras/
+    ├── test_main.R
+    ├── setup.R
+    ├── cohortValidation.R           # Exploration and diagnosis
+    ├── conceptSetReview.R
+    └── AnalysisNotes.md             # Development documentation
+
+## Next Steps
+
+Now that you understand the repository structure, the next steps depend
+on where you are in your project:
+
+1.  **Just initialized a project?** See [Launching a
+    Study](https://ohdsi.github.io/Picard/articles/launching_a_study.md)
+    for how to configure and launch a Picard study.
+
+2.  **Setting up cohorts and concept sets?** See [Loading
+    Inputs](https://ohdsi.github.io/Picard/articles/loading_inputs.md)
+    for working with cohort and concept set manifests.
+
+3.  **Ready to execute analyses?** See [Running the
+    Pipeline](https://ohdsi.github.io/Picard/articles/running_the_pipeline.md)
+    to learn about test mode vs. production execution.
+
+4.  **Processing results?** See [Post-Processing
+    Steps](https://ohdsi.github.io/Picard/articles/post_processing.md)
+    for organizing and exporting results.

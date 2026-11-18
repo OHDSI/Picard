@@ -1,0 +1,902 @@
+# Loading Inputs: Getting Started
+
+## Overview
+
+Before running your study pipeline you need two types of inputs:
+
+- **Cohorts** — study populations, comparators, and outcomes as CIRCE
+  JSON definitions (from ATLAS or Capr) or custom SQL
+- **Concept Sets** — phenotype definitions for diseases, exposures,
+  covariates, etc.
+
+Picard tracks both through *manifests* — SQLite databases that record
+every definition’s file path, MD5 hash, metadata, and provenance. Each
+session you load the manifest into memory; the SQLite file is the
+durable source of truth.
+
+This guide focuses on **loading and registering inputs** for day-to-day
+pipeline use. For mid-cycle operations such as check, update, delete,
+and reset, use the [Manifest
+Management](https://ohdsi.github.io/Picard/articles/manifest_management.md)
+vignette.
+
+------------------------------------------------------------------------
+
+## Pre-Pipeline Builder Scripts
+
+Every picard study is initialized with a set of **builder scripts** in
+dedicated folders under `inputs/`:
+
+- **`inputs/conceptSets/R/`** — Scripts for building concept set
+  manifests
+- **`inputs/cohorts/R/`** — Scripts for building cohort manifests
+
+These scripts are **pre-populated** at project initialization with six
+fixed builder templates. Keep all six scripts in place, including
+builders your study does not use.
+[`sourceInputBuilderScripts()`](https://ohdsi.github.io/Picard/reference/sourceInputBuilderScripts.md)
+validates their names and sources all six in dependency order; it does
+not discover an arbitrary set of scripts.
+
+**When you run `main.R`**, the pipeline sources all six builder scripts
+in a **mandatory dependency order**. This ensures concept sets load
+before cohorts:
+
+- ✅ No manual [`source()`](https://rdrr.io/r/base/source.html) calls
+  needed in `main.R`
+- ✅ Edit the relevant builder templates without changing `main.R`
+- ✅ Each builder script is self-contained with embedded guidance
+  comments
+- ✅ Mandatory source order prevents dependency conflicts
+- ⚠️ Builder scripts must go in `inputs/cohorts/R/` and
+  `inputs/conceptSets/R/` — **NOT** in `analysis/tasks/`
+
+### Available Builder Script Types
+
+#### Concept Sets
+
+| Script | Purpose |
+|----|----|
+| `import_atlas_concept_set.R` | Bulk import concept sets from ATLAS via CSV + connection |
+| `import_capr_concept_set.R` | Build concept sets programmatically using Capr cs() functions |
+
+#### Cohorts
+
+| Script | Purpose |
+|----|----|
+| `import_atlas_cohort.R` | Bulk import cohorts from ATLAS via CSV + connection |
+| `import_capr_cohort.R` | Build cohorts programmatically using Capr library |
+| `import_sql_cohort.R` | Load custom SQL-based cohorts |
+| `build_dependent_cohorts.R` | Create derived cohorts (temporal, union, complement, etc.) |
+
+### Typical Workflow
+
+1.  **Project initializes** with all 6 builder scripts pre-created
+2.  **Keep all 6 scripts** - Do not delete unused builders or add other
+    `.R` files directly to either builder folder
+3.  **Edit the builders you use** - Follow each template’s section
+    comments. ATLAS setup and import steps are commented out; enable
+    them when importing. The import is one-time, so comment that call
+    out after it succeeds. Enable the separate `updateAtlas...()` call
+    if you want registered ATLAS definitions checked on later runs.
+    Capr, SQL, and dependent-cohort templates load or initialize the
+    manifest and show its contents; add definitions by filling in their
+    examples and registration calls
+4.  **Run `main.R`** - All 6 scripts are sourced in mandatory order
+    before cohort generation and analysis tasks. An unused template may
+    still perform manifest setup or review, but it does not register or
+    build definitions unless you add or enable those calls
+5.  **Manifests are ready** - Registered concept sets and cohorts are
+    available to the pipeline
+
+All 6 builder scripts are required.
+[`sourceInputBuilderScripts()`](https://ohdsi.github.io/Picard/reference/sourceInputBuilderScripts.md)
+stops with an error before sourcing anything if one is missing, or if
+`inputs/cohorts/R/` or `inputs/conceptSets/R/` contains any other `.R`
+file, because such a file would never run. Recreate a missing builder
+with
+[`makeInputBuilderScript()`](https://ohdsi.github.io/Picard/reference/makeInputBuilderScript.md),
+and put helper code in a subfolder such as `inputs/cohorts/R/src/`.
+
+If a builder script errors,
+[`sourceInputBuilderScripts()`](https://ohdsi.github.io/Picard/reference/sourceInputBuilderScripts.md)
+stops immediately, so later builders and the pipeline never run on a
+partially built manifest. Pass `stopOnError = FALSE` to warn and
+continue with the remaining scripts instead; the errors are returned in
+`error_summary`.
+
+### Database-Specific Builders
+
+The generated `main.R` and `test_main.R` call
+`sourceInputBuilderScripts(configBlock = dbIds)` before running the
+pipeline, which sources the builder scripts once per config block.
+Because all databases share one manifest, a builder that makes
+database-specific changes (such as resolving the concept ids used in
+custom SQL against each database) leaves the manifest matching only the
+last database.
+
+To avoid this, remove that call and pass `skipInputBuilders = FALSE` to
+[`execStudyPipeline()`](https://ohdsi.github.io/Picard/reference/execStudyPipeline.md)
+or
+[`testStudyPipeline()`](https://ohdsi.github.io/Picard/reference/testStudyPipeline.md).
+The pipeline then sources the builder scripts separately for each config
+block, immediately before generating that block’s cohorts and running
+its tasks.
+
+Before each pass, an `inputBuilderEnv` object is assigned to the global
+environment with the current `configBlock` and the run’s
+`pipelineVersion` (the test namespace in
+[`testStudyPipeline()`](https://ohdsi.github.io/Picard/reference/testStudyPipeline.md)).
+Builder scripts can use it to create execution settings without
+hard-coding either value:
+
+``` r
+executionSettings <- createExecutionSettingsFromConfig(
+  configBlock = inputBuilderEnv$configBlock,
+  pipelineVersion = inputBuilderEnv$pipelineVersion
+)
+cohortManifest$setExecutionSettings(executionSettings)
+```
+
+To run the builders on their own while developing, call
+`sourceInputBuilderScripts(configBlock = "my_database", pipelineVersion = "dev")`;
+`pipelineVersion` defaults to `"prod"`, like
+[`createExecutionSettingsFromConfig()`](https://ohdsi.github.io/Picard/reference/createExecutionSettingsFromConfig.md).
+To run a single builder script interactively, create the object first
+with
+`inputBuilderEnv <- createInputBuilderEnv(configBlock = "my_database")`.
+
+------------------------------------------------------------------------
+
+## Concept Set Import
+
+### Importing Concept Sets from ATLAS
+
+This pattern uses `inputs/conceptSets/R/import_atlas_concept_set.R`.
+
+Prerequisite setup for manifests, load files, and credentials is covered
+in [Launching a Picard
+Study](https://ohdsi.github.io/Picard/articles/launching_a_study.md).
+
+#### Step 1: Connect to ATLAS and import
+
+``` r
+# Credentials are automatically read from ~/.picard/secrets.yml
+atlasConnection <- getAtlasConnection()
+
+conceptSetManifest$setAtlasConnection(atlasConnection)
+
+# Read the CSV file
+conceptSetsLoad <- readr::read_csv(
+  here::here("inputs/conceptSets/conceptSetsLoad.csv"),
+  show_col_types = FALSE
+)
+
+# Import
+conceptSetManifest$importAtlasConceptSets(
+  conceptSetsLoad = conceptSetsLoad,
+  atlasConnection = atlasConnection
+)
+```
+
+This downloads JSON definitions to `inputs/conceptSets/json/` and
+updates your manifest with metadata.
+
+Keep `conceptSetsLoad.csv` in the repo as the record of which ATLAS
+concept sets the study uses. By default, re-importing rows that are
+already registered is an error, so the import only adds new rows; pass
+`stopIfExists = FALSE` to update registered rows in place instead.
+
+**Tip:** You can also pass the dataframe directly without reading from a
+file, which is useful for programmatic workflows.
+
+#### Step 2: Load and review
+
+``` r
+conceptSetManifest <- loadConceptSetManifest()
+conceptSetManifest$tabulateManifest()
+```
+
+**Auto-sync:**
+[`loadConceptSetManifest()`](https://ohdsi.github.io/Picard/reference/loadConceptSetManifest.md)
+scans `inputs/conceptSets/json/` and reconciles it against the database
+— updated hashes are picked up, records whose file has disappeared are
+flagged as missing, and any `.json` file that isn’t already registered
+in the manifest is treated as an orphan and deleted. Register new
+concept sets explicitly (e.g. `$addConceptSetFile()`,
+`$addCaprConceptSet()`, or `importAtlasConceptSets()`) rather than
+dropping JSON files directly into `json/` — an unregistered file will be
+removed the next time the manifest is loaded.
+
+### Other import patterns for Concept Sets
+
+Use this pattern when you want to supplement ATLAS-imported concept sets
+with programmatic Capr definitions, then combine them into one manifest
+entry.
+
+``` r
+library(Capr)
+
+conceptSetManifest <- loadConceptSetManifest()
+
+# Add Capr concept set example 1
+metforminCs <- cs(descendants(1503297), name = "metformin")
+
+conceptSetManifest$addCaprConceptSet(
+  caprConceptSet = metforminCs,
+  label = "Metformin",
+  category = "Diabetes Treatments",
+  tags = list(source = "capr")
+)
+
+# Add Capr concept set example 2
+empagliflozinCs <- cs(
+  descendants(45774751), # empagliflozin
+  name  = "empagliflozin"
+)
+
+conceptSetManifest$addCaprConceptSet(
+  caprConceptSet = empagliflozinCs,
+  label = "Empagliflozin",
+  category = "Diabetes Treatments",
+  tags = list(source = "capr")
+)
+
+# get the ids
+metforminId <- conceptSetManifest$queryConceptSetsByLabel("Metformin")$id
+empagliflozinId <- conceptSetManifest$queryConceptSetsByLabel("Empagliflozin")$id
+
+# Combine concept sets (works for IDs from ATLAS, Capr, or mixed sources)
+conceptSetManifest$combineConceptSets(
+  conceptSetIds = c(metforminId, empagliflozinId),
+  combinedLabel = "Diabetes Treatments",
+  combinedCategory = "Treatment Group",
+  combinedTags = list(owner = "epi_team")
+)
+
+conceptSetManifest$tabulateManifest()
+```
+
+## Cohort Import
+
+### Builder Pattern 1: Importing Cohorts from ATLAS
+
+This pattern uses `inputs/cohorts/R/import_atlas_cohort.R`.
+
+Prerequisite setup for manifests, load files, and credentials is covered
+in [Launching a Picard
+Study](https://ohdsi.github.io/Picard/articles/launching_a_study.md).
+
+#### Step 1: Connect to ATLAS and import
+
+``` r
+# Credentials are automatically read from ~/.picard/secrets.yml
+atlasConnection <- getAtlasConnection()
+
+cohortManifest$setAtlasConnection(atlasConnection)
+
+# Read the CSV file
+cohortsLoad <- readr::read_csv(
+  here::here("inputs/cohorts/cohortsLoad.csv"),
+  show_col_types = FALSE
+)
+
+# Import
+cohortManifest$importAtlasCohorts(
+  cohortsLoad = cohortsLoad,
+  atlasConnection = atlasConnection
+)
+```
+
+Downloads CIRCE JSON definitions to `inputs/cohorts/json/` and records
+each cohort in SQLite.
+
+Keep `cohortsLoad.csv` in the repo as the record of which ATLAS cohorts
+the study uses. By default, re-importing rows that are already
+registered is an error, so the import only adds new rows; pass
+`stopIfExists = FALSE` to update registered rows in place instead.
+
+**Tip:** You can also pass the dataframe directly without reading from a
+file, which is useful for programmatic workflows.
+
+#### Step 2: Load and review
+
+``` r
+cohortManifest <- loadCohortManifest()
+cohortManifest$tabulateManifest()
+```
+
+------------------------------------------------------------------------
+
+### Builder Pattern 2: Capr-Based Building
+
+This pattern uses `inputs/cohorts/R/import_capr_cohort.R` and requires
+the Capr package.
+
+**AI agent support:** study repos ship with a `picard-capr-cohorts`
+skill in `.agent/skills/` that wraps Capr’s own `capr-cohort-generation`
+skill. A coding agent (Claude Code, Copilot, Cursor, …) can generate the
+validated Capr code and append it to the builder script; you review and
+source the script yourself.
+
+Capr provides a fluent interface for building cohort definitions in R:
+
+``` r
+library(Capr)
+
+cohortManifest <- loadCohortManifest()
+
+# ckd concept set 
+ckdCs <- cs(descendants(46271022),  name = "Chronic Kidney Disease")
+t2dCs <- cs(descendants(201826),  name = "Type 2 diabetes")
+
+# Example: Chronic Kidney Disease with no prior Type 2 Diabetes cohort
+# 2 CKD codes 365d apart no prior T2D
+ckdCohort <- cohort(
+  entry = entry(
+    conditionOccurrence(ckdCs,
+      nestedWithAll(
+                    atLeast(
+                        1L,
+                        conditionOccurrence(ckdCs),
+                        aperture = duringInterval(eventStarts(-365, -1))
+                    )
+                )
+    ),
+            observationWindow = continuousObservation(priorDays = 0L, postDays = 0L),
+            primaryCriteriaLimit = "First"
+  ),
+    attrition = attrition(
+            "No T2D on or before index" = withAll(
+                exactly(
+                    0L,
+                    conditionOccurrence(t2dCs),
+                    aperture = duringInterval(eventStarts(-Inf, 0))
+                )
+            ),
+            expressionLimit = "First"
+        ),
+        exit = exit(
+            endStrategy = observationExit()
+        ),
+        era = era(eraDays = 0L)
+)
+
+cohortManifest$addCaprCohort(
+  caprCohort = ckdCohort,
+  label = "Chronic Kidney Disease",
+  category = "Target"
+)
+```
+
+See the [Capr documentation](https://ohdsi.github.io/Capr/) for detailed
+examples.
+
+------------------------------------------------------------------------
+
+### Builder Pattern 3: Custom SQL Cohorts
+
+This pattern uses `inputs/cohorts/R/import_sql_cohort.R`.
+
+Custom SQL cohorts let you define cohorts using hand-written SQL
+queries. Place your SQL files in `inputs/cohorts/sql/`:
+
+``` r
+cohortManifest <- loadCohortManifest()
+
+# Add a custom SQL cohort (the file must already exist in inputs/cohorts/sql/)
+cohortManifest$addSqlCohort(
+  filePath = here::here("inputs/cohorts/sql/my_custom_cohort.sql"),
+  label = "My Custom Cohort",
+  category = "Custom",
+  tags = list(source = "sql")
+)
+```
+
+SQL files must follow SqlRender conventions with parameters prefixed by
+`@`:
+
+``` sql
+-- Cohort: Patients with Type 2 Diabetes
+DELETE FROM @target_database_schema.cohort
+WHERE cohort_definition_id = @target_cohort_id;
+
+INSERT INTO @target_database_schema.cohort
+  (cohort_definition_id, subject_id, cohort_start_date, cohort_end_date)
+SELECT
+  @target_cohort_id as cohort_definition_id,
+  person_id as subject_id,
+  condition_start_date as cohort_start_date,
+  DATEADD(day, 365, condition_start_date) as cohort_end_date
+FROM @cdm_database_schema.condition_occurrence
+WHERE condition_concept_id IN (201820, 443238)
+  AND condition_start_date >= '2015-01-01';
+```
+
+Key SqlRender parameters: - `@target_cohort_id` — The numeric ID for
+your cohort - `@target_database_schema` — The schema where results will
+be written - `@cdm_database_schema` — The CDM database schema location -
+`@vocabulary_database_schema` — The vocabulary schema location
+
+> Always use `DELETE` before `INSERT` to make your cohort idempotent
+> (can be re-run without duplication).
+
+------------------------------------------------------------------------
+
+### Builder Pattern 4: Derived Cohorts
+
+This pattern uses `inputs/cohorts/R/build_dependent_cohorts.R`.
+
+Derived cohorts are relationships between existing base cohorts. All
+base cohorts must be imported first (via ATLAS, Capr, or SQL).
+
+Start by loading the cohort manifest.
+
+``` r
+cohortManifest <- loadCohortManifest()
+```
+
+Assume these base cohorts already exist in your manifest:
+
+- CohortId 1: Chronic Kidney Disease
+- CohortId 2: Type 2 Diabetes
+- CohortId 3: Major Bleeding Outcome
+- CohortId 4: All-Cause Death
+
+For derived builders, prefer passing manifest query rows (entries)
+instead of raw IDs.
+
+``` r
+ckdEntry <- cohortManifest$queryCohortsByLabel(
+  labels = "Chronic Kidney Disease",
+  matchType = "exact"
+)
+
+t2dEntry <- cohortManifest$queryCohortsByLabel(
+  labels = "Type 2 Diabetes",
+  matchType = "exact"
+)
+
+bleedEntry <- cohortManifest$queryCohortsByLabel(
+  labels = "Major Bleeding Outcome",
+  matchType = "exact"
+)
+
+deathEntry <- cohortManifest$queryCohortsByLabel(
+  labels = "All-Cause Death",
+  matchType = "exact"
+)
+```
+
+#### Example 1: Temporal Subset
+
+Build a cohort of CKD patients with a T2D event in a start-date window
+from 365 days before to 0 days after the base cohort start date.
+
+``` r
+startWindow <- createSubsetStartWindow(
+  subsetCohortWindowAnchor = "cohort_start_date",
+  startDays = -365,
+  endDays = 0,
+  baseCohortWindowAnchor = "cohort_start_date"
+)
+
+cohortManifest$buildSubsetCohortTemporal(
+  label = "CKD_With_Prior_T2D",
+  category = "Derived Cohorts",
+  baseCohortEntry = ckdEntry,
+  filterCohortEntry = t2dEntry,
+  startWindow = startWindow
+)
+```
+
+#### Example 2: Union Cohort
+
+Build a cohort that includes anyone in either CKD or T2D.
+
+``` r
+cohortManifest$buildUnionCohort(
+  label = "CKD_or_T2D",
+  category = "Derived Cohorts",
+  cohortEntries = dplyr::bind_rows(ckdEntry, t2dEntry),
+  gapDays = 0L
+)
+```
+
+#### Example 3: Complement Cohort
+
+Build a CKD cohort that excludes patients in T2D.
+
+``` r
+cohortManifest$buildComplementCohort(
+  label = "CKD_Without_T2D",
+  category = "Derived Cohorts",
+  populationCohortEntry = ckdEntry,
+  excludeCohortEntries = t2dEntry
+)
+```
+
+#### Example 4: Composite Cohort
+
+Build a cohort requiring membership in multiple component cohorts
+(intersection style criteria).
+
+``` r
+cohortManifest$buildCompositeCohort(
+  label = "CKD_and_T2D_Composite",
+  category = "Derived Cohorts",
+  criteriaCohortEntries = dplyr::bind_rows(ckdEntry, t2dEntry),
+  minEventCount = 2L,
+  eventSelection = "First"
+)
+```
+
+#### Example 5: Demographic Subset Cohort
+
+Build a demographic subset of CKD patients (for example, age and sex
+criteria).
+
+``` r
+cohortManifest$buildDemographicCohort(
+  label = "CKD_Males_40_to_75",
+  baseCohortEntry = ckdEntry,
+  category = "Derived Cohorts",
+  minAge = 40L,
+  maxAge = 75L,
+  genderConceptIds = c(8507)
+)
+```
+
+#### Example 6: Stratified Cohorts
+
+Split one base cohort into multiple strata plus an automatic
+Unclassified cohort.
+
+``` r
+strata <- list(
+  "Female" = list(genderConceptIds = c(8532)),
+  "Male" = list(genderConceptIds = c(8507)),
+  "Age_65_plus" = list(minAge = 65L)
+)
+
+cohortManifest$buildStratifiedCohorts(
+  baseCohortEntry = ckdEntry,
+  strata = strata,
+  labelPrefix = "CKD",
+  category = "Derived Cohorts"
+)
+```
+
+#### Example 7: O-Prior-T Cohort
+
+Filter outcome events to those with prior target exposure in a 30-day
+lookback window.
+
+``` r
+cohortManifest$buildOPriorT(
+  label = "Outcome_Prior_Target",
+  category = "Derived Cohorts",
+  outcomeCohortEntry = bleedEntry,
+  targetCohortEntry = t2dEntry,
+  mode = "prior",
+  priorTimeWindowDays = 30L
+)
+```
+
+#### Example 8: T-Prior-O Cohort
+
+Filter target events to those with prior outcome occurrence in a 30-day
+lookback window.
+
+``` r
+cohortManifest$buildTPriorO(
+  label = "Target_Prior_Outcome",
+  category = "Derived Cohorts",
+  targetCohortEntry = t2dEntry,
+  outcomeCohortEntry = bleedEntry,
+  mode = "prior",
+  priorTimeWindowDays = 30L
+)
+```
+
+#### Example 9: Censor Cohort
+
+Create a censored version of a target cohort using a censoring event
+cohort.
+
+``` r
+cohortManifest$buildCensorCohort(
+  label = "T2D_Censored_At_Death",
+  category = "Derived Cohorts",
+  targetCohortEntry = t2dEntry,
+  censorCohortEntry = deathEntry
+)
+```
+
+Legacy ID inputs remain supported for backward compatibility, but
+entry-based inputs are recommended for new code.
+
+Build methods shown above: - `buildSubsetCohortTemporal()` -
+`buildUnionCohort()` - `buildComplementCohort()` -
+`buildCompositeCohort()` - `buildDemographicCohort()` -
+`buildStratifiedCohorts()` - `buildOPriorT()` - `buildTPriorO()` -
+`buildCensorCohort()`
+
+See [Manifest
+Management](https://ohdsi.github.io/Picard/articles/manifest_management.md)
+for comprehensive examples of all derived cohort types.
+
+### Build Pattern 5: Custom Dependent SQL Cohorts
+
+Use this pattern when a custom SQL cohort depends on one or more
+previously defined cohorts (for example inclusion/exclusion cohorts).
+This registers the cohort as a dependency-aware derived type
+(`custom_derived`) so execution order, stale detection, and dependency
+hashing are handled automatically.
+
+Like the built-in derived cohort builders (subset, union, etc.), the
+values you supply are rendered into the SQL immediately and the rendered
+file is written to `inputs/cohorts/derived/<label>.sql` — that generated
+file, not your source file, is what’s registered in the manifest. Only
+the connection/schema placeholders (`@target_cohort_id` and friends) are
+left unrendered, for
+[`generateCohorts()`](https://ohdsi.github.io/Picard/reference/generateCohorts.md)
+to fill in at execution time.
+
+``` r
+cohortManifest <- loadCohortManifest()
+
+# Preferred: entries from manifest query results
+inclusionEntry <- cohortManifest$queryCohortsByLabel("Inclusion cohort")
+exclusionEntry <- cohortManifest$queryCohortsByLabel("Exclusion cohort")
+
+cohortManifest$addDependentCustomCohort(
+  filePath = here::here("inputs/cohorts/sql/my_custom_dependent.sql"),
+  label = "Eligible_With_Exclusions",
+  category = "Derived Cohorts",
+  dependentCohortIdList = list(
+    inc_cohort_id = inclusionEntry,
+    exc_cohort_id = exclusionEntry
+  ),
+  # Optional: any other values (not cohort IDs) to render into the SQL too
+  sqlParameters = list(
+    min_days = 30L
+  ),
+  tags = list(owner = "epi_team", source = "custom_sql")
+)
+```
+
+How it works:
+
+- `dependentCohortIdList` is a **named mapping** of SqlRender parameter
+  name to a dependent cohort. Parameter names are flexible (for example
+  `inc_cohort_id`, `exc_cohort_id`, `baseline_cohort_id`).
+  - Preferred: a manifest entry (a data.frame/tibble with an `id`
+    column, as returned by `queryCohortsByLabel()` and similar query
+    methods) — a single row bakes in one ID, a multi-row table bakes in
+    a comma-separated vector of IDs, for `IN (@param)` clauses. Same
+    pattern as `baseCohortEntry`/ `cohortEntries` on the built-in
+    derived builders.
+  - Backward compatible: a raw integer cohort ID (or integer vector).
+  - All referenced cohort IDs must already exist in the manifest, and
+    they become this cohort’s `depends_on` parents for staleness
+    tracking.
+- `sqlParameters` is an optional **named mapping** of SqlRender
+  parameter name to any other value (thresholds, dates, strings, etc.)
+  you want baked into the SQL. These are not treated as cohort
+  dependencies.
+- Both are rendered into the SQL at registration time — not at runtime.
+- When `dependentCohortIdList` entries are manifest entries with a
+  `label` column, those labels (purely for QC) are written into a
+  generated comment header at the top of the derived SQL file — e.g.
+  `inc_cohort_id: id 1001, label Inclusion cohort` — so anyone reading
+  the generated file can see at a glance which cohorts were baked in,
+  without cross-referencing the manifest.
+
+Your SQL file should reference the mapped placeholders:
+
+``` sql
+DELETE FROM @target_database_schema.@target_cohort_table
+WHERE cohort_definition_id = @target_cohort_id;
+
+INSERT INTO @target_database_schema.@target_cohort_table
+  (cohort_definition_id, subject_id, cohort_start_date, cohort_end_date)
+SELECT
+  @target_cohort_id,
+  i.subject_id,
+  i.cohort_start_date,
+  i.cohort_end_date
+FROM @target_database_schema.@target_cohort_table i
+LEFT JOIN @target_database_schema.@target_cohort_table e
+  ON i.subject_id = e.subject_id
+  AND e.cohort_definition_id = @exc_cohort_id
+WHERE i.cohort_definition_id = @inc_cohort_id
+  AND e.subject_id IS NULL;
+```
+
+Required contract for dependent custom SQL:
+
+- Must `DELETE` from `@target_database_schema.@target_cohort_table`
+  using `@target_cohort_id`.
+- Must `INSERT` into `@target_database_schema.@target_cohort_table` with
+  columns
+  `(cohort_definition_id, subject_id, cohort_start_date, cohort_end_date)`.
+
+This ensures custom dependent SQL cohorts behave consistently with other
+derived cohorts in manifest review and pipeline execution.
+
+For dependency internals (dependency graph ordering, `dependency_rule`
+storage, and stale/hash behavior), see [Manifest
+Management](https://ohdsi.github.io/Picard/articles/manifest_management.md).
+
+#### Templating Strategies
+
+A common workflow for custom cohorts is to template the sql file and
+build multiple variations of a custom cohort with the template. When
+doing this the user needs to make two folders:
+
+- `inputs/cohorts/R/src` - folder holding R functions to put templates
+  together
+- `inputs/cohorts/R/src/sql` - folder holding the sql templates to
+  render in the R function.
+
+Here is an example. In a study I needed to create a derived custom
+cohort called a censored complement. First I provide the custom sql I
+need and place it in the `inputs/cohorts/R/src/sql` folder.
+
+``` sql
+/*
+Make a censored complement. This means find all persons who do not have the exclusion ever or
+track them until the day before the exculsion criteria occurs.
+
+For example I want exclude anyone with CKD prior to T2D. But include T2D persons who had CKD after index date
+up till the day before CKD index. 
+*/
+
+DELETE FROM @target_database_schema.@target_cohort_table WHERE cohort_definition_id = @target_cohort_id;
+
+INSERT INTO @target_database_schema.@target_cohort_table (cohort_definition_id, subject_id, cohort_start_date, cohort_end_date)
+
+WITH T1 AS (
+/*
+Find the persons where the exclusion is after the inclusion start date
+Adjust the end date to the day before the combination of three occurs
+*/
+SELECT
+    a.subject_id,
+    a.inc_cohort_start_date AS cohort_start_date,
+    a.exc_cohort_start_date - 1 AS cohort_end_date
+FROM (
+  SELECT
+    inc.subject_id,
+    inc.cohort_start_date AS inc_cohort_start_date,
+    inc.cohort_end_date AS inc_cohort_end_date,
+    exc.cohort_start_date AS exc_cohort_start_date,
+    exc.cohort_end_date AS exc_cohort_end_date,
+    ROW_NUMBER() OVER (PARTITION BY inc.subject_id ORDER BY inc.cohort_start_date) AS rn
+  FROM @target_database_schema.@target_cohort_table inc
+  INNER JOIN @target_database_schema.@target_cohort_table exc
+    ON inc.subject_id = exc.subject_id AND exc.cohort_definition_id = @inc_cohort_id
+  WHERE inc.cohort_definition_id = @exc_cohort_id
+    AND exc.cohort_start_date >= inc.cohort_start_date
+) a
+
+UNION ALL
+
+/*
+Find the persons where the exclusion never occurs to those with the inclusion
+*/
+SELECT
+  pop.subject_id,
+  pop.cohort_start_date,
+  pop.cohort_end_date
+FROM @target_database_schema.@target_cohort_table pop
+LEFT JOIN (
+  SELECT
+    subject_id
+  FROM @target_database_schema.@target_cohort_table
+  WHERE cohort_definition_id IN (@exc_cohort_id)
+  GROUP BY subject_id
+  HAVING COUNT(DISTINCT cohort_definition_id) >= 1
+) excluded
+  ON pop.subject_id = excluded.subject_id
+WHERE pop.cohort_definition_id = @inc_cohort_id
+  AND excluded.subject_id IS NULL
+)
+SELECT
+  @target_cohort_id AS cohort_definition_id,
+  subject_id,
+  cohort_start_date,
+  cohort_end_date
+FROM T1;
+```
+
+Notice that in this template I am using cohorts I have already created
+but building a custom derivation to analyze. I want to do this for
+several inclusion/exclusion pairs in my manifest.
+
+Because `addDependentCustomCohort()` renders
+`dependentCohortIdList`/`sqlParameters` into the SQL and writes the
+result to `inputs/cohorts/derived/<label>.sql` itself, the template file
+in `inputs/cohorts/R/src/sql` can be reused as-is, unmodified, for every
+pair — there’s no need to hand-copy or pre-render it first. I apply this
+sql template in an R function to build each custom derived cohort from
+the manifest:
+
+``` r
+
+buildCensoredComplement <- function(
+  cohortManifest,
+  inclusionEntry,
+  exclusionEntry,
+  inputsDir = here::here("inputs/cohorts/R")
+) {
+
+  sqlTemplatePath <- fs::path(inputsDir, "src/sql/censored_complement.sql")
+
+  cohortLabel <- glue::glue("{inclusionEntry$label[1]} - {exclusionEntry$label[1]} exclusion")
+
+  check_if_there <- is.null(cohortManifest$queryCohortsByLabel(cohortLabel))
+  if (!check_if_there) {
+    cli::cli_alert_warning("Censored Complement {.val {cohortLabel}} already exists. Skipped!")
+  } else {
+    cli::cli_alert_info("Create Censored Complement for {.val {cohortLabel}}")
+    cohortManifest$addDependentCustomCohort(
+      filePath = sqlTemplatePath,
+      label = cohortLabel,
+      category = "Target Sub Pop",
+      dependentCohortIdList = list(
+        inc_cohort_id = inclusionEntry,
+        exc_cohort_id = exclusionEntry
+      )
+    )
+  }
+
+  invisible(cohortLabel)
+}
+```
+
+`addDependentCustomCohort()` reads `sqlTemplatePath`, renders
+`@inc_cohort_id`/ `@exc_cohort_id` with the literal cohort IDs, and
+writes the result to its own generated file under
+`inputs/cohorts/derived/` — so the same template is safely reused across
+calls, since each call produces its own uniquely named output (named
+after `label`), never overwriting the template or another cohort’s file.
+
+This templating strategy can also be applied to `$addSqlCohort`, which
+does *not* render or bake parameters into the file — keep the template
+in `inputs/cohorts/R/src/sql` and pre-render it yourself (for example
+with
+[`SqlRender::render()`](https://ohdsi.github.io/SqlRender/reference/render.html))
+before registering, since `addSqlCohort()` registers whatever file it’s
+given as-is.
+
+------------------------------------------------------------------------
+
+## Subsequent Sessions
+
+After the first-time import, subsequent sessions only need the manifest
+load calls:
+
+``` r
+conceptSetManifest <- loadConceptSetManifest()
+cohortManifest     <- loadCohortManifest()
+```
+
+Both functions read from SQLite and rebuild the in-memory R6 objects. No
+network connection or CSV file is required.
+
+These calls are included in the default builder scripts and run whenever
+the builder scripts are sourced.
+
+------------------------------------------------------------------------
+
+## What’s Next
+
+| Task | Where to go |
+|----|----|
+| Study setup and editable inputs | [Launching a Picard Study](https://ohdsi.github.io/Picard/articles/launching_a_study.md) |
+| Manifest checks, updates, delete, and reset | [Manifest Management](https://ohdsi.github.io/Picard/articles/manifest_management.md) |
+| Running the analysis pipeline | [Running the Pipeline](https://ohdsi.github.io/Picard/articles/running_the_pipeline.md) |
+| Pipeline development and testing | [Developing the Pipeline](https://ohdsi.github.io/Picard/articles/developing_the_pipeline.md) |
+| Creating a new study | [Launching a Picard Study](https://ohdsi.github.io/Picard/articles/launching_a_study.md) |
