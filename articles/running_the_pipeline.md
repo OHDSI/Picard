@@ -107,7 +107,9 @@ Before running production mode:
 4.  **Verify configuration:** Check config.yml for correctness
 5.  **Prepare builder scripts:** Edit and finalize scripts in
     `inputs/cohorts/R/` and `inputs/conceptSets/R/`
-    - Delete unused builders; keep only the ones you need
+    - Keep all 6 required scripts in place. All are sourced; unused
+      templates may still load or initialize a manifest, but do not
+      register or build definitions unless you add or enable those calls
     - See [Loading
       Inputs](https://ohdsi.github.io/Picard/articles/loading_inputs.md)
       for detailed guidance on each builder type
@@ -242,13 +244,13 @@ the run says so and records it:
 - `exec/logs/task_run_history.csv` gains a `commit_sha` and a
   `code_state` column for every task row. `code_state` is one of:
 
-| `code_state`           | Meaning                                                                       |
-|------------------------|-------------------------------------------------------------------------------|
-| `clean`                | Working tree had no uncommitted changes                                       |
-| `dirty-ignored`        | Uncommitted changes existed but fell entirely inside `ignoreUncommittedPaths` |
-| `unverified-skipped`   | Check was skipped with `skipCodeStateCheck = TRUE`                            |
-| `unverified-test-mode` | Test-mode run; code state is never checked                                    |
-| `unrecorded`           | Task run outside the pipeline, or a row written by an older picard version    |
+| `code_state` | Meaning |
+|----|----|
+| `clean` | Working tree had no uncommitted changes |
+| `dirty-ignored` | Uncommitted changes existed but fell entirely inside `ignoreUncommittedPaths` |
+| `unverified-skipped` | Check was skipped with `skipCodeStateCheck = TRUE` |
+| `unverified-test-mode` | Test-mode run; code state is never checked |
+| `unrecorded` | Task run outside the pipeline, or a row written by an older picard version |
 
 So a recorded `commit_sha` never implies the tree matched that commit —
 read it next to `code_state`.
@@ -259,8 +261,9 @@ prints the code state inline for any row that is not `clean`.
 
 Production execution follows five main phases:
 
-1.  **Pre-Pipeline:** Auto-discover and source builder scripts from
-    `inputs/conceptSets/R/` and `inputs/cohorts/R/`
+1.  **Pre-Pipeline:** `main.R` sources the builder scripts from
+    `inputs/conceptSets/R/` and `inputs/cohorts/R/` (or the pipeline
+    sources them per database with `skipInputBuilders = FALSE`)
 
     - Concept set builders run first (importAtlas, importCapr, or
       custom)
@@ -289,17 +292,40 @@ these differ from that record:
 
 - the task file’s own contents;
 - a file the task [`source()`](https://rdrr.io/r/base/source.html)s;
-- the **cohort manifest** — any change to a registered cohort’s
-  *definition*: the rendered SQL of a cohort, a cohort added or removed,
-  or a derived cohort’s build rule. Renaming a cohort or editing its
-  tags does not count;
+- the **cohort manifest** — a cohort added or removed, its definition
+  changed (the rendered SQL, or a derived cohort’s build rule), or its
+  label, category, or tags changed;
+- the **concept set manifest** — a concept set added or removed, its
+  expression edited, or its label, category, or tags changed;
+- the **renv lockfile** (`renv.lock`) — the R version or any package’s
+  version changed;
 - the pipeline version;
 - a previous run that ended in failure.
 
+Metadata counts as well as definitions because tasks often select
+cohorts and concept sets by label, category, or tag (for example,
+merging two medication categories into one changes a task’s output
+without changing any definition).
+
 So after you edit a cohort’s JSON or SQL and regenerate, the next
 pipeline run re-executes every task that had run against the old
-definition. If the manifest hash cannot be computed for any reason,
-tasks are re-run rather than skipped.
+definition. If a manifest or lockfile hash cannot be computed for any
+reason, tasks are re-run rather than skipped.
+
+To bypass change detection, pass `forceRerun`: `TRUE` re-runs every
+task, and a vector of task file names re-runs only those. Forced runs
+are still recorded in the task history.
+
+``` r
+testStudyPipeline(configBlock = "myConfig", forceRerun = TRUE)
+testStudyPipeline(configBlock = "myConfig", forceRerun = "05_baseline_medicines.R")
+testStudyTask("05_baseline_medicines.R", configBlock = "myConfig", forceRerun = TRUE)
+```
+
+A production run
+([`execStudyPipeline()`](https://ohdsi.github.io/Picard/reference/execStudyPipeline.md))
+always increments the pipeline version, and run history is kept per
+version, so every task already re-runs in production.
 
 ## Handling Errors and Failures
 

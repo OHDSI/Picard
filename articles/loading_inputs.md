@@ -31,17 +31,20 @@ dedicated folders under `inputs/`:
   manifests
 - **`inputs/cohorts/R/`** — Scripts for building cohort manifests
 
-These scripts are **pre-populated** at project initialization with
-templates for six different builder types. You choose which builders to
-use by keeping the scripts you need and deleting the ones you do not.
+These scripts are **pre-populated** at project initialization with six
+fixed builder templates. Keep all six scripts in place, including
+builders your study does not use.
+[`sourceInputBuilderScripts()`](https://ohdsi.github.io/Picard/reference/sourceInputBuilderScripts.md)
+validates their names and sources all six in dependency order; it does
+not discover an arbitrary set of scripts.
 
-**When you run `main.R`**, the pipeline automatically discovers and
-sources all remaining builder scripts in a **mandatory dependency
-order**. This ensures concept sets load before cohorts:
+**When you run `main.R`**, the pipeline sources all six builder scripts
+in a **mandatory dependency order**. This ensures concept sets load
+before cohorts:
 
 - ✅ No manual [`source()`](https://rdrr.io/r/base/source.html) calls
   needed in `main.R`
-- ✅ No `main.R` edits required when deleting scripts
+- ✅ Edit the relevant builder templates without changing `main.R`
 - ✅ Each builder script is self-contained with embedded guidance
   comments
 - ✅ Mandatory source order prevents dependency conflicts
@@ -52,47 +55,96 @@ order**. This ensures concept sets load before cohorts:
 
 #### Concept Sets
 
-| Script                       | Purpose                                                       |
-|------------------------------|---------------------------------------------------------------|
-| `import_atlas_concept_set.R` | Bulk import concept sets from ATLAS via CSV + connection      |
-| `import_capr_concept_set.R`  | Build concept sets programmatically using Capr cs() functions |
+| Script | Purpose |
+|----|----|
+| `import_atlas_concept_set.R` | Bulk import concept sets from ATLAS via CSV + connection |
+| `import_capr_concept_set.R` | Build concept sets programmatically using Capr cs() functions |
 
 #### Cohorts
 
-| Script                      | Purpose                                                    |
-|-----------------------------|------------------------------------------------------------|
-| `import_atlas_cohort.R`     | Bulk import cohorts from ATLAS via CSV + connection        |
-| `import_capr_cohort.R`      | Build cohorts programmatically using Capr library          |
-| `import_sql_cohort.R`       | Load custom SQL-based cohorts                              |
+| Script | Purpose |
+|----|----|
+| `import_atlas_cohort.R` | Bulk import cohorts from ATLAS via CSV + connection |
+| `import_capr_cohort.R` | Build cohorts programmatically using Capr library |
+| `import_sql_cohort.R` | Load custom SQL-based cohorts |
 | `build_dependent_cohorts.R` | Create derived cohorts (temporal, union, complement, etc.) |
 
 ### Typical Workflow
 
 1.  **Project initializes** with all 6 builder scripts pre-created
-2.  **Edit the builders you need** - Each script has clear guidance
-    comments
-3.  **Delete unused builders** - Remove scripts you do not need
-4.  **Run `main.R`** -
-    [`sourceInputBuilderScripts()`](https://ohdsi.github.io/Picard/reference/sourceInputBuilderScripts.md)
-    auto-discovers and runs remaining scripts in mandatory order
-5.  **Manifests load** - Your cohorts and concept sets are ready for the
-    pipeline
+2.  **Keep all 6 scripts** - Do not delete unused builders or add other
+    `.R` files directly to either builder folder
+3.  **Edit the builders you use** - Follow each template’s section
+    comments. ATLAS setup and import steps are commented out; enable
+    them when importing. The import is one-time, so comment that call
+    out after it succeeds. Enable the separate `updateAtlas...()` call
+    if you want registered ATLAS definitions checked on later runs.
+    Capr, SQL, and dependent-cohort templates load or initialize the
+    manifest and show its contents; add definitions by filling in their
+    examples and registration calls
+4.  **Run `main.R`** - All 6 scripts are sourced in mandatory order
+    before cohort generation and analysis tasks. An unused template may
+    still perform manifest setup or review, but it does not register or
+    build definitions unless you add or enable those calls
+5.  **Manifests are ready** - Registered concept sets and cohorts are
+    available to the pipeline
 
-Example: If you only use ATLAS for concept sets and Capr for cohorts:
+All 6 builder scripts are required.
+[`sourceInputBuilderScripts()`](https://ohdsi.github.io/Picard/reference/sourceInputBuilderScripts.md)
+stops with an error before sourcing anything if one is missing, or if
+`inputs/cohorts/R/` or `inputs/conceptSets/R/` contains any other `.R`
+file, because such a file would never run. Recreate a missing builder
+with
+[`makeInputBuilderScript()`](https://ohdsi.github.io/Picard/reference/makeInputBuilderScript.md),
+and put helper code in a subfolder such as `inputs/cohorts/R/src/`.
 
-    inputs/conceptSets/R/
-      ✓ import_atlas_concept_set.R
-      ✗ import_capr_concept_set.R (deleted)
+If a builder script errors,
+[`sourceInputBuilderScripts()`](https://ohdsi.github.io/Picard/reference/sourceInputBuilderScripts.md)
+stops immediately, so later builders and the pipeline never run on a
+partially built manifest. Pass `stopOnError = FALSE` to warn and
+continue with the remaining scripts instead; the errors are returned in
+`error_summary`.
 
-    inputs/cohorts/R/
-      ✗ import_atlas_cohort.R (deleted)
-      ✓ import_capr_cohort.R
-      ✗ import_sql_cohort.R (deleted)
-      ✗ build_dependent_cohorts.R (deleted)
+### Database-Specific Builders
 
-When `main.R` runs, only `import_atlas_concept_set.R` and
-`import_capr_cohort.R` source (in order: concept sets first, then
-cohorts).
+The generated `main.R` and `test_main.R` call
+`sourceInputBuilderScripts(configBlock = dbIds)` before running the
+pipeline, which sources the builder scripts once per config block.
+Because all databases share one manifest, a builder that makes
+database-specific changes (such as resolving the concept ids used in
+custom SQL against each database) leaves the manifest matching only the
+last database.
+
+To avoid this, remove that call and pass `skipInputBuilders = FALSE` to
+[`execStudyPipeline()`](https://ohdsi.github.io/Picard/reference/execStudyPipeline.md)
+or
+[`testStudyPipeline()`](https://ohdsi.github.io/Picard/reference/testStudyPipeline.md).
+The pipeline then sources the builder scripts separately for each config
+block, immediately before generating that block’s cohorts and running
+its tasks.
+
+Before each pass, an `inputBuilderEnv` object is assigned to the global
+environment with the current `configBlock` and the run’s
+`pipelineVersion` (the test namespace in
+[`testStudyPipeline()`](https://ohdsi.github.io/Picard/reference/testStudyPipeline.md)).
+Builder scripts can use it to create execution settings without
+hard-coding either value:
+
+``` r
+executionSettings <- createExecutionSettingsFromConfig(
+  configBlock = inputBuilderEnv$configBlock,
+  pipelineVersion = inputBuilderEnv$pipelineVersion
+)
+cohortManifest$setExecutionSettings(executionSettings)
+```
+
+To run the builders on their own while developing, call
+`sourceInputBuilderScripts(configBlock = "my_database", pipelineVersion = "dev")`;
+`pipelineVersion` defaults to `"prod"`, like
+[`createExecutionSettingsFromConfig()`](https://ohdsi.github.io/Picard/reference/createExecutionSettingsFromConfig.md).
+To run a single builder script interactively, create the object first
+with
+`inputBuilderEnv <- createInputBuilderEnv(configBlock = "my_database")`.
 
 ------------------------------------------------------------------------
 
@@ -129,6 +181,11 @@ conceptSetManifest$importAtlasConceptSets(
 
 This downloads JSON definitions to `inputs/conceptSets/json/` and
 updates your manifest with metadata.
+
+Keep `conceptSetsLoad.csv` in the repo as the record of which ATLAS
+concept sets the study uses. By default, re-importing rows that are
+already registered is an error, so the import only adds new rows; pass
+`stopIfExists = FALSE` to update registered rows in place instead.
 
 **Tip:** You can also pass the dataframe directly without reading from a
 file, which is useful for programmatic workflows.
@@ -233,6 +290,11 @@ cohortManifest$importAtlasCohorts(
 
 Downloads CIRCE JSON definitions to `inputs/cohorts/json/` and records
 each cohort in SQLite.
+
+Keep `cohortsLoad.csv` in the repo as the record of which ATLAS cohorts
+the study uses. By default, re-importing rows that are already
+registered is an error, so the import only adds new rows; pass
+`stopIfExists = FALSE` to update registered rows in place instead.
 
 **Tip:** You can also pass the dataframe directly without reading from a
 file, which is useful for programmatic workflows.
@@ -824,18 +886,17 @@ cohortManifest     <- loadCohortManifest()
 Both functions read from SQLite and rebuild the in-memory R6 objects. No
 network connection or CSV file is required.
 
-These calls are included in the default builder scripts and will run
-automatically when `main.R` executes
-[`sourceInputBuilderScripts()`](https://ohdsi.github.io/Picard/reference/sourceInputBuilderScripts.md).
+These calls are included in the default builder scripts and run whenever
+the builder scripts are sourced.
 
 ------------------------------------------------------------------------
 
 ## What’s Next
 
-| Task                                        | Where to go                                                                                   |
-|---------------------------------------------|-----------------------------------------------------------------------------------------------|
-| Study setup and editable inputs             | [Launching a Picard Study](https://ohdsi.github.io/Picard/articles/launching_a_study.md)      |
-| Manifest checks, updates, delete, and reset | [Manifest Management](https://ohdsi.github.io/Picard/articles/manifest_management.md)         |
-| Running the analysis pipeline               | [Running the Pipeline](https://ohdsi.github.io/Picard/articles/running_the_pipeline.md)       |
-| Pipeline development and testing            | [Developing the Pipeline](https://ohdsi.github.io/Picard/articles/developing_the_pipeline.md) |
-| Creating a new study                        | [Launching a Picard Study](https://ohdsi.github.io/Picard/articles/launching_a_study.md)      |
+| Task | Where to go |
+|----|----|
+| Study setup and editable inputs | [Launching a Picard Study](https://ohdsi.github.io/Picard/articles/launching_a_study.md) |
+| Manifest checks, updates, delete, and reset | [Manifest Management](https://ohdsi.github.io/Picard/articles/manifest_management.md) |
+| Running the analysis pipeline | [Running the Pipeline](https://ohdsi.github.io/Picard/articles/running_the_pipeline.md) |
+| Pipeline development and testing | [Developing the Pipeline](https://ohdsi.github.io/Picard/articles/developing_the_pipeline.md) |
+| Creating a new study | [Launching a Picard Study](https://ohdsi.github.io/Picard/articles/launching_a_study.md) |

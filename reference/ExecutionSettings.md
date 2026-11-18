@@ -28,7 +28,7 @@ An R6 class to define an ExecutionSettings object
 
 ### Public methods
 
-- [`ExecutionSettings$new()`](#method-ExecutionSettings-new)
+- [`ExecutionSettings$new()`](#method-ExecutionSettings-initialize)
 
 - [`ExecutionSettings$getDbms()`](#method-ExecutionSettings-getDbms)
 
@@ -44,7 +44,7 @@ An R6 class to define an ExecutionSettings object
 
 ------------------------------------------------------------------------
 
-### Method `new()`
+### `ExecutionSettings$new()`
 
 #### Usage
 
@@ -92,7 +92,7 @@ An R6 class to define an ExecutionSettings object
 
 ------------------------------------------------------------------------
 
-### Method `getDbms()`
+### `ExecutionSettings$getDbms()`
 
 Extract the DBMS dialect
 
@@ -110,7 +110,7 @@ Character. The DBMS type (e.g., "postgresql", "snowflake")
 
 ------------------------------------------------------------------------
 
-### Method `connect()`
+### `ExecutionSettings$connect()`
 
 Connect to DBMS using connectionDetails
 
@@ -130,7 +130,7 @@ Invisible NULL
 
 ------------------------------------------------------------------------
 
-### Method `disconnect()`
+### `ExecutionSettings$disconnect()`
 
 Disconnect from DBMS
 
@@ -149,7 +149,7 @@ Invisible NULL
 
 ------------------------------------------------------------------------
 
-### Method [`getConnection()`](https://rdrr.io/r/base/showConnections.html)
+### `ExecutionSettings$getConnection()`
 
 Retrieve the active connection object
 
@@ -165,11 +165,11 @@ database operations.
 
 #### Returns
 
-DatabaseConnectorJdbcConnection or NULL
+DatabaseConnectorConnection or NULL
 
 ------------------------------------------------------------------------
 
-### Method `reviewConnectionDetails()`
+### `ExecutionSettings$reviewConnectionDetails()`
 
 Return the configured connectionDetails object
 
@@ -183,7 +183,7 @@ A DatabaseConnector connectionDetails object or NULL.
 
 ------------------------------------------------------------------------
 
-### Method `clone()`
+### `ExecutionSettings$clone()`
 
 The objects of this class are cloneable with this method.
 

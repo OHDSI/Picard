@@ -3,7 +3,7 @@
 Loads the cohort manifest and returns
 [CohortManifest\$getManifestHash()](https://ohdsi.github.io/Picard/reference/CohortManifest.md),
 a SHA256 digest over every registered (`active`/`stale`) cohort's
-definition. Used by
+definition and metadata (label, category, tags). Used by
 [`shouldRerunTask()`](https://ohdsi.github.io/Picard/reference/shouldRerunTask.md)
 to detect cohort changes that require a task rerun.
 
@@ -29,8 +29,8 @@ be read.
 ## Details
 
 A thin wrapper around the manifest method, which is the single source of
-truth for what "the cohort definitions changed" means. The load is
-read-only (`autoSync = FALSE`), so this has no side effects. Any failure
-to load or hash the manifest returns `NA_character_`;
+truth for what "the cohorts changed" means. The load is read-only
+(`autoSync = FALSE`), so this has no side effects. Any failure to load
+or hash the manifest returns `NA_character_`;
 [`shouldRerunTask()`](https://ohdsi.github.io/Picard/reference/shouldRerunTask.md)
 treats that as "cannot prove unchanged" and forces the rerun.

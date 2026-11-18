@@ -15,7 +15,9 @@ execute_pipeline(
   ignoreUncommittedPaths = NULL,
   skipCodeStateCheck = FALSE,
   env = rlang::caller_env(),
-  pipelineVersionOverride = NULL
+  pipelineVersionOverride = NULL,
+  forceRerun = FALSE,
+  skipInputBuilders = TRUE
 )
 ```
 
@@ -66,6 +68,23 @@ execute_pipeline(
   Character. Optional test-mode override for the pipeline version (the
   test namespace). Drives the cohort-table suffix, the results folder,
   and the task-history namespace via the run's `ExecutionContext`.
+
+- forceRerun:
+
+  Logical or character. `TRUE` reruns every task, bypassing change
+  detection
+  ([`shouldRerunTask()`](https://ohdsi.github.io/Picard/reference/shouldRerunTask.md));
+  a character vector of task file names (e.g.
+  `"05_baseline_medicines.R"`) reruns only those. Forced runs are still
+  recorded in `exec/logs/task_run_history.csv`. Default: `FALSE`
+
+- skipInputBuilders:
+
+  Logical. If TRUE (default), the input builder scripts are not sourced;
+  call
+  [`sourceInputBuilderScripts()`](https://ohdsi.github.io/Picard/reference/sourceInputBuilderScripts.md)
+  before the pipeline instead. If FALSE, they are sourced for each
+  config block before that block's cohorts are generated.
 
 ## Value
 

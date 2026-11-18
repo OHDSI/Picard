@@ -1,11 +1,5 @@
 # CohortDef R6 Class
 
-CohortDef R6 Class
-
-CohortDef R6 Class
-
-## Details
-
 An R6 class that stores key information about cohorts managed by the
 CohortManifest. Each CohortDef is a pointer to a file on disk (JSON or
 SQL) with associated metadata.
@@ -35,7 +29,7 @@ identify the generated SQL.
 
 ### Public methods
 
-- [`CohortDef$new()`](#method-CohortDef-new)
+- [`CohortDef$new()`](#method-CohortDef-initialize)
 
 - [`CohortDef$getFilePath()`](#method-CohortDef-getFilePath)
 
@@ -67,7 +61,7 @@ identify the generated SQL.
 
 ------------------------------------------------------------------------
 
-### Method `new()`
+### `CohortDef$new()`
 
 Initialize a new CohortDef
 
@@ -101,7 +95,7 @@ Initialize a new CohortDef
 
 ------------------------------------------------------------------------
 
-### Method `getFilePath()`
+### `CohortDef$getFilePath()`
 
 #### Usage
 
@@ -114,7 +108,7 @@ the current working directory. Get the file path for display
 
 ------------------------------------------------------------------------
 
-### Method `getDisplayPath()`
+### `CohortDef$getDisplayPath()`
 
 #### Usage
 
@@ -134,7 +128,7 @@ Character. A human-facing path. Get the generated SQL
 
 ------------------------------------------------------------------------
 
-### Method `getSql()`
+### `CohortDef$getSql()`
 
 #### Usage
 
@@ -146,7 +140,7 @@ Character. The SQL definition of the cohort. Get the file hash
 
 ------------------------------------------------------------------------
 
-### Method `getFileHash()`
+### `CohortDef$getFileHash()`
 
 #### Usage
 
@@ -158,7 +152,7 @@ Character. MD5 hash of the raw file content on disk. Get the SQL hash
 
 ------------------------------------------------------------------------
 
-### Method `getSqlHash()`
+### `CohortDef$getSqlHash()`
 
 #### Usage
 
@@ -171,7 +165,7 @@ standardized). Get the cohort ID
 
 ------------------------------------------------------------------------
 
-### Method `getId()`
+### `CohortDef$getId()`
 
 #### Usage
 
@@ -184,7 +178,7 @@ Integer. The cohort ID, or NA_integer\_ if not set. Set the cohort ID
 
 ------------------------------------------------------------------------
 
-### Method `setId()`
+### `CohortDef$setId()`
 
 #### Usage
 
@@ -198,7 +192,7 @@ Integer. The cohort ID, or NA_integer\_ if not set. Set the cohort ID
 
 ------------------------------------------------------------------------
 
-### Method `formatTagsAsString()`
+### `CohortDef$formatTagsAsString()`
 
 #### Usage
 
@@ -211,7 +205,7 @@ cohort type
 
 ------------------------------------------------------------------------
 
-### Method `getCohortType()`
+### `CohortDef$getCohortType()`
 
 #### Usage
 
@@ -225,7 +219,7 @@ the cohort type (internal use)
 
 ------------------------------------------------------------------------
 
-### Method `setCohortType()`
+### `CohortDef$setCohortType()`
 
 #### Usage
 
@@ -241,7 +235,7 @@ the cohort type (internal use)
 
 ------------------------------------------------------------------------
 
-### Method `getSourceType()`
+### `CohortDef$getSourceType()`
 
 #### Usage
 
@@ -253,7 +247,7 @@ Character. One of 'atlas', 'capr', 'sql', 'derived'. Get the category
 
 ------------------------------------------------------------------------
 
-### Method `getCategory()`
+### `CohortDef$getCategory()`
 
 #### Usage
 
@@ -266,7 +260,7 @@ Set the category
 
 ------------------------------------------------------------------------
 
-### Method `setCategory()`
+### `CohortDef$setCategory()`
 
 #### Usage
 
@@ -280,7 +274,7 @@ Set the category
 
 ------------------------------------------------------------------------
 
-### Method `clone()`
+### `CohortDef$clone()`
 
 The objects of this class are cloneable with this method.
 

@@ -16,7 +16,7 @@ Study code and task files never construct it directly.
 
 ### Public methods
 
-- [`ExecutionContext$new()`](#method-ExecutionContext-new)
+- [`ExecutionContext$new()`](#method-ExecutionContext-initialize)
 
 - [`ExecutionContext$getMode()`](#method-ExecutionContext-getMode)
 
@@ -34,7 +34,7 @@ Study code and task files never construct it directly.
 
 ------------------------------------------------------------------------
 
-### Method `new()`
+### `ExecutionContext$new()`
 
 #### Usage
 
@@ -92,7 +92,7 @@ Study code and task files never construct it directly.
 
 ------------------------------------------------------------------------
 
-### Method `getMode()`
+### `ExecutionContext$getMode()`
 
 #### Usage
 
@@ -104,7 +104,7 @@ Character. Execution mode, either `"test"` or `"production"`.
 
 ------------------------------------------------------------------------
 
-### Method `getPipelineVersion()`
+### `ExecutionContext$getPipelineVersion()`
 
 #### Usage
 
@@ -116,7 +116,7 @@ Character. Normalized execution pipelineVersion.
 
 ------------------------------------------------------------------------
 
-### Method `getStudyVersion()`
+### `ExecutionContext$getStudyVersion()`
 
 #### Usage
 
@@ -128,7 +128,7 @@ Character or `NULL`. Associated production study version.
 
 ------------------------------------------------------------------------
 
-### Method `getCohortTable()`
+### `ExecutionContext$getCohortTable()`
 
 #### Usage
 
@@ -141,7 +141,7 @@ Character or `NULL`. Effective cohort table name for this execution, or
 
 ------------------------------------------------------------------------
 
-### Method `deriveCohortTable()`
+### `ExecutionContext$deriveCohortTable()`
 
 Apply this run's mode and namespace to a configured base cohort table.
 Production returns the base table unchanged; test appends the normalized
@@ -164,7 +164,7 @@ Character. The effective cohort table name for this execution.
 
 ------------------------------------------------------------------------
 
-### Method `getResultsPath()`
+### `ExecutionContext$getResultsPath()`
 
 #### Usage
 
@@ -190,7 +190,7 @@ Character. Absolute result path for the supplied task.
 
 ------------------------------------------------------------------------
 
-### Method `clone()`
+### `ExecutionContext$clone()`
 
 The objects of this class are cloneable with this method.
 

@@ -82,6 +82,8 @@ Functions for creating new objects (create\*)
   : Create an ExecutionSettings object and set its attributes
 - [`createExecutionSettingsFromConfig()`](https://ohdsi.github.io/Picard/reference/createExecutionSettingsFromConfig.md)
   : Create ExecutionSettings from Config Block
+- [`createInputBuilderEnv()`](https://ohdsi.github.io/Picard/reference/createInputBuilderEnv.md)
+  : Create an Input Builder Environment Object
 - [`createPullRequest()`](https://ohdsi.github.io/Picard/reference/createPullRequest.md)
   : Create Pull Request Metadata
 - [`createSubsetEndWindow()`](https://ohdsi.github.io/Picard/reference/createSubsetEndWindow.md)

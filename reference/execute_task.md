@@ -14,6 +14,8 @@ execute_task(
   codeState = NULL,
   logFilePath = NULL,
   cohortManifestHash = NULL,
+  conceptSetManifestHash = NULL,
+  renvLockHash = NULL,
   executionContext = NULL
 )
 ```
@@ -72,6 +74,18 @@ execute_task(
   [`execute_pipeline()`](https://ohdsi.github.io/Picard/reference/execute_pipeline.md)
   computes it once and passes it in so the manifest is not re-loaded for
   every task. Recorded with the run and used for the rerun check.
+
+- conceptSetManifestHash:
+
+  Character or NULL. Pre-computed concept set manifest hash (see
+  [`.getConceptSetManifestHash()`](https://ohdsi.github.io/Picard/reference/dot-getConceptSetManifestHash.md)).
+  Handled the same way as `cohortManifestHash`.
+
+- renvLockHash:
+
+  Character or NULL. Pre-computed renv lockfile hash (see
+  [`.getRenvLockHash()`](https://ohdsi.github.io/Picard/reference/dot-getRenvLockHash.md)).
+  Handled the same way as `cohortManifestHash`.
 
 - executionContext:
 

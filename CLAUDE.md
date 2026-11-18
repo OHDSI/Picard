@@ -119,7 +119,8 @@ belongs as a method on an existing class before adding a free function.
   `secrets.yml` (default `~/.picard/secrets.yml`), never in the study
   repo. Supports `!expr` YAML tags
   (e.g. [`Sys.getenv()`](https://rdrr.io/r/base/Sys.getenv.html),
-  `keyring::key_get()`) resolved via `resolveSecretValue()`.
+  [`keyring::key_get()`](https://keyring.r-lib.org/reference/key_get.html))
+  resolved via `resolveSecretValue()`.
 - **`R/git.R`** — git workflow helpers
   ([`saveWork()`](https://ohdsi.github.io/Picard/reference/saveWork.md),
   [`agentSaveWork()`](https://ohdsi.github.io/Picard/reference/agentSaveWork.md),

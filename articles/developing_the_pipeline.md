@@ -42,7 +42,9 @@ renv::init() # done in the project root directory
 This captures your current R environment, ensuring reproducibility for
 your team. You should set up renv on main before switching to develop,
 so that your development branch inherits the same environment. After
-running `renv::init()`, commit the changes to Git:
+running
+[`renv::init()`](https://rstudio.github.io/renv/reference/init.html),
+commit the changes to Git:
 
 ## Step 2: Create Your Development Branch
 
@@ -590,17 +592,17 @@ release branch and running the full validated pipeline.
 
 ## Quick Reference: Key Functions by Phase
 
-| Phase           | Function                                                                                                         | Purpose                                                            |
-|-----------------|------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------|
-| **Setup**       | [`createBlankCohortsLoadFile()`](https://ohdsi.github.io/Picard/reference/createBlankCohortsLoadFile.md)         | Scaffold `inputs/cohorts/cohortsLoad.csv` for ATLAS import         |
-| **Setup**       | [`createBlankConceptSetsLoadFile()`](https://ohdsi.github.io/Picard/reference/createBlankConceptSetsLoadFile.md) | Scaffold `inputs/conceptSets/conceptSetsLoad.csv` for ATLAS import |
-| **Development** | [`makeTaskFile()`](https://ohdsi.github.io/Picard/reference/makeTaskFile.md)                                     | Create new analysis task                                           |
-| **Development** | [`makeSrcFile()`](https://ohdsi.github.io/Picard/reference/makeSrcFile.md)                                       | (optional) Create utility/helper function file                     |
-| **Development** | [`makeSrcSqlFile()`](https://ohdsi.github.io/Picard/reference/makeSrcSqlFile.md)                                 | (optional) Create parameterized SQL query file                     |
-| **Development** | [`saveWork()`](https://ohdsi.github.io/Picard/reference/saveWork.md)                                             | Commit and push code changes to remote                             |
-| **Testing**     | [`testStudyTask()`](https://ohdsi.github.io/Picard/reference/testStudyTask.md)                                   | Test single task file                                              |
-| **Testing**     | [`testStudyPipeline()`](https://ohdsi.github.io/Picard/reference/testStudyPipeline.md)                           | Test full pipeline end-to-end                                      |
-| **Production**  | See Running the Pipeline                                                                                         | Execute on release branch                                          |
+| Phase | Function | Purpose |
+|----|----|----|
+| **Setup** | [`createBlankCohortsLoadFile()`](https://ohdsi.github.io/Picard/reference/createBlankCohortsLoadFile.md) | Scaffold `inputs/cohorts/cohortsLoad.csv` for ATLAS import |
+| **Setup** | [`createBlankConceptSetsLoadFile()`](https://ohdsi.github.io/Picard/reference/createBlankConceptSetsLoadFile.md) | Scaffold `inputs/conceptSets/conceptSetsLoad.csv` for ATLAS import |
+| **Development** | [`makeTaskFile()`](https://ohdsi.github.io/Picard/reference/makeTaskFile.md) | Create new analysis task |
+| **Development** | [`makeSrcFile()`](https://ohdsi.github.io/Picard/reference/makeSrcFile.md) | (optional) Create utility/helper function file |
+| **Development** | [`makeSrcSqlFile()`](https://ohdsi.github.io/Picard/reference/makeSrcSqlFile.md) | (optional) Create parameterized SQL query file |
+| **Development** | [`saveWork()`](https://ohdsi.github.io/Picard/reference/saveWork.md) | Commit and push code changes to remote |
+| **Testing** | [`testStudyTask()`](https://ohdsi.github.io/Picard/reference/testStudyTask.md) | Test single task file |
+| **Testing** | [`testStudyPipeline()`](https://ohdsi.github.io/Picard/reference/testStudyPipeline.md) | Test full pipeline end-to-end |
+| **Production** | See Running the Pipeline | Execute on release branch |
 
 ## See Also
 

@@ -43,7 +43,7 @@ study contributors.
 
 ### Public methods
 
-- [`ContributorLine$new()`](#method-ContributorLine-new)
+- [`ContributorLine$new()`](#method-ContributorLine-initialize)
 
 - [`ContributorLine$printContributorLine()`](#method-ContributorLine-printContributorLine)
 
@@ -51,7 +51,7 @@ study contributors.
 
 ------------------------------------------------------------------------
 
-### Method `new()`
+### `ContributorLine$new()`
 
 Initialize a new ContributorLine instance.
 
@@ -79,7 +79,7 @@ Invisibly returns self.
 
 ------------------------------------------------------------------------
 
-### Method `printContributorLine()`
+### `ContributorLine$printContributorLine()`
 
 Generate a formatted string representation of the contributor.
 
@@ -93,7 +93,7 @@ Character string with formatted contributor information.
 
 ------------------------------------------------------------------------
 
-### Method `clone()`
+### `ContributorLine$clone()`
 
 The objects of this class are cloneable with this method.
 

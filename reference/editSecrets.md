@@ -1,8 +1,9 @@
 # Edit the secrets.yml file
 
 Opens the secrets file in the user's editor (like
-`usethis::edit_r_environ()`). If the file doesn't exist, creates a
-minimal skeleton with just a header comment, then opens it for editing.
+[`usethis::edit_r_environ()`](https://usethis.r-lib.org/reference/edit.html)).
+If the file doesn't exist, creates a minimal skeleton with just a header
+comment, then opens it for editing.
 
 ## Usage
 

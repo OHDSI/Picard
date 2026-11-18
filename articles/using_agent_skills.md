@@ -23,12 +23,12 @@ the skills** — step-by-step engagement
 
 You need an IDE with built-in agent capabilities:
 
-| Editor         | Agent             | Setup                                                                                                     |
-|----------------|-------------------|-----------------------------------------------------------------------------------------------------------|
-| VS Code        | GitHub Copilot    | [Install Copilot Chat extension](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot-chat) |
-| VS Code        | Claude Code       | [Install Claude extension](https://marketplace.visualstudio.com/items?itemName=Claude.claude)             |
-| JetBrains IDEs | Copilot or Claude | Built-in or via marketplace                                                                               |
-| Cursor         | Built-in          | Cursor IDE comes with agent pre-configured                                                                |
+| Editor | Agent | Setup |
+|----|----|----|
+| VS Code | GitHub Copilot | [Install Copilot Chat extension](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot-chat) |
+| VS Code | Claude Code | [Install Claude extension](https://marketplace.visualstudio.com/items?itemName=Claude.claude) |
+| JetBrains IDEs | Copilot or Claude | Built-in or via marketplace |
+| Cursor | Built-in | Cursor IDE comes with agent pre-configured |
 
 **For this vignette**, we use **GitHub Copilot** and **Claude Code** as
 examples (both work with Picard skills).

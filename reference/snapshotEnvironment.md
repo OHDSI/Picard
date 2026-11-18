@@ -14,7 +14,7 @@ snapshotEnvironment(versionLabel = NULL, savePath = NULL)
 - versionLabel:
 
   Character. Optional label for the snapshot (e.g., "v1.0.0"). Used in
-  saved filename: renv_lock_versionLabel.json
+  saved filename: `renv_lock_{versionLabel}.json`
 
 - savePath:
 

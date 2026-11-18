@@ -255,7 +255,11 @@ sourceDisseminationScripts(
 ```
 
 Scripts are numbered (01\_, 02\_, etc.) and sourced in alphabetical
-order.
+order. If a script errors,
+[`sourceDisseminationScripts()`](https://ohdsi.github.io/Picard/reference/sourceDisseminationScripts.md)
+stops immediately so `main.R` cannot carry on with partial output. Pass
+`stopOnError = FALSE` to warn and continue with the remaining scripts
+instead; the errors are returned in `error_summary`.
 
 ## Integration into main.R
 

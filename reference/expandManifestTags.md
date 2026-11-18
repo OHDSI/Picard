@@ -49,11 +49,15 @@ This function:
 **Example:** Input dataframe:
 
     id | label | tags
+
     1  | CS1   | {"category":"drug","subCategory":"steroid","domain":"drug_exposure"}
+
     2  | CS2   | {"category":"covariate","domain":"condition_occurrence"}
 
 Output dataframe:
 
     id | label | category  | subCategory | domain
+
     1  | CS1   | drug      | steroid     | drug_exposure
+
     2  | CS2   | covariate | NA          | condition_occurrence

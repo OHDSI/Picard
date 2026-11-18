@@ -17,6 +17,7 @@ runPreflightChecks(
   skipConnectivityCheck = TRUE,
   ignoreUncommittedPaths = NULL,
   skipCodeStateCheck = FALSE,
+  skipInputBuilders = TRUE,
   resultsPath = here::here("exec/results"),
   tasksFolderPath = here::here("analysis/tasks")
 )
@@ -58,6 +59,12 @@ runPreflightChecks(
   Logical. If TRUE, the code-state check is skipped entirely — a last
   resort. The run is still allowed, but the checklist and the run
   history record that the working tree was never verified.
+
+- skipInputBuilders:
+
+  Logical. If FALSE, the pipeline sources the input builder scripts,
+  which create the cohort manifest, so a missing manifest is only a
+  warning. If TRUE (default), a missing manifest fails.
 
 - resultsPath:
 

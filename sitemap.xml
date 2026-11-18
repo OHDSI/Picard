@@ -52,6 +52,7 @@
 <url><loc>https://ohdsi.github.io/Picard/reference/createDisseminationEnv.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/reference/createExecutionSettings.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/reference/createExecutionSettingsFromConfig.html</loc></url>
+<url><loc>https://ohdsi.github.io/Picard/reference/createInputBuilderEnv.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/reference/createPullRequest.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/reference/createSubsetEndWindow.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/reference/createSubsetStartWindow.html</loc></url>
@@ -60,11 +61,15 @@
 <url><loc>https://ohdsi.github.io/Picard/reference/documentDependencies.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/reference/dot-checkCohortHashChanges.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/reference/dot-checkDependencyChanges.html</loc></url>
+<url><loc>https://ohdsi.github.io/Picard/reference/dot-compareRecordedHash.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/reference/dot-createEmptyHistory.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/reference/dot-ensureHistoryColumns.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/reference/dot-getCohortManifestHash.html</loc></url>
+<url><loc>https://ohdsi.github.io/Picard/reference/dot-getConceptSetManifestHash.html</loc></url>
+<url><loc>https://ohdsi.github.io/Picard/reference/dot-getRenvLockHash.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/reference/dot-initializeTaskHistory.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/reference/dot-readTaskHistory.html</loc></url>
+<url><loc>https://ohdsi.github.io/Picard/reference/dot-resolveForcedTasks.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/reference/editSecrets.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/reference/execStudyPipeline.html</loc></url>
 <url><loc>https://ohdsi.github.io/Picard/reference/execStudyTask.html</loc></url>

@@ -12,7 +12,8 @@ testStudyTask(
   taskFile,
   configBlock,
   pipelineVersion = "dev",
-  env = rlang::caller_env()
+  env = rlang::caller_env(),
+  forceRerun = FALSE
 )
 ```
 
@@ -38,6 +39,12 @@ testStudyTask(
 - env:
 
   The execution environment. Defaults to caller environment.
+
+- forceRerun:
+
+  Logical. If `TRUE`, runs the task even when
+  [`shouldRerunTask()`](https://ohdsi.github.io/Picard/reference/shouldRerunTask.md)
+  finds nothing has changed. Default: `FALSE`
 
 ## Value
 

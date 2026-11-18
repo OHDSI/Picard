@@ -77,7 +77,7 @@ study components.
 
 ### Public methods
 
-- [`StudyMeta$new()`](#method-StudyMeta-new)
+- [`StudyMeta$new()`](#method-StudyMeta-initialize)
 
 - [`StudyMeta$listContributors()`](#method-StudyMeta-listContributors)
 
@@ -89,7 +89,7 @@ study components.
 
 ------------------------------------------------------------------------
 
-### Method `new()`
+### `StudyMeta$new()`
 
 Initialize a new StudyMeta instance with study metadata.
 
@@ -142,7 +142,7 @@ Invisibly returns self.
 
 ------------------------------------------------------------------------
 
-### Method `listContributors()`
+### `StudyMeta$listContributors()`
 
 Generate a formatted markdown list of all contributors.
 
@@ -156,7 +156,7 @@ Character string with markdown-formatted contributor list.
 
 ------------------------------------------------------------------------
 
-### Method `listStudyTags()`
+### `StudyMeta$listStudyTags()`
 
 Generate a formatted markdown list of study tags.
 
@@ -170,7 +170,7 @@ Character string with markdown-formatted tag list.
 
 ------------------------------------------------------------------------
 
-### Method `listStudyLinks()`
+### `StudyMeta$listStudyLinks()`
 
 Generate a formatted markdown section of study resources and links.
 
@@ -184,7 +184,7 @@ Character string with markdown-formatted section of study resources.
 
 ------------------------------------------------------------------------
 
-### Method `clone()`
+### `StudyMeta$clone()`
 
 The objects of this class are cloneable with this method.
 

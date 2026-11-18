@@ -1,9 +1,10 @@
 # Set up Atlas/WebAPI keyring credentials
 
 Interactively prompts for Atlas/WebAPI credentials using
-`keyring::key_set()` and writes them to secrets.yml with
-`!expr keyring::key_get(...)` references. This is the most secure
-workflow — credentials never appear in plain text on disk.
+[`keyring::key_set()`](https://keyring.r-lib.org/reference/key_get.html)
+and writes them to secrets.yml with `!expr keyring::key_get(...)`
+references. This is the most secure workflow — credentials never appear
+in plain text on disk.
 
 ## Usage
 

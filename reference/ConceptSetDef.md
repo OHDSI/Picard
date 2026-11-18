@@ -1,11 +1,5 @@
 # ConceptSetDef R6 Class
 
-ConceptSetDef R6 Class
-
-ConceptSetDef R6 Class
-
-## Details
-
 An R6 class that stores key information about OHDSI CIRCE concept sets
 that need to be managed in a study.
 
@@ -35,7 +29,7 @@ concept information.
 
 ### Public methods
 
-- [`ConceptSetDef$new()`](#method-ConceptSetDef-new)
+- [`ConceptSetDef$new()`](#method-ConceptSetDef-initialize)
 
 - [`ConceptSetDef$getFilePath()`](#method-ConceptSetDef-getFilePath)
 
@@ -55,7 +49,7 @@ concept information.
 
 ------------------------------------------------------------------------
 
-### Method `new()`
+### `ConceptSetDef$new()`
 
 Initialize a new ConceptSetDef
 
@@ -84,7 +78,7 @@ Initialize a new ConceptSetDef
 
 ------------------------------------------------------------------------
 
-### Method `getFilePath()`
+### `ConceptSetDef$getFilePath()`
 
 #### Usage
 
@@ -98,7 +92,7 @@ display
 
 ------------------------------------------------------------------------
 
-### Method `getDisplayPath()`
+### `ConceptSetDef$getDisplayPath()`
 
 #### Usage
 
@@ -118,7 +112,7 @@ Character. A human-facing path. Get the concept set JSON
 
 ------------------------------------------------------------------------
 
-### Method `getJson()`
+### `ConceptSetDef$getJson()`
 
 #### Usage
 
@@ -130,7 +124,7 @@ Character. The JSON definition of the concept set. Get the JSON hash
 
 ------------------------------------------------------------------------
 
-### Method `getHash()`
+### `ConceptSetDef$getHash()`
 
 #### Usage
 
@@ -143,7 +137,7 @@ ID
 
 ------------------------------------------------------------------------
 
-### Method `getId()`
+### `ConceptSetDef$getId()`
 
 #### Usage
 
@@ -156,7 +150,7 @@ set ID (internal use)
 
 ------------------------------------------------------------------------
 
-### Method `setId()`
+### `ConceptSetDef$setId()`
 
 #### Usage
 
@@ -170,7 +164,7 @@ set ID (internal use)
 
 ------------------------------------------------------------------------
 
-### Method `formatTagsAsString()`
+### `ConceptSetDef$formatTagsAsString()`
 
 #### Usage
 
@@ -182,7 +176,7 @@ Character. Tags formatted as "name: value \| name: value".
 
 ------------------------------------------------------------------------
 
-### Method `clone()`
+### `ConceptSetDef$clone()`
 
 The objects of this class are cloneable with this method.
 

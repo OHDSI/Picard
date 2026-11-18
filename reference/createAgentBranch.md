@@ -1,7 +1,8 @@
 # Create Feature Branch for Agent Work
 
 Creates a timestamped feature branch for automated agent-based pipeline
-improvements. Branch name format: feature/agent-agentName-timestamp
+improvements. Branch name format:
+`feature/agent-{agentName}-{timestamp}`
 
 ## Usage
 

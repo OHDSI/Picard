@@ -1,11 +1,5 @@
 # CohortManifest R6 Class
 
-CohortManifest R6 Class
-
-CohortManifest R6 Class
-
-## Details
-
 An R6 class that manages a collection of CohortDef objects and maintains
 metadata in a SQLite database.
 
@@ -104,7 +98,7 @@ Requires that executionSettings has been set and includes:
 
 ### Public methods
 
-- [`CohortManifest$new()`](#method-CohortManifest-new)
+- [`CohortManifest$new()`](#method-CohortManifest-initialize)
 
 - [`CohortManifest$getManifest()`](#method-CohortManifest-getManifest)
 
@@ -250,7 +244,7 @@ Requires that executionSettings has been set and includes:
 
 ------------------------------------------------------------------------
 
-### Method `new()`
+### `CohortManifest$new()`
 
 Initialize a new CohortManifest
 
@@ -280,7 +274,7 @@ Initialize a new CohortManifest
 
 ------------------------------------------------------------------------
 
-### Method `getManifest()`
+### `CohortManifest$getManifest()`
 
 #### Usage
 
@@ -289,31 +283,37 @@ Initialize a new CohortManifest
 #### Returns
 
 List. A list of CohortDef objects in the manifest, indexed by cohort ID.
-Compute a deterministic hash of every cohort definition in the manifest
+Compute a deterministic hash of the manifest for task-rerun detection
 
 ------------------------------------------------------------------------
 
-### Method `getManifestHash()`
+### `CohortManifest$getManifestHash()`
 
-Produces a single SHA256 string over the *definition* of every active or
-stale cohort, used by the study pipeline (via
-[`shouldRerunTask()`](https://ohdsi.github.io/Picard/reference/shouldRerunTask.md))
-to decide whether cohort changes force affected tasks to rerun.
+Produces a single SHA256 string over everything about the active or
+stale cohorts that a task can depend on. Used by the study pipeline (via
+[`shouldRerunTask()`](https://ohdsi.github.io/Picard/reference/shouldRerunTask.md)):
+when it changes, tasks rerun.
+
+This is distinct from a cohort's *definition hash*
+(`CohortDef$getSqlHash()`), which covers only the rendered SQL. Tasks
+also select cohorts by label, category, or tag, so a change to that
+metadata changes the analysis even when no definition changed.
 
 For each cohort, ordered by id, the hash combines:
 
-- `id`, `cohort_type`, `source_type`
+- `id`, `label`, `category`, `tags`
+
+- `cohort_type`, `source_type`
 
 - `depends_on` and `dependency_rule` (normalized JSON)
 
-- the rendered-SQL hash (`CohortDef$getSqlHash()`) of the loaded cohort,
+- the definition hash (`CohortDef$getSqlHash()`) of the loaded cohort,
   or the sentinel `"<missing>"` when the cohort file is absent from disk
 
-The rendered SQL — not the raw file bytes — is what executes against the
-CDM, so a cosmetic reformat of a cohort's JSON that renders to identical
-SQL does not move the hash, while any change to the executed SQL does.
-Cosmetic metadata (`label`, `category`, `tags`) is deliberately
-excluded: renaming or retagging a cohort does not change the analysis.
+Because the definition hash is over the rendered SQL, a cosmetic
+reformat of a cohort's JSON that renders to identical SQL does not move
+the hash. The stored file path is excluded, so path normalization does
+not force spurious reruns.
 
 #### Usage
 
@@ -326,7 +326,7 @@ constant. Review dependent cohorts and their dependency metadata
 
 ------------------------------------------------------------------------
 
-### Method `reviewDependentCohorts()`
+### `CohortManifest$reviewDependentCohorts()`
 
 Returns a summary tibble of all active derived cohorts (union, subset,
 complement, composite, oprior, tprior, censor, custom_derived) with
@@ -360,7 +360,7 @@ A tibble with columns:
 
 ------------------------------------------------------------------------
 
-### Method `tabulateManifest()`
+### `CohortManifest$tabulateManifest()`
 
 Tabulate the cohort manifest
 
@@ -405,7 +405,7 @@ parameter.
 
 ------------------------------------------------------------------------
 
-### Method `viewManifest()`
+### `CohortManifest$viewManifest()`
 
 View the cohort manifest in RStudio viewer
 
@@ -440,7 +440,7 @@ derived cohorts
 
 ------------------------------------------------------------------------
 
-### Method `reviewStaleCohorts()`
+### `CohortManifest$reviewStaleCohorts()`
 
 Returns a summary of all cohorts currently marked `'stale'` — meaning
 the cohort's own definition, or that of a parent it is built on, has
@@ -466,7 +466,7 @@ the in-memory manifest from the SQLite database
 
 ------------------------------------------------------------------------
 
-### Method `reloadFromDb()`
+### `CohortManifest$reloadFromDb()`
 
 Re-reads all active cohort records from SQLite and rebuilds the
 in-memory list of CohortDef objects. Useful after external changes to
@@ -482,7 +482,7 @@ Invisible self. Get the manifest path
 
 ------------------------------------------------------------------------
 
-### Method `getDbPath()`
+### `CohortManifest$getDbPath()`
 
 #### Usage
 
@@ -495,7 +495,7 @@ root
 
 ------------------------------------------------------------------------
 
-### Method `getProjectRoot()`
+### `CohortManifest$getProjectRoot()`
 
 #### Usage
 
@@ -508,7 +508,7 @@ paths. Get the execution settings
 
 ------------------------------------------------------------------------
 
-### Method `getExecutionSettings()`
+### `CohortManifest$getExecutionSettings()`
 
 #### Usage
 
@@ -521,7 +521,7 @@ NULL if not set. Set the execution settings
 
 ------------------------------------------------------------------------
 
-### Method `setExecutionSettings()`
+### `CohortManifest$setExecutionSettings()`
 
 #### Usage
 
@@ -536,7 +536,7 @@ NULL if not set. Set the execution settings
 
 ------------------------------------------------------------------------
 
-### Method [`getAtlasConnection()`](https://ohdsi.github.io/Picard/reference/getAtlasConnection.md)
+### `CohortManifest$getAtlasConnection()`
 
 #### Usage
 
@@ -552,7 +552,7 @@ Stores a connection so it does not need to be passed to
 
 ------------------------------------------------------------------------
 
-### Method `setAtlasConnection()`
+### `CohortManifest$setAtlasConnection()`
 
 #### Usage
 
@@ -571,7 +571,7 @@ Invisible self for method chaining.
 
 ------------------------------------------------------------------------
 
-### Method `addAtlasCohort()`
+### `CohortManifest$addAtlasCohort()`
 
 Add a single cohort from ATLAS
 
@@ -630,7 +630,7 @@ Invisible integer. The assigned cohort ID.
 
 ------------------------------------------------------------------------
 
-### Method `importAtlasCohorts()`
+### `CohortManifest$importAtlasCohorts()`
 
 Batch-import cohorts from ATLAS via a cohortsLoad dataframe
 
@@ -638,12 +638,13 @@ Either create a dataframe or read in a csv file with columns `atlasId`,
 `label`, `category` (required) plus any additional columns treated as
 tag key-value pairs for tags. Calls `addAtlasCohort()` for each row.
 
-By default, the load file is treated as a transient, one-time import
-mechanism: rows whose atlasId is already registered in the manifest are
-an error, not an update. Set `stopIfExists = FALSE` to instead update
+The load file is kept in the study repository as the record of which
+ATLAS cohorts the study uses. By default, rows whose atlasId is already
+registered in the manifest are an error, not an update, so an import
+only adds new cohorts. Set `stopIfExists = FALSE` to instead update
 those rows in place (delegates to `addAtlasCohort(stopIfExists = FALSE)`
-for each), which supports iterating on the load file across repeated
-runs. To sync registered cohorts with ATLAS without a load file, use
+for each), which lets the whole load file be re-imported on every run.
+To sync registered cohorts with ATLAS without re-importing, use
 `updateAtlasCohorts()`.
 
 #### Usage
@@ -681,7 +682,7 @@ Invisible tibble of imported cohorts.
 
 ------------------------------------------------------------------------
 
-### Method `addCaprCohort()`
+### `CohortManifest$addCaprCohort()`
 
 Add a Capr cohort
 
@@ -731,7 +732,7 @@ Invisible integer. The assigned cohort ID.
 
 ------------------------------------------------------------------------
 
-### Method `updateCaprCohort()`
+### `CohortManifest$updateCaprCohort()`
 
 Update an existing Capr cohort's JSON definition
 
@@ -762,7 +763,7 @@ Invisible integer. The cohort ID.
 
 ------------------------------------------------------------------------
 
-### Method `addSqlCohort()`
+### `CohortManifest$addSqlCohort()`
 
 Add a custom SQL cohort
 
@@ -813,22 +814,24 @@ Invisible integer. The assigned cohort ID.
 
 ------------------------------------------------------------------------
 
-### Method `addDependentCustomCohort()`
+### `CohortManifest$addDependentCustomCohort()`
 
 Add a dependent custom SQL cohort
 
 Registers a SQL file in the manifest as a dependency-aware derived
 cohort. The source SQL file must preserve the standard Picard cohort
-write contract using \\code@target_database_schema.@target_cohort_table
-and \\code@target_cohort_id.
+write contract using `@target_database_schema.@target_cohort_table` and
+`@target_cohort_id`.
 
 `dependentCohortIdList` and `sqlParameters` values are rendered into the
-source SQL immediately (via \\codeSqlRender::render()) and the result is
-written to \\codeinputs/cohorts/derived/.sql — the file registered in
-the manifest — exactly like the built-in derived cohort types (subset,
-union, etc.). Only the connection/schema placeholders
-(\\code@target_cohort_id and friends) are left for
-\\codegenerateCohorts() to fill in at execution time.
+source SQL immediately (via
+[`SqlRender::render()`](https://ohdsi.github.io/SqlRender/reference/render.html))
+and the result is written to `inputs/cohorts/derived/<label>.sql` — the
+file registered in the manifest — exactly like the built-in derived
+cohort types (subset, union, etc.). Only the connection/schema
+placeholders (`@target_cohort_id` and friends) are left for
+[`generateCohorts()`](https://ohdsi.github.io/Picard/reference/generateCohorts.md)
+to fill in at execution time.
 
 #### Usage
 
@@ -860,22 +863,22 @@ union, etc.). Only the connection/schema placeholders
 
   Named list. Each name is a SqlRender parameter to render into the SQL
   file. Each value is, preferably, a manifest entry — a
-  data.frame/tibble with an \\codeid column, as returned by query
-  methods like \\codequeryCohortsByLabel() (a single row bakes in one
-  ID; a multi-row table bakes in a comma-separated vector, for
-  \\codeIN (@param) clauses) — or, for backward compatibility, a raw
-  integer cohort ID (or integer vector). These IDs also become this
-  cohort's \\codedepends_on parents for staleness tracking. When entries
-  carry a \\codelabel column, it's included (purely for QC) in a
-  generated comment header at the top of the derived SQL file. Example:
-  \\codelist(inc_cohort_id = ckdEntry, exc_cohort_id = t2dEntry).
+  data.frame/tibble with an `id` column, as returned by query methods
+  like `queryCohortsByLabel()` (a single row bakes in one ID; a
+  multi-row table bakes in a comma-separated vector, for `IN (@param)`
+  clauses) — or, for backward compatibility, a raw integer cohort ID (or
+  integer vector). These IDs also become this cohort's `depends_on`
+  parents for staleness tracking. When entries carry a `label` column,
+  it's included (purely for QC) in a generated comment header at the top
+  of the derived SQL file. Example:
+  `list(inc_cohort_id = ckdEntry, exc_cohort_id = t2dEntry)`.
 
 - `sqlParameters`:
 
   Named list. Optional additional SqlRender parameters to render into
   the SQL file (any type — thresholds, dates, strings, etc.), not
-  treated as cohort dependencies. Example: \\codelist(min_days = 30L,
-  index_year = 2020L).
+  treated as cohort dependencies. Example:
+  `list(min_days = 30L, index_year = 2020L)`.
 
 - `tags`:
 
@@ -898,7 +901,7 @@ Invisible integer. The assigned cohort ID.
 
 ------------------------------------------------------------------------
 
-### Method `addCirceCohort()`
+### `CohortManifest$addCirceCohort()`
 
 Add a Circe JSON cohort from disk
 
@@ -934,7 +937,7 @@ Invisible integer. The assigned cohort ID.
 
 ------------------------------------------------------------------------
 
-### Method `buildUnionCohort()`
+### `CohortManifest$buildUnionCohort()`
 
 Build a union cohort from existing cohorts
 
@@ -1040,7 +1043,7 @@ Invisible integer. The assigned cohort ID.
 
 ------------------------------------------------------------------------
 
-### Method `buildSubsetCohortTemporal()`
+### `CohortManifest$buildSubsetCohortTemporal()`
 
 Build a subset cohort with temporal criteria
 
@@ -1144,7 +1147,7 @@ Invisible integer. The assigned cohort ID.
 
 ------------------------------------------------------------------------
 
-### Method `buildComplementCohort()`
+### `CohortManifest$buildComplementCohort()`
 
 Build a complement cohort
 
@@ -1229,12 +1232,14 @@ Invisible integer. The assigned cohort ID.
 
 ------------------------------------------------------------------------
 
-### Method `buildCompositeCohort()`
+### `CohortManifest$buildCompositeCohort()`
 
 Build a composite cohort
 
-Creates a derived cohort that requires membership in multiple cohorts
-(intersection logic).
+Creates a derived cohort of subjects who belong to at least
+`minEventCount` of the criteria cohorts. Set `minEventCount` to the
+number of criteria cohorts for an intersection (subjects must be in
+every criteria cohort); lower values relax the requirement.
 
 Input route policy:
 
@@ -1297,9 +1302,11 @@ Input route policy:
 
 - `minEventCount`:
 
-  Integer. Minimum number of distinct cohort events required for a
-  subject to qualify for the composite. Default: 1 (any subject with at
-  least 1 event qualifies).
+  Integer. Minimum number of distinct criteria cohorts a subject must
+  belong to in order to qualify for the composite. Must be between 1 and
+  the number of criteria cohorts. Default: 1 (subject in any criteria
+  cohort qualifies). A warning is raised when it is not supplied; for an
+  intersection, set it to the number of criteria cohorts.
 
 - `stopIfExists`:
 
@@ -1317,7 +1324,7 @@ Invisible integer. The assigned cohort ID.
 
 ------------------------------------------------------------------------
 
-### Method `buildDemographicCohort()`
+### `CohortManifest$buildDemographicCohort()`
 
 Build a demographic subset cohort
 
@@ -1412,7 +1419,7 @@ Invisible integer. The assigned cohort ID.
 
 ------------------------------------------------------------------------
 
-### Method `buildStratifiedCohorts()`
+### `CohortManifest$buildStratifiedCohorts()`
 
 Split a base cohort into stratified sub-cohorts
 
@@ -1438,7 +1445,8 @@ Input route policy:
       strata,
       labelPrefix = NULL,
       category = "derived",
-      tags = list()
+      tags = list(),
+      stopIfExists = TRUE
     )
 
 #### Arguments
@@ -1474,6 +1482,12 @@ Input route policy:
 
   Named list. Optional metadata tags applied to every stratum cohort.
 
+- `stopIfExists`:
+
+  Logical. If TRUE (default), errors when any stratum label is already
+  registered. If FALSE, updates existing derived strata in place and
+  creates any new strata.
+
 #### Returns
 
 Invisibly returns a named list of assigned cohort IDs, keyed by cohort
@@ -1481,7 +1495,7 @@ label. Query cohorts by IDs
 
 ------------------------------------------------------------------------
 
-### Method `queryCohortsByIds()`
+### `CohortManifest$queryCohortsByIds()`
 
 #### Usage
 
@@ -1514,7 +1528,7 @@ Returns NULL if no matches are found. Query cohorts by tag
 
 ------------------------------------------------------------------------
 
-### Method `queryCohortsByTag()`
+### `CohortManifest$queryCohortsByTag()`
 
 #### Usage
 
@@ -1555,7 +1569,7 @@ Returns NULL if no matches are found. Query cohorts by label
 
 ------------------------------------------------------------------------
 
-### Method `queryCohortsByLabel()`
+### `CohortManifest$queryCohortsByLabel()`
 
 #### Usage
 
@@ -1596,7 +1610,7 @@ Returns NULL if no matches are found. Query cohorts by tag name
 
 ------------------------------------------------------------------------
 
-### Method `queryCohortsByCategory()`
+### `CohortManifest$queryCohortsByCategory()`
 
 #### Usage
 
@@ -1637,7 +1651,7 @@ Returns NULL if no matches are found. Query cohorts by category
 
 ------------------------------------------------------------------------
 
-### Method `queryCohortsByTagName()`
+### `CohortManifest$queryCohortsByTagName()`
 
 #### Usage
 
@@ -1670,7 +1684,7 @@ Returns NULL if no matches are found.
 
 ------------------------------------------------------------------------
 
-### Method `queryCohortsMissingTag()`
+### `CohortManifest$queryCohortsMissingTag()`
 
 Query cohorts missing a specific tag
 
@@ -1705,7 +1719,7 @@ Returns NULL if all cohorts have the tag.
 
 ------------------------------------------------------------------------
 
-### Method `queryCohortsWithTagValues()`
+### `CohortManifest$queryCohortsWithTagValues()`
 
 Query cohorts by tag value mapping
 
@@ -1742,7 +1756,7 @@ Returns NULL if no cohorts match all tag conditions.
 
 ------------------------------------------------------------------------
 
-### Method `getTagValuesSummary()`
+### `CohortManifest$getTagValuesSummary()`
 
 Get a summary of all unique values for a specific tag
 
@@ -1763,7 +1777,7 @@ Returns NULL if no cohorts have the tag.
 
 ------------------------------------------------------------------------
 
-### Method `nCohorts()`
+### `CohortManifest$nCohorts()`
 
 Get number of cohorts in manifest
 
@@ -1777,7 +1791,7 @@ Integer. The number of cohorts. Get a specific cohort by ID
 
 ------------------------------------------------------------------------
 
-### Method `getCohortById()`
+### `CohortManifest$getCohortById()`
 
 #### Usage
 
@@ -1796,7 +1810,7 @@ Get cohorts by tag
 
 ------------------------------------------------------------------------
 
-### Method `getCohortsByTag()`
+### `CohortManifest$getCohortsByTag()`
 
 #### Usage
 
@@ -1822,7 +1836,7 @@ found. Get cohorts by label
 
 ------------------------------------------------------------------------
 
-### Method `getCohortsByLabel()`
+### `CohortManifest$getCohortsByLabel()`
 
 #### Usage
 
@@ -1848,7 +1862,7 @@ found.
 
 ------------------------------------------------------------------------
 
-### Method `updateCohortLabel()`
+### `CohortManifest$updateCohortLabel()`
 
 Update a cohort label
 
@@ -1872,7 +1886,7 @@ Invisible NULL.
 
 ------------------------------------------------------------------------
 
-### Method `updateCohortCategory()`
+### `CohortManifest$updateCohortCategory()`
 
 Update a cohort category
 
@@ -1896,7 +1910,7 @@ Invisible NULL.
 
 ------------------------------------------------------------------------
 
-### Method `updateCohortTags()`
+### `CohortManifest$updateCohortTags()`
 
 Update cohort tags
 
@@ -1920,7 +1934,7 @@ Invisible NULL.
 
 ------------------------------------------------------------------------
 
-### Method `removeCohortTag()`
+### `CohortManifest$removeCohortTag()`
 
 Remove a specific tag from a cohort
 
@@ -1945,7 +1959,7 @@ was not found.
 
 ------------------------------------------------------------------------
 
-### Method `modifyCohortTagValue()`
+### `CohortManifest$modifyCohortTagValue()`
 
 Modify the value of an existing tag
 
@@ -1974,7 +1988,7 @@ does not exist.
 
 ------------------------------------------------------------------------
 
-### Method `addCohortTag()`
+### `CohortManifest$addCohortTag()`
 
 Add a single tag to a cohort (non-destructive)
 
@@ -2002,7 +2016,7 @@ Invisible NULL. Emits success message if tag was added.
 
 ------------------------------------------------------------------------
 
-### Method `getCohortTags()`
+### `CohortManifest$getCohortTags()`
 
 Get all tags for a specific cohort
 
@@ -2022,7 +2036,7 @@ Named list of tags, or NULL if cohort not found.
 
 ------------------------------------------------------------------------
 
-### Method `mergeTagsIntoCohort()`
+### `CohortManifest$mergeTagsIntoCohort()`
 
 Merge multiple tags into a cohort (non-destructive, additive)
 
@@ -2047,7 +2061,7 @@ Invisible NULL. Emits success message.
 
 ------------------------------------------------------------------------
 
-### Method `listAllUniqueTags()`
+### `CohortManifest$listAllUniqueTags()`
 
 Get all unique tag names used across the manifest
 
@@ -2061,7 +2075,7 @@ Character vector of unique tag names, sorted alphabetically.
 
 ------------------------------------------------------------------------
 
-### Method `getTagValue()`
+### `CohortManifest$getTagValue()`
 
 Get value of a single tag for a cohort
 
@@ -2085,7 +2099,7 @@ Character. The tag value, or NULL if tag or cohort not found.
 
 ------------------------------------------------------------------------
 
-### Method `renameTagKey()`
+### `CohortManifest$renameTagKey()`
 
 Rename a tag key across specified cohorts (or all cohorts)
 
@@ -2114,7 +2128,7 @@ Invisible tibble with id, label, old_value showing what was renamed.
 
 ------------------------------------------------------------------------
 
-### Method `bulkModifyTagValue()`
+### `CohortManifest$bulkModifyTagValue()`
 
 Bulk modify a tag value across cohorts matching an old value
 
@@ -2142,7 +2156,7 @@ Invisible tibble with id, label showing what was modified.
 
 ------------------------------------------------------------------------
 
-### Method `checkAtlasCohorts()`
+### `CohortManifest$checkAtlasCohorts()`
 
 Auto-detect changes to ATLAS cohorts in remote repository
 
@@ -2154,7 +2168,7 @@ No modifications are made.
 
 #### Usage
 
-    CohortManifest$checkAtlasCohorts(atlasConnection = NULL)
+    CohortManifest$checkAtlasCohorts(atlasConnection = NULL, stopOnError = TRUE)
 
 #### Arguments
 
@@ -2165,6 +2179,12 @@ No modifications are made.
   `expression` element. If `NULL` (default), uses the connection stored
   via `$setAtlasConnection()`. If no connection is available, raises an
   error.
+
+- `stopOnError`:
+
+  Logical. If TRUE (default), a failed ATLAS fetch aborts the sync. If
+  FALSE, the cohort is skipped with a warning and the remaining cohorts
+  are still synced.
 
 #### Returns
 
@@ -2184,7 +2204,7 @@ Invisible tibble with columns:
 
 ------------------------------------------------------------------------
 
-### Method `updateAtlasCohorts()`
+### `CohortManifest$updateAtlasCohorts()`
 
 Update ATLAS cohorts with remote definitions
 
@@ -2194,7 +2214,7 @@ phase that applies changes detected by checkAtlasChanges().
 
 #### Usage
 
-    CohortManifest$updateAtlasCohorts(atlasConnection = NULL)
+    CohortManifest$updateAtlasCohorts(atlasConnection = NULL, stopOnError = TRUE)
 
 #### Arguments
 
@@ -2204,13 +2224,19 @@ phase that applies changes detected by checkAtlasChanges().
   `getCohortDefinition(cohortId)`. If `NULL` (default), uses the
   connection stored via `$setAtlasConnection()`.
 
+- `stopOnError`:
+
+  Logical. If TRUE (default), a failed ATLAS fetch aborts the sync. If
+  FALSE, the cohort is skipped with a warning and the remaining cohorts
+  are still synced.
+
 #### Returns
 
 invisible of the tibble of atlas changes to update
 
 ------------------------------------------------------------------------
 
-### Method `statusReport()`
+### `CohortManifest$statusReport()`
 
 Generate a status report for the manifest
 
@@ -2230,7 +2256,7 @@ depends_on, status.
 
 ------------------------------------------------------------------------
 
-### Method [`print()`](https://rdrr.io/r/base/print.html)
+### `CohortManifest$print()`
 
 Print a friendly view of the CohortManifest
 
@@ -2243,7 +2269,7 @@ tables in the database
 
 ------------------------------------------------------------------------
 
-### Method `checkCohortTables()`
+### `CohortManifest$checkCohortTables()`
 
 Checks if necessary tables have been created for execution
 
@@ -2258,7 +2284,7 @@ table in the database
 
 ------------------------------------------------------------------------
 
-### Method `createCohortTable()`
+### `CohortManifest$createCohortTable()`
 
 Creates one required cohort table by type using the current execution
 settings.
@@ -2285,7 +2311,7 @@ Invisible NULL. Create cohort tables in the database
 
 ------------------------------------------------------------------------
 
-### Method `createAllCohortTables()`
+### `CohortManifest$createAllCohortTables()`
 
 Creates the necessary cohort tables in the target database using the
 execution settings. First checks if tables already exist before
@@ -2304,7 +2330,7 @@ messages.
 
 ------------------------------------------------------------------------
 
-### Method `createCohortTables()`
+### `CohortManifest$createCohortTables()`
 
 Deprecated alias for createAllCohortTables
 
@@ -2318,7 +2344,7 @@ Invisible NULL. Drop cohort tables from the database
 
 ------------------------------------------------------------------------
 
-### Method `dropCohortTables()`
+### `CohortManifest$dropCohortTables()`
 
 Drops cohort tables from the target database. Can drop all standard
 cohort tables or specific tables. This is useful for cleaning up or
@@ -2343,7 +2369,7 @@ messages. Sync the manifest against cohort files on disk
 
 ------------------------------------------------------------------------
 
-### Method `syncManifest()`
+### `CohortManifest$syncManifest()`
 
 Scans the `json/` and `sql/` subdirectories of the cohorts folder,
 reconciles them against the SQLite manifest, and updates both the
@@ -2390,7 +2416,7 @@ manifest entries
 
 ------------------------------------------------------------------------
 
-### Method `cleanCohortTable()`
+### `CohortManifest$cleanCohortTable()`
 
 For every cohort with `status = 'deleted'` in the SQLite manifest,
 deletes the corresponding rows from the DBMS cohort table and checksum
@@ -2407,7 +2433,7 @@ Data frame with columns: id, label.
 
 ------------------------------------------------------------------------
 
-### Method `executeCohortGeneration()`
+### `CohortManifest$executeCohortGeneration()`
 
 Generates cohorts in the manifest in the target database using the
 execution settings. Checks dependency ordering and regenerates dependent
@@ -2452,14 +2478,15 @@ Data frame with execution results including:
 
 ------------------------------------------------------------------------
 
-### Method `retrieveCohortCounts()`
+### `CohortManifest$retrieveCohortCounts()`
 
 Retrieve cohort counts from the database
 
-Retrieves entry and subject counts for cohorts from the cohort table in
-the target database. Can retrieve counts for all cohorts or a specific
-subset. Enriches the results with metadata (label and tags) from the
-CohortDef objects in the manifest.
+Retrieves entry and subject counts for registered cohorts from the
+cohort table in the target database. Can retrieve counts for all
+active/stale manifest cohorts or a specific subset. Enriches the results
+with metadata (label and tags) from the CohortDef objects in the
+manifest.
 
 #### Usage
 
@@ -2469,8 +2496,9 @@ CohortDef objects in the manifest.
 
 - `cohortIds`:
 
-  Integer vector. Optional. Specific cohort IDs to retrieve counts for.
-  If NULL (default), returns counts for all cohorts.
+  Integer vector. Optional. Specific registered cohort IDs to retrieve
+  counts for. If NULL (default), returns counts for all active/stale
+  cohorts in the manifest.
 
 #### Returns
 
@@ -2488,7 +2516,7 @@ Data frame with columns:
 
 ------------------------------------------------------------------------
 
-### Method `validateManifest()`
+### `CohortManifest$validateManifest()`
 
 Validate manifest and return status of all cohorts
 
@@ -2503,7 +2531,7 @@ deleted_at, file_exists
 
 ------------------------------------------------------------------------
 
-### Method `getManifestStatus()`
+### `CohortManifest$getManifestStatus()`
 
 Get summary status of manifest
 
@@ -2518,7 +2546,7 @@ ones), stale_count, missing_count, deleted_count, next_available_id
 
 ------------------------------------------------------------------------
 
-### Method `deleteCohort()`
+### `CohortManifest$deleteCohort()`
 
 Delete a cohort from manifest and file system
 
@@ -2569,7 +2597,7 @@ Invisible NULL.
 
 ------------------------------------------------------------------------
 
-### Method `buildOPriorT()`
+### `CohortManifest$buildOPriorT()`
 
 Clean up missing cohorts from manifest
 
@@ -2687,7 +2715,7 @@ Invisible integer. The assigned cohort ID.
 
 ------------------------------------------------------------------------
 
-### Method `buildTPriorO()`
+### `CohortManifest$buildTPriorO()`
 
 Build a cohort of target events with prior outcome occurrence
 
@@ -2800,7 +2828,7 @@ Invisible integer. The assigned cohort ID.
 
 ------------------------------------------------------------------------
 
-### Method `buildCensorCohort()`
+### `CohortManifest$buildCensorCohort()`
 
 Censor a target cohort based on a censoring event
 
@@ -2887,7 +2915,7 @@ Invisible integer. The assigned cohort ID.
 
 ------------------------------------------------------------------------
 
-### Method `cleanupMissing()`
+### `CohortManifest$cleanupMissing()`
 
 clean up missing files from manifest
 
@@ -2907,7 +2935,7 @@ Invisibly returns NULL. Displays summary of cleanup actions.
 
 ------------------------------------------------------------------------
 
-### Method `clone()`
+### `CohortManifest$clone()`
 
 The objects of this class are cloneable with this method.
 

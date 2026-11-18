@@ -1,5 +1,229 @@
 # Changelog
 
+## picard 0.0.8
+
+### Breaking Changes
+
+- [`sourceInputBuilderScripts()`](https://ohdsi.github.io/Picard/reference/sourceInputBuilderScripts.md)
+  now requires all six builder scripts and aborts before sourcing
+  anything if one is missing or if `inputs/cohorts/R/` or
+  `inputs/conceptSets/R/` contains any other `.R` file (previously these
+  were skipped silently). Studies that deleted unused builders should
+  recreate them with
+  [`makeInputBuilderScript()`](https://ohdsi.github.io/Picard/reference/makeInputBuilderScript.md),
+  and studies with `build_dependent_cohorts_cohort.R` should rename it
+  to `build_dependent_cohorts.R`. Helper code belongs in a subfolder
+  such as `inputs/cohorts/R/src/`. The now-meaningless `warnMissing`
+  argument is removed
+  ([\#116](https://github.com/ohdsi/Picard/issues/116)).
+
+### Task Change Detection
+
+- `CohortManifest$getManifestHash()` now also covers each cohort’s
+  label, category, and tags, so renaming, recategorizing, or retagging a
+  cohort reruns tasks — tasks often select cohorts by that metadata. A
+  cohort’s definition hash (`CohortDef$getSqlHash()`) still covers only
+  its SQL.
+- New `ConceptSetManifest$getManifestHash()`, consistent with the cohort
+  version: each concept set’s normalized expression JSON plus its label,
+  category, and tags.
+- [`shouldRerunTask()`](https://ohdsi.github.io/Picard/reference/shouldRerunTask.md)
+  now reruns a task when the **concept set manifest** changes
+  ([\#125](https://github.com/ohdsi/Picard/issues/125)), e.g. merging
+  two categories, or when **`renv.lock`** changes — the R version or any
+  package’s version, source, or remote SHA
+  ([\#118](https://github.com/ohdsi/Picard/issues/118)).
+- [`testStudyPipeline()`](https://ohdsi.github.io/Picard/reference/testStudyPipeline.md),
+  [`execStudyPipeline()`](https://ohdsi.github.io/Picard/reference/execStudyPipeline.md),
+  and
+  [`testStudyTask()`](https://ohdsi.github.io/Picard/reference/testStudyTask.md)
+  gain a `forceRerun` argument (default `FALSE`) that bypasses change
+  detection: `TRUE` reruns every task, and a vector of task file names
+  reruns only those. Forced runs are still recorded in
+  `task_run_history.csv` and noted in the pipeline log.
+- `exec/logs/task_run_history.csv` gains `concept_set_manifest_hash` and
+  `renv_lock_hash` columns. Existing history rows have no recorded value
+  for them, and the cohort hash now includes metadata, so every task
+  reruns once after upgrading. Studies without a concept set manifest or
+  `renv.lock` hash to a stable sentinel and are not rerun on every run.
+
+### New Features
+
+#### Parameterized Input Builder Scripts
+
+- [`sourceInputBuilderScripts()`](https://ohdsi.github.io/Picard/reference/sourceInputBuilderScripts.md)
+  gains `configBlock` and `pipelineVersion` arguments. Builder scripts
+  run once per config block, with the current block and pipeline version
+  exposed as an `inputBuilderEnv` object so scripts can build execution
+  settings (e.g. to resolve concept sets for SQL cohorts) without
+  hard-coding either value. The generated `main.R` passes `dbIds`.
+  [`createInputBuilderEnv()`](https://ohdsi.github.io/Picard/reference/createInputBuilderEnv.md)
+  builds the same object for interactive use
+  ([\#109](https://github.com/ohdsi/Picard/issues/109)).
+- [`execStudyPipeline()`](https://ohdsi.github.io/Picard/reference/execStudyPipeline.md)
+  /
+  [`testStudyPipeline()`](https://ohdsi.github.io/Picard/reference/testStudyPipeline.md)
+  gain `skipInputBuilders` (default `TRUE`). With `FALSE`, the pipeline
+  sources the builder scripts for each config block right before
+  generating that block’s cohorts, so database-specific builder changes
+  are not overwritten by the next database. By default the builders are
+  still sourced from `main.R` / `test_main.R`.
+
+#### Per-Config-Block Pipeline Execution
+
+- [`execStudyPipeline()`](https://ohdsi.github.io/Picard/reference/execStudyPipeline.md)
+  /
+  [`testStudyPipeline()`](https://ohdsi.github.io/Picard/reference/testStudyPipeline.md)
+  now walk the config blocks one at a time — input builders, then that
+  block’s cohort generation, then its tasks — instead of generating
+  every database’s cohorts up front. A builder that makes
+  database-specific manifest changes is therefore no longer overwritten
+  by the next database’s builders before its cohorts are built.
+- Whether a cohort needs regenerating is decided from that database’s
+  checksum table rather than from the manifest’s shared `stale` flag, so
+  a cohort already generated in one database is not skipped in the next.
+
+#### Initializing Into an Existing Directory
+
+- `UlyssesStudy$initUlyssesRepo()` now works in an existing empty
+  directory, and gains an `allowExisting` argument (default `FALSE`) to
+  initialize into a non-empty one: only missing scaffold files are
+  added, existing files are never overwritten, and the required entries
+  are merged into an existing `.gitignore`. An existing git repository
+  is left for the user to commit
+  ([\#148](https://github.com/ohdsi/Picard/issues/148)).
+
+#### Fail Fast on Script and ATLAS Errors
+
+- [`sourceInputBuilderScripts()`](https://ohdsi.github.io/Picard/reference/sourceInputBuilderScripts.md)
+  and
+  [`sourceDisseminationScripts()`](https://ohdsi.github.io/Picard/reference/sourceDisseminationScripts.md)
+  stop at the first failing script instead of running the rest and
+  reporting afterwards, so a broken builder cannot leave a half-built
+  manifest for the next script to work from. Both gain `stopOnError`
+  (default `TRUE`); `FALSE` restores the collect-and-report behavior
+  ([\#123](https://github.com/ohdsi/Picard/issues/123)).
+- `$checkAtlasCohorts()` / `$updateAtlasCohorts()` and their concept set
+  counterparts now abort when a definition fetch from ATLAS fails,
+  rather than skipping it silently and reporting the manifest as synced.
+  Both gain `stopOnError` (default `TRUE`); `FALSE` skips the failed
+  fetches and continues.
+
+#### Manifest Builders and Queries
+
+- `$buildStratifiedCohorts()` gains `stopIfExists` (default `TRUE`),
+  matching the other derived builders: `FALSE` updates
+  already-registered strata in place and creates any new ones, so a
+  stratification can be re-run after editing its strata.
+- `$retrieveCohortCounts()` returns counts only for cohorts registered
+  in the manifest. Requested ids are intersected with the manifest, and
+  an empty result is returned without querying when none match, so
+  leftover cohort ids in a shared cohort table no longer appear in
+  `cohortCounts.csv`.
+- The `cohortManifestSnapshot.csv` written by
+  [`runPostProcessing()`](https://ohdsi.github.io/Picard/reference/runPostProcessing.md)
+  now uses the wide tag format — one column per tag key — so the
+  provenance snapshot is readable in a spreadsheet.
+
+### Bug Fixes
+
+- `ExecutionSettings` now accepts any `DatabaseConnectorConnection`,
+  including the DBI-backed connections used for DuckDB and SQLite, not
+  only JDBC connections
+  ([\#150](https://github.com/ohdsi/Picard/issues/150)).
+- Cohort generation reads checksum-table query results by position, so
+  checksums are found regardless of the column-name case a DBMS returns
+  ([\#149](https://github.com/ohdsi/Picard/issues/149)).
+- `buildCompositeCohort()` SQL no longer uses
+  `COUNT(DISTINCT ...) OVER (...)`, which PostgreSQL and SQL Server
+  reject, so composite cohorts now generate on those platforms
+  ([\#155](https://github.com/ohdsi/Picard/issues/155)).
+- [`execStudyPipeline()`](https://ohdsi.github.io/Picard/reference/execStudyPipeline.md)
+  /
+  [`testStudyPipeline()`](https://ohdsi.github.io/Picard/reference/testStudyPipeline.md)
+  now generate cohorts in every config block passed to `configBlock`.
+  Previously cohorts were only generated in the first block, so tasks
+  for the other databases ran against cohort tables that had not been
+  built for that run.
+- Renaming a derived cohort through its builder with
+  `stopIfExists = FALSE` now rewrites the definition at its registered
+  file path instead of writing a second file named after the new label
+  and leaving the old one behind. The derived builders refuse to move a
+  registered cohort to a different path.
+- `tabulateManifest()` no longer errors on a tag whose value is `null`;
+  such tags come back with an `NA` value.
+- `$extractSourceCodes()` no longer aborts in a non-interactive session.
+  [`utils::menu()`](https://rdrr.io/r/utils/menu.html) cannot run
+  non-interactively, so the source-vocabulary prompt errored out
+  whenever the method was called from a script rather than the console.
+  The suggestion is now offered only when
+  [`interactive()`](https://rdrr.io/r/base/interactive.html); otherwise
+  the `sourceVocabs` argument is used as given.
+- Cohort table existence is now checked with
+  [`DatabaseConnector::existsTable()`](https://ohdsi.github.io/DatabaseConnector/reference/existsTable.html),
+  and a failing check aborts naming the schema, table, and database
+  instead of being reported as “table missing” — a connection,
+  permission, or identifier problem no longer looks like an absent
+  table. A failure to create a cohort table is likewise an error rather
+  than a danger message the run continued past.
+- `makeInputBuilderScript(type = "buildDependentCohorts")` now writes
+  `build_dependent_cohorts.R` instead of
+  `build_dependent_cohorts_cohort.R`, which
+  [`sourceInputBuilderScripts()`](https://ohdsi.github.io/Picard/reference/sourceInputBuilderScripts.md)
+  never sourced.
+- The input builder templates now run without error when unpopulated:
+  the ATLAS builders are fully commented out, with instructions to
+  uncomment each step as needed (previously they created a blank load
+  csv and connected to ATLAS on every run); the Capr, SQL and
+  dependent-cohort builders create their manifest on first run; and the
+  Capr builders no longer require Capr until Capr code is added
+  ([\#116](https://github.com/ohdsi/Picard/issues/116)).
+- `$updateAtlasCohorts()` / `$updateAtlasConceptSets()` no longer error
+  when the manifest has no ATLAS entries.
+- Corrected the ATLAS import builder templates
+  ([\#112](https://github.com/ohdsi/Picard/issues/112)): the import step
+  now comes before the sync step, both templates note that JSON files
+  dropped into `json/` without registration are deleted as orphans, and
+  the concept set template listed the wrong load csv columns (`category`
+  is required; `domain`/`sourceCode` are optional tags) and wrongly
+  claimed dropped-in JSON files are auto-registered. Both templates now
+  note that `stopIfExists = FALSE` matches rows by label (rename via
+  `$updateCohortLabel()`/`$updateConceptSetLabel()`), and their headers
+  use the generated file names.
+- The ATLAS concept set builder template’s one-time import is now a
+  single `if`/`else` block rather than two brace-less `if` statements.
+- The generated `main.R` now runs
+  [`renv::restore()`](https://rstudio.github.io/renv/reference/restore.html)
+  by default ([\#113](https://github.com/ohdsi/Picard/issues/113)).
+- `$buildCompositeCohort()` documentation now describes `minEventCount`
+  accurately (the number of criteria cohorts a subject must belong to,
+  default 1 = any of them), and a warning is raised when it is not
+  supplied, recommending the number of criteria cohorts for an
+  intersection ([\#126](https://github.com/ohdsi/Picard/issues/126)).
+- Fixed the generated `main.R`
+  ([\#115](https://github.com/ohdsi/Picard/issues/115)):
+  [`execStudyPipeline()`](https://ohdsi.github.io/Picard/reference/execStudyPipeline.md)
+  is passed its required `updateType`,
+  [`runPostProcessing()`](https://ohdsi.github.io/Picard/reference/runPostProcessing.md)
+  is called with `pipelineVersion`/`dbIds` instead of nonexistent
+  arguments, and
+  [`sourceDisseminationScripts()`](https://ohdsi.github.io/Picard/reference/sourceDisseminationScripts.md)
+  uses the new pipeline version. `test_main.R` gets the same
+  [`runPostProcessing()`](https://ohdsi.github.io/Picard/reference/runPostProcessing.md)
+  fix.
+- The Study Hub templates date themselves with `date: today` instead of
+  `last-modified`, and the results page sets `echo: false` /
+  `warning: false`, so a rendered hub no longer shows chunk code or
+  warnings.
+- The repository structure vignette no longer lists a `docs/` folder in
+  the study repo tree; `initUlyssesRepo()` does not create one.
+- The Loading Inputs and Running the Pipeline vignettes no longer tell
+  analysts to delete the builder scripts they do not use, which
+  contradicted the six-script requirement above
+  ([\#116](https://github.com/ohdsi/Picard/issues/116)). They now
+  describe keeping all six in place and what an unpopulated template
+  does and does not do.
+
 ## picard 0.0.7
 
 ### Breaking Changes
@@ -76,6 +300,15 @@
   spreadsheet-like analysis).
 
 #### Building a disseminationEnv Interactively
+
+- Added
+  [`createDisseminationEnv()`](https://ohdsi.github.io/Picard/reference/createDisseminationEnv.md)
+  (exported), which builds the same `disseminationEnv` object that
+  [`sourceDisseminationScripts()`](https://ohdsi.github.io/Picard/reference/sourceDisseminationScripts.md)
+  injects into a dissemination script — pipeline version, database ids,
+  results path and output path — so a script can be stepped through line
+  by line in the console instead of only running inside the pipeline
+  ([\#86](https://github.com/ohdsi/Picard/issues/86)).
 
 #### Study Metadata and Publishing
 
@@ -209,16 +442,20 @@
     likewise skips rows that are already stale.
   - [`validateEnvironment()`](https://ohdsi.github.io/Picard/reference/validateEnvironment.md)
     always reported “Environment drift detected!” because it tested
-    `renv::status()` for `NULL`, and `renv::status()` always returns a
-    list. It now reads the `synchronized` flag and compares the library
-    and lockfile package records, and treats source-only mismatches as a
-    warning rather than a blocker.
+    [`renv::status()`](https://rstudio.github.io/renv/reference/status.html)
+    for `NULL`, and
+    [`renv::status()`](https://rstudio.github.io/renv/reference/status.html)
+    always returns a list. It now reads the `synchronized` flag and
+    compares the library and lockfile package records, and treats
+    source-only mismatches as a warning rather than a blocker.
   - [`runPreflightChecks()`](https://ohdsi.github.io/Picard/reference/runPreflightChecks.md)
-    ran `renv::snapshot()` immediately after validating that the working
-    tree was clean, so the check could dirty the tree it had just
-    approved and leave the next run failing its code-state check. The
-    lockfile is now recorded rather than refreshed; keeping `renv.lock`
-    current is the analyst’s call, via
+    ran
+    [`renv::snapshot()`](https://rstudio.github.io/renv/reference/snapshot.html)
+    immediately after validating that the working tree was clean, so the
+    check could dirty the tree it had just approved and leave the next
+    run failing its code-state check. The lockfile is now recorded
+    rather than refreshed; keeping `renv.lock` current is the analyst’s
+    call, via
     [`snapshotEnvironment()`](https://ohdsi.github.io/Picard/reference/snapshotEnvironment.md).
 - add `stopIfExists` option to ATLAS csv load builders (see Issue
   [\#65](https://github.com/ohdsi/Picard/issues/65))

@@ -76,7 +76,7 @@ database connections within a study.
 
 ### Public methods
 
-- [`DbConfigBlock$new()`](#method-DbConfigBlock-new)
+- [`DbConfigBlock$new()`](#method-DbConfigBlock-initialize)
 
 - [`DbConfigBlock$writeBlockSection()`](#method-DbConfigBlock-writeBlockSection)
 
@@ -84,7 +84,7 @@ database connections within a study.
 
 ------------------------------------------------------------------------
 
-### Method `new()`
+### `DbConfigBlock$new()`
 
 Initialize a new DbConfigBlock instance with database configuration.
 
@@ -144,7 +144,7 @@ Invisibly returns self.
 
 ------------------------------------------------------------------------
 
-### Method `writeBlockSection()`
+### `DbConfigBlock$writeBlockSection()`
 
 Generate a formatted configuration block section for the config file.
 
@@ -164,7 +164,7 @@ Character string with formatted configuration block.
 
 ------------------------------------------------------------------------
 
-### Method `clone()`
+### `DbConfigBlock$clone()`
 
 The objects of this class are cloneable with this method.
 

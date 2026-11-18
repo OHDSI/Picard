@@ -30,6 +30,11 @@ makeStudyMeta(
 
   the study type (typically characterization)
 
+- contributors:
+
+  a list of ContributorLine class that identifies contributors to the
+  study
+
 - studyLinks:
 
   a list of study links

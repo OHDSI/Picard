@@ -1,6 +1,7 @@
 # Set up keyring-based credentials for a database server
 
-Interactively prompts for credentials using `keyring::key_set()`
+Interactively prompts for credentials using
+[`keyring::key_set()`](https://keyring.r-lib.org/reference/key_get.html)
 dialogs, then writes a secrets.yml entry with
 `!expr keyring::key_get(...)` references. This is the most secure
 workflow — credentials never appear in plain text on disk.

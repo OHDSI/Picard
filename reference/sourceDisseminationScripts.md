@@ -20,7 +20,8 @@ sourceDisseminationScripts(
   databaseIds = NULL,
   outputPath = here::here("dissemination/pretty"),
   verbose = TRUE,
-  warnMissing = TRUE
+  warnMissing = TRUE,
+  stopOnError = TRUE
 )
 ```
 
@@ -59,6 +60,13 @@ sourceDisseminationScripts(
   Logical. If TRUE (default), warns when the dissemination scripts
   directory doesn't exist.
 
+- stopOnError:
+
+  Logical. If TRUE (default), stop at the first dissemination script
+  that errors, so a broken script cannot let `main.R` carry on with
+  partial output. If FALSE, warn and continue with the remaining
+  scripts.
+
 ## Value
 
 Invisibly returns a list with:
@@ -67,7 +75,8 @@ Invisibly returns a list with:
 
 - `directories_checked`: Character vector of directories checked
 
-- `error_summary`: List of any errors encountered
+- `error_summary`: Named list of error messages from failed scripts
+  (only non-empty when `stopOnError = FALSE`)
 
 - `disseminationEnv`: List containing pipelineVersion, databaseIds,
   outputPath
@@ -84,24 +93,20 @@ StudyHub submission, or other dissemination targets.
 Typical workflow:
 
 1.  Run
-    [`sourceInputBuilderScripts`](https://ohdsi.github.io/Picard/reference/sourceInputBuilderScripts.md)
-    to load input definitions
+    [`execStudyPipeline`](https://ohdsi.github.io/Picard/reference/execStudyPipeline.md)
+    to build inputs and execute the analysis
 
 2.  Run
-    [`execStudyPipeline`](https://ohdsi.github.io/Picard/reference/execStudyPipeline.md)
-    to execute the analysis
-
-3.  Run
     [`runPostProcessing`](https://ohdsi.github.io/Picard/reference/runPostProcessing.md)
     to merge results across databases
 
-4.  Use
+3.  Use
     [`makeDisseminationScript`](https://ohdsi.github.io/Picard/reference/makeDisseminationScript.md)
     to create a template for formatting
 
-5.  Edit the template script with your custom formatting/export logic
+4.  Edit the template script with your custom formatting/export logic
 
-6.  Run
+5.  Run
     `sourceDisseminationScripts(pipelineVersion = "1.0.0", databaseIds = c("db1", "db2"))`
     to execute your dissemination scripts with metadata
 

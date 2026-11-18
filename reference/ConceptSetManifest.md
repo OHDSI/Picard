@@ -1,11 +1,5 @@
 # ConceptSetManifest R6 Class
 
-ConceptSetManifest R6 Class
-
-ConceptSetManifest R6 Class
-
-## Details
-
 An R6 class that manages a collection of ConceptSetDef objects and
 maintains metadata in a SQLite database.
 
@@ -14,12 +8,13 @@ and stores their metadata in a SQLite database located at
 inputs/conceptSets/conceptSetManifest.sqlite. Each ConceptSetDef is
 assigned a sequential ID based on its position in the manifest.
 
-By default, the load file is treated as a transient, one-time import
-mechanism: rows whose atlasId is already registered in the manifest are
-an error, not an update. Set `stopIfExists = FALSE` to instead update
-those rows in place, which supports iterating on the load file across
-repeated runs. To sync registered concept sets with ATLAS without a load
-file, use `updateAtlasConceptSets()`.
+The load file is kept in the study repository as the record of which
+ATLAS concept sets the study uses. By default, rows whose atlasId is
+already registered in the manifest are an error, not an update, so an
+import only adds new concept sets. Set `stopIfExists = FALSE` to instead
+update those rows in place, which lets the whole load file be
+re-imported on every run. To sync registered concept sets with ATLAS
+without re-importing, use `updateAtlasConceptSets()`.
 
 **Processing Steps:**
 
@@ -124,7 +119,8 @@ override with any valid vocabulary combination.
 
 3.  Displays suggested vocabularies based on detected domains
 
-4.  Prompts user to accept or override suggested vocabularies
+4.  In interactive sessions, prompts the user to accept or override the
+    suggestions; non-interactive sessions keep `sourceVocabs`
 
 5.  Creates a new xlsx workbook
 
@@ -216,9 +212,11 @@ concept set:
 
 ### Public methods
 
-- [`ConceptSetManifest$new()`](#method-ConceptSetManifest-new)
+- [`ConceptSetManifest$new()`](#method-ConceptSetManifest-initialize)
 
 - [`ConceptSetManifest$getManifest()`](#method-ConceptSetManifest-getManifest)
+
+- [`ConceptSetManifest$getManifestHash()`](#method-ConceptSetManifest-getManifestHash)
 
 - [`ConceptSetManifest$tabulateManifest()`](#method-ConceptSetManifest-tabulateManifest)
 
@@ -320,7 +318,7 @@ concept set:
 
 ------------------------------------------------------------------------
 
-### Method `new()`
+### `ConceptSetManifest$new()`
 
 Initialize a new ConceptSetManifest
 
@@ -351,7 +349,7 @@ Initialize a new ConceptSetManifest
 
 ------------------------------------------------------------------------
 
-### Method `getManifest()`
+### `ConceptSetManifest$getManifest()`
 
 #### Usage
 
@@ -359,11 +357,47 @@ Initialize a new ConceptSetManifest
 
 #### Returns
 
-List. A list of ConceptSetDef objects in the manifest.
+List. A list of ConceptSetDef objects in the manifest. Compute a
+deterministic hash of the manifest for task-rerun detection
 
 ------------------------------------------------------------------------
 
-### Method `tabulateManifest()`
+### `ConceptSetManifest$getManifestHash()`
+
+Produces a single SHA256 string over everything about the active concept
+sets that a task can depend on. Used by the study pipeline (via
+[`shouldRerunTask()`](https://ohdsi.github.io/Picard/reference/shouldRerunTask.md)):
+when it changes, tasks rerun.
+
+This is distinct from a concept set's *definition hash*
+(`ConceptSetDef$getHash()`), which covers only the expression JSON.
+Tasks also select or group concept sets by label, category, or tag, so a
+change to that metadata changes the analysis even when no definition
+changed.
+
+For each concept set, ordered by id, the hash combines:
+
+- `id`, `label`, `category`, `tags`
+
+- a hash of the loaded concept set's expression JSON (normalized, so a
+  cosmetic reformat does not move the hash), or the sentinel
+  `"<missing>"` when the file is absent from disk
+
+The stored file path is excluded, so path normalization does not force
+spurious reruns.
+
+#### Usage
+
+    ConceptSetManifest$getManifestHash()
+
+#### Returns
+
+Character. A SHA256 hash string. An empty manifest hashes to a stable
+constant.
+
+------------------------------------------------------------------------
+
+### `ConceptSetManifest$tabulateManifest()`
 
 Tabulate the concept set manifest
 
@@ -398,7 +432,7 @@ tags_format parameter.
 
 ------------------------------------------------------------------------
 
-### Method `viewManifest()`
+### `ConceptSetManifest$viewManifest()`
 
 View the concept set manifest in RStudio viewer
 
@@ -436,7 +470,7 @@ path
 
 ------------------------------------------------------------------------
 
-### Method `getDbPath()`
+### `ConceptSetManifest$getDbPath()`
 
 #### Usage
 
@@ -449,7 +483,7 @@ root
 
 ------------------------------------------------------------------------
 
-### Method `getProjectRoot()`
+### `ConceptSetManifest$getProjectRoot()`
 
 #### Usage
 
@@ -462,7 +496,7 @@ paths. Get the execution settings
 
 ------------------------------------------------------------------------
 
-### Method `getExecutionSettings()`
+### `ConceptSetManifest$getExecutionSettings()`
 
 #### Usage
 
@@ -475,7 +509,7 @@ not set. Set or update execution settings
 
 ------------------------------------------------------------------------
 
-### Method `setExecutionSettings()`
+### `ConceptSetManifest$setExecutionSettings()`
 
 #### Usage
 
@@ -494,7 +528,7 @@ connection
 
 ------------------------------------------------------------------------
 
-### Method [`getAtlasConnection()`](https://ohdsi.github.io/Picard/reference/getAtlasConnection.md)
+### `ConceptSetManifest$getAtlasConnection()`
 
 #### Usage
 
@@ -510,7 +544,7 @@ Stores a connection so it does not need to be passed to
 
 ------------------------------------------------------------------------
 
-### Method `setAtlasConnection()`
+### `ConceptSetManifest$setAtlasConnection()`
 
 #### Usage
 
@@ -529,7 +563,7 @@ Invisible self for method chaining.
 
 ------------------------------------------------------------------------
 
-### Method `addConceptSetFile()`
+### `ConceptSetManifest$addConceptSetFile()`
 
 Register a local CIRCE JSON file in the manifest
 
@@ -567,7 +601,7 @@ Invisible integer. The assigned concept set ID.
 
 ------------------------------------------------------------------------
 
-### Method `addAtlasConceptSet()`
+### `ConceptSetManifest$addAtlasConceptSet()`
 
 Fetch a single concept set from ATLAS and register it in the manifest
 
@@ -624,7 +658,7 @@ Invisible integer. The assigned concept set ID.
 
 ------------------------------------------------------------------------
 
-### Method `addCaprConceptSet()`
+### `ConceptSetManifest$addCaprConceptSet()`
 
 Export a Capr ConceptSet to JSON and register it in the manifest
 
@@ -672,7 +706,7 @@ Invisible integer. The assigned concept set ID.
 
 ------------------------------------------------------------------------
 
-### Method `updateCaprConceptSet()`
+### `ConceptSetManifest$updateCaprConceptSet()`
 
 Update an existing Capr concept set's JSON definition
 
@@ -702,7 +736,7 @@ Invisible integer. The concept set ID.
 
 ------------------------------------------------------------------------
 
-### Method `importAtlasConceptSets()`
+### `ConceptSetManifest$importAtlasConceptSets()`
 
 Batch-import concept sets from ATLAS via a conceptSetsLoad dataframe
 
@@ -746,7 +780,7 @@ Invisible tibble imported concept sets. Query concept sets by IDs
 
 ------------------------------------------------------------------------
 
-### Method `queryConceptSetsByIds()`
+### `ConceptSetManifest$queryConceptSetsByIds()`
 
 #### Usage
 
@@ -779,7 +813,7 @@ Returns NULL if no matches are found. Query concept sets by tag
 
 ------------------------------------------------------------------------
 
-### Method `queryConceptSetsByTag()`
+### `ConceptSetManifest$queryConceptSetsByTag()`
 
 #### Usage
 
@@ -821,7 +855,7 @@ Returns NULL if no matches are found. Query concept sets by category
 
 ------------------------------------------------------------------------
 
-### Method `queryConceptSetsByCategory()`
+### `ConceptSetManifest$queryConceptSetsByCategory()`
 
 #### Usage
 
@@ -862,7 +896,7 @@ Returns NULL if no matches are found. Query concept sets by tag name
 
 ------------------------------------------------------------------------
 
-### Method `queryConceptSetsByTagName()`
+### `ConceptSetManifest$queryConceptSetsByTagName()`
 
 #### Usage
 
@@ -895,7 +929,7 @@ Returns NULL if no matches are found.
 
 ------------------------------------------------------------------------
 
-### Method `queryConceptSetsMissingTag()`
+### `ConceptSetManifest$queryConceptSetsMissingTag()`
 
 Query concept sets missing a specific tag
 
@@ -930,7 +964,7 @@ Returns NULL if all concept sets have the tag.
 
 ------------------------------------------------------------------------
 
-### Method `queryConceptSetsWithTagValues()`
+### `ConceptSetManifest$queryConceptSetsWithTagValues()`
 
 Query concept sets by tag value mapping
 
@@ -967,7 +1001,7 @@ Returns NULL if no concept sets match all tag conditions.
 
 ------------------------------------------------------------------------
 
-### Method `getTagValuesSummary()`
+### `ConceptSetManifest$getTagValuesSummary()`
 
 Get a summary of all unique values for a specific tag
 
@@ -989,7 +1023,7 @@ label
 
 ------------------------------------------------------------------------
 
-### Method `queryConceptSetsByLabel()`
+### `ConceptSetManifest$queryConceptSetsByLabel()`
 
 #### Usage
 
@@ -1030,7 +1064,7 @@ Returns NULL if no matches are found.
 
 ------------------------------------------------------------------------
 
-### Method `nConceptSets()`
+### `ConceptSetManifest$nConceptSets()`
 
 Get number of concept sets in manifest
 
@@ -1044,7 +1078,7 @@ Integer. The number of concept sets. Get a specific concept set by ID
 
 ------------------------------------------------------------------------
 
-### Method `getConceptSetById()`
+### `ConceptSetManifest$getConceptSetById()`
 
 #### Usage
 
@@ -1063,7 +1097,7 @@ found. Get concept sets by tag
 
 ------------------------------------------------------------------------
 
-### Method `getConceptSetsByTag()`
+### `ConceptSetManifest$getConceptSetsByTag()`
 
 #### Usage
 
@@ -1090,7 +1124,7 @@ none found. Get concept sets by label
 
 ------------------------------------------------------------------------
 
-### Method `getConceptSetsByLabel()`
+### `ConceptSetManifest$getConceptSetsByLabel()`
 
 #### Usage
 
@@ -1119,7 +1153,7 @@ none found.
 
 ------------------------------------------------------------------------
 
-### Method `validateManifest()`
+### `ConceptSetManifest$validateManifest()`
 
 Validate manifest and return status of all concept sets
 
@@ -1134,7 +1168,7 @@ deleted_at, file_exists
 
 ------------------------------------------------------------------------
 
-### Method `getManifestStatus()`
+### `ConceptSetManifest$getManifestStatus()`
 
 Get summary status of manifest
 
@@ -1149,7 +1183,7 @@ next_available_id
 
 ------------------------------------------------------------------------
 
-### Method `deleteConceptSet()`
+### `ConceptSetManifest$deleteConceptSet()`
 
 Soft delete a concept set (mark as deleted, preserve record)
 
@@ -1174,7 +1208,7 @@ Invisibly returns TRUE if successful, FALSE otherwise.
 
 ------------------------------------------------------------------------
 
-### Method `combineConceptSets()`
+### `ConceptSetManifest$combineConceptSets()`
 
 Combine multiple concept sets into a single unified concept set
 
@@ -1231,7 +1265,7 @@ concept set.
 
 ------------------------------------------------------------------------
 
-### Method `updateConceptSetLabel()`
+### `ConceptSetManifest$updateConceptSetLabel()`
 
 Update a concept set label
 
@@ -1255,7 +1289,7 @@ Invisible NULL.
 
 ------------------------------------------------------------------------
 
-### Method `updateConceptSetCategory()`
+### `ConceptSetManifest$updateConceptSetCategory()`
 
 Update a concept set category
 
@@ -1279,7 +1313,7 @@ Invisible NULL.
 
 ------------------------------------------------------------------------
 
-### Method `updateConceptSetTags()`
+### `ConceptSetManifest$updateConceptSetTags()`
 
 Update concept set tags
 
@@ -1303,7 +1337,7 @@ Invisible NULL.
 
 ------------------------------------------------------------------------
 
-### Method `removeConceptSetTag()`
+### `ConceptSetManifest$removeConceptSetTag()`
 
 Remove a specific tag from a concept set
 
@@ -1328,7 +1362,7 @@ was not found.
 
 ------------------------------------------------------------------------
 
-### Method `modifyConceptSetTagValue()`
+### `ConceptSetManifest$modifyConceptSetTagValue()`
 
 Modify the value of an existing tag
 
@@ -1357,7 +1391,7 @@ does not exist.
 
 ------------------------------------------------------------------------
 
-### Method `addConceptSetTag()`
+### `ConceptSetManifest$addConceptSetTag()`
 
 Add a single tag to a concept set (non-destructive)
 
@@ -1385,7 +1419,7 @@ Invisible NULL. Emits success message if tag was added.
 
 ------------------------------------------------------------------------
 
-### Method `getConceptSetTags()`
+### `ConceptSetManifest$getConceptSetTags()`
 
 Get all tags for a specific concept set
 
@@ -1405,7 +1439,7 @@ Named list of tags, or NULL if concept set not found.
 
 ------------------------------------------------------------------------
 
-### Method `mergeTagsIntoConceptSet()`
+### `ConceptSetManifest$mergeTagsIntoConceptSet()`
 
 Merge multiple tags into a concept set (non-destructive, additive)
 
@@ -1430,7 +1464,7 @@ Invisible NULL. Emits success message.
 
 ------------------------------------------------------------------------
 
-### Method `listAllUniqueTags()`
+### `ConceptSetManifest$listAllUniqueTags()`
 
 Get all unique tag names used across the concept set manifest
 
@@ -1444,7 +1478,7 @@ Character vector of unique tag names, sorted alphabetically.
 
 ------------------------------------------------------------------------
 
-### Method `getTagValue()`
+### `ConceptSetManifest$getTagValue()`
 
 Get value of a single tag for a concept set
 
@@ -1468,7 +1502,7 @@ Character. The tag value, or NULL if tag or concept set not found.
 
 ------------------------------------------------------------------------
 
-### Method `renameTagKey()`
+### `ConceptSetManifest$renameTagKey()`
 
 Rename a tag key across specified concept sets (or all concept sets)
 
@@ -1497,7 +1531,7 @@ Invisible tibble with id, old_value showing what was renamed.
 
 ------------------------------------------------------------------------
 
-### Method `bulkModifyTagValue()`
+### `ConceptSetManifest$bulkModifyTagValue()`
 
 Bulk modify a tag value across concept sets matching an old value
 
@@ -1525,7 +1559,7 @@ Invisible tibble with id, label showing what was modified.
 
 ------------------------------------------------------------------------
 
-### Method `checkAtlasConceptSets()`
+### `ConceptSetManifest$checkAtlasConceptSets()`
 
 Auto-detect changes to ATLAS concept sets in remote repository
 
@@ -1537,7 +1571,10 @@ import. No modifications are made.
 
 #### Usage
 
-    ConceptSetManifest$checkAtlasConceptSets(atlasConnection = NULL)
+    ConceptSetManifest$checkAtlasConceptSets(
+      atlasConnection = NULL,
+      stopOnError = TRUE
+    )
 
 #### Arguments
 
@@ -1548,6 +1585,12 @@ import. No modifications are made.
   `expression` element (the CIRCE JSON as a string). If `NULL`
   (default), uses the connection stored via `$setAtlasConnection()`. If
   no connection is available, raises an error.
+
+- `stopOnError`:
+
+  Logical. If TRUE (default), a failed ATLAS fetch aborts the sync. If
+  FALSE, the concept set is skipped with a warning and the remaining
+  concept sets are still synced.
 
 #### Returns
 
@@ -1570,7 +1613,7 @@ Invisible tibble with columns:
 
 ------------------------------------------------------------------------
 
-### Method `updateAtlasConceptSets()`
+### `ConceptSetManifest$updateAtlasConceptSets()`
 
 Update ATLAS concept sets with remote definitions
 
@@ -1581,7 +1624,10 @@ checkAtlasConceptSets().
 
 #### Usage
 
-    ConceptSetManifest$updateAtlasConceptSets(atlasConnection = NULL)
+    ConceptSetManifest$updateAtlasConceptSets(
+      atlasConnection = NULL,
+      stopOnError = TRUE
+    )
 
 #### Arguments
 
@@ -1591,6 +1637,12 @@ checkAtlasConceptSets().
   `getConceptSetDefinition(conceptSetId)`. If `NULL` (default), uses the
   connection stored via `$setAtlasConnection()`.
 
+- `stopOnError`:
+
+  Logical. If TRUE (default), a failed ATLAS fetch aborts the sync. If
+  FALSE, the concept set is skipped with a warning and the remaining
+  concept sets are still synced.
+
 #### Returns
 
 Invisible tibble of concept sets that were updated, with columns: id,
@@ -1598,7 +1650,7 @@ label, atlasId, filePath, hasChanged, localHash, remoteHash
 
 ------------------------------------------------------------------------
 
-### Method `cleanupMissing()`
+### `ConceptSetManifest$cleanupMissing()`
 
 Clean up missing concept sets from manifest
 
@@ -1621,7 +1673,7 @@ manifest against concept set files on disk
 
 ------------------------------------------------------------------------
 
-### Method `syncManifest()`
+### `ConceptSetManifest$syncManifest()`
 
 Scans the `json/` subdirectory of the concept sets folder, reconciles it
 against the SQLite manifest, and updates both the database and the
@@ -1662,7 +1714,7 @@ Data frame with columns: id, label, action (`"hash_updated"`,
 
 ------------------------------------------------------------------------
 
-### Method `grabConceptInfoFromSet()`
+### `ConceptSetManifest$grabConceptInfoFromSet()`
 
 Retrieve concept information for all concepts in a concept set
 
@@ -1694,7 +1746,7 @@ Tibble with columns:
 
 ------------------------------------------------------------------------
 
-### Method `extractSourceCodes()`
+### `ConceptSetManifest$extractSourceCodes()`
 
 Finds source codes from specified vocabularies that map to each concept
 set's standard concepts. Results are exported to a single xlsx file with
@@ -1716,7 +1768,9 @@ concept set domains.
   Character vector. Source vocabulary IDs to search for. Valid options:
   "ICD9CM", "ICD10CM", "HCPCS", "CPT4", "LOINC", "NDC". Defaults to
   c("ICD10CM"). The function will suggest appropriate vocabularies based
-  on the domains of your concept sets and prompt you to use them.
+  on the domains of your concept sets and, in interactive sessions,
+  prompt you to use them. Non-interactive sessions use this value
+  directly.
 
 - `outputFolder`:
 
@@ -1737,7 +1791,7 @@ sheet per concept set, saved in the inputs/conceptSets folder.
 
 ------------------------------------------------------------------------
 
-### Method `extractIncludedCodes()`
+### `ConceptSetManifest$extractIncludedCodes()`
 
 #### Usage
 
@@ -1759,7 +1813,7 @@ status messages.
 
 ------------------------------------------------------------------------
 
-### Method `clone()`
+### `ConceptSetManifest$clone()`
 
 The objects of this class are cloneable with this method.
 

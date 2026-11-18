@@ -67,7 +67,7 @@ per-block in DbConfigBlock.
 
 ### Public methods
 
-- [`UlyssesStudy$new()`](#method-UlyssesStudy-new)
+- [`UlyssesStudy$new()`](#method-UlyssesStudy-initialize)
 
 - [`UlyssesStudy$initUlyssesRepo()`](#method-UlyssesStudy-initUlyssesRepo)
 
@@ -75,7 +75,7 @@ per-block in DbConfigBlock.
 
 ------------------------------------------------------------------------
 
-### Method `new()`
+### `UlyssesStudy$new()`
 
 Initialize a new UlyssesStudy instance with configuration parameters.
 
@@ -123,7 +123,7 @@ Invisibly returns self for method chaining.
 
 ------------------------------------------------------------------------
 
-### Method `initUlyssesRepo()`
+### `UlyssesStudy$initUlyssesRepo()`
 
 Initialize the complete Ulysses repository structure and configuration.
 
@@ -143,9 +143,21 @@ This method performs the following initialization steps:
 
 7.  Initializes git repository
 
+The repository directory may already exist if it is empty. To initialize
+into a directory that already contains files, set
+`allowExisting = TRUE`: only scaffold files that are missing are added,
+existing files are never overwritten, and the required entries are
+merged into an existing `.gitignore`. If the directory is already a git
+repository, nothing is committed or pushed; review and commit the added
+files yourself.
+
 #### Usage
 
-    UlyssesStudy$initUlyssesRepo(verbose = TRUE, openProject = FALSE)
+    UlyssesStudy$initUlyssesRepo(
+      verbose = TRUE,
+      openProject = FALSE,
+      allowExisting = FALSE
+    )
 
 #### Arguments
 
@@ -159,13 +171,19 @@ This method performs the following initialization steps:
   Logical. If TRUE, opens the project in a new RStudio session after
   initialization.
 
+- `allowExisting`:
+
+  Logical. If TRUE, initialize into an existing, non-empty directory by
+  adding only the missing scaffold files. Default is FALSE, which aborts
+  when the directory contains any files.
+
 #### Returns
 
 Invisibly returns the path to the initialized repository.
 
 ------------------------------------------------------------------------
 
-### Method `clone()`
+### `UlyssesStudy$clone()`
 
 The objects of this class are cloneable with this method.
 

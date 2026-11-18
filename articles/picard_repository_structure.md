@@ -74,7 +74,6 @@ A newly initialized Picard study has the following high-level structure:
     ├── inputs/            # Cohort definitions and concept sets
     ├── dissemination/     # Results and evidence outputs
     ├── exec/              # Execution artifacts and logs
-    ├── docs/              # Generated documentation (pkgdown)
     ├── extras/            # Reference scripts and development files
     ├── config.yml         # Project configuration
     ├── main.R             # Production pipeline execution script
@@ -487,7 +486,7 @@ studies.
     ├── sql/
     │   ├── 004_primarySubset.sql          # Subset of cohort 001
     │   └── 005_combinedPopulation.sql     # Union of cohorts 001 & 002
-    ├── cohortsLoad.csv                    # ATLAS cohorts to bulk-import
+    ├── cohortsLoad.csv                    # ATLAS cohorts the study uses
     └── cohortManifest.sqlite              # Provenance & metadata tracking database
 
 **cohortsLoad.csv:**
@@ -496,7 +495,9 @@ A CSV file listing the ATLAS cohorts to bulk-import.
 [`createBlankCohortsLoadFile()`](https://ohdsi.github.io/Picard/reference/createBlankCohortsLoadFile.md)
 scaffolds it; `importAtlasCohorts()` reads it, downloads each cohort’s
 JSON to `json/`, and registers it in the manifest with the
-`label`/`category`/`subCategory` carried onto the cohort as tags.
+`label`/`category`/`subCategory` carried onto the cohort as tags. The
+file is kept in the repo and maintained as the record of which ATLAS
+cohorts the study uses.
 
 Columns: - `atlasId`: ATLAS cohort definition ID (integer, e.g., `1`,
 `42`) - `label`: Display name (character, e.g.,
@@ -519,22 +520,22 @@ for later querying (e.g., `$queryCohortsByTag()`,
 SQLite database created/managed by `CohortManifest` class. Contains
 `cohort_manifest` table tracking all cohort metadata:
 
-| Column            | Type                               | Purpose                                                                                                         |
-|-------------------|------------------------------------|-----------------------------------------------------------------------------------------------------------------|
-| `id`              | INTEGER PRIMARY KEY                | Sequential cohort ID assigned by Picard                                                                         |
-| `label`           | TEXT NOT NULL                      | Cohort display name (unique among active records)                                                               |
-| `category`        | TEXT NOT NULL                      | User classification (e.g., “Disease Populations”)                                                               |
-| `tags`            | TEXT                               | Serialized tags (e.g., `"atlasId: 1 \| subCategory: Endocrine"`)                                                |
-| `file_path`       | TEXT NOT NULL                      | Path to the SQL/JSON file, stored **relative to the study repo root**                                           |
-| `hash`            | TEXT NOT NULL                      | Hash of the file **contents** for change detection                                                              |
-| `source_type`     | TEXT NOT NULL                      | `'circe'`, `'sql'`, or `'derived'`                                                                              |
-| `cohort_type`     | TEXT NOT NULL                      | `circe`, `custom`, `custom_derived`, `union`, `subset`, `complement`, `composite`, `oprior`, `tprior`, `censor` |
-| `depends_on`      | TEXT                               | JSON array of parent cohort IDs (derived cohorts only)                                                          |
-| `dependency_rule` | TEXT                               | JSON object of build parameters (derived cohorts only)                                                          |
-| `status`          | TEXT DEFAULT ‘active’              | `'active'`, `'stale'`, `'deleted'`, or `'purged'`                                                               |
-| `created_at`      | DATETIME DEFAULT CURRENT_TIMESTAMP | When cohort was added to manifest                                                                               |
-| `updated_at`      | DATETIME DEFAULT CURRENT_TIMESTAMP | Last metadata/definition change                                                                                 |
-| `deleted_at`      | DATETIME                           | Soft-delete timestamp if cohort removed                                                                         |
+| Column | Type | Purpose |
+|----|----|----|
+| `id` | INTEGER PRIMARY KEY | Sequential cohort ID assigned by Picard |
+| `label` | TEXT NOT NULL | Cohort display name (unique among active records) |
+| `category` | TEXT NOT NULL | User classification (e.g., “Disease Populations”) |
+| `tags` | TEXT | Serialized tags (e.g., `"atlasId: 1 \| subCategory: Endocrine"`) |
+| `file_path` | TEXT NOT NULL | Path to the SQL/JSON file, stored **relative to the study repo root** |
+| `hash` | TEXT NOT NULL | Hash of the file **contents** for change detection |
+| `source_type` | TEXT NOT NULL | `'circe'`, `'sql'`, or `'derived'` |
+| `cohort_type` | TEXT NOT NULL | `circe`, `custom`, `custom_derived`, `union`, `subset`, `complement`, `composite`, `oprior`, `tprior`, `censor` |
+| `depends_on` | TEXT | JSON array of parent cohort IDs (derived cohorts only) |
+| `dependency_rule` | TEXT | JSON object of build parameters (derived cohorts only) |
+| `status` | TEXT DEFAULT ‘active’ | `'active'`, `'stale'`, `'deleted'`, or `'purged'` |
+| `created_at` | DATETIME DEFAULT CURRENT_TIMESTAMP | When cohort was added to manifest |
+| `updated_at` | DATETIME DEFAULT CURRENT_TIMESTAMP | Last metadata/definition change |
+| `deleted_at` | DATETIME | Soft-delete timestamp if cohort removed |
 
 **Workflow:**
 
@@ -568,13 +569,14 @@ extracting covariates:
     │   ├── exposure_antidiabetic.json        # Drug exposure concept set
     │   ├── outcome_mi.json                   # Condition outcome concept set
     │   └── covariate_hypertension.json       # Covariate measurement concept set
-    ├── conceptSetsLoad.csv                   # ATLAS concept sets to bulk-import
+    ├── conceptSetsLoad.csv                   # ATLAS concept sets the study uses
     └── conceptSetManifest.sqlite             # Provenance & metadata tracking database
 
 **conceptSetsLoad.csv:**
 
-Similar to cohortsLoad.csv, this CSV lists the ATLAS concept sets to
-bulk-import via `$importAtlasConceptSets()`.
+Similar to cohortsLoad.csv, this CSV is kept in the repo and lists the
+ATLAS concept sets the study uses, imported via
+`$importAtlasConceptSets()`.
 [`createBlankConceptSetsLoadFile()`](https://ohdsi.github.io/Picard/reference/createBlankConceptSetsLoadFile.md)
 scaffolds it. Columns: - `atlasId`: ATLAS concept set ID (integer, e.g.,
 `456`, `789`) - `label`: Display name (character, e.g.,
@@ -603,18 +605,18 @@ for querying (e.g., `$getConceptSetsByTag()`,
 SQLite database created/managed by `ConceptSetManifest` class. Contains
 `concept_set_manifest` table:
 
-| Column       | Type                               | Purpose                                                           |
-|--------------|------------------------------------|-------------------------------------------------------------------|
-| `id`         | INTEGER PRIMARY KEY                | Sequential concept set ID assigned by Picard                      |
-| `label`      | TEXT NOT NULL                      | Concept set display name                                          |
-| `category`   | TEXT NOT NULL                      | User classification (e.g., “Medications”)                         |
-| `tags`       | TEXT                               | Serialized tags (e.g., `"atlasId: 456 \| domain: drug_exposure"`) |
-| `file_path`  | TEXT NOT NULL                      | Path to the JSON file, stored **relative to the study repo root** |
-| `hash`       | TEXT NOT NULL                      | Hash of the file **contents** for change detection                |
-| `status`     | TEXT DEFAULT ‘active’              | `'active'`, `'stale'`, `'deleted'`, or `'purged'`                 |
-| `created_at` | DATETIME DEFAULT CURRENT_TIMESTAMP | When concept set added to manifest                                |
-| `updated_at` | DATETIME DEFAULT CURRENT_TIMESTAMP | Last metadata/definition change                                   |
-| `deleted_at` | DATETIME                           | Soft-delete timestamp if removed                                  |
+| Column | Type | Purpose |
+|----|----|----|
+| `id` | INTEGER PRIMARY KEY | Sequential concept set ID assigned by Picard |
+| `label` | TEXT NOT NULL | Concept set display name |
+| `category` | TEXT NOT NULL | User classification (e.g., “Medications”) |
+| `tags` | TEXT | Serialized tags (e.g., `"atlasId: 456 \| domain: drug_exposure"`) |
+| `file_path` | TEXT NOT NULL | Path to the JSON file, stored **relative to the study repo root** |
+| `hash` | TEXT NOT NULL | Hash of the file **contents** for change detection |
+| `status` | TEXT DEFAULT ‘active’ | `'active'`, `'stale'`, `'deleted'`, or `'purged'` |
+| `created_at` | DATETIME DEFAULT CURRENT_TIMESTAMP | When concept set added to manifest |
+| `updated_at` | DATETIME DEFAULT CURRENT_TIMESTAMP | Last metadata/definition change |
+| `deleted_at` | DATETIME | Soft-delete timestamp if removed |
 
 **Workflow:**
 
