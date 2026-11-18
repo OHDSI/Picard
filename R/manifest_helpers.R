@@ -802,7 +802,7 @@ createBlankCohortsLoadFile <- function(cohortsFolderPath = here::here("inputs/co
   ))
 
   if (openFile) {
-    rstudioapi::navigateToFile(file = file_path)
+    rstudio_navigate_to_file(file = file_path)
     cli::cat_bullet(
       "Navigating to new cohorts load file",
       bullet = "info",
@@ -1301,7 +1301,7 @@ createBlankConceptSetsLoadFile <- function(conceptSetsFolderPath = here::here("i
   ))
 
   if (openFile) {
-    rstudioapi::navigateToFile(file = file_path)
+    rstudio_navigate_to_file(file = file_path)
     cli::cat_bullet(
       "Navigating to new concept sets load file",
       bullet = "info",

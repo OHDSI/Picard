@@ -13,6 +13,7 @@ setContributor <- function(name, email, role) {
 #' @param studyTitle the title of the study as a character string
 #' @param therapeuticArea the TA as a character string
 #' @param studyType the study type (typically characterization)
+#' @param contributors a list of ContributorLine class that identifies contributors to the study
 #' @param studyLinks a list of study links
 #' @param studyTags a list of study tags
 #' @param studyDescription a character string describing the study, or NULL
@@ -467,7 +468,7 @@ makeTaskFile <- function(
   )
 
   if (openFile) {
-    rstudioapi::navigateToFile(file = fs::path(analysisFolderPath, newName, ext = "R"))
+    rstudio_navigate_to_file(file = fs::path(analysisFolderPath, newName, ext = "R"))
     cli::cat_bullet(
       "Navigating to new task file",
       bullet = "info",
@@ -560,7 +561,7 @@ makeSrcFile <- function(
   )
 
   if (openFile) {
-    rstudioapi::navigateToFile(file = fs::path(srcFolderPath, fileName, ext = "R"))
+    rstudio_navigate_to_file(file = fs::path(srcFolderPath, fileName, ext = "R"))
     cli::cat_bullet(
       "Navigating to new source file",
       bullet = "info",
@@ -651,7 +652,7 @@ makeSrcSqlFile <- function(
   )
 
   if (openFile) {
-    rstudioapi::navigateToFile(file = fs::path(sqlFolderPath, fileName, ext = "sql"))
+    rstudio_navigate_to_file(file = fs::path(sqlFolderPath, fileName, ext = "sql"))
     cli::cat_bullet(
       "Navigating to new SQL file",
       bullet = "info",
@@ -1219,7 +1220,7 @@ makeInputBuilderScript <- function(type,
   readr::write_file(x = loadScriptTemplate, file = filePath)
   
   if (open) {
-    rstudioapi::navigateToFile(file = filePath)
+    rstudio_navigate_to_file(file = filePath)
     cli::cat_bullet(
       "Opening builder script",
       bullet = "info",
@@ -1326,7 +1327,7 @@ makeDisseminationScript <- function(
   readr::write_file(x = disseminationTemplate, file = filePath)
 
   if (open) {
-    rstudioapi::navigateToFile(file = filePath)
+    rstudio_navigate_to_file(file = filePath)
     cli::cat_bullet(
       "Opening dissemination script",
       bullet = "info",

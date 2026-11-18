@@ -98,6 +98,8 @@ initStudyHubFiles <- function(repoName,
 #' @export
 buildStudyHub <- function(projectPath = here::here(), previewHub = TRUE) {
 
+  require_pkg("quarto", "render the Study Hub")
+
   cli::cat_rule("Build Study Hub")
 
   cli::cat_bullet("Update Index and NEWS files", bullet = "info", bullet_col = "blue")

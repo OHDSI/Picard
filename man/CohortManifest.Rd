@@ -695,15 +695,15 @@ marked 'stale' when the definition changed. Default: TRUE (fail-safe).}
 
 Registers a SQL file in the manifest as a dependency-aware derived cohort.
 The source SQL file must preserve the standard Picard cohort write contract
-using \.code{@target_database_schema.@target_cohort_table} and
-\.code{@target_cohort_id}.
+using \code{@target_database_schema.@target_cohort_table} and
+\code{@target_cohort_id}.
 
 \code{dependentCohortIdList} and \code{sqlParameters} values are rendered into the
-source SQL immediately (via \.code{SqlRender::render()}) and the result is
-written to \.code{inputs/cohorts/derived/\if{html}{\out{<label>}}.sql} — the file registered
+source SQL immediately (via \code{SqlRender::render()}) and the result is
+written to \code{inputs/cohorts/derived/<label>.sql} — the file registered
 in the manifest — exactly like the built-in derived cohort types (subset,
-union, etc.). Only the connection/schema placeholders (\.code{@target_cohort_id}
-and friends) are left for \.code{generateCohorts()} to fill in at execution time.
+union, etc.). Only the connection/schema placeholders (\code{@target_cohort_id}
+and friends) are left for \code{generateCohorts()} to fill in at execution time.
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
     \preformatted{CohortManifest$addDependentCustomCohort(
@@ -725,18 +725,18 @@ and friends) are left for \.code{generateCohorts()} to fill in at execution time
       \item{\code{category}}{Character. Required classification.}
       \item{\code{dependentCohortIdList}}{Named list. Each name is a SqlRender parameter to
 render into the SQL file. Each value is, preferably, a manifest entry —
-a data.frame/tibble with an \.code{id} column, as returned by query methods
-like \.code{queryCohortsByLabel()} (a single row bakes in one ID; a multi-row
-table bakes in a comma-separated vector, for \.code{IN (@param)} clauses) —
+a data.frame/tibble with an \code{id} column, as returned by query methods
+like \code{queryCohortsByLabel()} (a single row bakes in one ID; a multi-row
+table bakes in a comma-separated vector, for \code{IN (@param)} clauses) —
 or, for backward compatibility, a raw integer cohort ID (or integer vector).
-These IDs also become this cohort's \.code{depends_on} parents for staleness
-tracking. When entries carry a \.code{label} column, it's included (purely
+These IDs also become this cohort's \code{depends_on} parents for staleness
+tracking. When entries carry a \code{label} column, it's included (purely
 for QC) in a generated comment header at the top of the derived SQL file.
-Example: \.code{list(inc_cohort_id = ckdEntry, exc_cohort_id = t2dEntry)}.}
+Example: \code{list(inc_cohort_id = ckdEntry, exc_cohort_id = t2dEntry)}.}
       \item{\code{sqlParameters}}{Named list. Optional additional SqlRender parameters to
 render into the SQL file (any type — thresholds, dates, strings, etc.),
 not treated as cohort dependencies.
-Example: \.code{list(min_days = 30L, index_year = 2020L)}.}
+Example: \code{list(min_days = 30L, index_year = 2020L)}.}
       \item{\code{tags}}{Named list. Optional metadata tags.}
       \item{\code{stopIfExists}}{Logical. If TRUE (default), raises an error when an
 active or stale cohort with this label is already registered. If FALSE,

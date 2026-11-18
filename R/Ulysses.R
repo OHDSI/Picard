@@ -119,7 +119,7 @@ UlyssesStudy <- R6::R6Class(
 
         if (openProject) {
           cli::cli_inform("Opening project in new session...")
-          rstudioapi::openProject(repoPath, newSession = TRUE)
+          rstudio_open_project(repoPath)
         }
       }, error = function(e) {
         cli::cli_abort("Failed to initialize repository: {e$message}")
@@ -1126,7 +1126,7 @@ updateNews <- function(versionNumber, projectPath = here::here(), openFile = TRU
     bullet_col = "yellow"
   )
   if (openFile) {
-    rstudioapi::navigateToFile(file = fs::path(projectPath, "NEWS.md"))
+    rstudio_navigate_to_file(file = fs::path(projectPath, "NEWS.md"))
     actionItem("Opening NEWS.md for edits")
   }
   invisible(updateNewsFile)

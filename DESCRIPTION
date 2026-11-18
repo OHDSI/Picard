@@ -10,7 +10,7 @@ Description: A pipeline tool for RWE analysis (typically using the OHDSI stack) 
     This package initializes a standard directory structure, builds cohorts, and executes R scripts in a specified order.
 License: Apache License (>= 2)
 URL: https://ohdsi.github.io/Picard/, https://github.com/ohdsi/Picard/
-Requires: R (>= 3.2)
+Requires: R (>= 4.1)
 Imports:
     R6,
     DBI,
@@ -39,14 +39,21 @@ Imports:
     lubridate,
     snakecase,
     config,
-    DT
+    DT,
+    gert,
+    usethis
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
 Suggests:
     testthat (>= 3.0.0),
     withr,
-    Capr
+    Capr,
+    keyring,
+    openxlsx2,
+    quarto,
+    renv,
+    rstudioapi
 Remotes:
     ohdsi/Capr
 Config/roxygen2/version: 8.0.0
