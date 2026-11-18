@@ -37,15 +37,16 @@ folders under `inputs/`:
 - **`inputs/conceptSets/R/`** — Scripts for building concept set manifests
 - **`inputs/cohorts/R/`** — Scripts for building cohort manifests
 
-These scripts are **pre-populated** at project initialization with templates for
-six different builder types. You choose which builders to use by keeping the
-scripts you need and deleting the ones you do not.
+These scripts are **pre-populated** at project initialization with six fixed
+builder templates. Keep all six scripts in place, including builders your study
+does not use. `sourceInputBuilderScripts()` validates their names and sources
+all six in dependency order; it does not discover an arbitrary set of scripts.
 
-**When you run `main.R`**, the pipeline automatically discovers and sources all
-remaining builder scripts in a **mandatory dependency order**. This ensures concept sets load before cohorts:
+**When you run `main.R`**, the pipeline sources all six builder scripts in a
+**mandatory dependency order**. This ensures concept sets load before cohorts:
 
 - ✅ No manual `source()` calls needed in `main.R`
-- ✅ No `main.R` edits required when deleting scripts
+- ✅ Edit the relevant builder templates without changing `main.R`
 - ✅ Each builder script is self-contained with embedded guidance comments
 - ✅ Mandatory source order prevents dependency conflicts
 - ⚠️ Builder scripts must go in `inputs/cohorts/R/` and `inputs/conceptSets/R/` — **NOT** in `analysis/tasks/`
@@ -71,15 +72,15 @@ remaining builder scripts in a **mandatory dependency order**. This ensures conc
 ### Typical Workflow
 
 1. **Project initializes** with all 6 builder scripts pre-created
-2. **Edit the builders you need** - Each script has clear guidance comments
-3. **Leave unused builders as they are** - An unpopulated builder runs without error. The ATLAS builders are fully commented out until you uncomment the steps you need; the Capr, SQL and dependent-cohort builders create the manifest on first run
-4. **Run `main.R`** - For each database, `execStudyPipeline()` runs all 6 scripts in mandatory order, then generates that database's cohorts and runs its tasks
-5. **Manifests load** - Your cohorts and concept sets are ready for the pipeline
+2. **Keep all 6 scripts** - Do not delete unused builders or add other `.R` files directly to either builder folder
+3. **Edit the builders you use** - Follow each template's section comments. ATLAS setup and import steps are commented out; enable them when importing. The import is one-time, so comment that call out after it succeeds. Enable the separate `updateAtlas...()` call if you want registered ATLAS definitions checked on later runs. Capr, SQL, and dependent-cohort templates load or initialize the manifest and show its contents; add definitions by filling in their examples and registration calls
+4. **Run `main.R`** - All 6 scripts are sourced in mandatory order before cohort generation and analysis tasks. An unused template may still perform manifest setup or review, but it does not register or build definitions unless you add or enable those calls
+5. **Manifests are ready** - Registered concept sets and cohorts are available to the pipeline
 
 All 6 builder scripts are required. `sourceInputBuilderScripts()` stops with an
 error before sourcing anything if one is missing, or if `inputs/cohorts/R/` or
 `inputs/conceptSets/R/` contains any other `.R` file, because such a file would
-never run. Recreate a deleted builder with `makeInputBuilderScript()`, and put
+never run. Recreate a missing builder with `makeInputBuilderScript()`, and put
 helper code in a subfolder such as `inputs/cohorts/R/src/`.
 
 If a builder script errors, `sourceInputBuilderScripts()` stops immediately, so

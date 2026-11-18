@@ -44,6 +44,7 @@ library(picard)
 
 # Uncomment when you start using ATLAS. If the manifest does not exist yet,
 # run initCohortManifest() once at the console first.
+# cohortManifest <- initCohortManifest()
 # cohortManifest <- loadCohortManifest()
 
 
@@ -72,13 +73,14 @@ library(picard)
 # category, tags) on every run. Rows are matched to registered cohorts by
 # label: to rename one, call $updateCohortLabel() and then edit the label in
 # the csv to match.
-# cohortManifest$importAtlasCohorts(
-#   cohortsLoad = readr::read_csv(
-#     here::here("inputs/cohorts/cohortsLoad.csv"),
-#     show_col_types = FALSE
-#   )
-# )
 
+# Can either upload a file or use a tibble
+# cohortsLoadFile <- readr::read_csv(
+#    here::here("inputs/cohorts/cohortsLoad.csv"),
+#    show_col_types = FALSE
+# )
+#
+# cohortManifest$importAtlasCohorts(cohortsLoad = cohortsLoadFile)
 
 # ================================================================================
 # E. SYNC REGISTERED ATLAS COHORTS

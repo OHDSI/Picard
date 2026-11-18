@@ -95,7 +95,7 @@ Before running production mode:
 3. **Pull latest changes:** `git pull`
 4. **Verify configuration:** Check config.yml for correctness
 5. **Prepare builder scripts:** Edit and finalize scripts in `inputs/cohorts/R/` and `inputs/conceptSets/R/`
-   - Leave unused builders in place; all 6 are required and unpopulated ones run without error
+  - Keep all 6 required scripts in place. All are sourced; unused templates may still load or initialize a manifest, but do not register or build definitions unless you add or enable those calls
    - See [Loading Inputs](loading_inputs.html) for detailed guidance on each builder type
 
 You can also do this by using the `saveWork()` function which we describe in [Developing the Pipeline](developing_the_pipeline.html) to save your work and prepare for production.

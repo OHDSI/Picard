@@ -613,7 +613,7 @@ runPreflightChecks <- function(configBlock,
 
   # 1. Branch guard (always run)
   results[["Branch"]] <- .runCheck("Branch", function() {
-    branch <- gert::git_branch()
+    branch <- get_current_branch()
     if (branch == "main") stop("On main \u2014 production runs require a release branch")
     paste0("On '", branch, "' (not main)")
   })

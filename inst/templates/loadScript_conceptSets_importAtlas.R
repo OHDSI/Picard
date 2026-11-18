@@ -43,6 +43,7 @@ library(picard)
 
 # Uncomment when you start using ATLAS. If the manifest does not exist yet,
 # run initConceptSetManifest() once at the console first.
+# conceptSetManifest <- initConceptSetManifest()
 # conceptSetManifest <- loadConceptSetManifest()
 
 
@@ -71,12 +72,14 @@ library(picard)
 # place (definition, category, tags) on every run. Rows are matched to
 # registered concept sets by label: to rename one, call
 # $updateConceptSetLabel() and then edit the label in the csv to match.
-# conceptSetManifest$importAtlasConceptSets(
-#   conceptSetsLoad = readr::read_csv(
-#     here::here("inputs/conceptSets/conceptSetsLoad.csv"),
-#     show_col_types = FALSE
-#   )
+#
+# Can either upload a file or use a tibble
+# conceptLoadFile <- readr::read_csv(
+#    here::here("inputs/conceptSets/conceptSetsLoad.csv"),
+#    show_col_types = FALSE
 # )
+#
+# conceptSetManifest$importAtlasConceptSets(conceptSetsLoad = conceptLoadFile)
 
 
 # ================================================================================

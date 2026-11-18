@@ -16,23 +16,24 @@ never construct it directly.
 \keyword{internal}
 \section{Methods}{
 \subsection{Public methods}{
-\itemize{
-\item \href{#method-ExecutionContext-new}{\code{ExecutionContext$new()}}
-\item \href{#method-ExecutionContext-getMode}{\code{ExecutionContext$getMode()}}
-\item \href{#method-ExecutionContext-getPipelineVersion}{\code{ExecutionContext$getPipelineVersion()}}
-\item \href{#method-ExecutionContext-getStudyVersion}{\code{ExecutionContext$getStudyVersion()}}
-\item \href{#method-ExecutionContext-getCohortTable}{\code{ExecutionContext$getCohortTable()}}
-\item \href{#method-ExecutionContext-deriveCohortTable}{\code{ExecutionContext$deriveCohortTable()}}
-\item \href{#method-ExecutionContext-getResultsPath}{\code{ExecutionContext$getResultsPath()}}
-\item \href{#method-ExecutionContext-clone}{\code{ExecutionContext$clone()}}
-}
+  \itemize{
+    \item \href{#method-ExecutionContext-initialize}{\code{ExecutionContext$new()}}
+    \item \href{#method-ExecutionContext-getMode}{\code{ExecutionContext$getMode()}}
+    \item \href{#method-ExecutionContext-getPipelineVersion}{\code{ExecutionContext$getPipelineVersion()}}
+    \item \href{#method-ExecutionContext-getStudyVersion}{\code{ExecutionContext$getStudyVersion()}}
+    \item \href{#method-ExecutionContext-getCohortTable}{\code{ExecutionContext$getCohortTable()}}
+    \item \href{#method-ExecutionContext-deriveCohortTable}{\code{ExecutionContext$deriveCohortTable()}}
+    \item \href{#method-ExecutionContext-getResultsPath}{\code{ExecutionContext$getResultsPath()}}
+    \item \href{#method-ExecutionContext-clone}{\code{ExecutionContext$clone()}}
+  }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-ExecutionContext-new"></a>}}
-\if{latex}{\out{\hypertarget{method-ExecutionContext-new}{}}}
-\subsection{Method \code{new()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ExecutionContext$new(
+\if{html}{\out{<a id="method-ExecutionContext-initialize"></a>}}
+\if{latex}{\out{\hypertarget{method-ExecutionContext-initialize}{}}}
+\subsection{\code{ExecutionContext$new()}}{
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ExecutionContext$new(
   mode = c("test", "production"),
   pipelineVersion = "dev",
   studyVersion = NULL,
@@ -40,154 +41,162 @@ never construct it directly.
   databaseName = NULL,
   execPath = here::here("exec/results"),
   maxTableNameLength = MAX_TEST_COHORT_TABLE_NAME_LENGTH
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{mode}}{Character. Either \code{"test"} or \code{"production"}.}
-
-\item{\code{pipelineVersion}}{Character. The complete execution pipeline version.
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{mode}}{Character. Either \code{"test"} or \code{"production"}.}
+      \item{\code{pipelineVersion}}{Character. The complete execution pipeline version.
 Defaults to \code{"dev"} for test executions. Test pipeline versions are
 normalized to lowercase snake case. Production pipeline versions are
 semantic versions, or the literal \code{"prod"} for a production run against
 the configured table whose version is not tracked.}
-
-\item{\code{studyVersion}}{Character or \code{NULL}. The study version associated with
+      \item{\code{studyVersion}}{Character or \code{NULL}. The study version associated with
 the execution. Required for a semantic-version production run; \code{NULL} for
 test runs and for \code{pipelineVersion = "prod"}.}
-
-\item{\code{baseCohortTable}}{Character or \code{NULL}. The configured, unsuffixed
+      \item{\code{baseCohortTable}}{Character or \code{NULL}. The configured, unsuffixed
 cohort table. Optional for a run-scoped context shared by multiple
 database config blocks.}
-
-\item{\code{databaseName}}{Character or \code{NULL}. Human-readable database name
+      \item{\code{databaseName}}{Character or \code{NULL}. Human-readable database name
 used in result paths. Optional for a run-scoped context shared by
 multiple database config blocks.}
-
-\item{\code{execPath}}{Character. Base path for execution results. Defaults to
+      \item{\code{execPath}}{Character. Base path for execution results. Defaults to
 \code{exec/results} in the current study project.}
-
-\item{\code{maxTableNameLength}}{Integer. Maximum permitted length of the derived
+      \item{\code{maxTableNameLength}}{Integer. Maximum permitted length of the derived
 cohort table name. Defaults to 60, a practical cross-database limit for
 test-derived names. Set to \code{NULL} to disable this package-level check.}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
-\if{html}{\out{</div>}}
-}
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ExecutionContext-getMode"></a>}}
 \if{latex}{\out{\hypertarget{method-ExecutionContext-getMode}{}}}
-\subsection{Method \code{getMode()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ExecutionContext$getMode()}\if{html}{\out{</div>}}
+\subsection{\code{ExecutionContext$getMode()}}{
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ExecutionContext$getMode()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character. Execution mode, either \code{"test"} or \code{"production"}.
+  }
 }
 
-\subsection{Returns}{
-Character. Execution mode, either \code{"test"} or \code{"production"}.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ExecutionContext-getPipelineVersion"></a>}}
 \if{latex}{\out{\hypertarget{method-ExecutionContext-getPipelineVersion}{}}}
-\subsection{Method \code{getPipelineVersion()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ExecutionContext$getPipelineVersion()}\if{html}{\out{</div>}}
+\subsection{\code{ExecutionContext$getPipelineVersion()}}{
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ExecutionContext$getPipelineVersion()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character. Normalized execution pipelineVersion.
+  }
 }
 
-\subsection{Returns}{
-Character. Normalized execution pipelineVersion.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ExecutionContext-getStudyVersion"></a>}}
 \if{latex}{\out{\hypertarget{method-ExecutionContext-getStudyVersion}{}}}
-\subsection{Method \code{getStudyVersion()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ExecutionContext$getStudyVersion()}\if{html}{\out{</div>}}
+\subsection{\code{ExecutionContext$getStudyVersion()}}{
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ExecutionContext$getStudyVersion()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character or \code{NULL}. Associated production study version.
+  }
 }
 
-\subsection{Returns}{
-Character or \code{NULL}. Associated production study version.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ExecutionContext-getCohortTable"></a>}}
 \if{latex}{\out{\hypertarget{method-ExecutionContext-getCohortTable}{}}}
-\subsection{Method \code{getCohortTable()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ExecutionContext$getCohortTable()}\if{html}{\out{</div>}}
+\subsection{\code{ExecutionContext$getCohortTable()}}{
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ExecutionContext$getCohortTable()}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character or \code{NULL}. Effective cohort table name for this
+execution, or \code{NULL} for a run-scoped context without a base table.
+  }
 }
 
-\subsection{Returns}{
-Character or \code{NULL}. Effective cohort table name for this
-execution, or \code{NULL} for a run-scoped context without a base table.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ExecutionContext-deriveCohortTable"></a>}}
 \if{latex}{\out{\hypertarget{method-ExecutionContext-deriveCohortTable}{}}}
-\subsection{Method \code{deriveCohortTable()}}{
-Apply this run's mode and namespace to a configured base
+\subsection{\code{ExecutionContext$deriveCohortTable()}}{
+  Apply this run's mode and namespace to a configured base
 cohort table. Production returns the base table unchanged; test appends
 the normalized pipeline version and enforces the table-name length
 ceiling before any database work.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ExecutionContext$deriveCohortTable(baseCohortTable)}\if{html}{\out{</div>}}
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ExecutionContext$deriveCohortTable(baseCohortTable)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{baseCohortTable}}{Character. The configured, unsuffixed cohort table.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character. The effective cohort table name for this execution.
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{baseCohortTable}}{Character. The configured, unsuffixed cohort table.}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Character. The effective cohort table name for this execution.
-}
-}
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ExecutionContext-getResultsPath"></a>}}
 \if{latex}{\out{\hypertarget{method-ExecutionContext-getResultsPath}{}}}
-\subsection{Method \code{getResultsPath()}}{
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ExecutionContext$getResultsPath(
+\subsection{\code{ExecutionContext$getResultsPath()}}{
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ExecutionContext$getResultsPath(
   taskName = NULL,
   databaseName = private$.databaseName
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{taskName}}{Character. Task folder or file name.}
-
-\item{\code{databaseName}}{Character or \code{NULL}. Database name to use when the
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{taskName}}{Character. Task folder or file name.}
+      \item{\code{databaseName}}{Character or \code{NULL}. Database name to use when the
 context is shared across multiple config blocks.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Character. Absolute result path for the supplied task.
+  }
 }
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Character. Absolute result path for the supplied task.
-}
-}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ExecutionContext-clone"></a>}}
 \if{latex}{\out{\hypertarget{method-ExecutionContext-clone}{}}}
-\subsection{Method \code{clone()}}{
-The objects of this class are cloneable with this method.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ExecutionContext$clone(deep = FALSE)}\if{html}{\out{</div>}}
+\subsection{\code{ExecutionContext$clone()}}{
+  The objects of this class are cloneable with this method.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ExecutionContext$clone(deep = FALSE)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{deep}}{Whether to make a deep clone.}
+    }
+    \if{html}{\out{</div>}}
+  }
 }
 
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{deep}}{Whether to make a deep clone.}
-}
-\if{html}{\out{</div>}}
-}
-}
 }
