@@ -137,7 +137,7 @@ with an informative message. Use this to check connection status before database
 }
 
 \subsection{Returns}{
-DatabaseConnectorJdbcConnection or NULL
+DatabaseConnectorConnection or NULL
 }
 }
 \if{html}{\out{<hr>}}

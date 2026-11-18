@@ -154,6 +154,87 @@ testthat::test_that("makeUlyssesStudySettings initializes a standard repository 
   testthat::expect_false(grepl("boehringer|lavallem|rwesnow", config_text, ignore.case = TRUE))
 })
 
+make_test_ulysses_settings <- function(repo_folder, repo_name = "existing_repo") {
+  sm <- makeStudyMeta(
+    studyTitle = "Existing Dir Study",
+    therapeuticArea = "TA_PLACEHOLDER",
+    studyType = "Characterization",
+    contributors = list(
+      setContributor(name = "Example Contributor", email = "contributor@example.org", role = "developer")
+    )
+  )
+  makeUlyssesStudySettings(
+    repoName = repo_name,
+    repoFolder = as.character(repo_folder),
+    studyMeta = sm,
+    dbConnectionBlocks = list(makeBlock(
+      configBlockName = "db_placeholder",
+      cdmDatabaseSchema = "cdm_schema_placeholder",
+      databaseName = "db_name_placeholder",
+      cohortTable = "cohort_table_placeholder",
+      databaseLabel = "Database Placeholder",
+      dbServer = "server_placeholder",
+      workDatabaseSchema = "work_schema_placeholder"
+    ))
+  )
+}
+
+testthat::test_that("initUlyssesRepo initializes into an existing empty directory", {
+  root_dir <- withr::local_tempdir()
+  repo_path <- fs::path(root_dir, "existing_repo")
+  fs::dir_create(repo_path)
+
+  uly <- make_test_ulysses_settings(root_dir)
+  testthat::expect_no_error(uly$initUlyssesRepo(verbose = FALSE, openProject = FALSE))
+  testthat::expect_true(fs::file_exists(fs::path(repo_path, "existing_repo.Rproj")))
+  testthat::expect_equal(nrow(gert::git_log(repo = repo_path)), 1)
+})
+
+testthat::test_that("initUlyssesRepo aborts on a non-empty directory unless allowExisting = TRUE", {
+  root_dir <- withr::local_tempdir()
+  repo_path <- fs::path(root_dir, "existing_repo")
+  fs::dir_create(repo_path)
+  writeLines("keep me", fs::path(repo_path, "notes.txt"))
+
+  uly <- make_test_ulysses_settings(root_dir)
+  testthat::expect_error(
+    uly$initUlyssesRepo(verbose = FALSE, openProject = FALSE),
+    "allowExisting"
+  )
+  testthat::expect_equal(as.character(fs::dir_ls(repo_path, all = TRUE)), as.character(fs::path(repo_path, "notes.txt")))
+})
+
+testthat::test_that("initUlyssesRepo with allowExisting adds missing files without overwriting existing ones", {
+  root_dir <- withr::local_tempdir()
+  repo_path <- fs::path(root_dir, "existing_repo")
+  fs::dir_create(fs::path(repo_path, "analysis", "tasks"))
+  writeLines("# My README", fs::path(repo_path, "README.md"))
+  writeLines("my_secret_dir/", fs::path(repo_path, ".gitignore"))
+  writeLines("x <- 1", fs::path(repo_path, "analysis", "tasks", "01_existing.R"))
+  gert::git_init(repo_path)
+
+  uly <- make_test_ulysses_settings(root_dir)
+  testthat::expect_no_error(
+    uly$initUlyssesRepo(verbose = FALSE, openProject = FALSE, allowExisting = TRUE)
+  )
+
+  testthat::expect_equal(readLines(fs::path(repo_path, "README.md")), "# My README")
+  testthat::expect_equal(readLines(fs::path(repo_path, "analysis", "tasks", "01_existing.R")), "x <- 1")
+
+  gitignore <- readLines(fs::path(repo_path, ".gitignore"))
+  testthat::expect_true("my_secret_dir/" %in% gitignore)
+  testthat::expect_true(all(c("exec/", "AGENTS.md", ".agent/") %in% gitignore))
+
+  for (rel_path in c("config.yml", "NEWS.md", "main.R", "AGENTS.md", "existing_repo.Rproj",
+                     "inputs/cohorts/R/import_atlas_cohort.R", "dissemination/quarto/_quarto.yml")) {
+    testthat::expect_true(fs::file_exists(fs::path(repo_path, rel_path)), info = rel_path)
+  }
+
+  # An existing git repository is left for the user to commit.
+  testthat::expect_error(gert::git_log(repo = repo_path))
+  testthat::expect_true("main.R" %in% gert::git_status(repo = repo_path)$file)
+})
+
 testthat::test_that("addBlock appends and overwrite logic works for config.yml", {
   root_dir <- fs::file_temp("picard-addblock-test-")
   fs::dir_create(root_dir)
@@ -255,6 +336,21 @@ testthat::test_that("makeTaskFile creates a numbered task script in analysis/tas
   task_text <- readr::read_file(task_files[[1]])
   testthat::expect_true(grepl("QA Analyst", task_text, fixed = TRUE))
   testthat::expect_true(grepl("Create incidence summary output", task_text, fixed = TRUE))
+})
+
+testthat::test_that("ExecutionSettings accepts a DBI-backed DatabaseConnector connection", {
+  connection <- DatabaseConnector::connect(dbms = "sqlite", server = ":memory:")
+  on.exit(DatabaseConnector::disconnect(connection))
+  testthat::expect_false(inherits(connection, "DatabaseConnectorJdbcConnection"))
+
+  es <- ExecutionSettings$new(
+    connection = connection,
+    cdmDatabaseSchema = "main",
+    workDatabaseSchema = "main",
+    cohortTable = "cohort_table",
+    databaseName = "My Database"
+  )
+  testthat::expect_identical(es$getConnection(), connection)
 })
 
 testthat::test_that("setOutputFolder derives a version segment that matches the cohort-table suffix", {

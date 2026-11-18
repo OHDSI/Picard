@@ -108,8 +108,19 @@ This method performs the following initialization steps:
 \item Initializes agent skills configuration
 \item Initializes git repository
 }
+
+The repository directory may already exist if it is empty. To initialize
+into a directory that already contains files, set \code{allowExisting = TRUE}:
+only scaffold files that are missing are added, existing files are never
+overwritten, and the required entries are merged into an existing
+\code{.gitignore}. If the directory is already a git repository, nothing is
+committed or pushed; review and commit the added files yourself.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{UlyssesStudy$initUlyssesRepo(verbose = TRUE, openProject = FALSE)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{UlyssesStudy$initUlyssesRepo(
+  verbose = TRUE,
+  openProject = FALSE,
+  allowExisting = FALSE
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -118,6 +129,10 @@ This method performs the following initialization steps:
 \item{\code{verbose}}{Logical. If TRUE (default), displays informative messages during initialization.}
 
 \item{\code{openProject}}{Logical. If TRUE, opens the project in a new RStudio session after initialization.}
+
+\item{\code{allowExisting}}{Logical. If TRUE, initialize into an existing, non-empty
+directory by adding only the missing scaffold files. Default is FALSE,
+which aborts when the directory contains any files.}
 }
 \if{html}{\out{</div>}}
 }

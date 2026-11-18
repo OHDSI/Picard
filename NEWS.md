@@ -24,6 +24,27 @@
   after upgrading. Studies without a concept set manifest or `renv.lock` hash
   to a stable sentinel and are not rerun on every run.
 
+## New Features
+
+- `UlyssesStudy$initUlyssesRepo()` now works in an existing empty directory,
+  and gains an `allowExisting` argument (default `FALSE`) to initialize into a
+  non-empty one: only missing scaffold files are added, existing files are
+  never overwritten, and the required entries are merged into an existing
+  `.gitignore`. An existing git repository is left for the user to commit
+  (#148).
+
+## Bug Fixes
+
+- `ExecutionSettings` now accepts any `DatabaseConnectorConnection`, including
+  the DBI-backed connections used for DuckDB and SQLite, not only JDBC
+  connections (#150).
+- Cohort generation reads checksum-table query results by position, so
+  checksums are found regardless of the column-name case a DBMS returns
+  (#149).
+- `buildCompositeCohort()` SQL no longer uses `COUNT(DISTINCT ...) OVER (...)`,
+  which PostgreSQL and SQL Server reject, so composite cohorts now generate on
+  those platforms (#155).
+
 # picard 0.0.7
 
 ## Breaking Changes
