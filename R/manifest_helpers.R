@@ -133,6 +133,226 @@ resolve_manifest_path <- function(stored_path, project_root, manifest_dir) {
   root_relative
 }
 
+# Turn an analyst-facing label into the filename stem for a definition file
+# registered under that label. snake_case is the package-wide convention for
+# deriving a filename from a human name (makeTaskFile(), makeSrcFile(),
+# makeSqlFile(), the per-database result folders in postProcess.R,
+# ExecutionSettings$getDatabaseFolder()).
+#
+# The mapping is deliberately *not* injective: two distinct labels can produce
+# the same stem ("T2D (broad)" and "T2D broad" both give "t_2_d_broad"). Label
+# uniqueness therefore does not imply filename uniqueness, so callers must check
+# the destination before writing anything - see manifest_resolve_destination().
+#
+# @param label Character(1). The manifest label.
+# @return Character(1). A filename stem, without extension.
+manifest_label_to_filename <- function(label) {
+  checkmate::assert_string(label, min.chars = 1)
+
+  stem <- snakecase::to_snake_case(label)
+
+  if (!nzchar(stem)) {
+    cli::cli_abort(c(
+      "Label {.val {label}} contains no characters usable in a filename.",
+      i = "Include at least one letter or digit in the label."
+    ))
+  }
+
+  stem
+}
+
+# Resolve where a label-named definition file should be written, and verify that
+# nothing else already owns that path. Performs no disk writes - callers stage or
+# render only after this returns.
+#
+# The check exists because manifest_label_to_filename() is not injective. Without
+# it, registering a second label that maps to an already-used filename would
+# overwrite the first row's definition file and only *then* fail on the
+# file_path unique index, destroying a definition with no actionable error.
+#
+# On an upsert (`existingId` supplied) the already-registered path wins over the
+# computed one: the label fixes the filename at first registration only, so a
+# later updateCohortLabel() never moves the file. This mirrors
+# derived_output_path() on the derived builder path.
+#
+# @param dbPath Character(1). Path to the manifest SQLite file.
+# @param table Character(1). Manifest table name.
+# @param statuses Character. Row statuses that count as registered.
+# @param label Character(1). The label being registered.
+# @param dir Character(1). Directory the file belongs in (e.g. `<root>/inputs/cohorts/sql`).
+# @param ext Character(1). File extension, without the dot.
+# @param project_root Character(1). Study repository root.
+# @param manifest_dir Character(1). Folder holding the manifest SQLite file.
+# @param existingId Integer(1) or NA. The row being updated, when upserting.
+# @param sourcePath Character(1) or NULL. A caller-supplied file to be staged.
+# @return List with `path` (absolute destination) and `action`: `"noop"` when the
+#   source already *is* the destination and there is nothing to copy, otherwise
+#   `"write"`.
+manifest_resolve_destination <- function(dbPath,
+                                         table,
+                                         statuses,
+                                         label,
+                                         dir,
+                                         ext,
+                                         project_root,
+                                         manifest_dir,
+                                         existingId = NA_integer_,
+                                         sourcePath = NULL) {
+  checkmate::assert_string(dbPath, min.chars = 1)
+  checkmate::assert_string(table, min.chars = 1)
+  checkmate::assert_character(statuses, min.len = 1, any.missing = FALSE)
+  checkmate::assert_string(label, min.chars = 1)
+  checkmate::assert_string(dir, min.chars = 1)
+  checkmate::assert_string(ext, min.chars = 1)
+  checkmate::assert_string(project_root, min.chars = 1)
+  checkmate::assert_string(manifest_dir, min.chars = 1)
+  checkmate::assert_int(existingId, na.ok = TRUE)
+  checkmate::assert_string(sourcePath, min.chars = 1, null.ok = TRUE)
+
+  conn <- DBI::dbConnect(RSQLite::SQLite(), dbPath)
+  on.exit(DBI::dbDisconnect(conn))
+
+  # Two distinct jobs, kept distinct (the same split #159 proposes for
+  # resolve_manifest_path() itself):
+  #
+  #   input_path()  - a path supplied by this call, made comparable.
+  #   stored_path() - a path read out of a manifest row, which additionally
+  #                   needs the row's path convention applied.
+  #
+  # Both reduce to one spelling: absolute, normalized, plain character.
+  # fs::path_abs() already resolves "..", and resolve_manifest_path() already
+  # returns a normalized absolute path, so neither needs fs::path_norm() on top.
+  # as.character() does matter - identical() treats an fs_path and a string as
+  # different values.
+  input_path <- function(p) {
+    as.character(fs::path_abs(p))
+  }
+
+  stored_path <- function(p) {
+    as.character(resolve_manifest_path(p, project_root, manifest_dir))
+  }
+
+  dest <- input_path(fs::path(dir, manifest_label_to_filename(label), ext = ext))
+
+  # Upsert: keep writing to the registered file rather than a freshly computed
+  # name, so renaming a cohort does not move (or orphan) its definition.
+  if (!is.na(existingId)) {
+    registered <- DBI::dbGetQuery(
+      conn,
+      paste0("SELECT file_path FROM ", table, " WHERE id = ?"),
+      list(as.integer(existingId))
+    )
+    if (nrow(registered) > 0 &&
+          !is.na(registered$file_path[1]) &&
+          nzchar(registered$file_path[1])) {
+      dest <- stored_path(registered$file_path[1])
+    }
+  }
+
+  same_source <- !is.null(sourcePath) && identical(dest, input_path(sourcePath))
+
+  # Which registered row, if any, already owns this path. Stored paths may use
+  # any of the legacy conventions, so compare resolved-absolute forms.
+  placeholders <- paste(rep("?", length(statuses)), collapse = ", ")
+  rows <- DBI::dbGetQuery(
+    conn,
+    paste0(
+      "SELECT id, label, file_path FROM ", table,
+      " WHERE status IN (", placeholders, ")"
+    ),
+    as.list(statuses)
+  )
+
+  owner <- NULL
+  if (nrow(rows) > 0) {
+    hit <- which(vapply(rows$file_path, stored_path, character(1)) == dest)
+    if (length(hit) > 0) {
+      owner <- rows[hit[1], , drop = FALSE]
+    }
+  }
+
+  owned_by_other <- !is.null(owner) &&
+    (is.na(existingId) || as.integer(owner$id[1]) != as.integer(existingId))
+
+  if (owned_by_other) {
+    cli::cli_abort(c(
+      "Cannot register {.val {label}}: its definition file would overwrite the one registered to entry {owner$id[1]}.",
+      x = "Both labels map to the filename {.file {fs::path_file(dest)}}.",
+      i = "{.val {label}} and {.val {owner$label[1]}} differ only in characters that snake_case drops.",
+      i = "Give one of them a more distinct label, then re-run."
+    ))
+  }
+
+  if (is.null(owner) && !same_source && fs::file_exists(dest)) {
+    cli::cli_abort(c(
+      "Cannot register {.val {label}}: {.file {fs::path_rel(dest, start = project_root)}} already exists but is not in the manifest.",
+      i = "Register that file first, or delete it, then re-run."
+    ))
+  }
+
+  action <- "write"
+  if (same_source) {
+    action <- "noop"
+  }
+
+  list(
+    path = dest,
+    action = action
+  )
+}
+
+# Copy a caller-supplied definition file to the path the manifest will register.
+# Always a byte-exact copy: the content hash stored for the row is computed from
+# file contents, and some upsert paths hash the *source* and compare it against
+# the stored hash of the *registered* file. Normalizing anything here (line
+# endings especially) would make those two disagree and report a definition
+# change on every re-run. Generated content is written with readr::write_lines();
+# staged content is copied.
+#
+# @param destination A manifest_resolve_destination() result.
+# @param sourcePath Character(1). The file to stage.
+# @param project_root Character(1). Study repository root, for messages.
+# @return Character(1). The staged (destination) path, invisibly.
+manifest_stage_file <- function(destination, sourcePath, project_root) {
+  checkmate::assert_list(destination)
+  checkmate::assert_string(sourcePath, min.chars = 1)
+
+  if (identical(destination$action, "noop")) {
+    return(invisible(destination$path))
+  }
+
+  fs::dir_create(fs::path_dir(destination$path), recurse = TRUE)
+  fs::file_copy(sourcePath, destination$path, overwrite = TRUE)
+
+  cli::cli_alert_info(
+    "Copied {.file {fs::path_file(sourcePath)}} to {.file {fs::path_rel(destination$path, start = project_root)}}."
+  )
+
+  invisible(destination$path)
+}
+
+# Undo a manifest_stage_file() copy. Used when registration fails after the
+# file was staged, so a failed add*() call does not leave an unregistered file
+# behind - which syncManifest() would then report as an orphan.
+#
+# A "noop" destination is never removed: the file was already in place and
+# belongs to the analyst, not to this call.
+#
+# @param destination A manifest_resolve_destination() result.
+# @return Logical(1), invisibly. TRUE when a staged copy was removed.
+manifest_unstage_file <- function(destination) {
+  if (!is.list(destination) || identical(destination$action, "noop")) {
+    return(invisible(FALSE))
+  }
+
+  if (!fs::file_exists(destination$path)) {
+    return(invisible(FALSE))
+  }
+
+  fs::file_delete(destination$path)
+  invisible(TRUE)
+}
+
 # Re-serialize a JSON string into a compact form so that two values differing
 # only in whitespace produce the same string. Key and array order are preserved,
 # so a reordering still counts as a change. Used when folding JSON (manifest
@@ -1781,8 +2001,30 @@ safe_tag_value <- function(tags, tagName, default = NA_character_) {
   value[[1]]
 }
 
+# Reject load-file columns that picard no longer honours. Columns are otherwise
+# turned into tags by list_tags_in_row(), so a retired column left in a CSV
+# would silently become a tag - and land in getManifestHash() and
+# tabulateManifest() - rather than being ignored. Fail loudly instead.
+assert_no_retired_load_columns <- function(load_table, arg_name) {
+  retired <- c(file_name = "filenames are now derived from the label")
+
+  present <- intersect(names(retired), names(load_table))
+  if (length(present) == 0) {
+    return(invisible(NULL))
+  }
+
+  cli::cli_abort(c(
+    "{.arg {arg_name}} contains column(s) picard no longer uses: {.field {present}}.",
+    i = "{retired[[present[1]]]}.",
+    i = "Delete the column(s) from the load file and re-run."
+  ))
+}
+
 list_tags_in_row <- function(row) {
-  reserved_cols <- c("atlasId","label", "category", "file_name") # file_name is legacy
+  # Every column that is not reserved becomes a tag. Retired columns are
+  # rejected up front by assert_no_retired_load_columns(), so they cannot reach
+  # this point and be mistaken for study metadata.
+  reserved_cols <- c("atlasId", "label", "category")
   tag_cols <- setdiff(names(row), reserved_cols)
   tags <- list() # atlasId and other columns become tags
   for (col in tag_cols) {

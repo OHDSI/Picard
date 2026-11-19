@@ -153,29 +153,41 @@ testthat::test_that("duplicate active labels are rejected", {
   )
 })
 
-# Testing: active-filepath uniqueness is enforced for cohort registration.
-testthat::test_that("duplicate active file paths are rejected", {
+# Testing: one source file registered under two labels yields two independent
+# staged copies, one per row, so the 1-row-to-1-file invariant still holds. This
+# replaces an earlier expectation that the second registration was *rejected* -
+# true only while the caller's own path was registered directly, before
+# addSqlCohort() staged its own copy (#158).
+testthat::test_that("the same source file registered twice gives each label its own file", {
   setup <- cm_test_new_manifest("lifecycle-filepath-unique")
   manifest <- setup$manifest
   paths <- setup$paths
 
-  cm_test_add_sql_cohort(
-    manifest = manifest,
-    paths = paths,
-    label = "SQL Cohort One",
-    category = "Test",
-    fixture_name = "my_custom_cohort.sql"
-  )
-
-  testthat::expect_error(
+  for (label in c("SQL Cohort One", "SQL Cohort Two")) {
     cm_test_add_sql_cohort(
       manifest = manifest,
       paths = paths,
-      label = "SQL Cohort Two",
+      label = label,
       category = "Test",
       fixture_name = "my_custom_cohort.sql"
     )
-  )
+  }
+
+  one <- cm_test_registered_path(manifest, "SQL Cohort One")
+  two <- cm_test_registered_path(manifest, "SQL Cohort Two")
+
+  testthat::expect_false(identical(as.character(one), as.character(two)))
+  testthat::expect_true(fs::file_exists(one))
+  testthat::expect_true(fs::file_exists(two))
+  testthat::expect_identical(fs::path_file(one), "sql_cohort_one.sql")
+  testthat::expect_identical(fs::path_file(two), "sql_cohort_two.sql")
+
+  # Both staged copies live inside the repo, which is the point of staging.
+  for (f in c(one, two)) {
+    testthat::expect_false(
+      startsWith(as.character(fs::path_rel(f, start = setup$paths$root)), "..")
+    )
+  }
 })
 
 # ── Path portability ──────────────────────────────────────────────────────────
@@ -294,4 +306,182 @@ testthat::test_that("Atlas methods deferred", {
 testthat::test_that("executionSettings-dependent methods skipped", {
   testthat::skip("Out-of-scope: DBMS executionSettings methods are intentionally skipped in this wave (step 9).")
   testthat::expect_true(TRUE)
+})
+
+# ── File staging (#158) ───────────────────────────────────────────────────────
+
+# Testing: a definition file registered from outside the study repo is copied
+# into inputs/ and the row stores the repo-relative path of the copy. Before
+# #158 the row stored a "../" escape, which syncManifest() on another machine
+# resolved to nothing - soft-deleting the row and cascading to its dependents.
+testthat::test_that("a file registered from outside the repo is staged into inputs/", {
+  setup <- cm_test_new_manifest("lifecycle-stage-outside")
+  manifest <- setup$manifest
+
+  outside_dir <- fs::dir_create(fs::file_temp(pattern = "picard-outside-"))
+  outside_sql <- fs::path(outside_dir, "scratch_definition.sql")
+  fs::file_copy(cm_test_sql_fixture_path(), outside_sql)
+
+  suppressMessages(manifest$addSqlCohort(
+    filePath = outside_sql, label = "Outside Cohort", category = "Target"
+  ))
+
+  row <- cm_test_get_manifest_row(manifest, "Outside Cohort")
+  stored <- row$file_path[[1]]
+
+  testthat::expect_false(startsWith(stored, ".."))
+  testthat::expect_false(fs::is_absolute_path(stored))
+  testthat::expect_equal(stored, "inputs/cohorts/sql/outside_cohort.sql")
+  testthat::expect_true(fs::file_exists(cm_test_resolve_path(manifest, stored)))
+
+  # The analyst's original is left alone - picard owns only its copy.
+  testthat::expect_true(fs::file_exists(outside_sql))
+})
+
+# Testing: the staged row survives a reload once the source directory is gone,
+# which is the actual cross-machine regression #158 describes.
+testthat::test_that("a staged row survives a reload after its source disappears", {
+  setup <- cm_test_new_manifest("lifecycle-stage-portable")
+  manifest <- setup$manifest
+
+  outside_dir <- fs::dir_create(fs::file_temp(pattern = "picard-outside-"))
+  outside_sql <- fs::path(outside_dir, "scratch_definition.sql")
+  fs::file_copy(cm_test_sql_fixture_path(), outside_sql)
+
+  suppressMessages(manifest$addSqlCohort(
+    filePath = outside_sql, label = "Portable Cohort", category = "Target"
+  ))
+
+  # Simulate a collaborator: the source directory never existed for them.
+  fs::dir_delete(outside_dir)
+
+  reloaded <- suppressMessages(CohortManifest$new(dbPath = manifest$getDbPath()))
+  suppressMessages(reloaded$syncManifest(strict_mode = FALSE))
+
+  row <- cm_test_get_manifest_row(reloaded, "Portable Cohort")
+  testthat::expect_equal(nrow(row), 1)
+  testthat::expect_equal(row$status[[1]], "active")
+})
+
+# Testing: a source that already sits at the destination is registered without
+# a redundant copy. This is the dominant case - the builder templates and the
+# test helpers both hand over in-repo paths.
+testthat::test_that("staging a file already at its destination is a no-op", {
+  setup <- cm_test_new_manifest("lifecycle-stage-noop")
+  manifest <- setup$manifest
+
+  in_place <- fs::path(setup$paths$sql_dir, "already_there.sql")
+  fs::file_copy(cm_test_sql_fixture_path(), in_place)
+
+  suppressMessages(manifest$addSqlCohort(
+    filePath = in_place, label = "Already There", category = "Target"
+  ))
+
+  row <- cm_test_get_manifest_row(manifest, "Already There")
+  testthat::expect_equal(row$file_path[[1]], "inputs/cohorts/sql/already_there.sql")
+  testthat::expect_true(fs::file_exists(in_place))
+})
+
+# Testing: two labels that reduce to the same filename are rejected, and the
+# first cohort's definition survives. Before #158 the second registration
+# overwrote the first file and only then failed on the unique index, destroying
+# a definition with no actionable error.
+testthat::test_that("labels colliding on a filename are rejected without touching the first file", {
+  setup <- cm_test_new_manifest("lifecycle-stage-collision")
+  manifest <- setup$manifest
+
+  suppressMessages(manifest$addSqlCohort(
+    filePath = cm_test_sql_fixture_path(), label = "T2D broad", category = "Target"
+  ))
+  registered <- cm_test_registered_path(manifest, "T2D broad")
+  before <- readr::read_file(registered)
+
+  testthat::expect_error(
+    suppressMessages(manifest$addSqlCohort(
+      filePath = cm_test_sql_fixture_path(), label = "T2D (broad)", category = "Target"
+    )),
+    regexp = "would\\s+overwrite"
+  )
+
+  testthat::expect_identical(readr::read_file(registered), before)
+  testthat::expect_equal(nrow(cm_test_get_manifest_row(manifest, "T2D (broad)")), 0L)
+})
+
+# Testing: an unregistered file sitting at the destination is reported rather
+# than silently overwritten. More likely once #166 stops auto-removing orphans.
+testthat::test_that("an unregistered file at the destination is not overwritten", {
+  setup <- cm_test_new_manifest("lifecycle-stage-orphan")
+  manifest <- setup$manifest
+
+  orphan <- fs::path(setup$paths$sql_dir, "orphan_cohort.sql")
+  readr::write_lines("-- an orphan, not in the manifest", orphan)
+
+  testthat::expect_error(
+    suppressMessages(manifest$addSqlCohort(
+      filePath = cm_test_sql_fixture_path(), label = "Orphan Cohort", category = "Target"
+    )),
+    regexp = "not\\s+in\\s+the\\s+manifest"
+  )
+
+  testthat::expect_identical(
+    readr::read_file(orphan), "-- an orphan, not in the manifest\n"
+  )
+})
+
+# Testing: the rollback that removes a staged copy when registration fails.
+# Every add*() route validates before it stages, so this guard is defensive -
+# there is no reachable post-staging failure to drive it through the public API.
+# It is unit-tested directly rather than through a contrived one.
+testthat::test_that("manifest_unstage_file removes a staged copy but never a no-op one", {
+  dir <- fs::dir_create(fs::file_temp(pattern = "picard-unstage-"))
+  staged <- fs::path(dir, "staged.sql")
+  readr::write_lines("-- staged by this call", staged)
+
+  removed <- manifest_unstage_file(list(path = as.character(staged), action = "write"))
+  testthat::expect_true(removed)
+  testthat::expect_false(fs::file_exists(staged))
+
+  # A "noop" destination was already in place and belongs to the analyst.
+  kept <- fs::path(dir, "pre_existing.sql")
+  readr::write_lines("-- the analyst put this here", kept)
+
+  removed <- manifest_unstage_file(list(path = as.character(kept), action = "noop"))
+  testthat::expect_false(removed)
+  testthat::expect_true(fs::file_exists(kept))
+
+  # Nothing to undo is not an error.
+  testthat::expect_false(
+    manifest_unstage_file(list(path = fs::path(dir, "absent.sql"), action = "write"))
+  )
+})
+
+# Testing: a label with nothing usable in a filename is refused up front rather
+# than producing a file called ".sql".
+testthat::test_that("a label with no filename-usable characters is rejected", {
+  setup <- cm_test_new_manifest("lifecycle-stage-bad-label")
+  manifest <- setup$manifest
+
+  testthat::expect_error(
+    suppressMessages(manifest$addSqlCohort(
+      filePath = cm_test_sql_fixture_path(), label = "---", category = "Target"
+    )),
+    regexp = "no\\s+characters\\s+usable\\s+in\\s+a\\s+filename"
+  )
+})
+
+# Testing: load files carrying the retired file_name column are rejected, not
+# silently turned into a tag (which would also enter getManifestHash()).
+testthat::test_that("a load file with the retired file_name column is rejected", {
+  setup <- cm_test_new_manifest("lifecycle-retired-column")
+  manifest <- setup$manifest
+
+  cohortsLoad <- data.frame(
+    atlasId = 1L, label = "Some Cohort", category = "Target",
+    file_name = "some_cohort.json", stringsAsFactors = FALSE
+  )
+
+  testthat::expect_error(
+    suppressMessages(manifest$importAtlasCohorts(cohortsLoad = cohortsLoad)),
+    regexp = "no\\s+longer\\s+uses"
+  )
 })

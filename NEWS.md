@@ -1,3 +1,36 @@
+# picard 0.0.9
+
+## Breaking Changes
+
+- `addSqlCohort()`, `addCirceCohort()` and `addConceptSetFile()` now **copy** the
+  file they are given into `inputs/` and register the copy, named after the
+  `label`. Previously they registered the caller's path as-is, so a file from
+  outside the repository was stored as a `../` escape: the manifest worked on the
+  machine that created it and silently broke everywhere else, with
+  `syncManifest()` soft-deleting the row and cascading to its dependents (#158).
+  The label fixes the filename at first registration only — `updateCohortLabel()`
+  never moves a file, and an upsert restages over the registered file rather than
+  moving the row.
+- The retired `file_name` column in `cohortsLoad.csv` / `conceptSetsLoad.csv` is
+  now rejected with an actionable error. It could not simply be ignored:
+  unrecognized load-file columns become tags, so it would have silently entered
+  `getManifestHash()` as study metadata.
+
+## Bug Fixes
+
+- Two labels reducing to the same filename (`"T2D broad"` and `"T2D (broad)"`)
+  are rejected instead of overwriting each other. This closes a data-loss bug in
+  the derived builders, where the second build destroyed the first cohort's SQL
+  file and only then failed on the file-path unique index.
+- Derived cohort SQL is written with `readr::write_lines()` instead of base
+  `writeLines()`, which emitted CRLF on Windows. Because a row's hash is read
+  back off the file, the same cohort hashed differently per platform, so
+  collaborators disagreed about what needed regenerating. **Windows users will
+  see existing derived cohorts regenerate once.**
+- `importAtlasCohorts()` / `importAtlasConceptSets()` validate the load table
+  before requiring an ATLAS connection, so a malformed load file is reported
+  directly.
+
 # picard 0.0.8
 
 ## Breaking Changes

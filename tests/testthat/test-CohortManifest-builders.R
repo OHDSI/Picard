@@ -470,8 +470,10 @@ testthat::test_that("editing a grandparent definition changes the grandchild's c
   id_of <- function(label) as.character(ids(label)$id[1])
   before <- cm_test_generation_hashes(manifest)
 
-  # Edit the base SQL file on disk and reload the manifest, as a new session would
-  sql_file <- fs::path(paths$sql_dir, "my_custom_cohort.sql")
+  # Edit the base SQL file on disk and reload the manifest, as a new session
+  # would. addSqlCohort() stages its own copy under a label-derived name, so ask
+  # the manifest which file it registered rather than assuming the fixture name.
+  sql_file <- cm_test_registered_path(manifest, "Custom SQL Cohort")
   readr::write_lines(c(readr::read_lines(sql_file), "-- definition changed"), sql_file)
   reloaded <- suppressMessages(CohortManifest$new(dbPath = manifest$getDbPath()))
   suppressMessages(reloaded$syncManifest())
@@ -492,4 +494,27 @@ testthat::test_that("editing a grandparent definition changes the grandchild's c
   testthat::expect_false(status$should_skip)
   testthat::expect_equal(status$dependency_status, "Definition or parent changed")
   testthat::expect_true(cm_test_skip_status(reloaded, grandchild, after, stored_hash = after[[id_of("Grandchild")]])$should_skip)
+})
+
+# Testing: generated derived SQL always uses LF, on every platform. base
+# writeLines() opens a text-mode connection and so emits CRLF on Windows; since
+# the row's hash is read back off this file, that made the same cohort hash
+# differently per platform - so collaborators disagreed about what needed
+# regenerating. readr::write_lines() always writes LF.
+testthat::test_that("generated derived SQL is written with LF line endings", {
+  setup <- cm_test_seed_manifest_for_builders("builders-derived-eol")
+  manifest <- setup$manifest
+
+  manifest$buildUnionCohort(
+    label = "EOL Union", category = "Derived Cohorts",
+    cohortEntries = manifest$queryCohortsByLabel(
+      labels = c("Chronic Kidney Disease", "Type 2 Diabetes"), matchType = "exact"
+    )
+  )
+
+  derived <- cm_test_registered_path(manifest, "EOL Union")
+  raw <- readBin(derived, "raw", n = fs::file_size(derived))
+
+  testthat::expect_true(length(raw) > 0)
+  testthat::expect_false(as.raw(13) %in% raw)
 })

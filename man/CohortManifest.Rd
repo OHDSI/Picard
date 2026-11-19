@@ -652,8 +652,19 @@ nothing is changed.
 \subsection{\code{CohortManifest$addSqlCohort()}}{
   Add a custom SQL cohort
 
-Registers an existing SQL file in the manifest. The file must already exist
-on disk (typically in \verb{sql/}).
+Registers a SQL file in the manifest. The file is \strong{copied} into
+\verb{inputs/cohorts/sql/} under a name derived from \code{label}, and the copy is
+what the manifest registers - so a row always points at a file inside the
+study repository and the manifest stays portable across machines. The
+caller's original file is left untouched.
+
+The label fixes the filename at first registration only: a later
+\code{\link[=updateCohortLabel]{updateCohortLabel()}} changes the label but never moves the file, and an
+upsert (\code{stopIfExists = FALSE}) restages over the already-registered file
+rather than creating a second one.
+
+Two labels that reduce to the same filename (e.g. \code{"T2D broad"} and
+\code{"T2D (broad)"}) are rejected rather than silently overwriting each other.
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
     \preformatted{CohortManifest$addSqlCohort(
@@ -668,7 +679,8 @@ on disk (typically in \verb{sql/}).
   \subsection{Arguments}{
     \if{html}{\out{<div class="arguments">}}
     \describe{
-      \item{\code{filePath}}{Character. Path to the SQL file.}
+      \item{\code{filePath}}{Character. Path to the source SQL file. Read and copied,
+not registered in place.}
       \item{\code{label}}{Character. Display name for the cohort.}
       \item{\code{category}}{Character. Required classification.}
       \item{\code{tags}}{Named list. Optional metadata tags.}
@@ -759,9 +771,15 @@ inputs leaves the cohort exactly as it was. Default: TRUE (fail-safe).}
 \subsection{\code{CohortManifest$addCirceCohort()}}{
   Add a Circe JSON cohort from disk
 
-Registers an existing Circe-compatible JSON file in the manifest.
-The file must already exist on disk (typically in \verb{json/}).
-Validates that the JSON is valid Circe format using CirceR.
+Registers a Circe-compatible JSON file in the manifest. The JSON is
+validated with CirceR first, then \strong{copied} into \verb{inputs/cohorts/json/}
+under a name derived from \code{label}; the copy is what gets registered, so a
+row always points at a file inside the study repository. The caller's
+original file is left untouched.
+
+As with \code{\link[=addSqlCohort]{addSqlCohort()}}, the label fixes the filename at first
+registration only, and two labels reducing to the same filename are
+rejected rather than overwriting each other.
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
     \preformatted{CohortManifest$addCirceCohort(filePath, label, category, tags = list())}
@@ -770,7 +788,8 @@ Validates that the JSON is valid Circe format using CirceR.
   \subsection{Arguments}{
     \if{html}{\out{<div class="arguments">}}
     \describe{
-      \item{\code{filePath}}{Character. Path to the Circe JSON file.}
+      \item{\code{filePath}}{Character. Path to the source Circe JSON file. Read and
+copied, not registered in place.}
       \item{\code{label}}{Character. Display name for the cohort.}
       \item{\code{category}}{Character. Required classification.}
       \item{\code{tags}}{Named list. Optional metadata tags.}

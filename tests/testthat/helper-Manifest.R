@@ -91,16 +91,16 @@ cm_test_sql_fixture_path <- function(fixture_name = "my_custom_cohort.sql") {
 }
 
 # Purpose: Add a custom SQL cohort to the manifest using a fixture SQL file.
-# Registers a copy in the manifest's temp sql dir so tests that hard-delete
-# cohorts (deleteCohort unlinks file_path) remove the copy, not the shared
-# fixture in test_files.
+# The fixture is passed straight from test_files: addSqlCohort() stages its own
+# copy under inputs/cohorts/sql/ with a label-derived name, so the shared
+# fixture is never the registered file and tests that hard-delete cohorts
+# (deleteCohort unlinks file_path) remove the copy. This is also the real
+# out-of-repo registration path, which is what #158 fixed.
 cm_test_add_sql_cohort <- function(manifest, paths, label, category = "Test", tags = list(), fixture_name = "my_custom_cohort.sql") {
   sql_path <- cm_test_sql_fixture_path(fixture_name = fixture_name)
-  local_sql <- fs::path(paths$sql_dir, fixture_name)
-  fs::file_copy(sql_path, local_sql, overwrite = TRUE)
 
   manifest$addSqlCohort(
-    filePath = local_sql,
+    filePath = sql_path,
     label = label,
     category = category,
     tags = tags
@@ -108,8 +108,8 @@ cm_test_add_sql_cohort <- function(manifest, paths, label, category = "Test", ta
 }
 
 # Purpose: Add a CIRCE cohort to the manifest using a fixture JSON file.
-# Copies the fixture into the manifest's temp json/ dir first, mirroring the
-# real workflow (JSON lives under inputs/cohorts/json/ inside the study repo).
+# As above, the fixture is passed directly and addCirceCohort() stages its own
+# copy into inputs/cohorts/json/.
 cm_test_add_circe_cohort <- function(manifest, paths, label, category = "Test", tags = list(), fixture_name = "ckd.json") {
   circe_path <- testthat::test_path("test_files", fixture_name)
   testthat::skip_if_not(
@@ -117,15 +117,21 @@ cm_test_add_circe_cohort <- function(manifest, paths, label, category = "Test", 
     message = paste("Missing CIRCE test fixture:", fixture_name)
   )
 
-  local_json <- fs::path(paths$json_dir, fixture_name)
-  fs::file_copy(circe_path, local_json, overwrite = TRUE)
-
   manifest$addCirceCohort(
-    filePath = local_json,
+    filePath = circe_path,
     label = label,
     category = category,
     tags = tags
   )
+}
+
+# Purpose: the absolute path of the definition file a label is registered to.
+# Tests that edit a definition on disk must edit the *registered* copy, not the
+# fixture they passed in.
+cm_test_registered_path <- function(manifest, label) {
+  entry <- manifest$queryCohortsByLabel(labels = label, matchType = "exact")
+  testthat::expect_equal(nrow(entry), 1L)
+  fs::path(manifest$getCohortById(as.integer(entry$id[1]))$getFilePath())
 }
 
 # Purpose: Build a minimal Capr cohort object for tests; skip when Capr is unavailable.

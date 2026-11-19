@@ -489,7 +489,12 @@ Stores a connection so it does not need to be passed to
   \subsection{Arguments}{
     \if{html}{\out{<div class="arguments">}}
     \describe{
-      \item{\code{filePath}}{Character. Absolute or relative path to a valid CIRCE JSON file.}
+      \item{\code{filePath}}{Character. Path to the source concept set JSON file.
+Read and \strong{copied} into \verb{inputs/conceptSets/json/} under a name derived
+from \code{label}; the copy is what the manifest registers, so a row always
+points at a file inside the study repository. The caller's original file
+is left untouched. Two labels reducing to the same filename are rejected
+rather than overwriting each other.}
       \item{\code{label}}{Character. Display name for the concept set.}
       \item{\code{category}}{Character. Category for the concept set. Defaults to \code{"init"}.}
       \item{\code{tags}}{Named list. Optional extra metadata tags. Defaults to \code{list()}.}

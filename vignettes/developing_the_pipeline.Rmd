@@ -69,9 +69,9 @@ Once these have been filled out connect to WebApi and pull the cohorts into your
   - Atlas Cohorts:
     - Individual `$addAtlasCohort()` - Downloads a cohort from ATLAS by ID, writes JSON to disk, and registers it in the manifest.
     - Bulk Import `$importAtlasCohorts()` - Imports multiple ATLAS cohorts from a load dataframe (atlasId/label/category + optional tags).
-  - Circe cohorts from file `$addCirceCohort()` - Register a circe-compatible JSON on disk into the manifest.
+  - Circe cohorts from file `$addCirceCohort()` - Stage a circe-compatible JSON into `inputs/cohorts/json/` and register the copy.
   - Capr Cohorts `$addCaprCohort()` - Registers a Capr cohort object by exporting it to JSON and adding it to the manifest.
-  - Sql Cohorts `$addSqlCohort()` - Registers a hand-written SQL cohort file as a base cohort in the manifest.
+  - Sql Cohorts `$addSqlCohort()` - Stages a hand-written SQL cohort file into `inputs/cohorts/sql/` and registers the copy as a base cohort.
   - Templated Dependent Cohorts: 
     - `$buildCensorCohort()` - Censors a target cohort at a censoring event cohort.
     - `$buildCompositeCohort()` - Creates a cohort requiring membership across multiple parent cohorts.

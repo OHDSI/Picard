@@ -358,25 +358,41 @@ CohortManifest <- R6::R6Class(
 
     # Existing derived definitions are rewritten at their registered location;
     # only new cohorts derive a filename from their label.
-    derived_output_path = function(existingId) {
-      if (is.na(existingId)) {
-        return(NULL)
+    # Resolve where a derived cohort's generated SQL belongs, and verify no other
+    # registered row already owns that path. Returns an absolute path and writes
+    # nothing, so callers render only after it returns.
+    #
+    # Resolve where a definition file belongs, and verify no other registered
+    # row already owns that path. `kind` names the input folder, so the layout
+    # of inputs/cohorts/ is stated here rather than at every call site:
+    #
+    #   "sql"     -> inputs/cohorts/sql/<label>.sql       (staged, addSqlCohort)
+    #   "json"    -> inputs/cohorts/json/<label>.json     (staged, addCirceCohort)
+    #   "derived" -> inputs/cohorts/derived/<label>.sql   (rendered by a builder)
+    #
+    # Replaces the earlier derived_output_path(), which resolved the registered
+    # path on an upsert but left a *new* cohort to compute its own filename --
+    # the route by which two distinct labels mapping to one filename silently
+    # overwrote each other's definition before failing on the unique index.
+    destination_for = function(label, kind, existingId = NA_integer_,
+                               sourcePath = NULL) {
+      ext <- "sql"
+      if (identical(kind, "json")) {
+        ext <- "json"
       }
 
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
-      on.exit(DBI::dbDisconnect(conn))
-
-      existing <- DBI::dbGetQuery(
-        conn,
-        "SELECT file_path FROM cohort_manifest WHERE id = ?",
-        list(existingId)
+      manifest_resolve_destination(
+        dbPath = private$.dbPath,
+        table = "cohort_manifest",
+        statuses = c("active", "stale"),
+        label = label,
+        dir = fs::path(private$.manifestDir, kind),
+        ext = ext,
+        project_root = private$.projectRoot,
+        manifest_dir = private$.manifestDir,
+        existingId = existingId,
+        sourcePath = sourcePath
       )
-
-      if (nrow(existing) != 1 || is.na(existing$file_path[1])) {
-        cli::cli_abort("Cannot find the registered file path for derived cohort {existingId}.")
-      }
-
-      private$resolve_path(existing$file_path[1])
     },
 
     # Insert a new derived cohort, or — when existingId is not NA — update the
@@ -745,7 +761,6 @@ CohortManifest <- R6::R6Class(
         private$validate_label_unique(label)
       }
 
-      rel_path <- private$to_manifest_path(filePath)
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
       on.exit(DBI::dbDisconnect(conn))
 
@@ -765,44 +780,41 @@ CohortManifest <- R6::R6Class(
         cli::cli_alert_info("Cohort {.val {label}} already exists (ID {existing_id}) — updating in place")
       }
 
-      if (!is_dependent) {
-        # Compare on resolved-absolute form: stored rows may use any of the
-        # legacy path conventions, and a raw string match would miss a
-        # duplicate registered under a different spelling.
-        all_rows <- DBI::dbGetQuery(
-          conn,
-          "SELECT id, file_path FROM cohort_manifest WHERE status IN ('active', 'stale')"
-        )
-        target_resolved <- as.character(private$resolve_path(rel_path))
-        match_idx <- if (nrow(all_rows) > 0) {
-          which(vapply(
-            all_rows$file_path,
-            function(p) as.character(private$resolve_path(p)) == target_resolved,
-            logical(1)
-          ))
-        } else {
-          integer(0)
-        }
-        existing_cohort <- all_rows[match_idx, , drop = FALSE]
-
-        # A file-path conflict with the upsert target itself is not a conflict
-        is_self <- nrow(existing_cohort) > 0 && !is.na(existing_id) &&
-          as.integer(existing_cohort$id[1]) == existing_id
-
-        if (nrow(existing_cohort) > 0 && !is_self) {
-          if (isTRUE(stopIfExists)) {
-            cli::cli_abort(c(
-              "File path already registered in manifest (cohort {existing_cohort$id[1]})",
-              i = "Set {.arg stopIfExists = FALSE} to replace registration"
-            ))
-          } else {
-            cli::cli_warn("Replacing existing manifest entry for {.file {rel_path}}")
-          }
-        }
-      }
-
       sql_content <- readr::read_file(filePath)
       .validateCustomSql(sql_content, label)
+
+      # Stage the caller's file into inputs/cohorts/sql/ under a label-derived
+      # name and register the copy, so a row can never point outside the study
+      # repo (which would make the manifest non-portable: syncManifest() on
+      # another machine cannot find the file, soft-deletes the row and cascades
+      # that delete to every derived cohort built on it).
+      #
+      # Validation runs first so an invalid definition never lands in inputs/.
+      # The dependent branch below stages for itself - it renders the caller's
+      # SQL into inputs/cohorts/derived/ - so it is skipped here.
+      staged_path <- filePath
+      if (!is_dependent) {
+        destination <- private$destination_for(
+          label = label,
+          kind = "sql",
+          existingId = existing_id,
+          sourcePath = filePath
+        )
+        staged_path <- manifest_stage_file(destination, filePath, private$.projectRoot)
+
+        # A registration that fails after the copy would leave an unregistered
+        # file behind, which syncManifest() then reports as an orphan.
+        registered <- FALSE
+        on.exit(
+          {
+            if (!registered) {
+              manifest_unstage_file(destination)
+            }
+          },
+          add = TRUE
+        )
+      }
+      rel_path <- private$to_manifest_path(staged_path)
 
       if (is_dependent) {
         private$validate_parent_cohorts_exist(as.integer(unname(dependent_ids)))
@@ -842,7 +854,7 @@ CohortManifest <- R6::R6Class(
             label = label,
             sql_content = sql_content,
             header = header,
-            output_path = private$derived_output_path(existing_id)
+            output_path = private$destination_for(label, "derived", existing_id)$path
           ), render_params)
         )
 
@@ -868,7 +880,11 @@ CohortManifest <- R6::R6Class(
           !identical(as.character(new_tags_json), as.character(upsert_target$tags[1]))
         private$update_cohort_def(cohortId = existing_id, category = category, tags = tags, silent = TRUE)
 
-        new_hash <- rlang::hash(sql_content)
+        # Hash the *registered* file rather than the source content: the stored
+        # hash column is defined as the content of the registered file, and
+        # hashing a separate read of the source would silently diverge if
+        # staging ever stopped being byte-exact.
+        new_hash <- rlang::hash(readr::read_file(staged_path))
         # Compare paths by resolved-absolute form so a pure path-convention
         # difference is not mistaken for a definition change.
         prev_resolved <- if (!is.na(upsert_target$file_path[1])) {
@@ -916,6 +932,10 @@ CohortManifest <- R6::R6Class(
         )
       }
 
+      if (!is_dependent) {
+        registered <- TRUE
+      }
+
       return(invisible(list(id = cohort_id, isNew = is.na(existing_id))))
     },
 
@@ -950,9 +970,12 @@ CohortManifest <- R6::R6Class(
 
       # Compute hash from file contents. Resolve the incoming path first: a
       # relative path checked/read against the wrong working directory would
-      # silently produce the label sentinel or the wrong hash. Every add*()
-      # method stages the file under inputs/cohorts/ before reaching here, so a
-      # missing file at this point is a real error.
+      # silently produce the label sentinel or the wrong hash.
+      #
+      # Every add*() method now stages its file under inputs/cohorts/ before
+      # reaching here (the source routes copy it, the derived builders render
+      # it), so `file_path` is always inside the study repo and a missing file
+      # at this point is a real error.
       resolved_file <- private$resolve_path(file_path)
       if (!file.exists(resolved_file)) {
         cli::cli_abort(c(
@@ -1775,7 +1798,14 @@ CohortManifest <- R6::R6Class(
       }
 
       # extract cohort name from definition to use as file name (fallback to label if not available)
-      cohort_name <- ifelse(!is.null(cohort_def$saveName[1]) && cohort_def$saveName[1] != "", cohort_def$saveName[1], label)
+      # ATLAS supplies saveName (already snake_case, and carrying the ATLAS id
+      # which is part of the import identity) - it keeps winning. The fallback
+      # used the raw label, so a label containing "/" would try to write into a
+      # subdirectory; route it through the shared filename helper instead.
+      cohort_name <- manifest_label_to_filename(label)
+      if (!is.null(cohort_def$saveName[1]) && cohort_def$saveName[1] != "") {
+        cohort_name <- cohort_def$saveName[1]
+      }
       json_path <- fs::path(json_dir, paste0(cohort_name, ".json"))
       readr::write_lines(expression_json, json_path) # make line ending always \\n
 
@@ -1820,6 +1850,11 @@ CohortManifest <- R6::R6Class(
     #'
     #' @return Invisible tibble of imported cohorts.
     importAtlasCohorts = function(cohortsLoad, atlasConnection = NULL, stopIfExists = TRUE) {
+      # Validate the load table before requiring a connection: a malformed
+      # load file is the caller's problem either way, and reporting it only
+      # after an ATLAS connection is configured hides it behind unrelated setup.
+      assert_no_retired_load_columns(cohortsLoad, "cohortsLoad")
+
       if (is.null(atlasConnection)) {
         atlasConnection <- private$.atlasConnection
       }
@@ -2140,10 +2175,22 @@ CohortManifest <- R6::R6Class(
 
     #' @description Add a custom SQL cohort
     #'
-    #' Registers an existing SQL file in the manifest. The file must already exist
-    #' on disk (typically in `sql/`).
+    #' Registers a SQL file in the manifest. The file is **copied** into
+    #' `inputs/cohorts/sql/` under a name derived from `label`, and the copy is
+    #' what the manifest registers - so a row always points at a file inside the
+    #' study repository and the manifest stays portable across machines. The
+    #' caller's original file is left untouched.
     #'
-    #' @param filePath Character. Path to the SQL file.
+    #' The label fixes the filename at first registration only: a later
+    #' [updateCohortLabel()] changes the label but never moves the file, and an
+    #' upsert (`stopIfExists = FALSE`) restages over the already-registered file
+    #' rather than creating a second one.
+    #'
+    #' Two labels that reduce to the same filename (e.g. `"T2D broad"` and
+    #' `"T2D (broad)"`) are rejected rather than silently overwriting each other.
+    #'
+    #' @param filePath Character. Path to the source SQL file. Read and copied,
+    #'   not registered in place.
     #' @param label Character. Display name for the cohort.
     #' @param category Character. Required classification.
     #' @param tags Named list. Optional metadata tags.
@@ -2237,11 +2284,18 @@ CohortManifest <- R6::R6Class(
 
     #' @description Add a Circe JSON cohort from disk
     #'
-    #' Registers an existing Circe-compatible JSON file in the manifest.
-    #' The file must already exist on disk (typically in `json/`).
-    #' Validates that the JSON is valid Circe format using CirceR.
+    #' Registers a Circe-compatible JSON file in the manifest. The JSON is
+    #' validated with CirceR first, then **copied** into `inputs/cohorts/json/`
+    #' under a name derived from `label`; the copy is what gets registered, so a
+    #' row always points at a file inside the study repository. The caller's
+    #' original file is left untouched.
     #'
-    #' @param filePath Character. Path to the Circe JSON file.
+    #' As with [addSqlCohort()], the label fixes the filename at first
+    #' registration only, and two labels reducing to the same filename are
+    #' rejected rather than overwriting each other.
+    #'
+    #' @param filePath Character. Path to the source Circe JSON file. Read and
+    #'   copied, not registered in place.
     #' @param label Character. Display name for the cohort.
     #' @param category Character. Required classification.
     #' @param tags Named list. Optional metadata tags.
@@ -2262,11 +2316,8 @@ CohortManifest <- R6::R6Class(
       # Validate label uniqueness
       private$validate_label_unique(label)
 
-      # Validate file_path uniqueness
-      rel_path <- private$to_manifest_path(filePath)
-      private$validate_filepath_unique(rel_path)
-
-      # Validate CIRCE compatibility
+      # Validate CIRCE compatibility before anything is copied, so an invalid
+      # definition never lands in inputs/.
       json_content <- readr::read_file(filePath)
       tryCatch(
         CirceR::cohortExpressionFromJson(json_content),
@@ -2276,6 +2327,30 @@ CohortManifest <- R6::R6Class(
           )
         }
       )
+
+      # Stage the caller's file into inputs/cohorts/json/ under a label-derived
+      # name and register the copy, so a row can never point outside the study
+      # repo. See register_custom_sql_cohort() for why that matters.
+      destination <- private$destination_for(
+        label = label,
+        kind = "json",
+        sourcePath = filePath
+      )
+      staged_path <- manifest_stage_file(destination, filePath, private$.projectRoot)
+
+      registered <- FALSE
+      on.exit(
+        {
+          if (!registered) {
+            manifest_unstage_file(destination)
+          }
+        },
+        add = TRUE
+      )
+
+      # Uniqueness is checked on the staged path - the form actually stored.
+      rel_path <- private$to_manifest_path(staged_path)
+      private$validate_filepath_unique(rel_path)
 
       # Tag the route for provenance
       tags$route <- "manual"
@@ -2289,6 +2364,8 @@ CohortManifest <- R6::R6Class(
         source_type = "circe",
         cohort_type = "circe"
       )
+
+      registered <- TRUE
 
       cli::cli_alert_success("Added Circe cohort {cohort_id}: {label}")
       invisible(cohort_id)
@@ -2412,7 +2489,7 @@ CohortManifest <- R6::R6Class(
       # Generate SQL via internal builder
       derived_dir <- make_derived_folder(private$.manifestDir)
       sql_path <- write_derived_template(derived_dir, label, "createUnionCohort.sql",
-        output_path = private$derived_output_path(existing_id),
+        output_path = private$destination_for(label, "derived", existing_id)$path,
         cohort_ids = paste(cohortIds, collapse = ", "),
         cohort_id_name_mapping = cohortIdNameMapping,
         gap_days = gapDays,
@@ -2592,7 +2669,7 @@ CohortManifest <- R6::R6Class(
       # Generate SQL from template
       derived_dir <- make_derived_folder(private$.manifestDir)
       sql_path <- write_derived_template(derived_dir, label, "createSubsetCohort_Cohort.sql",
-        output_path = private$derived_output_path(existing_id),
+        output_path = private$destination_for(label, "derived", existing_id)$path,
         base_cohort_id = baseCohortId,
         base_cohort_name = baseCohortName,
         filter_cohort_id = filterCohortId,
@@ -2754,7 +2831,7 @@ CohortManifest <- R6::R6Class(
 
       derived_dir <- make_derived_folder(private$.manifestDir)
       sql_path <- write_derived_template(derived_dir, label, "createComplementCohort.sql",
-        output_path = private$derived_output_path(existing_id),
+        output_path = private$destination_for(label, "derived", existing_id)$path,
         population_cohort_id = populationCohortId,
         population_cohort_name = populationCohortName,
         exclude_cohort_ids = paste(as.integer(excludeCohortIds), collapse = ", "),
@@ -2893,7 +2970,7 @@ CohortManifest <- R6::R6Class(
       derived_dir <- make_derived_folder(private$.manifestDir)
       cohort_ids_str <- paste(criteriaCohortIds, collapse = ",")
       sql_path <- write_derived_template(derived_dir, label, "createCompositeCohort.sql",
-        output_path = private$derived_output_path(existing_id),
+        output_path = private$destination_for(label, "derived", existing_id)$path,
         criteria_cohort_ids = cohort_ids_str,
         criteria_cohort_name_mapping = criteriaCohortNameMapping,
         minimum_event_count = minEventCount,
@@ -3017,30 +3094,19 @@ CohortManifest <- R6::R6Class(
         ethnicityConceptIds = if (!is.null(ethnicityConceptIds)) as.integer(ethnicityConceptIds) else NULL
       )
 
-      cohorts_dir <- dirname(private$.dbPath)
-      derived_dir <- fs::path(cohorts_dir, "derived")
-      if (!dir.exists(derived_dir)) dir.create(derived_dir, recursive = TRUE)
+      derived_dir <- make_derived_folder(private$.manifestDir)
 
-      sql_path <- private$derived_output_path(existing_id)
-
-      if (is.null(sql_path)) {
-        safe_label <- gsub("[^a-zA-Z0-9_-]", "_", label)
-        sql_path <- fs::path(derived_dir, paste0(safe_label, ".sql"))
-      }
-
-      template_path <- system.file("sql", "createSubsetCohort_Person.sql", package = "picard")
-      rendered_sql <- readr::read_file(template_path) |>
-        SqlRender::render(
-          base_cohort_id        = baseCohortId,
-          base_cohort_name      = baseCohortName,
-          min_age               = sql_min_age,
-          max_age               = sql_max_age,
-          gender_concept_ids    = sql_gender_ids,
-          race_concept_ids      = sql_race_ids,
-          ethnicity_concept_ids = sql_ethnicity_ids
-        )
-      fs::dir_create(fs::path_dir(sql_path), recurse = TRUE)
-      writeLines(rendered_sql, sql_path)
+      sql_path <- write_derived_template(
+        derived_dir, label, "createSubsetCohort_Person.sql",
+        output_path           = private$destination_for(label, "derived", existing_id)$path,
+        base_cohort_id        = baseCohortId,
+        base_cohort_name      = baseCohortName,
+        min_age               = sql_min_age,
+        max_age               = sql_max_age,
+        gender_concept_ids    = sql_gender_ids,
+        race_concept_ids      = sql_race_ids,
+        ethnicity_concept_ids = sql_ethnicity_ids
+      )
 
       cohort_id <- private$upsert_derived_cohort(
         existingId      = existing_id,
@@ -3177,8 +3243,6 @@ CohortManifest <- R6::R6Class(
       template_path <- system.file("sql", "createStratifiedCohort_Stratum.sql", package = "picard")
       template_sql <- readr::read_file(template_path)
 
-      sanitise_name <- function(nm) gsub("[^A-Za-z0-9_]", "_", tolower(nm))
-
       result <- list()
       cli::cli_rule("Building stratified cohorts from base cohort {baseCohortId}")
 
@@ -3197,14 +3261,10 @@ CohortManifest <- R6::R6Class(
         )
 
         existing_id <- existing_ids[[cohort_label]]
-        sql_path <- private$derived_output_path(existing_id)
+        sql_path <- private$destination_for(cohort_label, "derived", existing_id)$path
 
-        if (is.null(sql_path)) {
-          file_name <- sprintf("stratified_%d_%s", as.integer(baseCohortId), sanitise_name(nm))
-          sql_path <- fs::path(derived_dir, paste0(file_name, ".sql"))
-        }
-
-        writeLines(rendered_sql, sql_path)
+        fs::dir_create(fs::path_dir(sql_path), recurse = TRUE)
+        readr::write_lines(rendered_sql, sql_path)
 
         dependency_rule <- list(
           baseCohortId      = as.integer(baseCohortId),
@@ -4921,7 +4981,23 @@ CohortManifest <- R6::R6Class(
           )
           # Remove from in-memory list
           private$.manifest <- Filter(function(c) c$getId() != rec_id, private$.manifest)
-          cli::cli_alert_warning("Missing: {rec_label} (ID {rec_id}) — marked as deleted")
+
+          # A stored path that escapes the repo root was never portable: it was
+          # registered before add*() staged its file (#158) and only ever
+          # resolved on the machine that created it. Say so, rather than
+          # reporting it the same way as a genuinely deleted file.
+          if (startsWith(as.character(rec$file_path), "..")) {
+            cli::cli_alert_warning(c(
+              "Missing: {rec_label} (ID {rec_id}) — marked as deleted."
+            ))
+            cli::cli_bullets(c(
+              "!" = "Its registered path {.path {rec$file_path}} points outside the study repository.",
+              "i" = "That row was created before picard staged definition files, so it only ever resolved on the machine that registered it.",
+              "i" = "Re-register the definition with {.code addSqlCohort()} / {.code addCirceCohort()} to stage a copy inside {.path inputs/}."
+            ))
+          } else {
+            cli::cli_alert_warning("Missing: {rec_label} (ID {rec_id}) — marked as deleted")
+          }
           results <- rbind(results, data.frame(id = rec_id, label = rec_label,
                                                 action = "missing_flagged", stringsAsFactors = FALSE))
 
@@ -5985,7 +6061,7 @@ CohortManifest <- R6::R6Class(
 
       derived_dir <- make_derived_folder(private$.manifestDir)
       sql_path <- write_derived_template(derived_dir, label, "createOPriorT.sql",
-        output_path = private$derived_output_path(existing_id),
+        output_path = private$destination_for(label, "derived", existing_id)$path,
         outcome_cohort_id = outcomeCohortId,
         outcome_cohort_name = outcomeCohortName,
         target_cohort_id = targetCohortId,
@@ -6155,7 +6231,7 @@ CohortManifest <- R6::R6Class(
 
       derived_dir <- make_derived_folder(private$.manifestDir)
       sql_path <- write_derived_template(derived_dir, label, "createTPriorO.sql",
-        output_path = private$derived_output_path(existing_id),
+        output_path = private$destination_for(label, "derived", existing_id)$path,
         target_cohort_id = targetCohortId,
         target_cohort_name = targetCohortName,
         outcome_cohort_id = outcomeCohortId,
@@ -6308,7 +6384,7 @@ CohortManifest <- R6::R6Class(
         derived_dir = derived_dir,
         label = label,
         template_name = "createCensorCohort.sql",
-        output_path = private$derived_output_path(existing_id),
+        output_path = private$destination_for(label, "derived", existing_id)$path,
         target_cohort_id = targetCohortId,
         target_cohort_name = targetCohortName,
         censor_cohort_id = censorCohortId,

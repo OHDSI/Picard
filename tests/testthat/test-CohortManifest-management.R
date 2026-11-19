@@ -818,7 +818,17 @@ testthat::test_that("addSqlCohort stopIfExists FALSE updates existing cohort in 
   testthat::expect_equal(nrow(after), 1)
   testthat::expect_equal(as.integer(returned_id), as.integer(before$id[[1]]))
   testthat::expect_false(identical(after$hash[[1]], before$hash[[1]]))
-  testthat::expect_equal(after$file_path[[1]], cm_test_rel_path(manifest, revised_sql))
+
+  # The upsert restages over the file already registered to this row rather than
+  # moving the row to the caller's path: the label fixes the filename at first
+  # registration only, so re-sourcing a definition never orphans the old file
+  # (and never churns file_path, which getManifestHash() deliberately excludes).
+  testthat::expect_equal(after$file_path[[1]], before$file_path[[1]])
+
+  # ...and the registered file now holds the revised definition.
+  registered <- cm_test_resolve_path(manifest, after$file_path[[1]])
+  testthat::expect_match(readr::read_file(registered), "-- revised")
+
   testthat::expect_equal(after$category[[1]], "Comparator")
   testthat::expect_true(is.na(after$tags[[1]]))
 })

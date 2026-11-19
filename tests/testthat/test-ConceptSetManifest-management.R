@@ -609,3 +609,58 @@ testthat::test_that("checkAtlasConceptSets and updateAtlasConceptSets skip faile
     regexp = "Failed to fetch ATLAS concept set 100"
   )
 })
+
+# ── File staging (#158) ───────────────────────────────────────────────────────
+
+# Testing: addConceptSetFile() stages the caller's file into
+# inputs/conceptSets/json/ under a label-derived name and registers the copy,
+# so a row never points outside the study repo.
+testthat::test_that("addConceptSetFile stages a file registered from outside the repo", {
+  setup <- csm_test_new_manifest("csm-stage-outside")
+
+  outside_dir <- fs::dir_create(fs::file_temp(pattern = "picard-cs-outside-"))
+  outside_json <- fs::path(outside_dir, "scratch_expression.json")
+  readr::write_lines('{"items":[]}', outside_json)
+
+  suppressMessages(setup$manifest$addConceptSetFile(
+    filePath = as.character(outside_json), label = "Outside Concept Set"
+  ))
+
+  registered <- setup$manifest$getManifest()[[1]]$getFilePath()
+  rel <- fs::path_rel(registered, start = setup$root)
+
+  testthat::expect_false(startsWith(as.character(rel), ".."))
+  testthat::expect_identical(
+    as.character(rel), "inputs/conceptSets/json/outside_concept_set.json"
+  )
+  testthat::expect_true(fs::file_exists(registered))
+
+  # The analyst's original is untouched.
+  testthat::expect_true(fs::file_exists(outside_json))
+})
+
+# Testing: two concept set labels reducing to one filename are rejected, and the
+# first concept set's expression survives.
+testthat::test_that("concept set labels colliding on a filename are rejected", {
+  setup <- csm_test_new_manifest("csm-stage-collision")
+
+  src_dir <- fs::dir_create(fs::file_temp(pattern = "picard-cs-src-"))
+  src <- fs::path(src_dir, "expression.json")
+  readr::write_lines('{"items":[]}', src)
+
+  suppressMessages(setup$manifest$addConceptSetFile(
+    filePath = as.character(src), label = "Statins high intensity"
+  ))
+  registered <- setup$manifest$getManifest()[[1]]$getFilePath()
+  before <- readr::read_file(registered)
+
+  testthat::expect_error(
+    suppressMessages(setup$manifest$addConceptSetFile(
+      filePath = as.character(src), label = "Statins (high intensity)"
+    )),
+    regexp = "would\\s+overwrite"
+  )
+
+  testthat::expect_identical(readr::read_file(registered), before)
+  testthat::expect_equal(setup$manifest$nConceptSets(), 1L)
+})

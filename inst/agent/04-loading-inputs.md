@@ -343,13 +343,16 @@ See the [Capr documentation](https://ohdsi.github.io/Capr/) for detailed example
 
 This pattern uses `inputs/cohorts/R/import_sql_cohort.R`.
 
-Custom SQL cohorts let you define cohorts using hand-written SQL queries. Place
-your SQL files in `inputs/cohorts/sql/`:
+Custom SQL cohorts let you define cohorts using hand-written SQL queries.
+`addSqlCohort()` **copies** the file you give it into `inputs/cohorts/sql/`,
+named after the `label`, and registers the copy — so the manifest always points
+at a file inside the study repository and stays portable across machines. Your
+original file is left untouched, and it does not need to be inside the repo:
 
 ```{r}
 cohortManifest <- loadCohortManifest()
 
-# Add a custom SQL cohort (the file must already exist in inputs/cohorts/sql/)
+# Registered as inputs/cohorts/sql/my_custom_cohort.sql, whatever the source path
 cohortManifest$addSqlCohort(
   filePath = here::here("inputs/cohorts/sql/my_custom_cohort.sql"),
   label = "My Custom Cohort",
@@ -357,6 +360,19 @@ cohortManifest$addSqlCohort(
   tags = list(source = "sql")
 )
 ```
+
+Two points worth knowing:
+
+- The `label` fixes the filename at **first registration only**. Renaming a
+  cohort with `$updateCohortLabel()` never moves its file, and re-registering
+  with `stopIfExists = FALSE` restages over the already-registered file rather
+  than creating a second one.
+- Two labels that reduce to the same filename — `"T2D broad"` and
+  `"T2D (broad)"` both give `t_2_d_broad.sql` — are rejected rather than
+  overwriting each other. Give one a more distinct label.
+
+`$addCirceCohort()` and `$addConceptSetFile()` behave the same way, staging into
+`inputs/cohorts/json/` and `inputs/conceptSets/json/` respectively.
 
 SQL files must follow SqlRender conventions with parameters prefixed by `@`:
 
@@ -813,8 +829,8 @@ reused across calls, since each call produces its own uniquely named output
 This templating strategy can also be applied to `$addSqlCohort`, which does *not*
 render or bake parameters into the file — keep the template in
 `inputs/cohorts/R/src/sql` and pre-render it yourself (for example with
-`SqlRender::render()`) before registering, since `addSqlCohort()` registers
-whatever file it's given as-is.
+`SqlRender::render()`) before registering. `addSqlCohort()` stages a byte-exact
+copy of whatever file it's given, so anything left unrendered stays unrendered.
 
 ---
 

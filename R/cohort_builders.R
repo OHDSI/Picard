@@ -6,7 +6,7 @@
 # prepended verbatim (after rendering) as a QC comment block - not itself rendered.
 render_and_write_derived_sql <- function(derived_dir, label, sql_content, ..., header = NULL,
                                          output_path = NULL) {
-    safe_label <- gsub("[^a-zA-Z0-9_-]", "_", label)
+    safe_label <- manifest_label_to_filename(label)
     sql_path <- fs::path(derived_dir, paste0(safe_label, ".sql"))
 
     if (!is.null(output_path)) {
@@ -18,7 +18,8 @@ render_and_write_derived_sql <- function(derived_dir, label, sql_content, ..., h
       rendered_sql <- paste(c(header, "", rendered_sql), collapse = "\n")
     }
     fs::dir_create(fs::path_dir(sql_path), recurse = TRUE)
-    writeLines(rendered_sql, sql_path)
+    
+    readr::write_lines(rendered_sql, sql_path)
     return(sql_path)
 }
 

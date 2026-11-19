@@ -253,6 +253,26 @@ ConceptSetManifest <- R6::R6Class(
       manifest_path_relative(path, private$.projectRoot)
     },
 
+    # Resolve where a concept set definition belongs, and verify no other
+    # registered row already owns that path. Mirrors
+    # CohortManifest$destination_for(); concept sets are JSON only, so there is
+    # no `kind` to choose.
+    destination_for = function(label, existingId = NA_integer_,
+                               sourcePath = NULL) {
+      manifest_resolve_destination(
+        dbPath = private$.dbPath,
+        table = "concept_set_manifest",
+        statuses = "active",
+        label = label,
+        dir = fs::path(private$.manifestDir, "json"),
+        ext = "json",
+        project_root = private$.projectRoot,
+        manifest_dir = private$.manifestDir,
+        existingId = existingId,
+        sourcePath = sourcePath
+      )
+    },
+
     # Resolve a stored file_path to an absolute path on disk, tolerating the
     # legacy path conventions (absolute / repo-root-relative /
     # manifest-folder-relative). See resolve_manifest_path() in
@@ -725,7 +745,12 @@ ConceptSetManifest <- R6::R6Class(
 
     #' @description Register a local CIRCE JSON file in the manifest
     #'
-    #' @param filePath Character. Absolute or relative path to a valid CIRCE JSON file.
+    #' @param filePath Character. Path to the source concept set JSON file.
+    #'   Read and **copied** into `inputs/conceptSets/json/` under a name derived
+    #'   from `label`; the copy is what the manifest registers, so a row always
+    #'   points at a file inside the study repository. The caller's original file
+    #'   is left untouched. Two labels reducing to the same filename are rejected
+    #'   rather than overwriting each other.
     #' @param label Character. Display name for the concept set.
     #' @param category Character. Category for the concept set. Defaults to `"init"`.
     #' @param tags Named list. Optional extra metadata tags. Defaults to `list()`.
@@ -746,12 +771,33 @@ ConceptSetManifest <- R6::R6Class(
         cli::cli_abort("filePath must be a .json file, got: .{ext}")
       }
 
+      # Stage the caller's file into inputs/conceptSets/json/ under a
+      # label-derived name and register the copy, so a row can never point
+      # outside the study repo - otherwise syncManifest() on another machine
+      # cannot find the file and soft-deletes the row.
+      destination <- private$destination_for(label = label, sourcePath = filePath)
+      staged_path <- manifest_stage_file(destination, filePath, private$.projectRoot)
+
+      # A registration that fails after the copy would leave an unregistered
+      # file behind, which syncManifest() then reports as an orphan.
+      registered <- FALSE
+      on.exit(
+        {
+          if (!registered) {
+            manifest_unstage_file(destination)
+          }
+        },
+        add = TRUE
+      )
+
       cs_id <- private$insert_concept_set(
         label = label,
         category = category,
         tags = tags,
-        file_path = filePath
+        file_path = staged_path
       )
+
+      registered <- TRUE
 
       cli::cli_alert_success("Added concept set {cs_id}: {label}")
       invisible(cs_id)
@@ -914,7 +960,14 @@ ConceptSetManifest <- R6::R6Class(
         dir.create(json_dir, recursive = TRUE)
       }
 
-      cs_name <- ifelse(!is.null(cs_def$saveName[1]) && cs_def$saveName[1] != "", cs_def$saveName[1], label)
+      # ATLAS supplies saveName (already snake_case, and carrying the ATLAS id
+      # which is part of the import identity) - it keeps winning. The fallback
+      # used the raw label, so a label containing "/" would try to write into a
+      # subdirectory; route it through the shared filename helper instead.
+      cs_name <- manifest_label_to_filename(label)
+      if (!is.null(cs_def$saveName[1]) && cs_def$saveName[1] != "") {
+        cs_name <- cs_def$saveName[1]
+      }
       json_path <- fs::path(json_dir, paste0(cs_name, ".json"))
       readr::write_lines(expression_json, json_path) # make line ending always \\n
 
@@ -1138,6 +1191,11 @@ ConceptSetManifest <- R6::R6Class(
     importAtlasConceptSets = function(conceptSetsLoad,
                                       atlasConnection = NULL,
                                       stopIfExists = TRUE) {
+      # Validate the load table before requiring a connection: a malformed
+      # load file is the caller's problem either way, and reporting it only
+      # after an ATLAS connection is configured hides it behind unrelated setup.
+      assert_no_retired_load_columns(conceptSetsLoad, "conceptSetsLoad")
+
       if (is.null(atlasConnection)) {
         atlasConnection <- private$.atlasConnection
       }

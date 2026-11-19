@@ -157,13 +157,23 @@ tt_test_concept_set_setup <- function(test_name) {
   list(root = root, json_dir = json_dir, manifest = manifest)
 }
 
+# Write a fixture outside the study repo, register it, and return the path the
+# manifest actually stored. addConceptSetFile() copies the file into
+# inputs/conceptSets/json/ under a label-derived name, so the source path is not
+# the registered one - tests that edit the definition must edit the copy.
 tt_test_add_concept_set <- function(setup, label, category = "init", json = '{"items":[]}') {
-  json_path <- fs::path(setup$json_dir, paste0(gsub("[^A-Za-z0-9]+", "_", label), ".json"))
-  writeLines(json, json_path)
-  suppressMessages(setup$manifest$addConceptSetFile(
-    filePath = as.character(json_path), label = label, category = category
+  source_path <- fs::path(
+    fs::dir_create(fs::file_temp(pattern = "picard-tt-cs-src-")),
+    paste0(gsub("[^A-Za-z0-9]+", "_", label), ".json")
+  )
+  readr::write_lines(json, source_path)
+
+  cs_id <- suppressMessages(setup$manifest$addConceptSetFile(
+    filePath = as.character(source_path), label = label, category = category
   ))
-  invisible(json_path)
+
+  registered <- setup$manifest$getConceptSetById(as.integer(cs_id))
+  invisible(fs::path(registered$getFilePath()))
 }
 
 testthat::test_that(".getConceptSetManifestHash is a stable sentinel when there is no manifest", {
