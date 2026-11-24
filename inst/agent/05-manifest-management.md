@@ -250,7 +250,7 @@ re-rendered — not just re-executed. The workflow is:
 
 ```{r}
 # 1. Clear all derived cohorts (keeps base cohort registrations)
-resetCohortManifest(manifest = manifest, scope = "derived")
+manifest$clearDerivedCohorts()
 
 # 2. Re-run your build script with corrected parameters
 manifest$buildUnionCohort(
@@ -302,47 +302,60 @@ SQLite, use administrative database tools directly.
 
 ## Reset
 
-Use `resetCohortManifest()` when you need to clear cohort data. Choose the
-scope based on what you want to preserve:
+Clearing cohort data splits into two operations, because they are not two
+intensities of the same thing.
 
-| Scope | SQLite | `derived/` | `json/` + `sql/` | OMOP tables |
-|---|---|---|---|---|
-| `"derived"` | Updated (derived rows removed) | Deleted | Kept | Not touched |
-| `"manifest"` | Deleted | Deleted | Kept | Not touched |
-| `"full"` | Deleted | Deleted | Deleted | Dropped |
+**`manifest$clearDerivedCohorts()`** is part of the authoring loop. It drops the
+derived cohort rows and the generated SQL in `derived/`, leaving the manifest
+database and every base cohort in place. Safe to run repeatedly while iterating
+on build parameters.
 
-### Which scope do I need?
+**`resetCohortManifest()`** is a teardown. Both of its scopes delete the manifest
+database:
 
-- **Rebuilding derived pipeline with new parameters** → `"derived"`. Your base
-  cohort registrations and ATLAS imports are preserved; just re-run the
-  `$build*()` calls.
-- **Corrupt or restructured database** → `"manifest"`. Source files are kept;
-  call `initCohortManifest()` then re-register via `$add*()` or
+| | SQLite | `derived/` | `json/` + `sql/` | `cohortsLoad.csv` | OMOP tables |
+|---|---|---|---|---|---|
+| `clearDerivedCohorts()` | Kept (derived rows removed) | Cleared | Kept | Kept | Not touched |
+| `scope = "manifest"` (default) | Deleted | Deleted | Deleted* | Kept | Not touched |
+| `scope = "full"` | Deleted | Deleted | Deleted | Deleted | Dropped |
+
+\* Pass `archive = TRUE` to copy `json/` and `sql/` to a timestamped directory
+under `_archive/` first. Without it they are deleted outright.
+
+### Which do I need?
+
+- **Rebuilding the derived pipeline with new parameters** →
+  `manifest$clearDerivedCohorts()`. Base cohort registrations and ATLAS imports
+  are preserved; re-run the `$build*()` calls.
+- **Corrupt or restructured database** → `resetCohortManifest(scope = "manifest",
+  archive = TRUE)`, so the source files survive. Then call
+  `initCohortManifest()` and re-register via `$add*()` or
   `$importAtlasCohorts()`.
-- **Complete restart** → `"full"`. Requires `executionSettings` to drop OMOP
-  tables. Use with caution.
+- **Complete restart** → `scope = "full"`. Requires `executionSettings` to drop
+  OMOP tables. Use with caution.
 
 ```{r}
-# Rebuild derived pipeline only (keeps base cohorts)
-resetCohortManifest(manifest = manifest, scope = "derived")
+# Rebuild the derived tier only (keeps the manifest and base cohorts)
+manifest$clearDerivedCohorts()
 
-# Wipe manifest DB, keep json/ and sql/ source files
-# With archive: creates timestamped backup before deletion
+# Tear down the manifest DB, keeping json/ and sql/ in a timestamped archive
 resetCohortManifest(cohortsFolderPath = here::here("inputs/cohorts"),
-                    scope = "manifest",
-                    archive = TRUE)  # create backup at inputs/cohorts/.archive/
+                    scope             = "manifest",
+                    archive           = TRUE)
 
-# Full nuclear reset (also drops OMOP cohort tables)
-resetCohortManifest(manifest          = manifest,
-                    scope             = "full",
+# Full reset (also drops OMOP cohort tables)
+resetCohortManifest(scope             = "full",
                     executionSettings = execSettings,
                     archive           = TRUE)
 ```
 
-All scopes prompt for confirmation. Pass `confirm = FALSE` to skip in scripts.
+Both prompt for confirmation. Pass `confirm = FALSE` to skip in scripts — note
+that `resetCohortManifest()` takes a folder path rather than a manifest object,
+since it is a teardown of what is on disk.
 
-When `archive = TRUE`, the SQLite database is backed up to `.archive/` with a
-timestamp before being deleted, allowing recovery if needed.
+Any live `CohortManifest` object pointing at a torn-down manifest becomes
+unusable: its next method call aborts, rather than silently recreating an empty
+database. Create a fresh one with `initCohortManifest()`.
 
 ### Concept set manifest reset
 

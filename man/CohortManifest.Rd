@@ -88,6 +88,7 @@ Requires that executionSettings has been set and includes:
     \item \href{#method-CohortManifest-tabulateManifest}{\code{CohortManifest$tabulateManifest()}}
     \item \href{#method-CohortManifest-viewManifest}{\code{CohortManifest$viewManifest()}}
     \item \href{#method-CohortManifest-reviewStaleCohorts}{\code{CohortManifest$reviewStaleCohorts()}}
+    \item \href{#method-CohortManifest-clearDerivedCohorts}{\code{CohortManifest$clearDerivedCohorts()}}
     \item \href{#method-CohortManifest-reloadFromDb}{\code{CohortManifest$reloadFromDb()}}
     \item \href{#method-CohortManifest-getDbPath}{\code{CohortManifest$getDbPath()}}
     \item \href{#method-CohortManifest-getProjectRoot}{\code{CohortManifest$getProjectRoot()}}
@@ -351,7 +352,7 @@ was last executed. Stale cohorts are still fully registered members of the study
 valid SQL; they just need to be re-executed. \code{executeCohortGeneration()}
 will run them automatically regardless of checksum state, and clear the flag.
 
-Use \code{resetCohortManifest(scope = "derived")} followed by re-running your build
+Use \code{$clearDerivedCohorts()} followed by re-running your build
 script if you need to change build parameters rather than just re-execute.
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
@@ -361,6 +362,48 @@ script if you need to change build parameters rather than just re-execute.
   \subsection{Returns}{
     A tibble with columns: id, label, cohort_type, category, depends_on, updated_at.
 Returns \code{NULL} invisibly if no stale cohorts exist.
+Clear the derived cohort tier
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CohortManifest-clearDerivedCohorts"></a>}}
+\if{latex}{\out{\hypertarget{method-CohortManifest-clearDerivedCohorts}{}}}
+\subsection{\code{CohortManifest$clearDerivedCohorts()}}{
+  Drops every derived cohort row and its generated SQL so the derived tier
+can be rebuilt with new parameters. Base cohorts (\code{circe},
+\code{custom}) and their source files are untouched, and the manifest
+database itself survives -- this is an authoring-loop operation, safe to
+run repeatedly, not a teardown.
+
+Derived cohorts are identified by exclusion (any \code{cohort_type} that
+is not \code{circe} or \code{custom}), so a cohort type added later is
+covered without this method having to know about it.
+
+\code{inputs/cohorts/derived/} holds build output, not source: every file
+in it is regenerated from a manifest row plus a template, so clearing it
+loses nothing that cannot be rebuilt. Hand-written SQL belongs in
+\code{inputs/cohorts/sql/} and is untouched.
+
+Replaces \code{resetCohortManifest(scope = "derived")}, which has been
+removed: a routine authoring action should not sit one string literal away
+from \code{scope = "full"}, which also drops the study's OMOP cohort
+tables.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{CohortManifest$clearDerivedCohorts(confirm = TRUE)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{confirm}}{Logical. If TRUE (default), the user must type "yes" to
+proceed. Set to FALSE for non-interactive use.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    Integer. The number of derived cohort records removed.
 Reload the in-memory manifest from the SQLite database
   }
 }
@@ -371,7 +414,7 @@ Reload the in-memory manifest from the SQLite database
 \subsection{\code{CohortManifest$reloadFromDb()}}{
   Re-reads all active cohort records from SQLite and rebuilds the in-memory
 list of CohortDef objects. Useful after external changes to the database
-(e.g., after \code{resetCohortManifest(scope = "derived")}).
+(e.g., after \code{$clearDerivedCohorts()}).
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
     \preformatted{CohortManifest$reloadFromDb()}

@@ -599,7 +599,6 @@ testthat::test_that("resetCohortManifest deletes definition files by default", {
   testthat::expect_gt(length(fs::dir_ls(setup$paths$json_dir, glob = "*.json")), 0)
 
   suppressMessages(resetCohortManifest(
-    manifest = manifest,
     cohortsFolderPath = setup$paths$cohorts_dir,
     scope = "manifest",
     confirm = FALSE
@@ -619,7 +618,6 @@ testthat::test_that("resetCohortManifest archive = TRUE preserves definition fil
   cm_test_add_circe_cohort(manifest, setup$paths, label = "Archived Circe", fixture_name = "ckd.json")
 
   suppressMessages(resetCohortManifest(
-    manifest = manifest,
     cohortsFolderPath = setup$paths$cohorts_dir,
     scope = "manifest",
     archive = TRUE,
@@ -630,4 +628,89 @@ testthat::test_that("resetCohortManifest archive = TRUE preserves definition fil
   testthat::expect_true(fs::dir_exists(archiveRoot))
   testthat::expect_gt(length(fs::dir_ls(archiveRoot, recurse = TRUE, glob = "*.sql")), 0)
   testthat::expect_gt(length(fs::dir_ls(archiveRoot, recurse = TRUE, glob = "*.json")), 0)
+})
+
+# ── clearDerivedCohorts (#173) ────────────────────────────────────────────────
+
+# Testing: the derived tier is dropped while the manifest and its base cohorts
+# survive. This was resetCohortManifest(scope = "derived"), which put a routine
+# authoring action one string literal away from scope = "full".
+testthat::test_that("clearDerivedCohorts drops derived cohorts and keeps base cohorts", {
+  setup <- cm_test_seed_manifest_for_builders("lifecycle-clear-derived")
+  manifest <- setup$manifest
+
+  manifest$buildUnionCohort(
+    label = "Union To Clear", category = "Derived Cohorts",
+    cohortEntries = manifest$queryCohortsByLabel(
+      labels = c("Chronic Kidney Disease", "Type 2 Diabetes"), matchType = "exact"
+    )
+  )
+
+  before <- manifest$tabulateManifest(filter = "active")
+  nDerivedBefore <- sum(!before$cohort_type %in% c("circe", "custom"))
+  nBaseBefore <- sum(before$cohort_type %in% c("circe", "custom"))
+
+  # the fixture seeds a custom_derived cohort of its own, so there is more than
+  # just the union to clear
+  testthat::expect_gt(nDerivedBefore, 1L)
+
+  derivedFile <- cm_test_registered_path(manifest, "Union To Clear")
+  testthat::expect_true(fs::file_exists(derivedFile))
+
+  nCleared <- suppressMessages(manifest$clearDerivedCohorts(confirm = FALSE))
+
+  testthat::expect_equal(as.integer(nCleared), as.integer(nDerivedBefore))
+
+  # the derived rows and their generated SQL are gone...
+  # queryCohortsByLabel() returns NULL rather than a zero-row tibble on no
+  # match, so NROW() is the safe count here
+  testthat::expect_equal(
+    NROW(manifest$queryCohortsByLabel(labels = "Union To Clear", matchType = "exact")), 0L
+  )
+  testthat::expect_false(fs::file_exists(derivedFile))
+
+  # ...the manifest database and every base cohort are not
+  testthat::expect_true(fs::file_exists(fs::path(manifest$getDbPath())))
+  after <- manifest$tabulateManifest(filter = "active")
+  testthat::expect_equal(nrow(after), as.integer(nBaseBefore))
+  testthat::expect_true(all(after$cohort_type %in% c("circe", "custom")))
+  testthat::expect_equal(
+    NROW(manifest$queryCohortsByLabel(labels = "Chronic Kidney Disease", matchType = "exact")), 1L
+  )
+
+  # the in-memory object is refreshed, not left holding the dropped rows
+  labels <- vapply(manifest$getManifest(), function(cd) cd$label, character(1))
+  testthat::expect_false("Union To Clear" %in% labels)
+})
+
+# Testing: nothing to do is reported, not treated as an error.
+testthat::test_that("clearDerivedCohorts is a no-op when there are no derived cohorts", {
+  setup <- cm_test_new_manifest("lifecycle-clear-derived-empty")
+  manifest <- setup$manifest
+  cm_test_add_sql_cohort(manifest, setup$paths, label = "Base Only")
+
+  nCleared <- suppressMessages(manifest$clearDerivedCohorts(confirm = FALSE))
+
+  testthat::expect_equal(as.integer(nCleared), 0L)
+  testthat::expect_equal(
+    NROW(manifest$queryCohortsByLabel(labels = "Base Only", matchType = "exact")), 1L
+  )
+})
+
+# Testing: scope = "derived" is gone, not deprecated — callers are pushed to the
+# method rather than quietly forwarded. Note the default scope is now "manifest",
+# so a bare resetCohortManifest(manifest) is a teardown; the confirmation prompt
+# is what stands between a mistyped call and a deleted manifest.
+testthat::test_that("resetCohortManifest no longer accepts scope = 'derived'", {
+  setup <- cm_test_new_manifest("lifecycle-derived-removed")
+  manifest <- setup$manifest
+
+  testthat::expect_error(
+    suppressMessages(resetCohortManifest(
+      cohortsFolderPath = setup$paths$cohorts_dir, scope = "derived", confirm = FALSE
+    ))
+  )
+
+  # the manifest is untouched by the rejected call
+  testthat::expect_true(fs::file_exists(fs::path(manifest$getDbPath())))
 })

@@ -582,18 +582,18 @@ loadCohortManifest <- function(cohortsFolderPath = here::here("inputs/cohorts"),
 
 #' Reset Cohort Manifest
 #'
-#' Cleans up cohort manifest data at one of three scopes. All destructive
-#' operations require the user to type \code{"yes"} at a confirmation prompt
-#' (disable with \code{confirm = FALSE} for scripted use).
+#' Tears down a study's cohort manifest, at one of two scopes. Both delete the
+#' manifest database. All destructive operations require the user to type
+#' \code{"yes"} at a confirmation prompt (disable with \code{confirm = FALSE}
+#' for scripted use).
+#'
+#' To clear only the derived cohort tier while keeping the manifest and its base
+#' cohorts, use \code{manifest$clearDerivedCohorts()} --- that is an
+#' authoring-loop operation and no longer lives behind this verb.
 #'
 #' @section Scope options:
 #' \describe{
-#'   \item{\code{"derived"}}{Removes all derived cohort rows from the SQLite
-#'     database (union, subset, complement, composite) and deletes the
-#'     \code{derived/} folder. Base cohorts (circe, custom) and their files
-#'     are untouched. Use when rebuilding the derived pipeline with new
-#'     parameters. Requires a live \code{manifest} object.}
-#'   \item{\code{"manifest"}}{Deletes the SQLite database, the \code{derived/}
+#'   \item{\code{"manifest"} (default)}{Deletes the SQLite database, the \code{derived/}
 #'     folder, and the source files in \code{json/} and \code{sql/}. Pass
 #'     \code{archive = TRUE} to copy the source files to a timestamped directory
 #'     first, from which they can be restored after \code{initCohortManifest()}
@@ -603,18 +603,17 @@ loadCohortManifest <- function(cohortsFolderPath = here::here("inputs/cohorts"),
 #'     cohort tables from the database (requires \code{executionSettings}).}
 #' }
 #'
-#' @param manifest A \code{CohortManifest} R6 object. Required for
-#'   \code{scope = "derived"}; optional for other scopes (extracts path and
-#'   settings automatically when provided).
-#' @param cohortsFolderPath Character. Path to the cohorts folder. Inferred
-#'   from \code{manifest} when provided; otherwise defaults to
+#' @param cohortsFolderPath Character. Path to the cohorts folder. Defaults to
 #'   \code{here::here("inputs/cohorts")}.
-#' @param scope Character. One of \code{"derived"}, \code{"manifest"},
-#'   or \code{"full"}. Defaults to \code{"derived"}.
+#' @param scope Character. One of \code{"manifest"} (default) or \code{"full"}.
+#'   Both delete the manifest database --- this function is a teardown. To clear
+#'   only the derived tier and keep the manifest, use the manifest's own
+#'   \code{$clearDerivedCohorts()} method; the former \code{scope = "derived"} has
+#'   been removed.
 #' @param executionSettings An \code{ExecutionSettings} object. Required for
-#'   \code{scope = "full"} to drop OMOP cohort tables. If \code{manifest} is
-#'   provided and already has settings attached, those are used automatically;
-#'   this argument overrides them.
+#'   \code{scope = "full"} to drop OMOP cohort tables. Must be passed
+#'   explicitly --- this is a path operation and does not take a manifest object
+#'   to read settings off.
 #' @param archive Logical. For \code{scope = "manifest"}. Defaults to
 #'   \code{FALSE}: source files in \code{json/} and \code{sql/} are deleted
 #'   outright. Set to \code{TRUE} to copy them to a timestamped directory under
@@ -624,34 +623,19 @@ loadCohortManifest <- function(cohortsFolderPath = here::here("inputs/cohorts"),
 #'
 #' @return Invisibly returns NULL.
 #'
+#' @seealso \code{CohortManifest$clearDerivedCohorts()} for clearing the
+#'   derived tier without touching the manifest.
+#'
 #' @export
-resetCohortManifest <- function(manifest = NULL,
-                                cohortsFolderPath = here::here("inputs/cohorts"),
-                                scope = c("derived", "manifest", "full"),
+resetCohortManifest <- function(cohortsFolderPath = here::here("inputs/cohorts"),
+                                scope = c("manifest", "full"),
                                 executionSettings = NULL,
                                 archive = FALSE,
                                 confirm = TRUE) {
   scope <- match.arg(scope)
   checkmate::assert_logical(confirm, len = 1)
   checkmate::assert_logical(archive, len = 1)
-
-  # Resolve cohortsFolderPath and executionSettings from manifest object
-  if (!is.null(manifest)) {
-    checkmate::assert_r6(manifest, classes = "CohortManifest")
-    cohortsFolderPath <- dirname(manifest$getDbPath())
-    if (is.null(executionSettings)) {
-      executionSettings <- manifest$getExecutionSettings()
-    }
-  }
-
   checkmate::assert_string(cohortsFolderPath)
-
-  if (scope == "derived" && is.null(manifest)) {
-    cli::cli_abort(
-      c("`scope = 'derived'` requires a live {.cls CohortManifest} object.",
-        "i" = "Load one with {.code loadCohortManifest()} and pass it as {.arg manifest}.")
-    )
-  }
 
   if (scope == "full" && is.null(executionSettings)) {
     cli::cli_abort(
@@ -675,30 +659,10 @@ resetCohortManifest <- function(manifest = NULL,
   n_json <- if (dir.exists(json_dir)) length(list.files(json_dir, recursive = TRUE)) else 0L
   n_sql  <- if (dir.exists(sql_dir))  length(list.files(sql_dir,  recursive = TRUE)) else 0L
 
-  # Count derived rows in SQLite (for scope = derived)
-  n_derived_rows <- 0L
-  if (scope == "derived" && file.exists(dbPath)) {
-    conn_sq <- DBI::dbConnect(RSQLite::SQLite(), dbPath)
-    n_derived_rows <- DBI::dbGetQuery(
-      conn_sq,
-      "SELECT COUNT(*) AS n FROM cohort_manifest
-       WHERE status IN ('active', 'stale') AND cohort_type NOT IN ('circe', 'custom')"
-    )$n
-    DBI::dbDisconnect(conn_sq)
-  }
-
   # ── Print summary of what will be deleted ────────────────────────────────
   cli::cli_rule("Cohort Manifest Reset")
 
-  if (scope == "derived") {
-    cli::cli_alert_danger("The following will be {.strong permanently deleted}:")
-    cli::cli_bullets(c(
-      "x" = "{n_derived_rows} derived cohort record(s) from the manifest database",
-      "x" = "{n_derived} file(s) in {.file {fs::path_rel(derived_dir)}}"
-    ))
-    cli::cli_alert_info("Base cohorts (circe, custom) and their source files will be preserved.")
-
-  } else if (scope == "manifest") {
+  if (scope == "manifest") {
     cli::cli_alert_danger("The following will be {.strong deleted}:")
     cli::cli_bullets(c(
       "x" = "Manifest database: {.file {fs::path_rel(dbPath)}}",
@@ -744,32 +708,7 @@ resetCohortManifest <- function(manifest = NULL,
 
   # ── Execute deletions ─────────────────────────────────────────────────────
 
-  if (scope == "derived") {
-    # Hard-delete derived rows from SQLite
-    conn_sq <- DBI::dbConnect(RSQLite::SQLite(), dbPath)
-    DBI::dbExecute(
-      conn_sq,
-      "DELETE FROM cohort_manifest WHERE cohort_type NOT IN ('circe', 'custom')"
-    )
-    DBI::dbDisconnect(conn_sq)
-    cli::cli_alert_success("Removed {n_derived_rows} derived cohort record(s) from manifest database.")
-
-    # Remove derived folder files (keep directory)
-    if (dir.exists(derived_dir)) {
-      unlink(list.files(derived_dir, full.names = TRUE, recursive = TRUE))
-      cli::cli_alert_success("Cleared {.file {fs::path_rel(derived_dir)}} ({n_derived} file(s)).")
-    }
-
-    # Evict derived entries from in-memory manifest
-    if (!is.null(manifest)) {
-      manifest$reloadFromDb()
-    }
-
-    cli::cli_alert_info(
-      "Derived pipeline cleared. Rebuild with {.code manifest$buildUnionCohort()}, {.code $buildSubsetCohortTemporal()}, etc."
-    )
-
-  } else if (scope == "manifest") {
+  if (scope == "manifest") {
     if (file.exists(dbPath)) {
       file.remove(dbPath)
       cli::cli_alert_success("Deleted manifest database: {.file {fs::path_rel(dbPath)}}")
@@ -814,18 +753,14 @@ resetCohortManifest <- function(manifest = NULL,
     # Drop OMOP cohort tables first (while we still have settings)
     cli::cli_rule("Dropping OMOP Cohort Tables")
     tryCatch({
-      # Reuse the manifest's dropCohortTables() if available
-      if (!is.null(manifest)) {
-        manifest$dropCohortTables()
+      # dropCohortTables() is a manifest method, so open the manifest just long
+      # enough to call it. This runs before the database is deleted below.
+      if (file.exists(dbPath)) {
+        tmp_manifest <- CohortManifest$new(dbPath = dbPath)
+        tmp_manifest$setExecutionSettings(executionSettings)
+        tmp_manifest$dropCohortTables()
       } else {
-        # Construct a temporary manifest to call the method
-        if (file.exists(dbPath)) {
-          tmp_manifest <- CohortManifest$new(dbPath = dbPath)
-          tmp_manifest$setExecutionSettings(executionSettings)
-          tmp_manifest$dropCohortTables()
-        } else {
-          cli::cli_alert_warning("Manifest database not found — skipping OMOP table drop.")
-        }
+        cli::cli_alert_warning("Manifest database not found — skipping OMOP table drop.")
       }
     }, error = function(e) {
       cli::cli_alert_warning("Could not drop OMOP cohort tables: {e$message}")
@@ -1369,8 +1304,6 @@ loadConceptSetManifest <- function(conceptSetsFolderPath = here::here("inputs/co
 #'     folder, and \code{conceptSetsLoad.csv}. Complete wipe.}
 #' }
 #'
-#' @param manifest A \code{ConceptSetManifest} R6 object. Optional; when
-#'   provided the folder path is inferred automatically.
 #' @param conceptSetsFolderPath Character. Path to the conceptSets folder.
 #'   Inferred from \code{manifest} when provided; otherwise defaults to
 #'   \code{here::here("inputs/conceptSets")}.
@@ -1386,19 +1319,13 @@ loadConceptSetManifest <- function(conceptSetsFolderPath = here::here("inputs/co
 #' @return Invisibly returns NULL.
 #'
 #' @export
-resetConceptSetManifest <- function(manifest = NULL,
-                                    conceptSetsFolderPath = here::here("inputs/conceptSets"),
+resetConceptSetManifest <- function(conceptSetsFolderPath = here::here("inputs/conceptSets"),
                                     scope = c("manifest", "full"),
                                     archive = FALSE,
                                     confirm = TRUE) {
   scope <- match.arg(scope)
   checkmate::assert_logical(archive, len = 1)
   checkmate::assert_logical(confirm, len = 1)
-
-  if (!is.null(manifest)) {
-    checkmate::assert_r6(manifest, classes = "ConceptSetManifest")
-    conceptSetsFolderPath <- dirname(manifest$getDbPath())
-  }
 
   checkmate::assert_string(conceptSetsFolderPath)
 

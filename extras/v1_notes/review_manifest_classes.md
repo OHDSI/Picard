@@ -22,7 +22,7 @@ questions are up front.
 
 | | |
 |---|---|
-| **0.0.9 — data loss fixes** | #158 **done** (`4260771`). #166, #139, #121, #69, #167 open |
+| **0.0.9 — data loss fixes** | #158 (`4260771`) and #69 (`659c458`, `cdd45db`) **done**; #173 Part 1 (`caa78b8`) done. #166, #139, #121, #167 open |
 | **Wave 2 (the gate)** | #157 + #165's H1/H3/H4/H8 — not started |
 | **Waves 3–4** | #144, #159, then #161, #165-remainder, #168, #160 — not started |
 | **Issues closed** | #46 and #64 (both retired into #163), #132 (superseded by #139), #156, #158 |
@@ -462,19 +462,21 @@ leaving the files is now harmless — the rebuild overwrites them. Dropping only
 would make the operation non-destructive on disk, which is a better fit for something run
 routinely.
 
-### Found while filing: the `archive` default contradicts its documentation
+### Resolved while filing: the `archive` documentation was wrong, not the default
 
-`archive = FALSE` in the signature (`manifest_helpers.R:631`), but the roxygen says
+`archive = FALSE` in the signature (`manifest_helpers.R:632`) while the roxygen claimed
 *"if **TRUE (default)**, archives source files… and **can be restored**"* (`:618`, `:598`,
 and the concept-set copy at `:1365`). With the real default the `else` branch `unlink()`s
-`derived/`, `json/` and `sql/` outright, so `resetCohortManifest(scope = "manifest")` with
-default arguments permanently deletes every definition file while the help page promises a
-restorable archive.
+`derived/`, `json/` and `sql/` outright.
 
-The interactive prompt is honest — it warns *"permanently deleted"* when `archive = FALSE` —
-so an interactive user is told the truth. But `confirm = FALSE` is the documented path for
-scripted use, and there the documentation is all the caller has. **Part 1 of #173, and a
-0.0.9 candidate** independent of the split.
+**Decided: the default stays `FALSE`** — deleting is the intended behaviour and archiving
+is the opt-in. The documentation was corrected instead, in `caa78b8`: both `@param` blocks
+and both `@section Scope options` blocks now describe deletion, with `archive = TRUE` as
+the opt-in that copies to `_archive/<timestamp>/` first. The interactive prompt was always
+accurate; the help page was not, which mattered for scripted callers passing
+`confirm = FALSE`, where no prompt is shown.
+
+So **#173 Part 1 is closed** and #173 now covers Part 2 only — the split.
 
 **Sequencing.** The split is a breaking API change on an exported function, so it belongs with
 the other v1 breaks rather than in 0.0.9 — the `safe_connect()` guard already removes the
@@ -640,7 +642,7 @@ manifest classes:
 |---|---|---|
 | **#166** | warn-only vs. mode-aware default for `autoSync` / `strict_mode` | **Warn-only.** The mode-aware variant means "error in the release lane", which is structurally what Katy objects to in verify mode — warn-only keeps #166 out of the #163 argument entirely. Also narrow the recursive glob so `sql/` subfolders are safe, and record the glob ↔ `cohort_type`-filter coupling as #160's seventh list |
 | **#168** (contained fix only) | hoist the atlasId index out of the `importAtlasCohorts()` loop | Do the **loop-hoisting** half now. The structural fix — promoting `atlasId` to an indexed column — should ride #144's schema event rather than being a separate `ALTER TABLE` |
-| **#173 Part 1 only** | `archive = FALSE` default contradicts the docs, which promise a restorable archive | One-word change to `TRUE`. The split (Part 2) is a v1 break and stays out of 0.0.9 |
+| ~~#173 Part 1~~ | ~~`archive` default contradicts the docs~~ | **done** (`caa78b8`) — resolved as a docs fix; the `FALSE` default is intended. Part 2 (the split) is a v1 break and stays out of 0.0.9 |
 
 ### P3 — the gate
 

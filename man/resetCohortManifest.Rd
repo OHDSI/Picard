@@ -5,30 +5,27 @@
 \title{Reset Cohort Manifest}
 \usage{
 resetCohortManifest(
-  manifest = NULL,
   cohortsFolderPath = here::here("inputs/cohorts"),
-  scope = c("derived", "manifest", "full"),
+  scope = c("manifest", "full"),
   executionSettings = NULL,
   archive = FALSE,
   confirm = TRUE
 )
 }
 \arguments{
-\item{manifest}{A \code{CohortManifest} R6 object. Required for
-\code{scope = "derived"}; optional for other scopes (extracts path and
-settings automatically when provided).}
-
-\item{cohortsFolderPath}{Character. Path to the cohorts folder. Inferred
-from \code{manifest} when provided; otherwise defaults to
+\item{cohortsFolderPath}{Character. Path to the cohorts folder. Defaults to
 \code{here::here("inputs/cohorts")}.}
 
-\item{scope}{Character. One of \code{"derived"}, \code{"manifest"},
-or \code{"full"}. Defaults to \code{"derived"}.}
+\item{scope}{Character. One of \code{"manifest"} (default) or \code{"full"}.
+Both delete the manifest database --- this function is a teardown. To clear
+only the derived tier and keep the manifest, use the manifest's own
+\code{$clearDerivedCohorts()} method; the former \code{scope = "derived"} has
+been removed.}
 
 \item{executionSettings}{An \code{ExecutionSettings} object. Required for
-\code{scope = "full"} to drop OMOP cohort tables. If \code{manifest} is
-provided and already has settings attached, those are used automatically;
-this argument overrides them.}
+\code{scope = "full"} to drop OMOP cohort tables. Must be passed
+explicitly --- this is a path operation and does not take a manifest object
+to read settings off.}
 
 \item{archive}{Logical. For \code{scope = "manifest"}. Defaults to
 \code{FALSE}: source files in \code{json/} and \code{sql/} are deleted
@@ -42,19 +39,20 @@ outright. Set to \code{TRUE} to copy them to a timestamped directory under
 Invisibly returns NULL.
 }
 \description{
-Cleans up cohort manifest data at one of three scopes. All destructive
-operations require the user to type \code{"yes"} at a confirmation prompt
-(disable with \code{confirm = FALSE} for scripted use).
+Tears down a study's cohort manifest, at one of two scopes. Both delete the
+manifest database. All destructive operations require the user to type
+\code{"yes"} at a confirmation prompt (disable with \code{confirm = FALSE}
+for scripted use).
+}
+\details{
+To clear only the derived cohort tier while keeping the manifest and its base
+cohorts, use \code{manifest$clearDerivedCohorts()} --- that is an
+authoring-loop operation and no longer lives behind this verb.
 }
 \section{Scope options}{
 
 \describe{
-\item{\code{"derived"}}{Removes all derived cohort rows from the SQLite
-database (union, subset, complement, composite) and deletes the
-\code{derived/} folder. Base cohorts (circe, custom) and their files
-are untouched. Use when rebuilding the derived pipeline with new
-parameters. Requires a live \code{manifest} object.}
-\item{\code{"manifest"}}{Deletes the SQLite database, the \code{derived/}
+\item{\code{"manifest"} (default)}{Deletes the SQLite database, the \code{derived/}
 folder, and the source files in \code{json/} and \code{sql/}. Pass
 \code{archive = TRUE} to copy the source files to a timestamped directory
 first, from which they can be restored after \code{initCohortManifest()}
@@ -65,3 +63,7 @@ cohort tables from the database (requires \code{executionSettings}).}
 }
 }
 
+\seealso{
+\code{CohortManifest$clearDerivedCohorts()} for clearing the
+derived tier without touching the manifest.
+}

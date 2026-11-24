@@ -2,6 +2,22 @@
 
 ## Breaking Changes
 
+- `resetCohortManifest(scope = "derived")` is **removed**, replaced by
+  `CohortManifest$clearDerivedCohorts()` (#173). Clearing the derived tier is an
+  authoring-loop action run repeatedly while iterating on build parameters; it
+  no longer sits behind the same verb as deleting the manifest, one string
+  literal away from `scope = "full"`, which also drops the study's OMOP cohort
+  tables. The new method drops the derived rows and the generated SQL in
+  `derived/`, leaves the manifest database and base cohorts intact, refreshes
+  the in-memory object, and returns the number of records removed.
+- `resetCohortManifest()` and `resetConceptSetManifest()` no longer take a
+  `manifest` argument, and `scope` now defaults to `"manifest"`. Both are
+  teardowns of what is on disk, so they take a folder path; `executionSettings`
+  must be passed explicitly for `scope = "full"` rather than being read off an
+  attached manifest. **Note the default changed** — a bare
+  `resetCohortManifest()` now tears the manifest down rather than clearing the
+  derived tier. The confirmation prompt lists exactly what will be deleted; pass
+  `confirm = FALSE` only when you are sure.
 - `addSqlCohort()`, `addCirceCohort()` and `addConceptSetFile()` now **copy** the
   file they are given into `inputs/` and register the copy, named after the
   `label`. Previously they registered the caller's path as-is, so a file from

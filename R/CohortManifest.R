@@ -1553,7 +1553,7 @@ CohortManifest <- R6::R6Class(
     #' valid SQL; they just need to be re-executed. \code{executeCohortGeneration()}
     #' will run them automatically regardless of checksum state, and clear the flag.
     #'
-    #' Use \code{resetCohortManifest(scope = "derived")} followed by re-running your build
+    #' Use \code{$clearDerivedCohorts()} followed by re-running your build
     #' script if you need to change build parameters rather than just re-execute.
     #'
     #' @return A tibble with columns: id, label, cohort_type, category, depends_on, updated_at.
@@ -1580,7 +1580,7 @@ CohortManifest <- R6::R6Class(
         "These cohorts (or a parent they build on) changed since they were last generated. They will be re-executed automatically by {.code executeCohortGeneration()}."
       )
       cli::cli_alert_info(
-        "To change build parameters, run {.code resetCohortManifest(scope = 'derived')} and rebuild."
+        "To change build parameters, run {.code $clearDerivedCohorts()} and rebuild."
       )
 
       result <- tibble::tibble(
@@ -1596,12 +1596,104 @@ CohortManifest <- R6::R6Class(
       invisible(result)
     },
 
+    #' Clear the derived cohort tier
+    #'
+    #' @description
+    #' Drops every derived cohort row and its generated SQL so the derived tier
+    #' can be rebuilt with new parameters. Base cohorts (\code{circe},
+    #' \code{custom}) and their source files are untouched, and the manifest
+    #' database itself survives -- this is an authoring-loop operation, safe to
+    #' run repeatedly, not a teardown.
+    #'
+    #' Derived cohorts are identified by exclusion (any \code{cohort_type} that
+    #' is not \code{circe} or \code{custom}), so a cohort type added later is
+    #' covered without this method having to know about it.
+    #'
+    #' \code{inputs/cohorts/derived/} holds build output, not source: every file
+    #' in it is regenerated from a manifest row plus a template, so clearing it
+    #' loses nothing that cannot be rebuilt. Hand-written SQL belongs in
+    #' \code{inputs/cohorts/sql/} and is untouched.
+    #'
+    #' Replaces \code{resetCohortManifest(scope = "derived")}, which has been
+    #' removed: a routine authoring action should not sit one string literal away
+    #' from \code{scope = "full"}, which also drops the study's OMOP cohort
+    #' tables.
+    #'
+    #' @param confirm Logical. If TRUE (default), the user must type "yes" to
+    #'   proceed. Set to FALSE for non-interactive use.
+    #'
+    #' @return Integer. The number of derived cohort records removed.
+    clearDerivedCohorts = function(confirm = TRUE) {
+      checkmate::assert_logical(confirm, len = 1)
+
+      derivedDir <- fs::path(private$.manifestDir, "derived")
+
+      conn <- private$safe_connect()
+      on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+      nRows <- DBI::dbGetQuery(
+        conn,
+        "SELECT COUNT(*) AS n FROM cohort_manifest
+          WHERE status IN ('active', 'stale') AND cohort_type NOT IN ('circe', 'custom')"
+      )$n
+
+      nFiles <- 0L
+      if (fs::dir_exists(derivedDir)) {
+        nFiles <- length(fs::dir_ls(derivedDir, recurse = TRUE, type = "file"))
+      }
+
+      cli::cli_rule("Clear Derived Cohorts")
+
+      if (nRows == 0L && nFiles == 0L) {
+        cli::cli_alert_info(
+          "No derived cohorts registered and no files in {.file {fs::path_rel(derivedDir)}} \u2014 nothing to clear."
+        )
+
+        return(0L)
+      }
+
+      cli::cli_alert_danger("The following will be {.strong permanently deleted}:")
+      cli::cli_bullets(c(
+        "x" = "{nRows} derived cohort record(s) from the manifest database",
+        "x" = "{nFiles} generated file(s) in {.file {fs::path_rel(derivedDir)}}"
+      ))
+      cli::cli_alert_info("Base cohorts (circe, custom) and their source files are preserved.")
+
+      if (confirm) {
+        answer <- readline("Type 'yes' to confirm, anything else to cancel: ")
+        if (!identical(trimws(tolower(answer)), "yes")) {
+          cli::cli_alert_info("Cancelled.")
+
+          return(0L)
+        }
+      }
+
+      DBI::dbExecute(
+        conn,
+        "DELETE FROM cohort_manifest WHERE cohort_type NOT IN ('circe', 'custom')"
+      )
+      cli::cli_alert_success("Removed {nRows} derived cohort record(s) from the manifest database.")
+
+      if (nFiles > 0L) {
+        fs::file_delete(fs::dir_ls(derivedDir, recurse = TRUE, type = "file"))
+        cli::cli_alert_success("Cleared {.file {fs::path_rel(derivedDir)}} ({nFiles} file(s)).")
+      }
+
+      private$load_manifest_from_db()
+
+      cli::cli_alert_info(
+        "Rebuild with {.code $buildUnionCohort()}, {.code $buildSubsetCohortTemporal()}, etc."
+      )
+
+      return(nRows)
+    },
+
     #' Reload the in-memory manifest from the SQLite database
     #'
     #' @description
     #' Re-reads all active cohort records from SQLite and rebuilds the in-memory
     #' list of CohortDef objects. Useful after external changes to the database
-    #' (e.g., after \code{resetCohortManifest(scope = "derived")}).
+    #' (e.g., after \code{$clearDerivedCohorts()}).
     #'
     #' @return Invisible self.
     reloadFromDb = function() {

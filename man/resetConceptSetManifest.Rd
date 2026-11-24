@@ -5,7 +5,6 @@
 \title{Reset Concept Set Manifest}
 \usage{
 resetConceptSetManifest(
-  manifest = NULL,
   conceptSetsFolderPath = here::here("inputs/conceptSets"),
   scope = c("manifest", "full"),
   archive = FALSE,
@@ -13,9 +12,6 @@ resetConceptSetManifest(
 )
 }
 \arguments{
-\item{manifest}{A \code{ConceptSetManifest} R6 object. Optional; when
-provided the folder path is inferred automatically.}
-
 \item{conceptSetsFolderPath}{Character. Path to the conceptSets folder.
 Inferred from \code{manifest} when provided; otherwise defaults to
 \code{here::here("inputs/conceptSets")}.}
