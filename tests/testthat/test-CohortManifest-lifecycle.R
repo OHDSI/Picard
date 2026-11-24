@@ -581,3 +581,53 @@ testthat::test_that("a concept set manifest whose file was deleted aborts withou
   testthat::expect_error(manifest$tabulateManifest(), regexp = "No\\s+manifest\\s+database")
   testthat::expect_false(fs::file_exists(dbPath))
 })
+
+# ── resetCohortManifest archive default (#173 Part 1) ─────────────────────────
+
+# Testing: the default is deliberately destructive. `archive` defaults to FALSE,
+# so a "manifest" reset deletes json/, sql/ and derived/ outright. The roxygen
+# used to claim the opposite ("if TRUE (default) ... can be restored"), which
+# mattered most for a scripted caller passing confirm = FALSE, since no prompt
+# is shown there. The documentation was corrected to match the behaviour.
+testthat::test_that("resetCohortManifest deletes definition files by default", {
+  setup <- cm_test_new_manifest("lifecycle-reset-default")
+  manifest <- setup$manifest
+  cm_test_add_sql_cohort(manifest, setup$paths, label = "Doomed Cohort")
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "Doomed Circe", fixture_name = "ckd.json")
+
+  testthat::expect_gt(length(fs::dir_ls(setup$paths$sql_dir, glob = "*.sql")), 0)
+  testthat::expect_gt(length(fs::dir_ls(setup$paths$json_dir, glob = "*.json")), 0)
+
+  suppressMessages(resetCohortManifest(
+    manifest = manifest,
+    cohortsFolderPath = setup$paths$cohorts_dir,
+    scope = "manifest",
+    confirm = FALSE
+  ))
+
+  testthat::expect_length(fs::dir_ls(setup$paths$sql_dir, glob = "*.sql"), 0)
+  testthat::expect_length(fs::dir_ls(setup$paths$json_dir, glob = "*.json"), 0)
+  testthat::expect_false(fs::dir_exists(fs::path(setup$paths$cohorts_dir, "_archive")))
+})
+
+# Testing: archive = TRUE is the opt-in that preserves them, so the flag still
+# means what the documentation now says it means.
+testthat::test_that("resetCohortManifest archive = TRUE preserves definition files", {
+  setup <- cm_test_new_manifest("lifecycle-reset-archive")
+  manifest <- setup$manifest
+  cm_test_add_sql_cohort(manifest, setup$paths, label = "Archived Cohort")
+  cm_test_add_circe_cohort(manifest, setup$paths, label = "Archived Circe", fixture_name = "ckd.json")
+
+  suppressMessages(resetCohortManifest(
+    manifest = manifest,
+    cohortsFolderPath = setup$paths$cohorts_dir,
+    scope = "manifest",
+    archive = TRUE,
+    confirm = FALSE
+  ))
+
+  archiveRoot <- fs::path(setup$paths$cohorts_dir, "_archive")
+  testthat::expect_true(fs::dir_exists(archiveRoot))
+  testthat::expect_gt(length(fs::dir_ls(archiveRoot, recurse = TRUE, glob = "*.sql")), 0)
+  testthat::expect_gt(length(fs::dir_ls(archiveRoot, recurse = TRUE, glob = "*.json")), 0)
+})

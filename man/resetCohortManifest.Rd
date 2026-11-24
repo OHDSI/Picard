@@ -30,9 +30,10 @@ or \code{"full"}. Defaults to \code{"derived"}.}
 provided and already has settings attached, those are used automatically;
 this argument overrides them.}
 
-\item{archive}{Logical. For \code{scope = "manifest"}, if \code{TRUE} (default),
-archives source files in \code{json/} and \code{sql/} to a timestamped
-directory instead of deleting them. Set to \code{FALSE} to delete without archiving.}
+\item{archive}{Logical. For \code{scope = "manifest"}. Defaults to
+\code{FALSE}: source files in \code{json/} and \code{sql/} are deleted
+outright. Set to \code{TRUE} to copy them to a timestamped directory under
+\code{_archive/} first, so they can be restored.}
 
 \item{confirm}{Logical. If \code{TRUE} (default), the user must type
 \code{"yes"} to proceed. Set to \code{FALSE} for non-interactive use.}
@@ -53,11 +54,11 @@ database (union, subset, complement, composite) and deletes the
 \code{derived/} folder. Base cohorts (circe, custom) and their files
 are untouched. Use when rebuilding the derived pipeline with new
 parameters. Requires a live \code{manifest} object.}
-\item{\code{"manifest"}}{Deletes the SQLite database and the \code{derived/}
-folder. Source files in \code{json/} and \code{sql/} are archived to a
-timestamped directory (unless \code{archive = FALSE}) and can be restored
-after \code{initCohortManifest()} using \code{$addCirceCohort()} or
-\code{$addSqlCohort()}.}
+\item{\code{"manifest"}}{Deletes the SQLite database, the \code{derived/}
+folder, and the source files in \code{json/} and \code{sql/}. Pass
+\code{archive = TRUE} to copy the source files to a timestamped directory
+first, from which they can be restored after \code{initCohortManifest()}
+using \code{$addCirceCohort()} or \code{$addSqlCohort()}.}
 \item{\code{"full"}}{Deletes the SQLite database, \code{derived/},
 \code{json/}, \code{sql/}, and \code{cohortsLoad.csv}. Also drops OMOP
 cohort tables from the database (requires \code{executionSettings}).}

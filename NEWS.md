@@ -30,6 +30,13 @@
 - `importAtlasCohorts()` / `importAtlasConceptSets()` validate the load table
   before requiring an ATLAS connection, so a malformed load file is reported
   directly.
+- Corrected the `archive` documentation on `resetCohortManifest()` and
+  `resetConceptSetManifest()`. It claimed `archive` defaults to `TRUE` and that
+  source files "can be restored"; the default is `FALSE` and a `"manifest"`
+  reset deletes `json/`, `sql/` and `derived/` outright. The behaviour is
+  intended and unchanged — pass `archive = TRUE` to keep a restorable copy. The
+  interactive prompt was always accurate; the help page was not, which mattered
+  for scripted callers passing `confirm = FALSE` (#173).
 - A manifest object whose SQLite file is deleted beneath it — by
   `resetCohortManifest(scope = "manifest"/"full")`, a `git checkout`, or a manual
   delete — now aborts on its next method call instead of silently recreating the

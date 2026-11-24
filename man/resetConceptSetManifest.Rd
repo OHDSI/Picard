@@ -23,9 +23,10 @@ Inferred from \code{manifest} when provided; otherwise defaults to
 \item{scope}{Character. One of \code{"manifest"} (default) or
 \code{"full"}.}
 
-\item{archive}{Logical. For \code{scope = "manifest"}, if \code{TRUE} (default),
-archives JSON files in \code{json/} to a timestamped directory instead of
-deleting them. Set to \code{FALSE} to delete without archiving.}
+\item{archive}{Logical. For \code{scope = "manifest"}. Defaults to
+\code{FALSE}: JSON files in \code{json/} are deleted outright. Set to
+\code{TRUE} to copy them to a timestamped directory under
+\code{_archive/} first, so they can be restored.}
 
 \item{confirm}{Logical. If \code{TRUE} (default), the user must type
 \code{"yes"} to proceed. Set to \code{FALSE} for non-interactive use.}
@@ -45,10 +46,10 @@ Unlike cohort manifests, all concept set JSON files are user-owned sources
 \section{Scope options}{
 
 \describe{
-\item{\code{"manifest"} (default)}{Deletes only the SQLite database.
-JSON files in \code{json/} are archived to a timestamped directory
-(unless \code{archive = FALSE}) and can be restored after
-\code{initConceptSetManifest()} using \code{$addConceptSetFile()}.}
+\item{\code{"manifest"} (default)}{Deletes the SQLite database and the
+JSON files in \code{json/}. Pass \code{archive = TRUE} to copy the JSON
+files to a timestamped directory first, from which they can be restored
+after \code{initConceptSetManifest()} using \code{$addConceptSetFile()}.}
 \item{\code{"full"}}{Deletes the SQLite database, the \code{json/}
 folder, and \code{conceptSetsLoad.csv}. Complete wipe.}
 }
