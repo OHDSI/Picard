@@ -144,10 +144,19 @@ resolve_manifest_path <- function(stored_path, project_root, manifest_dir) {
 #
 # @param dbPath Character(1). Path to the manifest SQLite file.
 # @param table Character(1). The table the caller expects to query.
+# @param checkTable Logical(1). Also verify the table is present, which needs a
+#   connection. The R6 classes pass FALSE from private$connect(): existence is a
+#   pure stat, so it is free on the hot per-cohort paths, and it is sufficient to
+#   stop a bogus file being created. The table check matters only for a database
+#   already left in the broken state, which the loaders and the dbPath-taking
+#   free functions already cover.
 # @return Invisibly TRUE. Aborts otherwise.
-assert_manifest_db <- function(dbPath, table = c("cohort_manifest", "concept_set_manifest")) {
+assert_manifest_db <- function(dbPath,
+                               table = c("cohort_manifest", "concept_set_manifest"),
+                               checkTable = TRUE) {
   table <- match.arg(table)
   checkmate::assert_string(as.character(dbPath), min.chars = 1)
+  checkmate::assert_flag(checkTable)
 
   if (identical(table, "cohort_manifest")) {
     initFn <- "initCohortManifest()"
@@ -161,8 +170,13 @@ assert_manifest_db <- function(dbPath, table = c("cohort_manifest", "concept_set
     cli::cli_abort(c(
       "No manifest database at {.path {dbPath}}.",
       i = "Create one with {.code {initFn}}, or open an existing study's with {.code {loadFn}}.",
+      i = "If it existed earlier in this session it may have been removed since \u2014 {.code resetCohortManifest()} deletes it at {.val manifest} and {.val full} scope.",
       i = "Connecting would have created an empty database at that path rather than failing."
     ))
+  }
+
+  if (!checkTable) {
+    return(invisible(TRUE))
   }
 
   conn <- DBI::dbConnect(RSQLite::SQLite(), dbPath)

@@ -533,3 +533,51 @@ testthat::test_that("all dbPath-taking manifest helpers are guarded", {
 
   testthat::expect_false(fs::file_exists(missing))
 })
+
+# Testing: the real #69 reproduction. A manifest object holds a *path*, not a
+# handle, so the file can disappear beneath it mid-session — resetCohortManifest()
+# at "manifest" or "full" scope deletes it, and so does a git checkout. Before
+# private$safe_connect(), the next method call recreated the file as a table-less
+# database and failed with "no such table: cohort_manifest", after which the
+# bogus file passed loadCohortManifest()'s own existence check.
+testthat::test_that("a method on a manifest whose file was deleted aborts without recreating it", {
+  setup <- cm_test_new_manifest("lifecycle-deleted-underneath")
+  manifest <- setup$manifest
+  cm_test_add_sql_cohort(manifest, setup$paths, label = "A Cohort")
+
+  dbPath <- fs::path(manifest$getDbPath())
+  fs::file_delete(dbPath)
+
+  testthat::expect_error(
+    manifest$tabulateManifest(),
+    regexp = "No\\s+manifest\\s+database"
+  )
+
+  testthat::expect_false(fs::file_exists(dbPath))
+
+  # Every route that opens its own connection is covered, not just the first one.
+  testthat::expect_error(manifest$getManifestHash(), regexp = "No\\s+manifest\\s+database")
+  testthat::expect_error(manifest$syncManifest(strict_mode = FALSE), regexp = "No\\s+manifest\\s+database")
+  testthat::expect_error(manifest$validateManifest(), regexp = "No\\s+manifest\\s+database")
+
+  testthat::expect_false(fs::file_exists(dbPath))
+})
+
+# Testing: the concept-set side behaves the same way (lockstep).
+testthat::test_that("a concept set manifest whose file was deleted aborts without recreating it", {
+  root <- fs::file_temp(pattern = "picard-cs-deleted-")
+  cm_test_write_project_markers(root)
+  csDir <- fs::path(root, "inputs", "conceptSets")
+  fs::dir_create(fs::path(csDir, "json"))
+
+  manifest <- suppressMessages(
+    ConceptSetManifest$new(dbPath = fs::path(csDir, "conceptSetManifest.sqlite"))
+  )
+  dbPath <- fs::path(manifest$getDbPath())
+  testthat::expect_true(fs::file_exists(dbPath))
+
+  fs::file_delete(dbPath)
+
+  testthat::expect_error(manifest$tabulateManifest(), regexp = "No\\s+manifest\\s+database")
+  testthat::expect_false(fs::file_exists(dbPath))
+})

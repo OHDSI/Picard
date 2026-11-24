@@ -41,6 +41,35 @@ CohortManifest <- R6::R6Class(
       manifest_path_relative(path, private$.projectRoot)
     },
 
+    # Open a connection to the manifest database, but only after checking the
+    # file is still there -- hence safe_connect() rather than a bare dbConnect().
+    #
+    # DBI::dbConnect(RSQLite::SQLite(), path) *creates* a zero-byte file when
+    # path does not exist, so an unguarded connection manufactures a table-less
+    # database and the query that follows fails with an opaque "no such table"
+    # (#69). The bogus file then exists, so the next loadCohortManifest() passes
+    # its own existence check and fails deeper instead.
+    #
+    # This object holds a path, not a handle, so the file can disappear beneath
+    # it mid-session -- resetCohortManifest() at "manifest" or "full" scope
+    # deletes it, and so does a git checkout or a manual delete. Every method
+    # that opens its own connection goes through here; only init_manifest()
+    # connects directly, because creating the database is its job.
+    #
+    # Existence only, deliberately: it is a pure stat, so it stays free on the
+    # per-cohort generation paths. See assert_manifest_db().
+    safe_connect = function() {
+      assert_manifest_db(
+        private$.dbPath,
+        table = "cohort_manifest",
+        checkTable = FALSE
+      )
+
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+
+      return(conn)
+    },
+
     # Initialize the SQLite database
     init_manifest = function(dbPath) {
       # Create inputs/cohorts directory if it doesn't exist
@@ -146,7 +175,7 @@ CohortManifest <- R6::R6Class(
 
     # Load manifest entries from SQLite into in-memory list of CohortDef objects
     load_manifest_from_db = function() {
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       # Stale cohorts stay loaded: their definition is still current, only the
@@ -207,7 +236,7 @@ CohortManifest <- R6::R6Class(
 
     # Detect missing cohort files and update status in database
     detect_missing_cohorts = function() {
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
       
       # Get all registered ('active' or 'stale') cohorts from database
@@ -261,7 +290,7 @@ CohortManifest <- R6::R6Class(
     # label, or NA if none exists. Stale cohorts still own their label — they
     # are pending regeneration, not gone.
     find_registered_id_by_label = function(label) {
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       existing <- DBI::dbGetQuery(
@@ -280,7 +309,7 @@ CohortManifest <- R6::R6Class(
     # the atlasId tag). Returns a one-row data frame (id, label), or zero rows
     # if none. Stale rows count — otherwise re-importing would duplicate them.
     find_registered_atlas_registration = function(atlasId) {
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       rows <- DBI::dbGetQuery(
@@ -305,7 +334,7 @@ CohortManifest <- R6::R6Class(
     # type this builder creates (accidental label collision), or when the new
     # parents would create a dependency cycle.
     resolve_derived_upsert = function(label, stopIfExists, parent_ids, cohort_type) {
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       existing <- DBI::dbGetQuery(
@@ -421,7 +450,7 @@ CohortManifest <- R6::R6Class(
         ))
       }
 
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       previous <- DBI::dbGetQuery(
@@ -536,7 +565,7 @@ CohortManifest <- R6::R6Class(
     # than raw string — a raw match would let the same file be registered twice
     # under two different spellings.
     validate_filepath_unique = function(file_path) {
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       rows <- DBI::dbGetQuery(
@@ -565,7 +594,7 @@ CohortManifest <- R6::R6Class(
     # parent is a valid parent — it is registered and will be regenerated
     # before its dependents on the next generateCohorts() run.
     validate_parent_cohorts_exist = function(cohortIds) {
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       ids_str <- paste(cohortIds, collapse = ", ")
@@ -763,7 +792,7 @@ CohortManifest <- R6::R6Class(
         private$validate_label_unique(label)
       }
 
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       # A plain upsert can only overwrite another custom SQL cohort
@@ -963,7 +992,7 @@ CohortManifest <- R6::R6Class(
         ))
       }
 
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       # Get next available ID
@@ -1034,7 +1063,7 @@ CohortManifest <- R6::R6Class(
     update_cohort_def = function(cohortId, label = NULL, category = NULL, tags = NULL, silent = FALSE) {
       checkmate::assert_int(cohortId)
 
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       # Check that cohort exists and is registered ('active' or 'stale')
@@ -1192,7 +1221,7 @@ CohortManifest <- R6::R6Class(
     #' @return Character. A SHA256 hash string. An empty manifest hashes to a
     #'   stable constant.
     getManifestHash = function() {
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       rows <- DBI::dbGetQuery(
@@ -1258,7 +1287,7 @@ CohortManifest <- R6::R6Class(
     #'     \item \code{created_at} - Timestamp of creation
     #'   }
     reviewDependentCohorts = function() {
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       # All registered derived cohorts (stale ones included — they are still
@@ -1441,7 +1470,7 @@ CohortManifest <- R6::R6Class(
         all     = ""
       )
 
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       sql <- paste(
@@ -1530,7 +1559,7 @@ CohortManifest <- R6::R6Class(
     #' @return A tibble with columns: id, label, cohort_type, category, depends_on, updated_at.
     #'   Returns \code{NULL} invisibly if no stale cohorts exist.
     reviewStaleCohorts = function() {
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       rows <- DBI::dbGetQuery(
@@ -1675,7 +1704,7 @@ CohortManifest <- R6::R6Class(
         if (!is.na(existing_id)) {
           cli::cli_alert_info("Cohort {.val {label}} already exists (ID {existing_id}) — updating from ATLAS in place")
 
-          conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+          conn <- private$safe_connect()
           on.exit(DBI::dbDisconnect(conn))
 
           existing <- DBI::dbGetQuery(
@@ -2020,7 +2049,7 @@ CohortManifest <- R6::R6Class(
       if (!stopIfExists) {
         existing_id <- private$find_registered_id_by_label(label)
         if (!is.na(existing_id)) {
-          conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+          conn <- private$safe_connect()
           before <- DBI::dbGetQuery(
             conn,
             "SELECT category, tags FROM cohort_manifest WHERE id = ?",
@@ -2101,7 +2130,7 @@ CohortManifest <- R6::R6Class(
 
       checkmate::assert_string(label, min.chars = 1)
 
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       existing <- DBI::dbGetQuery(
@@ -3791,7 +3820,7 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_string(tagName, min.chars = 1)
 
       # Get current tags
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       current_tags_json <- DBI::dbGetQuery(
@@ -3835,7 +3864,7 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_string(newValue, min.chars = 1)
 
       # Get current tags
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       current_tags_json <- DBI::dbGetQuery(
@@ -3881,7 +3910,7 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_string(tagValue, min.chars = 1)
 
       # Get current tags
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       current_tags_json <- DBI::dbGetQuery(
@@ -3914,7 +3943,7 @@ CohortManifest <- R6::R6Class(
     getCohortTags = function(cohortId) {
       checkmate::assert_int(cohortId, lower = 1)
 
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       current_tags_json <- DBI::dbGetQuery(
@@ -3941,7 +3970,7 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_list(newTags, names = "named")
 
       # Get current tags
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       current_tags_json <- DBI::dbGetQuery(
@@ -4297,8 +4326,8 @@ CohortManifest <- R6::R6Class(
       }
 
       # get sqlite
-      dbPath <- private$.dbPath
-      sqlite_conn <- DBI::dbConnect(RSQLite::SQLite(), dbPath)
+            dbPath <- private$.dbPath
+      sqlite_conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(sqlite_conn))
 
       # Header
@@ -4381,7 +4410,7 @@ CohortManifest <- R6::R6Class(
     #'
     #' @return Invisible tibble with columns: id, label, category, source_type, depends_on, status.
     statusReport = function() {
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       report <- DBI::dbGetQuery(
@@ -4419,7 +4448,7 @@ CohortManifest <- R6::R6Class(
     #'
     #' Displays key metadata about the manifest and its contents.
     print = function() {
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       # 'stale' cohorts are registered members of the study awaiting
@@ -4933,7 +4962,7 @@ CohortManifest <- R6::R6Class(
       }
 
       # Pull current active source records from the SQLite manifest
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       db_records <- DBI::dbGetQuery(
@@ -5162,7 +5191,7 @@ CohortManifest <- R6::R6Class(
       checksum_table <- table_names$cohortChecksumTable
 
       # Get all deleted cohort IDs from SQLite
-      conn_sqlite <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn_sqlite <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn_sqlite), add = TRUE)
 
       deleted_records <- DBI::dbGetQuery(
@@ -5401,7 +5430,7 @@ CohortManifest <- R6::R6Class(
       cohort_hashes <- list()
 
       # Open SQLite connection once for dependency lookups inside the loop
-      sqlite_conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      sqlite_conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(sqlite_conn), add = TRUE)
       # see if checksum table is empty
       is_checksum_empty <- is_the_checksum_empty(
@@ -5651,7 +5680,7 @@ CohortManifest <- R6::R6Class(
     #'
     #' @return A tibble with columns: id, label, status (active/missing/deleted), deleted_at, file_exists
     validateManifest = function() {
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
       
       # Get all cohorts from database (including deleted ones)
@@ -5751,7 +5780,7 @@ CohortManifest <- R6::R6Class(
       checkmate::assert_flag(dropFromDBMS)
       checkmate::assert_flag(cascade)
 
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       # Retrieve cohort record

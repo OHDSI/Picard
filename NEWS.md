@@ -30,11 +30,15 @@
 - `importAtlasCohorts()` / `importAtlasConceptSets()` validate the load table
   before requiring an ATLAS connection, so a malformed load file is reported
   directly.
-- Manifest helpers given a path with no manifest now abort with an actionable
-  error instead of silently creating a zero-byte SQLite file there and failing
-  later with `no such table` (#69). A repo already left in that state is now
-  told the file is not a picard manifest, rather than getting a raw SQLite
-  error.
+- A manifest object whose SQLite file is deleted beneath it — by
+  `resetCohortManifest(scope = "manifest"/"full")`, a `git checkout`, or a manual
+  delete — now aborts on its next method call instead of silently recreating the
+  file as an empty database and failing with `no such table` (#69). Because the
+  bogus file then existed, the next `loadCohortManifest()` passed its own
+  existence check and failed deeper still. Every method that opens a connection
+  now goes through a guarded `safe_connect()`; only manifest creation connects
+  directly. A database already left in the broken state is now reported as not
+  being a picard manifest, rather than raising a raw SQLite error.
 
 # picard 0.0.8
 

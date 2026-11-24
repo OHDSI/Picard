@@ -23,6 +23,35 @@ ConceptSetManifest <- R6::R6Class(
     .atlasConnection = NULL,
 
     # Initialize the SQLite database schema (creates if needed, migrates if upgrading)
+    # Open a connection to the manifest database, but only after checking the
+    # file is still there -- hence safe_connect() rather than a bare dbConnect().
+    #
+    # DBI::dbConnect(RSQLite::SQLite(), path) *creates* a zero-byte file when
+    # path does not exist, so an unguarded connection manufactures a table-less
+    # database and the query that follows fails with an opaque "no such table"
+    # (#69). The bogus file then exists, so the next loadCohortManifest() passes
+    # its own existence check and fails deeper instead.
+    #
+    # This object holds a path, not a handle, so the file can disappear beneath
+    # it mid-session -- resetCohortManifest() at "manifest" or "full" scope
+    # deletes it, and so does a git checkout or a manual delete. Every method
+    # that opens its own connection goes through here; only init_manifest()
+    # connects directly, because creating the database is its job.
+    #
+    # Existence only, deliberately: it is a pure stat, so it stays free on the
+    # per-cohort generation paths. See assert_manifest_db().
+    safe_connect = function() {
+      assert_manifest_db(
+        private$.dbPath,
+        table = "concept_set_manifest",
+        checkTable = FALSE
+      )
+
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+
+      return(conn)
+    },
+
     init_manifest = function(dbPath) {
       # Create directory if it doesn't exist
       dbDir <- dirname(dbPath)
@@ -69,7 +98,7 @@ ConceptSetManifest <- R6::R6Class(
 
     # Load active concept sets from SQLite into the in-memory manifest list
     load_manifest_from_db = function() {
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       db_records <- DBI::dbGetQuery(
@@ -112,7 +141,7 @@ ConceptSetManifest <- R6::R6Class(
     # Find the active concept set registered with this ATLAS id (via the
     # atlasId tag). Returns a one-row data frame (id, label), or zero rows.
     find_active_atlas_registration = function(atlasId) {
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       rows <- DBI::dbGetQuery(
@@ -132,7 +161,7 @@ ConceptSetManifest <- R6::R6Class(
 
     # Return the id of the active concept set with this label, or NA if none exists
     find_active_id_by_label = function(label) {
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       existing <- DBI::dbGetQuery(
@@ -149,7 +178,7 @@ ConceptSetManifest <- R6::R6Class(
 
     # Insert a new concept set record into SQLite and refresh the in-memory manifest
     insert_concept_set = function(label, category, tags, file_path) {
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       # Auto-increment ID (never reuse IDs, even for deleted rows)
@@ -293,7 +322,7 @@ ConceptSetManifest <- R6::R6Class(
 
     # Detect missing concept set files and update status in database
     detect_missing_conceptsets = function() {
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
       
       # Get all active concept sets from database
@@ -408,7 +437,7 @@ ConceptSetManifest <- R6::R6Class(
     update_concept_set_def = function(conceptSetId, label = NULL, category = NULL, tags = NULL, silent = FALSE) {
       checkmate::assert_int(conceptSetId)
 
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       # Check that concept set exists and is active
@@ -562,7 +591,7 @@ ConceptSetManifest <- R6::R6Class(
     #' @return Character. A SHA256 hash string. An empty manifest hashes to a
     #'   stable constant.
     getManifestHash = function() {
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       rows <- DBI::dbGetQuery(
@@ -626,7 +655,7 @@ ConceptSetManifest <- R6::R6Class(
         all     = ""
       )
 
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       sql <- paste(
@@ -859,7 +888,7 @@ ConceptSetManifest <- R6::R6Class(
         # Upsert path: refresh the registered concept set from ATLAS in place
         cli::cli_alert_info("Concept set {.val {label}} already exists (ID {existing_id}) — updating from ATLAS in place")
 
-        conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+        conn <- private$safe_connect()
         on.exit(DBI::dbDisconnect(conn))
 
         existing <- DBI::dbGetQuery(
@@ -1027,7 +1056,7 @@ ConceptSetManifest <- R6::R6Class(
           cli::cli_abort("Label '{label}' is already in use by concept set {existing_id}")
         }
 
-        conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+        conn <- private$safe_connect()
         before <- DBI::dbGetQuery(
           conn,
           "SELECT category, tags FROM concept_set_manifest WHERE id = ?",
@@ -1104,7 +1133,7 @@ ConceptSetManifest <- R6::R6Class(
 
       checkmate::assert_string(label, min.chars = 1)
 
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       existing <- DBI::dbGetQuery(
@@ -1774,7 +1803,7 @@ ConceptSetManifest <- R6::R6Class(
     #'
     #' @return A tibble with columns: id, label, status (active/missing/deleted), deleted_at, file_exists
     validateManifest = function() {
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
       
       # Get all concept sets from database (including deleted ones)
@@ -1847,7 +1876,7 @@ ConceptSetManifest <- R6::R6Class(
       checkmate::assert_int(id)
       checkmate::assert_flag(confirm)
       
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       # Retrieve cohort record
@@ -2097,7 +2126,7 @@ ConceptSetManifest <- R6::R6Class(
       checkmate::assert_string(tagName, min.chars = 1)
 
       # Get current tags
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       current_tags_json <- DBI::dbGetQuery(
@@ -2141,7 +2170,7 @@ ConceptSetManifest <- R6::R6Class(
       checkmate::assert_string(newValue, min.chars = 1)
 
       # Get current tags
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       current_tags_json <- DBI::dbGetQuery(
@@ -2187,7 +2216,7 @@ ConceptSetManifest <- R6::R6Class(
       checkmate::assert_string(tagValue, min.chars = 1)
 
       # Get current tags
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       current_tags_json <- DBI::dbGetQuery(
@@ -2220,7 +2249,7 @@ ConceptSetManifest <- R6::R6Class(
     getConceptSetTags = function(conceptSetId) {
       checkmate::assert_int(conceptSetId, lower = 1)
 
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       current_tags_json <- DBI::dbGetQuery(
@@ -2247,7 +2276,7 @@ ConceptSetManifest <- R6::R6Class(
       checkmate::assert_list(newTags, names = "named")
 
       # Get current tags
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       current_tags_json <- DBI::dbGetQuery(
@@ -2607,8 +2636,8 @@ ConceptSetManifest <- R6::R6Class(
       }
 
       # Get SQLite connection
-      dbPath <- private$.dbPath
-      sqlite_conn <- DBI::dbConnect(RSQLite::SQLite(), dbPath)
+            dbPath <- private$.dbPath
+      sqlite_conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(sqlite_conn))
 
       # Header
@@ -2758,7 +2787,7 @@ ConceptSetManifest <- R6::R6Class(
       }
 
       # Pull current records from the SQLite manifest
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      conn <- private$safe_connect()
       on.exit(DBI::dbDisconnect(conn))
 
       db_records <- DBI::dbGetQuery(
