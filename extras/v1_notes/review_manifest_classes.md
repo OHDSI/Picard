@@ -22,7 +22,7 @@ questions are up front.
 
 | | |
 |---|---|
-| **0.0.9 — data loss fixes** | **done:** #158 (`4260771`), #69 (`659c458`, `cdd45db`), #173 (`caa78b8`, `548f68f`). **open:** #166, #139, #121, #167 |
+| **0.0.9 — data loss fixes** | **done:** #158 (`4260771`), #69 (`659c458`, `cdd45db`), #173 (`caa78b8`, `548f68f`), #139 (`8d49426`, `918df68`). **open:** #166, #121, #167 |
 | **Wave 2 (the gate)** | #157 + #165's H1/H3/H4/H8 — not started |
 | **Waves 3–4** | #144, #159, then #161, #165-remainder, #168, #160 — not started |
 | **Issues closed** | #46 and #64 (both retired into #163), #132 (superseded by #139), #156, #158 |
