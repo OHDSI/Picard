@@ -158,7 +158,7 @@ manifest_label_to_filename <- function(label) {
     ))
   }
 
-  stem
+  return(stem)
 }
 
 # Resolve where a label-named definition file should be written, and verify that
@@ -295,10 +295,12 @@ manifest_resolve_destination <- function(dbPath,
     action <- "noop"
   }
 
-  list(
+  ll <- list(
     path = dest,
     action = action
   )
+
+  return(ll)
 }
 
 # Copy a caller-supplied definition file to the path the manifest will register.
@@ -312,13 +314,13 @@ manifest_resolve_destination <- function(dbPath,
 # @param destination A manifest_resolve_destination() result.
 # @param sourcePath Character(1). The file to stage.
 # @param project_root Character(1). Study repository root, for messages.
-# @return Character(1). The staged (destination) path, invisibly.
+# @return Character(1). The staged (destination) path.
 manifest_stage_file <- function(destination, sourcePath, project_root) {
   checkmate::assert_list(destination)
   checkmate::assert_string(sourcePath, min.chars = 1)
 
   if (identical(destination$action, "noop")) {
-    return(invisible(destination$path))
+    return(destination$path)
   }
 
   fs::dir_create(fs::path_dir(destination$path), recurse = TRUE)
@@ -328,7 +330,9 @@ manifest_stage_file <- function(destination, sourcePath, project_root) {
     "Copied {.file {fs::path_file(sourcePath)}} to {.file {fs::path_rel(destination$path, start = project_root)}}."
   )
 
-  invisible(destination$path)
+  stagedPath <- destination$path
+
+  return(stagedPath)
 }
 
 # Undo a manifest_stage_file() copy. Used when registration fails after the
@@ -350,7 +354,8 @@ manifest_unstage_file <- function(destination) {
   }
 
   fs::file_delete(destination$path)
-  invisible(TRUE)
+
+  return(invisible(TRUE))
 }
 
 # Re-serialize a JSON string into a compact form so that two values differing
@@ -2019,6 +2024,7 @@ assert_no_retired_load_columns <- function(load_table, arg_name) {
     i = "Delete the column(s) from the load file and re-run."
   ))
 }
+
 
 list_tags_in_row <- function(row) {
   # Every column that is not reserved becomes a tag. Retired columns are

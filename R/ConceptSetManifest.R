@@ -206,7 +206,8 @@ ConceptSetManifest <- R6::R6Class(
       )
       
       if (domain %in% names(vocab_map)) {
-        return(vocab_map[[domain]])
+        sug_vocab <- vocab_map[[domain]]
+        return(sug_vocab)
       } else {
         return(NULL)
       }
@@ -250,7 +251,8 @@ ConceptSetManifest <- R6::R6Class(
     # Express a path relative to the study repository root, the form stored in
     # the file_path column for newly registered files.
     to_manifest_path = function(path) {
-      manifest_path_relative(path, private$.projectRoot)
+      man_path <- manifest_path_relative(path, private$.projectRoot)
+      return(man_path)
     },
 
     # Resolve where a concept set definition belongs, and verify no other
@@ -259,7 +261,7 @@ ConceptSetManifest <- R6::R6Class(
     # no `kind` to choose.
     destination_for = function(label, existingId = NA_integer_,
                                sourcePath = NULL) {
-      manifest_resolve_destination(
+      destination <- manifest_resolve_destination(
         dbPath = private$.dbPath,
         table = "concept_set_manifest",
         statuses = "active",
@@ -271,6 +273,8 @@ ConceptSetManifest <- R6::R6Class(
         existingId = existingId,
         sourcePath = sourcePath
       )
+
+      return(destination)
     },
 
     # Resolve a stored file_path to an absolute path on disk, tolerating the
@@ -279,11 +283,12 @@ ConceptSetManifest <- R6::R6Class(
     # manifest_helpers.R. Path resolution never touches file contents, so it
     # never affects a content hash.
     resolve_file_path = function(stored_path) {
-      resolve_manifest_path(
+      resolved_path <- resolve_manifest_path(
         stored_path = stored_path,
         project_root = private$.projectRoot,
         manifest_dir = private$.manifestDir
       )
+      return(resolved_path)
     },
 
     # Detect missing concept set files and update status in database

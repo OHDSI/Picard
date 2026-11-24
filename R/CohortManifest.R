@@ -381,7 +381,7 @@ CohortManifest <- R6::R6Class(
         ext <- "json"
       }
 
-      manifest_resolve_destination(
+      destination <- manifest_resolve_destination(
         dbPath = private$.dbPath,
         table = "cohort_manifest",
         statuses = c("active", "stale"),
@@ -393,6 +393,8 @@ CohortManifest <- R6::R6Class(
         existingId = existingId,
         sourcePath = sourcePath
       )
+
+      return(destination)
     },
 
     # Insert a new derived cohort, or — when existingId is not NA — update the

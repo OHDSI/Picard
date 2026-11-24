@@ -52,12 +52,70 @@ Almost all stateful behavior lives in R6 classes (`R/*.R`), with plain exported 
 
 Both manifests follow the same shape: an R6 class wraps a SQLite table, connections are opened/closed per-operation (`DBI::dbConnect` ... `on.exit(DBI::dbDisconnect(conn))`), rows carry a content hash used to detect drift between the manifest and the on-disk cohort/concept-set files, and soft-deletes use a `status`/`deleted_at` column rather than row removal. Tags are stored as a single serialized string (`"key: value | key2: value2"`) and parsed back out via `expandManifestTags()`/`parseTagsString()`. If you add a column or behavior to one manifest, check whether the parallel manifest needs the same change — they're maintained in lockstep, including their migration files.
 
-### Coding conventions used throughout `R/`
+### Naming conventions used throughout `R/`
 
 - Task-level/user-facing functions: camelCase (`generateCohorts`, `validateStudyTask`). Internal snake_case helpers exist too (e.g. `check_git_status`, `build_dependency_graph`) — snake_case signals "internal implementation detail," camelCase signals "public API."
 - Package functions are namespaced explicitly (`dplyr::filter()`, `checkmate::assert_string()`) rather than attached via `library()`.
-- Input validation via `checkmate::assert_*()` at the top of exported functions; user-facing errors/progress via `cli::cli_alert_*`, `cli::cli_abort()`, `cli::cli_bullets()` rather than base `warning()`/`message()`.
 - R6 private fields are prefixed with a leading dot (`private$.dbPath`, `private[[".repoName"]]`).
+
+### Code style requirements
+
+These are requirements, not preferences. Match them when adding or editing code in `R/`.
+
+**Function exits.** Every function exits formally, via `return(x)` for a value or
+`return(invisible(x))` for a side-effect function. Never rely on R's implicit
+"value of the last expression". When the returned value is an object, **build the object
+first, then return it** — never nest construction inside the exit:
+
+```r
+# yes
+ll <- list(path = dest, action = action)
+return(ll)
+
+# no
+return(list(path = dest, action = action))   # nested construction
+list(path = dest, action = action)           # implicit return
+```
+
+`ll` is the house name for a returned list (see `shouldRerunTask()`,
+`sourceInputBuilderScripts()`); use a descriptive name for anything else (`prefix`,
+`outputFolder`, `folders`). Early returns follow the same shape. Reserve `invisible()`
+for functions called for their side effect — if callers use the value, return it plainly.
+
+**`if` / `else` blocks.** Always braced, never on one line, and assignments happen
+*inside* the block rather than via an inline `if`/`else` expression. Standard spacing:
+a space after `if`, braces on the same line as the condition, `} else {` on one line.
+
+```r
+# yes
+action <- "write"
+if (same_source) {
+  action <- "noop"
+}
+
+# no
+if (same_source) action <- "noop"                      # unbraced, single line
+action <- if (same_source) "noop" else "write"         # inline if/else expression
+```
+
+Note `ifelse()` is a *vectorized* function, not a control-flow construct — do not use it
+to pick between two scalars.
+
+**Package choices.** Prefer the tidyverse-adjacent package over base R, namespaced
+explicitly:
+
+| Use | Not | Why |
+|---|---|---|
+| `fs::` | `file.path()`, `dir.create()`, `file.exists()`, `basename()`, `unlink()` | consistent path objects and predictable normalization |
+| `readr::read_file()` / `readr::write_lines()` | `readLines()`, `writeLines()`, `cat()` | **base `writeLines()` opens a text-mode connection and emits CRLF on Windows.** Since content hashes are computed by reading files back, that makes the same input hash differently per platform. `readr` always writes `\n` |
+| `cli::cli_alert_*()`, `cli::cli_abort()`, `cli::cli_bullets()` | `message()`, `warning()`, `stop()`, `print()` | all user-facing messaging goes through `cli` |
+| `glue::glue()` | `paste()`, `paste0()`, `sprintf()` | readable interpolation (`cli` already glue-interpolates its own strings) |
+| `dplyr::` / `tidyr::` | `subset()`, `merge()`, `apply()`, `[`-heavy wrangling | data wrangling reads as a pipeline |
+| `checkmate::assert_*()` | hand-rolled `if (!is.character(x)) stop(...)` | at the top of every exported function |
+
+`paste0()` remains acceptable for trivial string concatenation where `glue()` would add
+noise (e.g. building a filename from a stem and an extension), but anything
+interpolating more than one value should use `glue()`.
 
 ## Tests
 
