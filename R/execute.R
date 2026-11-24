@@ -734,7 +734,6 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
     ignoreUncommittedPaths = ignoreUncommittedPaths,
     skipCodeStateCheck = skipCodeStateCheck,
     skipInputBuilders = skipInputBuilders,
-    resultsPath = here::here("exec/results"),
     tasksFolderPath = here::here("analysis/tasks")
   )
 
@@ -798,6 +797,7 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
       glue::glue("Forced Reruns: {if (length(forcedTasks) > 0) paste(forcedTasks, collapse = ', ') else 'none'}"),
       glue::glue("Code State: {codeState$status %||% 'unrecorded'}"),
       glue::glue("Commit SHA: {codeState$sha %||% 'unrecorded'}"),
+      glue::glue("Lockfile Hash: {lockfileHash %||% 'unrecorded'}"),
       if (length(codeState$ignoredFiles %||% character(0)) > 0) {
         glue::glue(
           "Uncommitted Files Ignored ({length(codeState$ignoredFiles)}): ",
@@ -954,6 +954,7 @@ execute_pipeline <- function(configBlock, updateType = NULL, testMode = FALSE,
       glue::glue("Test Mode: {testMode}"),
       glue::glue("Forced Reruns: {if (length(forcedTasks) > 0) paste(forcedTasks, collapse = ', ') else 'none'}"),
       glue::glue("Code State: {codeState$status %||% 'unrecorded'}"),
+      glue::glue("Lockfile Hash: {lockfileHash %||% 'unrecorded'}"),
       "================================================================================",
       ""
     )

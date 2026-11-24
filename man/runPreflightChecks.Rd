@@ -13,7 +13,6 @@ runPreflightChecks(
   ignoreUncommittedPaths = NULL,
   skipCodeStateCheck = FALSE,
   skipInputBuilders = TRUE,
-  resultsPath = here::here("exec/results"),
   tasksFolderPath = here::here("analysis/tasks")
 )
 }
@@ -43,8 +42,6 @@ the run history record that the working tree was never verified.}
 \item{skipInputBuilders}{Logical. If FALSE, the pipeline sources the input
 builder scripts, which create the cohort manifest, so a missing manifest
 is only a warning. If TRUE (default), a missing manifest fails.}
-
-\item{resultsPath}{Character. Path to the results root folder for collision check.}
 
 \item{tasksFolderPath}{Character. Path to the tasks folder.}
 }

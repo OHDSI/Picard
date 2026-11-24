@@ -288,38 +288,6 @@ validateConfigYaml <- function(configFilePath = NULL) {
 # Pre-flight Validators
 # ============================================================================
 
-#' @title Validate Results Folder is Fresh
-#' @description Checks that the versioned results folder does not already contain
-#'   output files. An existing but empty folder is allowed; a folder with files
-#'   indicates a version collision and will block execution.
-#' @param pipelineVersion Character. The pipeline version string (e.g., "1.2.3").
-#' @param resultsPath Character. Path to the results root folder.
-#'   Defaults to "exec/results" relative to the project root.
-#' @return Logical TRUE invisibly if check passes. Stops with error if collision detected.
-#' @keywords internal
-validateResultsFolderFresh <- function(pipelineVersion,
-                                       resultsPath = here::here("exec/results")) {
-  versionPath <- fs::path(resultsPath, pipelineVersion)
-
-  if (!dir.exists(versionPath)) {
-    return(invisible(TRUE))
-  }
-
-  existingFiles <- fs::dir_ls(versionPath, recurse = TRUE, type = "file")
-
-  if (length(existingFiles) > 0) {
-    cli::cli_abort(c(
-      "Results folder already contains data for version {.val {pipelineVersion}}",
-      "i" = "Path: {.path {fs::path_rel(versionPath)}}",
-      "i" = "{length(existingFiles)} existing file{?s}",
-      "i" = "Increment your pipeline version or remove the existing results"
-    ))
-  }
-
-  invisible(TRUE)
-}
-
-
 #' @title Validate Config Blocks Exist in config.yml
 #' @description Checks that every config block name in the supplied vector
 #'   corresponds to a top-level key in config.yml. Catches typos before
@@ -596,7 +564,6 @@ getIgnoreUncommittedPaths <- function(configFilePath = "config.yml") {
 #' @param skipInputBuilders Logical. If FALSE, the pipeline sources the input
 #'   builder scripts, which create the cohort manifest, so a missing manifest
 #'   is only a warning. If TRUE (default), a missing manifest fails.
-#' @param resultsPath Character. Path to the results root folder for collision check.
 #' @param tasksFolderPath Character. Path to the tasks folder.
 #' @return Invisibly returns a list with \code{lockfileHash},
 #'   \code{taskFilesToRun} and \code{codeState} for downstream use in
@@ -613,7 +580,6 @@ runPreflightChecks <- function(configBlock,
                                ignoreUncommittedPaths = NULL,
                                skipCodeStateCheck = FALSE,
                                skipInputBuilders = TRUE,
-                               resultsPath = here::here("exec/results"),
                                tasksFolderPath = here::here("analysis/tasks")) {
 
   checkmate::assert_character(ignoreUncommittedPaths, any.missing = FALSE, null.ok = TRUE)
@@ -733,17 +699,6 @@ runPreflightChecks <- function(configBlock,
     validateSecretsYaml(secretsFilePath = "~/.picard/secrets.yml", dbServerNames = dbServers)
     paste0(length(dbServers), " server(s) validated in secrets.yml")
   })
-
-  # 6. Results folder fresh (skip in test mode — version is always "dev")
-  results[["Results folder"]] <- .runCheck(
-    "Results folder",
-    function() {
-      validateResultsFolderFresh(pipelineVersion, resultsPath)
-      paste0("exec/results/", pipelineVersion, "/ is available")
-    },
-    skip_cond = testMode,
-    skip_msg = "Test mode"
-  )
 
   # 7. Cohort manifest — inlined to capture missingCohorts without <<-. A new
   # study has no manifest until its input builder scripts run, so a missing

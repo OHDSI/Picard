@@ -687,7 +687,7 @@ runPostProcessing <- function(pipelineVersion, dbIds, resultsPath = here::here("
   
   if (!dir.exists(firstDbVersionPath)) {
     cli::cli_alert_danger("Version folder not found: {fs::path_rel(firstDbVersionPath)}")
-    stop("Cannot find results for version {pipelineVersion}")
+    cli::cli_abort("Cannot find results for version {pipelineVersion}")
   }
   
   # Create version-specific export path
@@ -700,13 +700,14 @@ runPostProcessing <- function(pipelineVersion, dbIds, resultsPath = here::here("
   
   if (length(taskFolders) == 0) {
     cli::cli_alert_info("No task folders found for version {pipelineVersion}")
-    return(data.frame(
+    emptyTab <- data.frame(
       taskName = character(),
       fileCount = integer(),
       totalRows = integer(),
       filesExported = character(),
       stringsAsFactors = FALSE
-    ))
+    )
+    return(emptyTab)
   }
   
   taskNames <- basename(taskFolders)
