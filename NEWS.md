@@ -46,6 +46,17 @@
 - `importAtlasCohorts()` / `importAtlasConceptSets()` validate the load table
   before requiring an ATLAS connection, so a malformed load file is reported
   directly.
+- ATLAS imports now sort the keys of every JSON object before serializing, not
+  just the `items` array of a concept set and the top-level circe slots of a
+  cohort (#139). WebAPI appears to serialize a concept from a hash-ordered map —
+  the key order seen in the wild is alphabetical except for the two
+  `VALID_*_DATE` fields — which is free to vary between calls, and a varying key
+  order rewrites the JSON file, its content hash and therefore the manifest
+  sqlite, showing up as an uncommitted change in git. The `items` sort added in
+  0.0.8 fixed the reported symptom; this closes the remaining latent half, and
+  applies to the cohort path too, which had the same exposure below its top
+  level. Expect one refetch to rewrite existing ATLAS-sourced JSON, after which
+  it is stable.
 - Corrected the `archive` documentation on `resetCohortManifest()` and
   `resetConceptSetManifest()`. It claimed `archive` defaults to `TRUE` and that
   source files "can be restored"; the default is `FALSE` and a `"manifest"`

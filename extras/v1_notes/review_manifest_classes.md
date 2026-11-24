@@ -11,7 +11,7 @@ and its **D12** settles #162, both of which sit in the Manifest Updates mileston
 Supersedes `manifest_class_review.md` and `notes_v1_pathway.md`.
 
 **How to read it.** The two tables below are the index. **§1–§6** describe how the code
-works today, with file:line references — the implementation reference. **§6.1** is the one major open
+works today, with file:line references — the implementation reference. **§5.1** withdraws a wrong finding; **§6.1** is the one major open
 decision; **§6.2** proposes splitting `resetCohortManifest()`. **§7** records Katy's review input, **§8** is the issue map, **§9** the
 priority list to work from now, **§10** the full dependency graph. Decisions and open
 questions are up front.
@@ -88,7 +88,7 @@ layer. Disposition:
 | **H4** `manifest_canonical_json()` does not sort keys | → #165, **rides with #157** |
 | **H5** two competing concept-set definition hashes | → #165, after the stamp |
 | **H6** ATLAS comparison hash is a hand-rolled write simulation ×4 | → #165 |
-| **H7** concept sets get no canonicalization on fetch | → **#139** (and closed #132) |
+| ~~**H7** concept sets get no canonicalization on fetch~~ | **wrong — withdrawn.** They are canonicalized, at `WebApi.R:333`. See §5.1 |
 | **H8** the hash column's definition inlined 8× | → #165, rides with #157 |
 
 **Why H1/H3/H4/H8 must ride with #157.** Each changes the stored hash of every cohort in
@@ -334,6 +334,71 @@ The eight defects in this layer are **H1–H8** in the table above. The two that
 `getSqlHash()` normalizes nothing despite documenting that it does (so a CRLF flip
 regenerates a cohort and reruns every task), and `manifest_canonical_json()` does not sort
 keys (so the "cosmetic reformat" promise holds for whitespace and fails for key order).
+
+---
+
+## 5.1 ATLAS JSON canonicalization — H7 withdrawn
+
+**H7 as filed was wrong**, and the error was repeated through §5, §8 and §9 of this
+document and in #165. Recording it here rather than quietly deleting it, because the wrong
+version was acted on for a week.
+
+**The claim:** *"`getCohortDefinition()` applies `formatCohortExpression()`;
+`getConceptSetDefinition()` has no equivalent — there is no `formatConceptSetExpression()`
+in the package. Cohorts are canonicalized on the way in from ATLAS; concept sets are
+not."*
+
+**The reality:** `pluckConceptSetExpression()` calls
+`canonicalize_concept_set_expression()` at `WebApi.R:333`. There is no function *named*
+`formatConceptSetExpression` — which is what the audit pattern-matched on — but the
+canonicalization is applied inline. It landed in `8d49426` (2026-08-30), five weeks after
+#139 was filed, and it is what fixed Katy's reported churn.
+
+### The asymmetry is correct, not drift
+
+Worth stating so nobody "aligns" it later. The two WebAPI endpoints have different shapes:
+
+| | Endpoint(s) | Returns |
+|---|---|---|
+| cohort | `/cohortdefinition/{id}` | one object whose `expression` is a JSON **string**, re-parsed with `RJSONIO::fromJSON` |
+| concept set | `/conceptset/{id}` **and** `/conceptset/{id}/expression` | metadata and expression from **two separate calls** |
+
+`formatCohortExpression()` exists to rebuild a circe cohort's **top-level envelope** —
+eleven named slots in a fixed sequence. A concept set expression has no envelope; it is
+`{items: [...]}`. There is nothing for a `formatConceptSetExpression()` to reorder, so its
+absence is the right design.
+
+### What was actually still broken, and is now fixed
+
+Neither path normalized the key order *inside* each node. `formatCohortExpression()` pinned
+the top level and nothing below it; `canonicalize_concept_set_expression()` ordered the
+`items` array and nothing within each item. Measured before the fix:
+
+```
+concept-set path stable under concept key reorder?  FALSE
+cohort path stable under concept key reorder?       FALSE
+cohort path stable under TOP-LEVEL reorder?         TRUE   <- formatCohortExpression's job
+```
+
+WebAPI appears to serialize a concept from a hash-ordered map — the key order in the wild is
+alphabetical except for the two `VALID_*_DATE` fields, which is the signature of a map
+rather than a declared field order — and is therefore free to vary between calls.
+
+Closed with `canonicalize_json_keys()`, a recursive object-key sort applied to both paths.
+Two details that matter: it is applied **per-slot** in `formatCohortExpression()` (via
+`lapply`) so the deliberate circe slot order survives, and it leaves **unnamed lists**
+alone, since a JSON array's order is meaning and `items` is one.
+
+**Note this does not invalidate stored hashes** the way #165's H1/H4 do — nothing changes
+until an ATLAS definition is actually refetched. So it did not need to ride with #157's
+version stamp, contrary to what an earlier draft of this document suggested.
+
+### Lesson for the rest of this audit
+
+H7 was derived from a function-name grep, not from reading the call path. The other H
+findings were verified by measurement; this one was not, and it was the one that was wrong.
+Worth re-measuring **H5** and **H6** before implementing them, since both were established
+the same way.
 
 ---
 
@@ -596,7 +661,7 @@ so that "reproducibility is handled" is not mistaken for "reproducibility is shi
 |---|---|---|
 | ~~#158~~ | staging | **done**, `4260771` |
 | **#166** | `autoSync` hard-deletes unregistered files | **needs the default decided.** Also surfaces a *seventh* hardcoded `cohort_type` list for #160, and the recursive glob makes `sql/` subfolders unsafe for work in progress |
-| **#139** | no `formatConceptSetExpression()` exists | H7. Closing this is what actually closed #132 |
+| **#139** | **done** (`8d49426` + this branch) — the item sort fixed the reported symptom; the key-order remainder is now closed. See §5.1 |
 | **#121** | `importAtlasConceptSets` can't update a label | reported bug with a traceback |
 | **#69** | builder free functions create a table-less sqlite | largely defused by exec D11 (scaffold creates both manifests); the root-cause guard still lands |
 | **#167** | F4 + F5 + F6 | F4 **must** land before #160 exports the function containing it; F5 folds into #157's diff |
@@ -644,7 +709,7 @@ manifest classes:
 
 | # | What | Why first |
 |---|---|---|
-| **#139** | `formatConceptSetExpression()` on the ATLAS concept-set fetch path (`WebApi.R:90` has no canonicalization; the cohort path has it at `:83`) | **Highest value per unit of work.** Ends the diff-on-every-run churn, which is the real cause behind the closed #132. Pure addition — nothing depends on it |
+| ~~#139~~ | ~~concept-set canonicalization on fetch~~ | **done.** The premise was wrong — see §5.1. The reported symptom was fixed in `8d49426`; the latent key-order half is now closed too |
 | **#121** | `importAtlasConceptSets` can't update a label even with `stopIfExists = FALSE` | Reported bug with a traceback; a user is blocked |
 | **#167** | F4 parameter binding, F5 the two no-op returns, F6 id allocation in a transaction | Three one-liners. **F4 must precede #160** |
 | **#69** (guard half only) | reject a nonexistent `dbPath` in the `cohort_builders.R` free functions | The scaffolding half belongs to exec D11 → #163. Do the guard, leave the scaffolding |

@@ -154,3 +154,102 @@ testthat::test_that("formatCohortExpression is stable under shuffled concept ord
 
   testthat::expect_equal(rlang::hash(first), rlang::hash(second))
 })
+
+# ── Key order within a node (#139, latent half) ───────────────────────────────
+
+# Testing: canonicalize_concept_set_expression() orders the `items` array and
+# formatCohortExpression() fixes the top-level circe slots, but neither used to
+# touch the key order *inside* each node. WebAPI appears to serialize a concept
+# from a hash-ordered map, which is free to vary between calls — and a varying
+# key order rewrites the JSON file, its hash, and so the manifest sqlite.
+testthat::test_that("canonicalize_json_keys sorts object keys recursively", {
+  x <- list(b = 1L, a = list(d = 2L, c = 3L))
+
+  out <- canonicalize_json_keys(x)
+
+  testthat::expect_identical(names(out), c("a", "b"))
+  testthat::expect_identical(names(out$a), c("c", "d"))
+})
+
+# Testing: arrays are order-carrying, so they must not be touched. `items` is a
+# JSON array; its order is set by canonicalize_concept_set_expression().
+testthat::test_that("canonicalize_json_keys leaves unnamed lists in order", {
+  arr <- list(list(z = 1L), list(a = 2L))
+
+  out <- canonicalize_json_keys(arr)
+
+  testthat::expect_identical(names(out[[1]]), "z")
+  testthat::expect_identical(names(out[[2]]), "a")
+})
+
+# Testing: a partially or duplicately named list is ambiguous — reordering it
+# could change what it deserializes to, so it is left alone.
+testthat::test_that("canonicalize_json_keys leaves ambiguous names alone", {
+  partial <- list(b = 1L, 2L)
+  dupes <- stats::setNames(list(1L, 2L), c("a", "a"))
+
+  testthat::expect_identical(names(canonicalize_json_keys(partial)), c("b", ""))
+  testthat::expect_identical(names(canonicalize_json_keys(dupes)), c("a", "a"))
+})
+
+testthat::test_that("canonicalize_json_keys tolerates atomics and empty nodes", {
+  testthat::expect_identical(canonicalize_json_keys(1L), 1L)
+  testthat::expect_identical(canonicalize_json_keys("x"), "x")
+  testthat::expect_identical(canonicalize_json_keys(list()), list())
+  testthat::expect_null(canonicalize_json_keys(NULL))
+})
+
+# Testing: the concept-set fetch path is now stable under a reordering of the
+# keys inside a concept, which is the half of #139 the item sort did not cover.
+testthat::test_that("a concept set serializes identically when concept keys are reordered", {
+  serialize <- function(expression) {
+    RJSONIO::toJSON(
+      canonicalize_json_keys(canonicalize_concept_set_expression(expression)),
+      digits = 23,
+      pretty = TRUE
+    )
+  }
+
+  forward <- list(items = list(list(
+    concept = list(CONCEPT_ID = 1L, VOCABULARY_ID = "SNOMED", CONCEPT_CODE = "X")
+  )))
+  shuffled <- list(items = list(list(
+    concept = list(VOCABULARY_ID = "SNOMED", CONCEPT_CODE = "X", CONCEPT_ID = 1L)
+  )))
+
+  testthat::expect_identical(serialize(forward), serialize(shuffled))
+})
+
+# Testing: the same for the cohort path, and that the deliberate circe slot
+# order survives — the sort runs over each slot's contents, not over the slots.
+testthat::test_that("formatCohortExpression is stable under nested key reorder and keeps slot order", {
+  makeExpression <- function(conceptKeys) {
+    concept <- list(CONCEPT_ID = 1L, VOCABULARY_ID = "SNOMED", CONCEPT_CODE = "X")[conceptKeys]
+    ll <- list(
+      ConceptSets = list(list(
+        id = 0L, name = "cs",
+        expression = list(items = list(list(concept = concept)))
+      )),
+      PrimaryCriteria = list(
+        CriteriaList = list(list(ConditionOccurrence = list(CodesetId = 0L))),
+        ObservationWindow = list(PriorDays = 0L, PostDays = 0L)
+      ),
+      QualifiedLimit = list(Type = "First"),
+      ExpressionLimit = list(Type = "First"),
+      InclusionRules = list(),
+      CensoringCriteria = list(),
+      CollapseSettings = list(CollapseType = "ERA", EraPad = 0L),
+      CensorWindow = list(),
+      cdmVersionRange = ">=5.0.0"
+    )
+    return(ll)
+  }
+
+  forward <- formatCohortExpression(makeExpression(c("CONCEPT_ID", "VOCABULARY_ID", "CONCEPT_CODE")))
+  shuffled <- formatCohortExpression(makeExpression(c("VOCABULARY_ID", "CONCEPT_CODE", "CONCEPT_ID")))
+
+  testthat::expect_identical(forward, shuffled)
+
+  # ConceptSets stays first: alphabetical ordering would have put CensorWindow there
+  testthat::expect_match(forward, "^\\{\\s*\"ConceptSets\"")
+})

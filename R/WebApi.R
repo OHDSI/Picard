@@ -330,7 +330,7 @@ pluckConceptSetExpression <- function(conceptSetId, baseUrl, bearerToken) {
   resp <- httr2::req_perform(req = req)
   csExp <- httr2::resp_body_json(resp)
   csExp2 <- RJSONIO::toJSON(
-    canonicalize_concept_set_expression(csExp),
+    canonicalize_json_keys(canonicalize_concept_set_expression(csExp)),
     digits = 23,
     pretty = TRUE
   )
@@ -382,6 +382,42 @@ concept_set_item_key <- function(item) {
     itemFlag("includeMapped"),
     sep = "|"
   )
+}
+
+# Recursively order the keys of every JSON object in a parsed response, leaving
+# arrays in the order they were given.
+#
+# canonicalize_concept_set_expression() orders the `items` array, and
+# formatCohortExpression() fixes the top-level circe slots, but neither touches
+# the key order *inside* each node -- so each `concept` block serializes in
+# whatever order the HTTP response happened to carry. WebAPI appears to build a
+# concept from a hash-ordered map (the key order in the wild is alphabetical
+# except for the two VALID_*_DATE fields), which is free to vary between calls.
+# A varying key order rewrites the on-disk JSON, its content hash and therefore
+# the manifest sqlite, which surfaces as an uncommitted change in git.
+#
+# Only objects are reordered. An unnamed list is a JSON array, where order is
+# meaning; a partially or duplicately named list is left alone rather than
+# guessed at, since reordering it could change what it deserializes to.
+#
+# @param x A parsed JSON node (named list, unnamed list, or atomic).
+# @return `x` with every object's keys in sorted order.
+canonicalize_json_keys <- function(x) {
+  if (!is.list(x) || length(x) == 0) {
+    return(x)
+  }
+
+  x <- lapply(x, canonicalize_json_keys)
+
+  nms <- names(x)
+  sortable <- !is.null(nms) && all(nzchar(nms)) && !anyDuplicated(nms)
+  if (!sortable) {
+    return(x)
+  }
+
+  ordered <- x[order(nms, method = "radix")]
+
+  return(ordered)
 }
 
 # Sort the `items` of a concept set expression by concept, leaving every other
@@ -455,6 +491,11 @@ formatCohortExpression <- function(expression) {
   if (is.null(circe$EndStrategy)) {
     circe$EndStrategy <- NULL
   }
+
+  # lapply over the slots rather than canonicalizing `circe` itself: the slot
+  # order above is the circe convention and is deliberate, so only the nodes
+  # below each slot get their keys sorted.
+  circe <- lapply(circe, canonicalize_json_keys)
 
   circeJson <- RJSONIO::toJSON(circe, digits = 23, pretty = TRUE)
 
