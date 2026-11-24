@@ -133,6 +133,52 @@ resolve_manifest_path <- function(stored_path, project_root, manifest_dir) {
   root_relative
 }
 
+# Assert that a manifest SQLite file exists and holds its expected table, before
+# anything connects to it.
+#
+# DBI::dbConnect(RSQLite::SQLite(), path) *creates* a zero-byte file when `path`
+# does not exist, so an unguarded connection silently manufactures a table-less
+# database and every later query fails with an opaque "no such table" (#69).
+# Worse, the bogus file then exists, so the next run looks like a corrupt
+# manifest rather than a missing one.
+#
+# @param dbPath Character(1). Path to the manifest SQLite file.
+# @param table Character(1). The table the caller expects to query.
+# @return Invisibly TRUE. Aborts otherwise.
+assert_manifest_db <- function(dbPath, table = c("cohort_manifest", "concept_set_manifest")) {
+  table <- match.arg(table)
+  checkmate::assert_string(as.character(dbPath), min.chars = 1)
+
+  if (identical(table, "cohort_manifest")) {
+    initFn <- "initCohortManifest()"
+    loadFn <- "loadCohortManifest()"
+  } else {
+    initFn <- "initConceptSetManifest()"
+    loadFn <- "loadConceptSetManifest()"
+  }
+
+  if (!fs::file_exists(dbPath)) {
+    cli::cli_abort(c(
+      "No manifest database at {.path {dbPath}}.",
+      i = "Create one with {.code {initFn}}, or open an existing study's with {.code {loadFn}}.",
+      i = "Connecting would have created an empty database at that path rather than failing."
+    ))
+  }
+
+  conn <- DBI::dbConnect(RSQLite::SQLite(), dbPath)
+  on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+  if (!(table %in% DBI::dbListTables(conn))) {
+    cli::cli_abort(c(
+      "{.path {dbPath}} is not a picard manifest: it has no {.field {table}} table.",
+      i = "An earlier run may have created an empty database at this path.",
+      i = "Delete the file, then re-create the manifest with {.code {initFn}}."
+    ))
+  }
+
+  invisible(TRUE)
+}
+
 # Turn an analyst-facing label into the filename stem for a definition file
 # registered under that label. snake_case is the package-wide convention for
 # deriving a filename from a human name (makeTaskFile(), makeSrcFile(),
@@ -208,6 +254,8 @@ manifest_resolve_destination <- function(dbPath,
   checkmate::assert_string(manifest_dir, min.chars = 1)
   checkmate::assert_int(existingId, na.ok = TRUE)
   checkmate::assert_string(sourcePath, min.chars = 1, null.ok = TRUE)
+
+  assert_manifest_db(dbPath, table = table)
 
   conn <- DBI::dbConnect(RSQLite::SQLite(), dbPath)
   on.exit(DBI::dbDisconnect(conn))
@@ -1842,6 +1890,8 @@ manifestValueUnchanged <- function(newValue, storedValue) {
 findTransitiveDependents <- function(dbPath, cohort_ids) {
   cohort_ids <- as.integer(cohort_ids)
 
+  assert_manifest_db(dbPath, table = "cohort_manifest")
+
   conn <- DBI::dbConnect(RSQLite::SQLite(), dbPath)
   on.exit(DBI::dbDisconnect(conn))
 
@@ -1905,6 +1955,8 @@ findTransitiveDependents <- function(dbPath, cohort_ids) {
 #' @return Invisibly returns the integer vector of IDs marked stale.
 #' @keywords internal
 cascadeStaleDownstream <- function(dbPath, cohort_ids) {
+  assert_manifest_db(dbPath, table = "cohort_manifest")
+
   visited <- findTransitiveDependents(dbPath, cohort_ids)
 
   conn <- DBI::dbConnect(RSQLite::SQLite(), dbPath)

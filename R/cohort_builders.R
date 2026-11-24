@@ -83,6 +83,8 @@ make_derived_folder <- function(cohorts_dir) {
 # Creates an adjacency list representation of dependencies.
 # Returns a list where each cohort ID maps to a vector of cohorts it depends on.
 build_dependency_graph = function(dbPath) {
+    assert_manifest_db(dbPath, table = "cohort_manifest")
+
     conn <- DBI::dbConnect(RSQLite::SQLite(), dbPath)
     on.exit(DBI::dbDisconnect(conn))
 
@@ -252,6 +254,8 @@ topological_sort = function(graph) {
 # Compute dependency hash for a dependent cohort
 # Combines parent cohort hashes with the dependency rule parameters.
 compute_dependency_hash = function(dbPath, cohort, parent_hashes) {
+    assert_manifest_db(dbPath, table = "cohort_manifest")
+
     conn <- DBI::dbConnect(RSQLite::SQLite(), dbPath)
     on.exit(DBI::dbDisconnect(conn))
 

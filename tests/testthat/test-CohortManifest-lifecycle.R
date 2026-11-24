@@ -485,3 +485,51 @@ testthat::test_that("a load file with the retired file_name column is rejected",
     regexp = "no\\s+longer\\s+uses"
   )
 })
+
+# ── Unguarded dbPath (#69) ────────────────────────────────────────────────────
+
+# Testing: connecting to a manifest path is guarded, because
+# DBI::dbConnect(RSQLite::SQLite(), path) *creates* a zero-byte file at a
+# nonexistent path. Unguarded, that manufactured a table-less database and every
+# later query failed with an opaque "no such table" — and left the bogus file
+# behind, so the next run looked corrupt rather than missing.
+testthat::test_that("a manifest helper given a nonexistent dbPath aborts without creating a file", {
+  dir <- fs::dir_create(fs::file_temp(pattern = "picard-no-manifest-"))
+  missing <- fs::path(dir, "cohortManifest.sqlite")
+
+  testthat::expect_error(
+    findTransitiveDependents(as.character(missing), 1L),
+    regexp = "No\\s+manifest\\s+database"
+  )
+
+  testthat::expect_false(fs::file_exists(missing))
+})
+
+# Testing: a repo already left in the broken state gets an actionable message
+# naming the missing table, not a raw SQLite error.
+testthat::test_that("a table-less sqlite is reported as not a picard manifest", {
+  dir <- fs::dir_create(fs::file_temp(pattern = "picard-empty-manifest-"))
+  bogus <- fs::path(dir, "cohortManifest.sqlite")
+
+  conn <- DBI::dbConnect(RSQLite::SQLite(), bogus)
+  DBI::dbDisconnect(conn)
+  testthat::expect_true(fs::file_exists(bogus))
+
+  testthat::expect_error(
+    findTransitiveDependents(as.character(bogus), 1L),
+    regexp = "no\\s+cohort_manifest\\s+table"
+  )
+})
+
+# Testing: every manifest helper that opens its own connection is guarded, not
+# just the one above.
+testthat::test_that("all dbPath-taking manifest helpers are guarded", {
+  dir <- fs::dir_create(fs::file_temp(pattern = "picard-guard-all-"))
+  missing <- as.character(fs::path(dir, "cohortManifest.sqlite"))
+
+  testthat::expect_error(findTransitiveDependents(missing, 1L), regexp = "No\\s+manifest\\s+database")
+  testthat::expect_error(cascadeStaleDownstream(missing, 1L), regexp = "No\\s+manifest\\s+database")
+  testthat::expect_error(build_dependency_graph(missing), regexp = "No\\s+manifest\\s+database")
+
+  testthat::expect_false(fs::file_exists(missing))
+})

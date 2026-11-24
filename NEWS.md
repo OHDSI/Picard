@@ -30,6 +30,11 @@
 - `importAtlasCohorts()` / `importAtlasConceptSets()` validate the load table
   before requiring an ATLAS connection, so a malformed load file is reported
   directly.
+- Manifest helpers given a path with no manifest now abort with an actionable
+  error instead of silently creating a zero-byte SQLite file there and failing
+  later with `no such table` (#69). A repo already left in that state is now
+  told the file is not a picard manifest, rather than getting a raw SQLite
+  error.
 
 # picard 0.0.8
 
