@@ -1,3 +1,28 @@
+#' Export Filename Prefix for a Task
+#' @description Single definition of the prefix that \code{\link{importAndBind}} prepends
+#'   to every merged file so outputs from different tasks cannot collide. A leading numeric
+#'   segment is used as-is (\code{"01_demographics"} -> \code{"01"}); anything else is
+#'   slugified from the whole task name (\code{"demographics"} -> \code{"demographics"},
+#'   \code{"my_task"} -> \code{"my-task"}).
+#'
+#'   Two task folders whose prefixes are equal would write to the same merged filename, so
+#'   this is also what \code{\link{validateTaskIndices}} compares — both must agree, which
+#'   is why the computation lives in one place.
+#' @param taskName Character vector of task folder names.
+#' @return Character vector of export prefixes, same length as \code{taskName}.
+#' @keywords internal
+taskExportPrefix <- function(taskName) {
+  checkmate::assert_character(taskName, any.missing = FALSE)
+
+  leading <- sub("_.*$", "", taskName)
+  slug <- gsub("[^A-Za-z0-9]+", "-", taskName)
+  slug <- gsub("(^-+|-+$)", "", slug)
+
+  prefix <- ifelse(grepl("^[0-9]+$", leading), leading, slug)
+
+  return(prefix)
+}
+
 #' Import and Bind Results by Version and Task
 #' @description Combines result files across multiple database runs for a specific version and task.
 #'   Finds all CSV files in the task folder for each database and combines them into named results,
@@ -42,11 +67,7 @@ importAndBind <- function(version, taskName, dbIds, resultsPath = here::here("ex
                           compress = FALSE) {
 
   # Prefix merged files with the task sequence to avoid filename collisions
-  taskPrefix <- sub("_.*$", "", taskName)
-  if (!grepl("^[0-9]+$", taskPrefix)) {
-    taskPrefix <- gsub("[^A-Za-z0-9]+", "-", taskName)
-    taskPrefix <- gsub("(^-+|-+$)", "", taskPrefix)
-  }
+  taskPrefix <- taskExportPrefix(taskName)
   
   # Get database names from config. Result folders are written with the same
   # snake_case database segment used by setOutputFolder()/resolveResultsPath(),
@@ -689,6 +710,37 @@ runPostProcessing <- function(pipelineVersion, dbIds, resultsPath = here::here("
   }
   
   taskNames <- basename(taskFolders)
+
+  # #151: two task folders sharing an export prefix (e.g. "01_demographics" and "01_demo")
+  # both merge to 01_*.csv, and the second silently overwrites the first. Checked per
+  # database, since the same folder name across databases is normal and expected — the
+  # collision is two differently-named folders within one database's version folder.
+  indexProblems <- character(0)
+  for (i in seq_along(databaseFolderNames)) {
+    dbVersionPath <- fs::path(resultsPath, databaseFolderNames[i], pipelineVersion)
+    if (!dir.exists(dbVersionPath)) next
+
+    dbTaskNames <- basename(fs::dir_ls(dbVersionPath, type = "directory"))
+    idx <- validateTaskIndices(dbTaskNames)
+
+    if (length(idx$duplicates) > 0) {
+      for (prefix in names(idx$duplicates)) {
+        indexProblems <- c(indexProblems, paste0(
+          databaseNames[i], " \u2014 index '", prefix, "': ",
+          paste(idx$duplicates[[prefix]], collapse = ", ")
+        ))
+      }
+    }
+  }
+
+  if (length(indexProblems) > 0) {
+    cli::cli_abort(c(
+      "Duplicate task indices in {.path exec/results} for version {.val {pipelineVersion}}.",
+      stats::setNames(indexProblems, rep("x", length(indexProblems))),
+      i = "Old results exist in the exec folder and need to be removed.",
+      i = "Folders sharing an index merge to the same filename; the later one wins."
+    ))
+  }
   
   cli::cli_alert_info("Found {length(taskNames)} task(s) for version {pipelineVersion}")
   cli::cli_bullets(setNames(taskNames, "•"))

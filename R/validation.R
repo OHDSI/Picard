@@ -428,6 +428,52 @@ validateDatabaseConnectivity <- function(configBlock) {
 }
 
 
+#' @title Validate Task Index Uniqueness
+#' @description Checks that no two task names resolve to the same export prefix. Merged
+#'   result files are named \code{<prefix>_<file>.csv} by \code{\link{importAndBind}}, so
+#'   two tasks sharing a prefix — \code{"01_demographics"} and \code{"01_demo"} — both
+#'   write \code{01_*.csv} and the second silently overwrites the first.
+#'
+#'   Also reports names with no numeric prefix at all. Those do not collide (the prefix is
+#'   slugified from the whole name) but they stop merged filenames sorting in task order,
+#'   so they are reported as a warning rather than a failure.
+#' @param taskNames Character vector of task file names (extension optional) or task
+#'   result folder names.
+#' @return A list with:
+#'   * \code{duplicates} - named list, one entry per colliding prefix, each holding the
+#'     task names that share it;
+#'   * \code{unprefixed} - character vector of names without a leading \code{NN_};
+#'   * \code{total} - number of names checked.
+#' @seealso [taskExportPrefix()], which defines the prefix this compares.
+#' @keywords internal
+validateTaskIndices <- function(taskNames) {
+  checkmate::assert_character(taskNames, any.missing = FALSE)
+
+  taskNames <- fs::path_ext_remove(taskNames)
+
+  if (length(taskNames) == 0) {
+    ll <- list(duplicates = list(), unprefixed = character(0), total = 0L)
+    return(ll)
+  }
+
+  prefixes <- taskExportPrefix(taskNames)
+  collidingPrefixes <- unique(prefixes[duplicated(prefixes)])
+
+  duplicates <- stats::setNames(
+    lapply(collidingPrefixes, function(p) sort(taskNames[prefixes == p])),
+    collidingPrefixes
+  )
+
+  ll <- list(
+    duplicates = duplicates,
+    unprefixed = sort(taskNames[!grepl("^[0-9]+_", taskNames)]),
+    total = length(taskNames)
+  )
+
+  return(ll)
+}
+
+
 #' @title Validate Task File Dependencies
 #' @description Scans all task files in the tasks folder for static
 #'   \code{source("...")} calls and checks that each referenced path exists on
@@ -801,6 +847,47 @@ runPreflightChecks <- function(configBlock,
     status = task_check$status,
     message = task_check$message
   )
+
+  # 10b. Task index uniqueness — two tasks sharing an export prefix would overwrite each
+  # other's merged results (#151). Unprefixed names do not collide but break sort order,
+  # so they warn.
+  results[["Task indices"]] <- if (length(taskFilesToRun) == 0) {
+    list(name = "Task indices", status = "skip", message = "No task files to check")
+  } else {
+    idx <- validateTaskIndices(taskFilesToRun)
+
+    if (length(idx$duplicates) > 0) {
+      collisions <- vapply(
+        names(idx$duplicates),
+        function(p) paste0(p, ": ", paste(idx$duplicates[[p]], collapse = ", ")),
+        character(1)
+      )
+      list(
+        name = "Task indices",
+        status = "fail",
+        message = paste0(
+          length(idx$duplicates), " duplicate index/indices \u2014 ",
+          paste(collisions, collapse = "; ")
+        )
+      )
+    } else if (length(idx$unprefixed) > 0) {
+      list(
+        name = "Task indices",
+        status = "warn",
+        message = paste0(
+          length(idx$unprefixed), " task(s) without a numeric prefix (",
+          paste(idx$unprefixed, collapse = ", "),
+          ") \u2014 merged filenames will not sort in task order"
+        )
+      )
+    } else {
+      list(
+        name = "Task indices",
+        status = "pass",
+        message = paste0("All ", idx$total, " index/indices unique")
+      )
+    }
+  }
 
   # 11. Task source() dependencies (warn-only)
   task_deps <- validateTaskDependencies(tasksFolderPath)
