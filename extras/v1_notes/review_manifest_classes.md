@@ -22,11 +22,11 @@ questions are up front.
 
 | | |
 |---|---|
-| **0.0.9 — data loss fixes** | #158 (`4260771`) and #69 (`659c458`, `cdd45db`) **done**; #173 Part 1 (`caa78b8`) done. #166, #139, #121, #167 open |
+| **0.0.9 — data loss fixes** | **done:** #158 (`4260771`), #69 (`659c458`, `cdd45db`), #173 (`caa78b8`, `548f68f`). **open:** #166, #139, #121, #167 |
 | **Wave 2 (the gate)** | #157 + #165's H1/H3/H4/H8 — not started |
 | **Waves 3–4** | #144, #159, then #161, #165-remainder, #168, #160 — not started |
 | **Issues closed** | #46 and #64 (both retired into #163), #132 (superseded by #139), #156, #158 |
-| **Issues filed from this review** | #165, #166, #167, #168, #173 |
+| **Issues filed from this review** | #165, #166, #167, #168, #173 (closed), #174 |
 | **Blocked on the execution track** | #163's verify mode, pending the disagreement in §7. #162 (D12) is settled and unimplemented |
 | **Blocking the execution track** | **#144** — exec D11's builder-loop collapse and D13.8b both wait on it |
 | **Open review input** | Katy objects to exec D11's verify mode (#163) and has answered #144's `databaseId` question. §7 |
@@ -393,7 +393,7 @@ holding anything up.
 
 ---
 
-## 6.2 `resetCohortManifest()` — the scope split (filed as #173)
+## 6.2 `resetCohortManifest()` — the scope split (#173, **done**)
 
 **Context.** #69's real reproduction runs through this function. A manifest object holds a
 *path*, not a handle, so when `resetCohortManifest(scope = "manifest")` calls
@@ -478,7 +478,20 @@ accurate; the help page was not, which mattered for scripted callers passing
 
 So **#173 Part 1 is closed** and #173 now covers Part 2 only — the split.
 
-**Sequencing.** The split is a breaking API change on an exported function, so it belongs with
+### Outcome (`548f68f`)
+
+Landed with three deliberate departures from the plan above: the extracted verb is a
+**method** (`CohortManifest$clearDerivedCohorts()`) rather than an exported free function,
+so it uses the class's guarded `safe_connect()`; there is **no deprecation window** —
+`scope = "derived"` was removed outright; and the **`manifest` argument was dropped** from
+both reset functions, which this section had not proposed. `scope` now defaults to
+`"manifest"`, so a bare `resetCohortManifest()` is a teardown — accepted, with the
+confirmation prompt as the guard and `confirm = FALSE` as the exposure.
+
+Removing `"derived"` from `match.arg()` also exposed three unreachable branches and three
+stale doc references, now gone.
+
+**Sequencing (as planned).** The split is a breaking API change on an exported function, so it belongs with
 the other v1 breaks rather than in 0.0.9 — the `safe_connect()` guard already removes the
 data-loss consequence, which is what made it urgent. It also touches no manifest-class
 internals, so it is independent of #157/#159/#161 and can land whenever. Worth confirming
