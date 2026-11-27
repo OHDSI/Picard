@@ -609,3 +609,76 @@ testthat::test_that("checkAtlasConceptSets and updateAtlasConceptSets skip faile
     regexp = "Failed to fetch ATLAS concept set 100"
   )
 })
+
+# Testing: private-layer hardening (#167) for ConceptSetManifest in lockstep
+# with CohortManifest — early return on empty load, transactional ID allocation,
+# and bound parameters in tag queries.
+testthat::test_that("empty ConceptSetManifest loads to zero-length .manifest via early return", {
+  setup <- csm_test_new_manifest("mgmt-cs-empty-load")
+  manifest <- setup$manifest
+  priv <- manifest$.__enclos_env__$private
+
+  body_text <- paste(deparse(body(priv$load_manifest_from_db)), collapse = "\n")
+  testthat::expect_match(body_text, "return\\(invisible\\(NULL\\)\\)")
+
+  res <- priv$load_manifest_from_db()
+  testthat::expect_null(res)
+  testthat::expect_length(manifest$getManifest(), 0L)
+})
+
+testthat::test_that("insert_concept_set allocates sequential IDs inside a transaction", {
+  setup <- csm_test_new_manifest("mgmt-cs-insert-tx")
+  manifest <- setup$manifest
+
+  tx_calls <- 0L
+  real_tx <- DBI::dbWithTransaction
+  testthat::with_mocked_bindings(
+    dbWithTransaction = function(conn, code, ...) {
+      tx_calls <<- tx_calls + 1L
+      real_tx(conn, code, ...)
+    },
+    .package = "DBI",
+    {
+      csm_test_add_file(setup, label = "Tx CS 1", category = "condition_occurrence")
+      csm_test_add_file(setup, label = "Tx CS 2", category = "condition_occurrence")
+    }
+  )
+
+  testthat::expect_equal(tx_calls, 2L)
+  tbl <- manifest$tabulateManifest()
+  testthat::expect_equal(sort(tbl$id), c(1L, 2L))
+})
+
+testthat::test_that("ConceptSetManifest tag methods bind parameters and removeConceptSetTag returns early when missing", {
+  setup <- csm_test_new_manifest("mgmt-cs-tags-bound")
+  manifest <- setup$manifest
+  csm_test_add_file(setup, label = "Tag CS", category = "condition_occurrence")
+  cs_id <- manifest$tabulateManifest()$id[[1]]
+
+  seen_selects <- list()
+  real_get_query <- DBI::dbGetQuery
+  testthat::with_mocked_bindings(
+    dbGetQuery = function(conn, statement, ...) {
+      if (grepl("SELECT tags FROM concept_set_manifest", statement, fixed = TRUE)) {
+        seen_selects[[length(seen_selects) + 1L]] <<- list(statement = statement, dots = list(...))
+      }
+      real_get_query(conn, statement, ...)
+    },
+    .package = "DBI",
+    {
+      manifest$addConceptSetTag(cs_id, "owner", "alice")
+      testthat::expect_equal(manifest$getConceptSetTags(cs_id)$owner, "alice")
+      manifest$modifyConceptSetTagValue(cs_id, "owner", "bob")
+      manifest$mergeTagsIntoConceptSet(cs_id, list(stage = "qa"))
+      msgs <- testthat::capture_messages(manifest$removeConceptSetTag(cs_id, "missing_tag"))
+      testthat::expect_false(any(grepl("Removed tag", msgs, fixed = TRUE)))
+      manifest$removeConceptSetTag(cs_id, "owner")
+    }
+  )
+
+  testthat::expect_equal(length(seen_selects), 6L)
+  for (call_info in seen_selects) {
+    testthat::expect_match(call_info$statement, "WHERE id = \\?")
+    testthat::expect_true(length(call_info$dots) >= 1L)
+  }
+})

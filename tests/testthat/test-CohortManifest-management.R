@@ -1478,3 +1478,100 @@ testthat::test_that("checkAtlasCohorts and updateAtlasCohorts skip failed fetche
     regexp = "Failed to fetch ATLAS cohort 100"
   )
 })
+
+# Testing: private-layer hardening (#167) — parameter binding in
+# validate_parent_cohorts_exist() and tag queries, early return on empty
+# load_manifest_from_db(), and transactional ID allocation in insert_cohort().
+testthat::test_that("validate_parent_cohorts_exist binds parameters for long and non-contiguous IDs", {
+  setup <- cm_test_new_manifest("mgmt-validate-parents-bound")
+  manifest <- setup$manifest
+  priv <- manifest$.__enclos_env__$private
+
+  # Insert 60 cohorts directly so we can test a long vector and non-contiguous IDs
+  conn <- DBI::dbConnect(RSQLite::SQLite(), manifest$getDbPath())
+  on.exit(DBI::dbDisconnect(conn), add = TRUE)
+  for (i in seq_len(60L)) {
+    DBI::dbExecute(
+      conn,
+      "INSERT INTO cohort_manifest (id, label, category, tags, file_path, hash, source_type, cohort_type, status)
+       VALUES (?, ?, 'Target', NULL, ?, ?, 'custom', 'custom', 'active')",
+      list(i, paste0("Cohort_", i), paste0("inputs/cohorts/sql/c_", i, ".sql"), paste0("hash_", i))
+    )
+  }
+
+  seen_calls <- list()
+  real_get_query <- DBI::dbGetQuery
+  testthat::with_mocked_bindings(
+    dbGetQuery = function(conn, statement, ...) {
+      seen_calls[[length(seen_calls) + 1L]] <<- list(statement = statement, dots = list(...))
+      real_get_query(conn, statement, ...)
+    },
+    .package = "DBI",
+    {
+      # Long ID vector
+      testthat::expect_no_error(priv$validate_parent_cohorts_exist(seq_len(60L)))
+      # Non-contiguous ID vector
+      testthat::expect_no_error(priv$validate_parent_cohorts_exist(c(1L, 17L, 42L, 60L)))
+      # Missing ID still aborts
+      testthat::expect_error(
+        priv$validate_parent_cohorts_exist(c(1L, 999L)),
+        regexp = "999"
+      )
+    }
+  )
+
+  testthat::expect_equal(length(seen_calls), 3L)
+  for (call_info in seen_calls) {
+    testthat::expect_match(call_info$statement, "WHERE id IN \\(\\?(, \\?)*\\)")
+    testthat::expect_true(length(call_info$dots) >= 1L)
+  }
+})
+
+testthat::test_that("empty CohortManifest loads to zero-length .manifest via early return", {
+  setup <- cm_test_new_manifest("mgmt-empty-load")
+  manifest <- setup$manifest
+  priv <- manifest$.__enclos_env__$private
+
+  # Ensure load_manifest_from_db returns early without reaching the loop when empty
+  body_text <- paste(deparse(body(priv$load_manifest_from_db)), collapse = "\n")
+  testthat::expect_match(body_text, "return\\(invisible\\(NULL\\)\\)")
+
+  res <- priv$load_manifest_from_db()
+  testthat::expect_null(res)
+  testthat::expect_length(manifest$getManifest(), 0L)
+})
+
+testthat::test_that("insert_cohort allocates sequential IDs inside a transaction", {
+  setup <- cm_test_new_manifest("mgmt-insert-tx")
+  manifest <- setup$manifest
+
+  tx_calls <- 0L
+  real_tx <- DBI::dbWithTransaction
+  testthat::with_mocked_bindings(
+    dbWithTransaction = function(conn, code, ...) {
+      tx_calls <<- tx_calls + 1L
+      real_tx(conn, code, ...)
+    },
+    .package = "DBI",
+    {
+      cm_test_add_circe_cohort(
+        manifest,
+        setup$paths,
+        label = "Tx Cohort 1",
+        category = "Target",
+        fixture_name = "t2d.json"
+      )
+      cm_test_add_circe_cohort(
+        manifest,
+        setup$paths,
+        label = "Tx Cohort 2",
+        category = "Target",
+        fixture_name = "ckd.json"
+      )
+    }
+  )
+
+  testthat::expect_equal(tx_calls, 2L)
+  tbl <- manifest$tabulateManifest()
+  testthat::expect_equal(sort(tbl$id), c(1L, 2L))
+})

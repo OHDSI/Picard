@@ -161,7 +161,7 @@ CohortManifest <- R6::R6Class(
 
       if (nrow(rows) == 0) {
         private$.manifest <- list()
-        invisible(NULL)
+        return(invisible(NULL))
       }
 
       manifest <- list()
@@ -547,16 +547,21 @@ CohortManifest <- R6::R6Class(
     # parent is a valid parent — it is registered and will be regenerated
     # before its dependents on the next generateCohorts() run.
     validate_parent_cohorts_exist = function(cohortIds) {
+      if (length(cohortIds) == 0L) {
+        return(invisible(NULL))
+      }
+
       conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
       on.exit(DBI::dbDisconnect(conn))
 
-      ids_str <- paste(cohortIds, collapse = ", ")
+      placeholders <- paste(rep("?", length(cohortIds)), collapse = ", ")
       existing <- DBI::dbGetQuery(
         conn,
         paste0(
-          "SELECT id FROM cohort_manifest WHERE id IN (", ids_str, ")",
+          "SELECT id FROM cohort_manifest WHERE id IN (", placeholders, ")",
           " AND status IN ('active', 'stale')"
-        )
+        ),
+        as.list(as.integer(cohortIds))
       )
 
       missing_ids <- setdiff(as.integer(cohortIds), existing$id)
@@ -941,13 +946,6 @@ CohortManifest <- R6::R6Class(
         ))
       }
 
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
-      on.exit(DBI::dbDisconnect(conn))
-
-      # Get next available ID
-      max_id_result <- DBI::dbGetQuery(conn, "SELECT MAX(id) as max_id FROM cohort_manifest")
-      next_id <- if (is.na(max_id_result$max_id[1])) 1L else as.integer(max_id_result$max_id[1]) + 1L
-
       # Compute hash from file contents. Resolve the incoming path first: a
       # relative path checked/read against the wrong working directory would
       # silently produce the label sentinel or the wrong hash. Every add*()
@@ -983,12 +981,22 @@ CohortManifest <- R6::R6Class(
         dep_rule_json <- NA_character_
       }
 
-      DBI::dbExecute(
-        conn,
-        "INSERT INTO cohort_manifest (id, label, category, tags, file_path, hash, source_type, cohort_type, depends_on, dependency_rule, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
-        list(next_id, label, category, tags_json, file_path, hash, source_type, cohort_type, depends_on_json, dep_rule_json)
-      )
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      next_id <- DBI::dbWithTransaction(conn, {
+        # Get next available ID
+        max_id_result <- DBI::dbGetQuery(conn, "SELECT MAX(id) as max_id FROM cohort_manifest")
+        id_val <- if (is.na(max_id_result$max_id[1])) 1L else as.integer(max_id_result$max_id[1]) + 1L
+
+        DBI::dbExecute(
+          conn,
+          "INSERT INTO cohort_manifest (id, label, category, tags, file_path, hash, source_type, cohort_type, depends_on, dependency_rule, status, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+          list(id_val, label, category, tags_json, file_path, hash, source_type, cohort_type, depends_on_json, dep_rule_json)
+        )
+        id_val
+      })
 
       # Refresh in-memory manifest
       private$load_manifest_from_db()
@@ -3734,7 +3742,8 @@ CohortManifest <- R6::R6Class(
 
       current_tags_json <- DBI::dbGetQuery(
         conn,
-        paste0("SELECT tags FROM cohort_manifest WHERE id = ", cohortId, " AND status IN ('active', 'stale')")
+        "SELECT tags FROM cohort_manifest WHERE id = ? AND status IN ('active', 'stale')",
+        list(as.integer(cohortId))
       )
 
       if (nrow(current_tags_json) == 0) {
@@ -3747,7 +3756,7 @@ CohortManifest <- R6::R6Class(
       # Check if tag exists
       if (!tagName %in% names(current_tags)) {
         cli::cli_alert_warning("Tag '{tagName}' not found in cohort {cohortId}")
-        invisible(NULL)
+        return(invisible(NULL))
       }
 
       # Remove tag
@@ -3778,7 +3787,8 @@ CohortManifest <- R6::R6Class(
 
       current_tags_json <- DBI::dbGetQuery(
         conn,
-        paste0("SELECT tags FROM cohort_manifest WHERE id = ", cohortId, " AND status IN ('active', 'stale')")
+        "SELECT tags FROM cohort_manifest WHERE id = ? AND status IN ('active', 'stale')",
+        list(as.integer(cohortId))
       )
 
       if (nrow(current_tags_json) == 0) {
@@ -3824,7 +3834,8 @@ CohortManifest <- R6::R6Class(
 
       current_tags_json <- DBI::dbGetQuery(
         conn,
-        paste0("SELECT tags FROM cohort_manifest WHERE id = ", cohortId, " AND status IN ('active', 'stale')")
+        "SELECT tags FROM cohort_manifest WHERE id = ? AND status IN ('active', 'stale')",
+        list(as.integer(cohortId))
       )
 
       if (nrow(current_tags_json) == 0) {
@@ -3857,7 +3868,8 @@ CohortManifest <- R6::R6Class(
 
       current_tags_json <- DBI::dbGetQuery(
         conn,
-        paste0("SELECT tags FROM cohort_manifest WHERE id = ", cohortId, " AND status IN ('active', 'stale')")
+        "SELECT tags FROM cohort_manifest WHERE id = ? AND status IN ('active', 'stale')",
+        list(as.integer(cohortId))
       )
 
       if (nrow(current_tags_json) == 0) {
@@ -3884,7 +3896,8 @@ CohortManifest <- R6::R6Class(
 
       current_tags_json <- DBI::dbGetQuery(
         conn,
-        paste0("SELECT tags FROM cohort_manifest WHERE id = ", cohortId, " AND status IN ('active', 'stale')")
+        "SELECT tags FROM cohort_manifest WHERE id = ? AND status IN ('active', 'stale')",
+        list(as.integer(cohortId))
       )
 
       if (nrow(current_tags_json) == 0) {
