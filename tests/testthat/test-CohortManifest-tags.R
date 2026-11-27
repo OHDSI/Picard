@@ -351,7 +351,7 @@ testthat::test_that("getTagValue returns NULL for missing tag", {
   testthat::expect_null(result)
 })
 
-# Testing: removeCohortTag returns invisibly when tag doesn't exist
+# Testing: removeCohortTag returns invisibly when tag doesn't exist without updating
 testthat::test_that("removeCohortTag handles missing tag gracefully", {
   setup <- cm_test_seed_manifest_for_queries("tags-edge-remove-missing")
   manifest <- setup$manifest
@@ -359,8 +359,11 @@ testthat::test_that("removeCohortTag handles missing tag gracefully", {
   row <- manifest$queryCohortsByLabel("Type 2 Diabetes", matchType = "exact")
   cohort_id <- as.integer(row$id[[1]])
 
-  # Should not error
-  testthat::expect_invisible(manifest$removeCohortTag(cohort_id, "nonexistent_tag"))
+  msgs <- testthat::capture_messages(
+    res <- testthat::expect_invisible(manifest$removeCohortTag(cohort_id, "nonexistent_tag"))
+  )
+  testthat::expect_null(res)
+  testthat::expect_false(any(grepl("Removed tag", msgs, fixed = TRUE)))
 })
 
 # Testing: queryCohortsMissingTag returns NULL when all have tag
@@ -582,4 +585,37 @@ testthat::test_that("tag summaries work over the default nested tags format", {
   summary_tbl <- manifest$getTagValuesSummary("reviewer")
   testthat::expect_equal(summary_tbl$value, "alice")
   testthat::expect_equal(summary_tbl$count, 1L)
+})
+
+# Testing: CohortManifest tag lookup queries bind cohortId as a parameter (#167).
+testthat::test_that("CohortManifest tag methods bind cohortId parameters", {
+  setup <- cm_test_seed_manifest_for_queries("tags-bound-params")
+  manifest <- setup$manifest
+  row <- manifest$queryCohortsByLabel("Type 2 Diabetes", matchType = "exact")
+  cohort_id <- as.integer(row$id[[1]])
+
+  seen_selects <- list()
+  real_get_query <- DBI::dbGetQuery
+  testthat::with_mocked_bindings(
+    dbGetQuery = function(conn, statement, ...) {
+      if (grepl("SELECT tags FROM cohort_manifest", statement, fixed = TRUE)) {
+        seen_selects[[length(seen_selects) + 1L]] <<- list(statement = statement, dots = list(...))
+      }
+      real_get_query(conn, statement, ...)
+    },
+    .package = "DBI",
+    {
+      manifest$addCohortTag(cohort_id, "owner", "alice")
+      testthat::expect_equal(manifest$getCohortTags(cohort_id)$owner, "alice")
+      manifest$modifyCohortTagValue(cohort_id, "owner", "bob")
+      manifest$mergeTagsIntoCohort(cohort_id, list(stage = "qa"))
+      manifest$removeCohortTag(cohort_id, "owner")
+    }
+  )
+
+  testthat::expect_equal(length(seen_selects), 5L)
+  for (call_info in seen_selects) {
+    testthat::expect_match(call_info$statement, "WHERE id = \\?")
+    testthat::expect_true(length(call_info$dots) >= 1L)
+  }
 })

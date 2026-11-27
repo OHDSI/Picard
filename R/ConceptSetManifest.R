@@ -80,7 +80,7 @@ ConceptSetManifest <- R6::R6Class(
       private$.manifest <- list()
 
       if (nrow(db_records) == 0) {
-        invisible(NULL)
+        return(invisible(NULL))
       }
 
       for (i in seq_len(nrow(db_records))) {
@@ -149,13 +149,6 @@ ConceptSetManifest <- R6::R6Class(
 
     # Insert a new concept set record into SQLite and refresh the in-memory manifest
     insert_concept_set = function(label, category, tags, file_path) {
-      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
-      on.exit(DBI::dbDisconnect(conn))
-
-      # Auto-increment ID (never reuse IDs, even for deleted rows)
-      max_id_result <- DBI::dbGetQuery(conn, "SELECT MAX(id) as max_id FROM concept_set_manifest")
-      next_id <- if (is.na(max_id_result$max_id[1])) 1L else as.integer(max_id_result$max_id[1]) + 1L
-
       # Compute hash from file contents. Resolve the incoming path first: a
       # relative path checked/read against the wrong working directory would
       # silently produce the label sentinel or the wrong hash. Every add*()
@@ -181,12 +174,22 @@ ConceptSetManifest <- R6::R6Class(
       # loads correctly regardless of who registered the file or from where.
       rel_path <- private$to_manifest_path(file_path)
 
-      DBI::dbExecute(
-        conn,
-        "INSERT INTO concept_set_manifest (id, label, category, tags, file_path, hash, status,created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
-        list(next_id, label, category, tags_json, rel_path, hash)
-      )
+      conn <- DBI::dbConnect(RSQLite::SQLite(), private$.dbPath)
+      on.exit(DBI::dbDisconnect(conn))
+
+      next_id <- DBI::dbWithTransaction(conn, {
+        # Auto-increment ID (never reuse IDs, even for deleted rows)
+        max_id_result <- DBI::dbGetQuery(conn, "SELECT MAX(id) as max_id FROM concept_set_manifest")
+        id_val <- if (is.na(max_id_result$max_id[1])) 1L else as.integer(max_id_result$max_id[1]) + 1L
+
+        DBI::dbExecute(
+          conn,
+          "INSERT INTO concept_set_manifest (id, label, category, tags, file_path, hash, status,created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+          list(id_val, label, category, tags_json, rel_path, hash)
+        )
+        id_val
+      })
 
       private$load_manifest_from_db()
       return(next_id)
@@ -2039,7 +2042,8 @@ ConceptSetManifest <- R6::R6Class(
 
       current_tags_json <- DBI::dbGetQuery(
         conn,
-        paste0("SELECT tags FROM concept_set_manifest WHERE id = ", conceptSetId, " AND status = 'active'")
+        "SELECT tags FROM concept_set_manifest WHERE id = ? AND status = 'active'",
+        list(as.integer(conceptSetId))
       )
 
       if (nrow(current_tags_json) == 0) {
@@ -2052,7 +2056,7 @@ ConceptSetManifest <- R6::R6Class(
       # Check if tag exists
       if (!tagName %in% names(current_tags)) {
         cli::cli_alert_warning("Tag '{tagName}' not found in concept set {conceptSetId}")
-        invisible(NULL)
+        return(invisible(NULL))
       }
 
       # Remove tag
@@ -2083,7 +2087,8 @@ ConceptSetManifest <- R6::R6Class(
 
       current_tags_json <- DBI::dbGetQuery(
         conn,
-        paste0("SELECT tags FROM concept_set_manifest WHERE id = ", conceptSetId, " AND status = 'active'")
+        "SELECT tags FROM concept_set_manifest WHERE id = ? AND status = 'active'",
+        list(as.integer(conceptSetId))
       )
 
       if (nrow(current_tags_json) == 0) {
@@ -2129,7 +2134,8 @@ ConceptSetManifest <- R6::R6Class(
 
       current_tags_json <- DBI::dbGetQuery(
         conn,
-        paste0("SELECT tags FROM concept_set_manifest WHERE id = ", conceptSetId, " AND status = 'active'")
+        "SELECT tags FROM concept_set_manifest WHERE id = ? AND status = 'active'",
+        list(as.integer(conceptSetId))
       )
 
       if (nrow(current_tags_json) == 0) {
@@ -2162,7 +2168,8 @@ ConceptSetManifest <- R6::R6Class(
 
       current_tags_json <- DBI::dbGetQuery(
         conn,
-        paste0("SELECT tags FROM concept_set_manifest WHERE id = ", conceptSetId, " AND status = 'active'")
+        "SELECT tags FROM concept_set_manifest WHERE id = ? AND status = 'active'",
+        list(as.integer(conceptSetId))
       )
 
       if (nrow(current_tags_json) == 0) {
@@ -2189,7 +2196,8 @@ ConceptSetManifest <- R6::R6Class(
 
       current_tags_json <- DBI::dbGetQuery(
         conn,
-        paste0("SELECT tags FROM concept_set_manifest WHERE id = ", conceptSetId, " AND status = 'active'")
+        "SELECT tags FROM concept_set_manifest WHERE id = ? AND status = 'active'",
+        list(as.integer(conceptSetId))
       )
 
       if (nrow(current_tags_json) == 0) {
